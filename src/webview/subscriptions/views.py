@@ -141,6 +141,60 @@ class RemoveSubscriptionView(LoginRequiredMixin, TemplateView):
             return redirect(reverse("webview:subscriptions:center"))
 
 
+class ToggleAutoSubscribeView(LoginRequiredMixin, TemplateView):
+    """Toggle auto-subscription to maintained packages."""
+
+    template_name = "subscriptions/components/auto_subscribe.html"
+
+    def post(self, request: HttpRequest) -> HttpResponse:
+        """Toggle auto-subscription setting."""
+        action = request.POST.get("action", "")
+
+        if action not in ["enable", "disable"]:
+            return self._handle_error(request, "Invalid action.")
+
+        profile = request.user.profile
+
+        if action == "enable":
+            if profile.auto_subscribe_to_maintained_packages:
+                return self._handle_error(
+                    request, "Auto-subscription is already enabled."
+                )
+            profile.auto_subscribe_to_maintained_packages = True
+        else:  # disable
+            if not profile.auto_subscribe_to_maintained_packages:
+                return self._handle_error(
+                    request, "Auto-subscription is already disabled."
+                )
+            profile.auto_subscribe_to_maintained_packages = False
+
+        profile.save(update_fields=["auto_subscribe_to_maintained_packages"])
+
+        # Handle HTMX vs standard request
+        if request.headers.get("HX-Request"):
+            return self.render_to_response(
+                {
+                    "auto_subscribe_enabled": profile.auto_subscribe_to_maintained_packages,
+                }
+            )
+        else:
+            return redirect(reverse("webview:subscriptions:center"))
+
+    def _handle_error(self, request: HttpRequest, error_message: str) -> HttpResponse:
+        """Handle error responses for both HTMX and standard requests."""
+        if request.headers.get("HX-Request"):
+            return self.render_to_response(
+                {
+                    "auto_subscribe_enabled": request.user.profile.auto_subscribe_to_maintained_packages,
+                    "error_message": error_message,
+                }
+            )
+        else:
+            # Without javascript, we use Django messages for the errors
+            messages.error(request, error_message)
+            return redirect(reverse("webview:subscriptions:center"))
+
+
 class PackageSubscriptionView(LoginRequiredMixin, TemplateView):
     """Display a package subscription page for a specific package."""
 
@@ -163,6 +217,11 @@ class PackageSubscriptionView(LoginRequiredMixin, TemplateView):
             )
         else:
             context["is_subscribed"] = False
+
+        # Check if user maintains this package and has automatic subscription enabled
+        context["auto_subscribe_enabled"] = (
+            self.request.user.profile.auto_subscribe_to_maintained_packages
+        )
 
         return context
 

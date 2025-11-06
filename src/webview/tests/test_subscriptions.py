@@ -100,6 +100,35 @@ class SubscriptionTests(TestCase):
             parent_evaluation=self.evaluation,
         )
 
+        # Create a maintainer for the test user
+        self.user_maintainer = NixMaintainer.objects.create(
+            github_id=123456,  # Same as the user's social account uid
+            github="testuser",  # Same as the user's username
+            name="Test User",
+            email="testuser@example.com",
+        )
+
+        # Create metadata for a package where test user is maintainer
+        self.meta3 = NixDerivationMeta.objects.create(
+            description="Test package maintained by test user",
+            insecure=False,
+            available=True,
+            broken=False,
+            unfree=False,
+            unsupported=False,
+        )
+        self.meta3.maintainers.add(self.user_maintainer)
+
+        # Create a package where the test user is a maintainer
+        self.user_maintained_package = NixDerivation.objects.create(
+            attribute="neovim",
+            derivation_path="/nix/store/neovim.drv",
+            name="neovim-0.9.5",
+            metadata=self.meta3,
+            system="x86_64-linux",
+            parent_evaluation=self.evaluation,
+        )
+
     def test_user_subscribes_to_valid_package_success(self) -> None:
         """Test successful subscription to an existing package"""
         url = reverse("webview:subscriptions:add")
@@ -356,7 +385,7 @@ class SubscriptionTests(TestCase):
         add_url = reverse("webview:subscriptions:add")
         self.client.post(add_url, {"package_name": "firefox"}, HTTP_HX_REQUEST="true")
 
-        # Create CVE and container - this should trigger automatic linkage and then notifications
+        # Create CVE and container
         assigner = Organization.objects.create(uuid=1, short_name="test_org")
         cve_record = CveRecord.objects.create(
             cve_id="CVE-2025-0001",
@@ -400,6 +429,115 @@ class SubscriptionTests(TestCase):
         self.assertIn("firefox", notification.title)
         self.assertIn("CVE-2025-0001", notification.message)
         self.assertFalse(notification.is_read)  # Should be unread initially
+
+    def test_user_receives_notification_for_maintained_package_suggestion(self) -> None:
+        """Test that users receive notifications when suggestions affect packages they maintain (automatic subscription)"""
+
+        # Create CVE and container
+        assigner = Organization.objects.create(uuid=2, short_name="test_org2")
+        cve_record = CveRecord.objects.create(
+            cve_id="CVE-2025-0002",
+            assigner=assigner,
+        )
+
+        description = Description.objects.create(value="Test neovim vulnerability")
+        metric = Metric.objects.create(format="cvssV3_1", raw_cvss_json={})
+        affected_product = AffectedProduct.objects.create(package_name="neovim")
+        affected_product.versions.add(
+            Version.objects.create(status=Version.Status.AFFECTED, version="0.9.5")
+        )
+
+        container = cve_record.container.create(
+            provider=assigner,
+            title="Neovim Security Issue",
+        )
+
+        container.affected.set([affected_product])
+        container.descriptions.set([description])
+        container.metrics.set([metric])
+
+        # Trigger the linkage and notification system manually since pgpubsub triggers won't work in tests
+        linkage_created = build_new_links(container)
+
+        if linkage_created:
+            # Get the created proposal and trigger notifications
+            suggestion = CVEDerivationClusterProposal.objects.get(cve=cve_record)
+            create_package_subscription_notifications(suggestion)
+
+        # Verify notification appears in notification center context
+        response = self.client.get(reverse("webview:notifications:center"))
+        self.assertEqual(response.status_code, 200)
+
+        # Check that notification appears in context
+        notifications = response.context["notifications"]
+        self.assertEqual(len(notifications), 1)
+
+        notification = notifications[0]
+        self.assertEqual(notification.user, self.user)
+        self.assertIn("neovim", notification.title)
+        self.assertIn("CVE-2025-0002", notification.message)
+        self.assertFalse(notification.is_read)  # Should be unread initially
+
+    def test_user_does_not_receive_notification_when_auto_subscribe_disabled(
+        self,
+    ) -> None:
+        """Test that users do NOT receive notifications for maintained packages when auto-subscription is disabled"""
+        # Disable auto-subscription using the view
+        toggle_url = reverse("webview:subscriptions:toggle_auto_subscribe")
+        response = self.client.post(
+            toggle_url, {"action": "disable"}, HTTP_HX_REQUEST="true"
+        )
+
+        # Should return 200 with component template for HTMX request
+        self.assertEqual(response.status_code, 200)
+        self.assertTemplateUsed(
+            response, "subscriptions/components/auto_subscribe.html"
+        )
+
+        # Verify auto-subscription is disabled in response context
+        self.assertIn("auto_subscribe_enabled", response.context)
+        self.assertFalse(response.context["auto_subscribe_enabled"])
+
+        # Create CVE and container
+        assigner = Organization.objects.create(uuid=3, short_name="test_org3")
+        cve_record = CveRecord.objects.create(
+            cve_id="CVE-2025-0003",
+            assigner=assigner,
+        )
+
+        description = Description.objects.create(
+            value="Test neovim vulnerability with auto-subscribe disabled"
+        )
+        metric = Metric.objects.create(format="cvssV3_1", raw_cvss_json={})
+        affected_product = AffectedProduct.objects.create(package_name="neovim")
+        affected_product.versions.add(
+            Version.objects.create(status=Version.Status.AFFECTED, version="0.9.5")
+        )
+
+        container = cve_record.container.create(
+            provider=assigner,
+            title="Neovim Security Issue",
+        )
+
+        container.affected.set([affected_product])
+        container.descriptions.set([description])
+        container.metrics.set([metric])
+
+        # Trigger the linkage and notification system manually since pgpubsub triggers won't work in tests
+        linkage_created = build_new_links(container)
+
+        if linkage_created:
+            # Get the created proposal and trigger notifications
+            suggestion = CVEDerivationClusterProposal.objects.get(cve=cve_record)
+            create_package_subscription_notifications(suggestion)
+
+        # Verify NO notification appears in notification center context
+        response = self.client.get(reverse("webview:notifications:center"))
+        self.assertEqual(response.status_code, 200)
+
+        # Check that NO notifications appear in context
+        notifications = response.context["notifications"]
+        self.assertEqual(len(notifications), 0)
 
     def test_package_subscription_page_shows_valid_package(self) -> None:
         """Test that the package subscription page displays correctly for valid packages"""

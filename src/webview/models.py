@@ -20,7 +20,11 @@ class Profile(models.Model):
         models.CharField(max_length=255),
         default=list,
         blank=True,
-        help_text="Package attribute names this user has subscribed to (e.g., 'firefox', 'chromium')",
+        help_text="Package attribute names this user has subscribed to manually (e.g., 'firefox', 'chromium')",
+    )
+    auto_subscribe_to_maintained_packages = models.BooleanField(
+        default=True,
+        help_text="Automatically subscribe to notifications for packages this user maintains",
     )
 
     def recalculate_unread_notifications_count(self) -> None:

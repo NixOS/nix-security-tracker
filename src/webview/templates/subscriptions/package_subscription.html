@@ -28,10 +28,10 @@
     <div class="package-detail">
       <h2>{{ package_name }}</h2>
       <p>Subscribe to receive notifications about security alerts suggestions that may affect this package.</p>
-      <div class="subscription-panel {% if is_subscribed %}subscribed{% else %}unsubscribed{% endif %}">
-        <div class="subscription-status">
-          <div class="status-icon">{% if is_subscribed %}✓{% else %}✕{% endif %}</div>
-          <div class="status-text">You are {% if not is_subscribed %}not{% endif %} subscribed to this package</div>
+      <div class="toggler {% if is_subscribed %}toggler-on{% else %}toggler-off{% endif %}">
+        <div class="toggler-status">
+          <div class="toggler-icon">{% if is_subscribed %}✓{% else %}✕{% endif %}</div>
+          <div>You are {% if not is_subscribed %}not{% endif %} subscribed to this package</div>
         </div>
         <form method="post" class="subscription-form">
           {% csrf_token %}

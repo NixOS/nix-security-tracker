@@ -1,0 +1,22 @@
+{% load viewutils %}
+
+<div class="auto-subscribe-toggler toggler {% if auto_subscribe_enabled %}toggler-on{% else %}toggler-off{% endif %}">
+  <div class="toggler-status">
+    <div class="toggler-icon">{% if auto_subscribe_enabled %}✓{% else %}✕{% endif %}</div>
+    <div>{% if auto_subscribe_enabled %}You will automatically receive notifications about packages you maintain.{% else %}By default, you won't receive notifications for the packages you maintain.{% endif %}</div>
+  </div>
+  <form method="post" 
+        action="{% url 'webview:subscriptions:toggle_auto_subscribe' %}" 
+        hx-post="{% url 'webview:subscriptions:toggle_auto_subscribe' %}" 
+        hx-target="closest .auto-subscribe-toggler" 
+        hx-swap="outerHTML">
+    {% csrf_token %}
+    {% if auto_subscribe_enabled %}
+      <input type="hidden" name="action" value="disable">
+      <button type="submit">Disable</button>
+    {% else %}
+      <input type="hidden" name="action" value="enable">
+      <button type="submit">Enable</button>
+    {% endif %}
+  </form>
+</div>

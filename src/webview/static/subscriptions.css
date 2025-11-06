@@ -128,7 +128,9 @@
   font-weight: bold;
 }
 
-.package-subscription .subscription-panel {
+/* Togglers */
+
+.toggler {
   display: flex;
   justify-content: space-between;
   align-items: center;
@@ -137,35 +139,35 @@
   border-radius: 0.2em;
 }
 
-.package-subscription .subscription-panel.subscribed {
+.toggler-on {
   background: var(--subscription-subscribe-background-color);
 }
 
-.package-subscription .subscription-panel.unsubscribed {
+.toggler-off {
   background: #eee;
 }
 
-.package-subscription .subscription-panel button {
+.toggler button {
   border: none;
   border-radius: 0.2em;
   padding: 0.4em 1em;
   cursor: pointer;
 }
 
-.package-subscription .subscribed button {
+.toggler-on button {
   color: var(--subscription-unsubscribe-color);
   background: white;
   border: solid 1px var(--subscription-unsubscribe-color);
   font-weight: bold;
 }
 
-.package-subscription .unsubscribed button {
+.toggler-off button {
   background: var(--subscription-subscribe-color);
   color: white;
   font-weight: bold;
 }
 
-.package-subscription .subscription-status {
+.toggler-status {
   display: flex;
   justify-content: space-between;
   align-items: center;
@@ -173,14 +175,14 @@
   font-weight: bold;
 }
 
-.package-subscription .subscription-status .status-icon {
+.toggler-icon {
   font-size: 3em;
 }
 
-.package-subscription .subscribed .subscription-status {
+.toggler-on .toggler-status {
   color: var(--subscription-subscribe-color);
 }
 
-.package-subscription .unsubscribed .subscription-status {
+.toggler-off .toggler-status {
   color: #777;
 }

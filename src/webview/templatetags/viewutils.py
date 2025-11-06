@@ -100,6 +100,11 @@ class PackageSubscriptionsContext(TypedDict):
     error_message: str | None
 
 
+class AutoSubscribeContext(TypedDict):
+    auto_subscribe_enabled: bool
+    error_message: str | None
+
+
 @register.filter
 def getitem(dictionary: dict, key: str) -> Any | None:
     return dictionary.get(key)
@@ -119,6 +124,17 @@ def package_subscriptions(
 ) -> PackageSubscriptionsContext:
     return {
         "package_subscriptions": package_subscriptions,
+        "error_message": error_message,
+    }
+
+
+@register.inclusion_tag("subscriptions/components/auto_subscribe.html")
+def auto_subscribe_toggle(
+    auto_subscribe_enabled: bool,
+    error_message: str | None = None,
+) -> AutoSubscribeContext:
+    return {
+        "auto_subscribe_enabled": auto_subscribe_enabled,
         "error_message": error_message,
     }
 
