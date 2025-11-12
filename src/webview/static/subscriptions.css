@@ -1,5 +1,4 @@
 :root {
-  --subscription-error-color: #d31919;
   --subscription-subscribe-color: #48a564;
   --subscription-subscribe-background-color: #d9fce3;
   --subscription-unsubscribe-color: #d31919;
@@ -13,16 +12,6 @@
   background-position: left;
   background-repeat: no-repeat;
   background-image: url("/static/eye.svg");
-}
-
-.subscriptions-center-message,
-.package-subscriptions .message {
-  background: var(--subscription-error-color);
-  color: white;
-  font-weight: bold;
-  padding: 0.5em;
-  margin: 0.5em;
-  border-radius: 0.2em;
 }
 
 .subscription-center-header > h1 {
@@ -102,7 +91,7 @@
 }
 
 .package-subscription .package-not-found {
-  background: var(--subscription-error-color);
+  background: var(--error-color);
   color: white;
   padding: 2em;
   margin: 2em;
