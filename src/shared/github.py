@@ -27,6 +27,7 @@ def get_gh(per_page: int = 30) -> Github:
 def create_gh_issue(
     cached_suggestion: CachedSuggestions,
     tracker_issue_uri: str,
+    comment: str | None = None,
     github: Github = get_gh(),
 ) -> GithubIssue:
     """
@@ -105,6 +106,18 @@ def create_gh_issue(
 {"\n".join(packages)}
 </details>"""
 
+    def additional_comment() -> str:
+        if comment:
+            return f"""
+
+## Additional comment
+
+```
+{comment}
+```"""
+        else:
+            return ""
+
     repo = github.get_repo(f"{settings.GH_ORGANIZATION}/{settings.GH_ISSUES_REPO}")
     title = cached_suggestion.payload["title"]
 
@@ -116,7 +129,7 @@ def create_gh_issue(
 
 {cached_suggestion.payload["description"]}
 {cvss_details()}
-{affected_nix_packages()}"""
+{affected_nix_packages()}{additional_comment()}"""
 
     return repo.create_issue(title=title, body=body, labels=settings.GH_ISSUES_LABELS)
 

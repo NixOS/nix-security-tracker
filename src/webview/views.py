@@ -3,6 +3,7 @@ import re
 import typing
 from typing import Any, cast
 
+from django.contrib import messages
 from django.core.validators import RegexValidator
 from django.db import transaction
 from django.urls import reverse
@@ -212,6 +213,7 @@ class SuggestionListView(ListView):
         undo_status_change: bool = "undo-status-change" in request.POST
         suggestion_id = request.POST.get("suggestion_id")
         new_status = request.POST.get("new_status")
+        new_comment = request.POST.get("comment", "").strip()
         current_page = request.POST.get("page", "1")
         suggestion = get_object_or_404(CVEDerivationClusterProposal, id=suggestion_id)
 
@@ -296,7 +298,14 @@ class SuggestionListView(ListView):
         # sequenced transaction.
         if status_change and new_status != "published":
             if new_status == "rejected":
-                suggestion.status = CVEDerivationClusterProposal.Status.REJECTED
+                if new_comment != "":
+                    suggestion.status = CVEDerivationClusterProposal.Status.REJECTED
+                else:
+                    return self._handle_error(
+                        request,
+                        suggestion_view_context(),
+                        "You must provide a dismissal comment",
+                    )
             elif new_status == "accepted":
                 suggestion.status = CVEDerivationClusterProposal.Status.ACCEPTED
             # there's no UI for returning a suggestion back to pending state,
@@ -305,7 +314,11 @@ class SuggestionListView(ListView):
             elif new_status == "pending" and undo_status_change:
                 suggestion.status = CVEDerivationClusterProposal.Status.PENDING
 
-            suggestion.save()
+        # Update suggestion comment
+        if new_comment is not None:
+            suggestion.comment = new_comment
+
+        suggestion.save()
 
         if status_change and new_status == "published":
             try:
@@ -315,24 +328,17 @@ class SuggestionListView(ListView):
                         reverse("webview:issue_detail", args=[tracker_issue.code])
                     )
                     gh_issue_link = create_gh_issue(
-                        cached_suggestion, tracker_issue_link
+                        cached_suggestion, tracker_issue_link, new_comment
                     ).html_url
                     suggestion.status = CVEDerivationClusterProposal.Status.PUBLISHED
                     suggestion.save()
             except Exception as e:
                 logger.error(f"Failed to publish issue: {e}")
-                snippet = render_to_string(
-                    "components/suggestion_state_error_wrapper.html",
-                    {
-                        "suggestion": suggestion_view_context(),
-                        "suggestion_state_error": {
-                            "suggestion_id": suggestion.pk,
-                            "title": cached_suggestion.payload["title"],
-                            "target_status": "published",
-                        },
-                    },
+                return self._handle_error(
+                    request,
+                    suggestion_view_context(),
+                    "Unable to publish this suggestion",
                 )
-                return HttpResponse(snippet)
 
         if js_enabled:
             # Clicking on the undo button will return the original suggestion
@@ -388,6 +394,17 @@ class SuggestionListView(ListView):
                 return HttpResponse(status=200)
         else:
             # Just reload the page
+            return redirect(f"{request.path}?page={current_page}")
+
+    def _handle_error(
+        self, request: HttpRequest, context: Any, error_message: str
+    ) -> HttpResponse:
+        if request.headers.get("HX-Request"):
+            context["error_message"] = error_message
+            return HttpResponse(render_to_string("components/suggestion.html", context))
+        else:
+            messages.error(request, error_message)
+            current_page = request.POST.get("page", "1")
             return redirect(f"{request.path}?page={current_page}")
 
 

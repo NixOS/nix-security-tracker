@@ -55,7 +55,15 @@
       {% maintainers_list cached_suggestion.maintainers %}
     {% endif %}
 
+
     {% if user|is_maintainer_or_admin %}
+    <textarea 
+      class="suggestion-comment"
+      name="comment" 
+      maxlength="1000" 
+      placeholder="Free comment: context, additional info, dismissal reason, etc."
+      rows="3"
+    >{{ suggestion.comment|default:"" }}</textarea>
     <div class="change-issue-state">
       {% if status_filter == "pending" %}
         <button type="submit" name="new_status" value="accepted" class="draft-color">
@@ -87,5 +95,11 @@
     </div>
     {% endif %}
   </form>
+
+  {% if error_message %}
+  <div class="error-message">
+    {{ error_message }}
+  </div>
+  {% endif %}
 </article>
 

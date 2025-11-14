@@ -75,6 +75,16 @@
       </div>
     {% endif %}
 
+
+    <!-- Show Django messages, mostly for non-JS fallback -->
+    {% if messages %}
+    <div id="messages">
+      {% for message in messages %}
+        <div class="message">{{ message }}</div>
+      {% endfor %}
+    </div>
+    {% endif %}
+
     {% block layout %}
       <article>
         {% block content %}{% endblock content %}

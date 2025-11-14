@@ -44,6 +44,14 @@ class CVEDerivationClusterProposal(TimeStampMixin):
         max_length=text_length(Status), choices=Status.choices, default=Status.PENDING
     )
 
+    comment = models.CharField(
+        max_length=1000,
+        default="",
+        help_text=_(
+            "Optional free text comment for additional notes, context, dismissal reason"
+        ),
+    )
+
     def create_nixpkgs_issue(self) -> NixpkgsIssue:
         """
         Create a NixpkgsIssue from this suggestion and save it in the database. Note
@@ -62,6 +70,7 @@ class CVEDerivationClusterProposal(TimeStampMixin):
         )
         issue.cve.add(self.cve)
         issue.derivations.set(self.derivations.all())
+        issue.comment = self.comment
         issue.save()
         return issue
 

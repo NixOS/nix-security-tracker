@@ -369,6 +369,8 @@
   --issue-notaffected: #e8867d;
   --issue-notforus: #e2e2e2;
   --issue-wontfix: #ccccdd;
+  --error-color: #d31919;
+  --user-comment: #fcf2bd;
 }
 
 body {
@@ -460,6 +462,23 @@ nav.issue-pipeline {
 nav.issue-pipeline ul {
   padding: 0;
   margin: 0;
+}
+
+/* Error messages from Django message framework */
+#messages {
+  margin: 2em;
+  display: flex;
+  flex-direction: column;
+  gap: 1em;
+}
+
+#messages .message {
+  background: var(--error-color);
+  color: white;
+  font-weight: bold;
+  padding: 0.5em;
+  margin: 0.5em;
+  border-radius: 0.2em;
 }
 
 #overview {
@@ -782,6 +801,31 @@ details.description[open] > summary:after {
   .version-constraints
   .affected {
   background: var(--affected);
+}
+
+.suggestion-comment,
+.issue-comment {
+  margin-top: 3em;
+  border-radius: 0.3em;
+  border: 1px solid var(--grey);
+  font-size: 1.2em;
+  font-family: monospace;
+  padding: 0.5em;
+  width: calc(100% - 1em);
+  background: var(--user-comment);
+}
+
+textarea.suggestion-comment:placeholder-shown {
+  background: white;
+}
+
+.suggestion .error-message {
+  background: var(--error-color);
+  color: white;
+  font-weight: bold;
+  padding: 0.5em;
+  margin: 0.5em;
+  border-radius: 0.2em;
 }
 
 article .nixpkgs-packages {

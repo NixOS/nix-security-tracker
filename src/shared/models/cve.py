@@ -531,6 +531,11 @@ class NixpkgsIssue(models.Model):
 
     cve = models.ManyToManyField(CveRecord)
     description = models.ForeignKey(Description, on_delete=models.PROTECT)
+    comment = models.CharField(
+        max_length=1000,
+        default="",
+        help_text=_("Optional comment from the suggestion that lead to this issue"),
+    )
     status = models.CharField(
         max_length=text_length(IssueStatus),
         choices=IssueStatus.choices,
