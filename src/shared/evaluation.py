@@ -196,18 +196,23 @@ class SyncBatchAttributeIngester:
             # Duplicate...
             if m.github_id in seen:
                 continue
-
-            ms.append(
-                NixMaintainer.objects.update_or_create(
-                    defaults={
-                        "github": m.github,
-                        "email": m.email,
-                        "matrix": m.matrix,
-                        "name": m.name,
-                    },
-                    github_id=m.github_id,
+            try:
+                ms.append(
+                    NixMaintainer.objects.update_or_create(
+                        defaults={
+                            "github": m.github,
+                            "email": m.email,
+                            "matrix": m.matrix,
+                            "name": m.name,
+                        },
+                        github_id=m.github_id,
+                    )
                 )
-            )
+            except IntegrityError:
+                # Skip this maintainer until we decide how to handle #657
+                logger.debug(f"Skipping maintainer {m.github} due to username conflict")
+                continue
+
             seen.add(m.github_id)
 
         return [obj for obj, _ in ms]
