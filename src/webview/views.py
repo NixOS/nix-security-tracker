@@ -316,7 +316,6 @@ class SuggestionListView(ListView):
 
         # Update suggestion comment
         if new_comment is not None:
-            logger.error("***********")
             suggestion.comment = new_comment
 
         suggestion.save()
@@ -329,7 +328,7 @@ class SuggestionListView(ListView):
                         reverse("webview:issue_detail", args=[tracker_issue.code])
                     )
                     gh_issue_link = create_gh_issue(
-                        cached_suggestion, tracker_issue_link
+                        cached_suggestion, tracker_issue_link, new_comment
                     ).html_url
                     suggestion.status = CVEDerivationClusterProposal.Status.PUBLISHED
                     suggestion.save()

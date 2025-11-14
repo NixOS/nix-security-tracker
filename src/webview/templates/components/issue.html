@@ -39,6 +39,10 @@
   </details>
   {% endif %}
 
+  {% if issue.comment %}
+  <p class="issue-comment">{{ issue.comment|default:"" }}</p>
+  {% endif %}
+
   {% if show_permalink %}
     <a href="/issues/{{ issue.code }}" class="permalink">Permalink</a>
   {% endif %}

@@ -70,6 +70,7 @@ class CVEDerivationClusterProposal(TimeStampMixin):
         )
         issue.cve.add(self.cve)
         issue.derivations.set(self.derivations.all())
+        issue.comment = self.comment
         issue.save()
         return issue
 

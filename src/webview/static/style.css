@@ -370,7 +370,7 @@
   --issue-notforus: #e2e2e2;
   --issue-wontfix: #ccccdd;
   --error-color: #d31919;
-  --suggestion-comment: #fcf2bd;
+  --user-comment: #fcf2bd;
 }
 
 body {
@@ -803,17 +803,19 @@ details.description[open] > summary:after {
   background: var(--affected);
 }
 
-.suggestion-comment {
+.suggestion-comment,
+.issue-comment {
   margin-top: 3em;
   border-radius: 0.3em;
   border: 1px solid var(--grey);
   font-size: 1.2em;
+  font-family: monospace;
   padding: 0.5em;
   width: calc(100% - 1em);
-  background: var(--suggestion-comment);
+  background: var(--user-comment);
 }
 
-.suggestion-comment:placeholder-shown {
+textarea.suggestion-comment:placeholder-shown {
   background: white;
 }
 
