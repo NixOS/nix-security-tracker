@@ -83,7 +83,7 @@ rec {
                 shallow = true;
               };
             in
-            if git ? dirtyRev then git.dirtyShortRev else git.shortRev;
+            if git ? dirtyRev then "${git.shortRev}-dirty" else git.shortRev;
         };
       };
 
