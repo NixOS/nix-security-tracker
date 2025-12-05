@@ -2,6 +2,7 @@ import logging
 from urllib.parse import quote
 
 from django.conf import settings
+from django.template.defaultfilters import truncatewords
 from github import Auth, Github
 from github.Issue import Issue as GithubIssue
 
@@ -134,7 +135,23 @@ def create_gh_issue(
             return ""
 
     repo = github.get_repo(f"{settings.GH_ORGANIZATION}/{settings.GH_ISSUES_REPO}")
-    title = cached_suggestion.payload["title"]
+
+    # NOTE(@fricklerhandwerk): [tag:title-fallback-hack] 3/4 of CVEs have no title, 1/2 have no description, but none has neither.
+    # This hack, which we're also using in the template, can -- for now -- be expected to always work.
+    # Users can still change the GitHub issue title on GitHub if the truncated description is not informative.
+    if cached_suggestion.payload["title"]:
+        title = cached_suggestion.payload["title"]
+    elif cached_suggestion.payload["description"]:
+        title = truncatewords(cached_suggestion.payload["description"], 10)
+    else:
+        # FIXME(@fricklerhandwerk): Do the input validation at the call site and either show a note to users that the title should be set on GitHub,
+        # or offer a UI to override the title.
+        title = "Security issue (missing title)"
+        # XXX(@fricklerhandwerk): This should never happen, but we want to know when it does.
+        logger.warning(
+            "CVE container '%s' has no title and no description",
+            cached_suggestion.payload["pk"],
+        )
 
     body = f"""\
 - [{cached_suggestion.payload["cve_id"]}](https://nvd.nist.gov/vuln/detail/{quote(cached_suggestion.payload["cve_id"])})

@@ -378,6 +378,9 @@ class SuggestionListView(ListView):
                     {
                         "suggestion_id": suggestion.pk,
                         "title": cached_suggestion.payload["title"],
+                        # FIXME(@fricklerhandwerk): We shouldn't need the description here, but it's used for the hack to fall back in case of empty title. [ref:title-fallback-hack]
+                        # This normalisation should be done centrally once.
+                        "description": cached_suggestion.payload["description"],
                         "status": suggestion.status,
                         "old_status": self.status_filter,
                         "changed_suggestion_link": changed_suggestion_link,

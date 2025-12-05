@@ -1,7 +1,11 @@
 <article class="suggestion state-changed" hx-target="this">
   <div class="state-identifier {{ status }}"></div>
   <h2>
-    {{ title }}
+    {% if title %}
+      {{ title }}
+    {% else %}
+      {{ description|truncatewords:10 }}
+    {% endif %}
   </h2>
   <img class="state-change-indicator htmx-indicator" src="/static/spinner.svg">
   <form hx-post="" hx-swap="outerHTML" hx-indicator="previous .state-change-indicator">
