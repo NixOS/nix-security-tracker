@@ -29,6 +29,9 @@ def create_gh_issue(
     cached_suggestion: CachedSuggestions,
     tracker_issue_uri: str,
     comment: str | None = None,
+    # FIXME(@fricklerhandwerk): [tag:todo-github-connection] Make an application-level "GitHub connection" object instead.
+    # Instantiating the connection at definition time makes mocking it away for tests rather cumbersome.
+    # Ideally we'd have a generic mock that would abstract away regular book keeping such as app authentication, and tests would override only relevant behavior.
     github: Github = get_gh(),
 ) -> GithubIssue:
     """

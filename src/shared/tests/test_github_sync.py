@@ -20,6 +20,12 @@ class MockGithubUser:
     def __init__(self, id_value: str) -> None:
         self.id: int = int(id_value)
 
+    @property
+    def login(self) -> str:
+        # This is called internally to obtain the username.
+        # For testing purposes we can use any string.
+        return str(self.id)
+
 
 class MockGithubTeam:
     def __init__(self, id: int, user_ids: list[str]) -> None:
@@ -49,12 +55,39 @@ class MockGithubOrganization:
         return self.teams[slug]
 
 
+class MockGithubIssue:
+    @property
+    def html_url(self) -> str:
+        # This is called internally to display the URL of a newly published issue.
+        # For testing purposes we don't care about the exact string.
+        return "mock"
+
+
+class MockGithubRepo:
+    def __init__(self, name: str, expected_issue_title: str) -> None:
+        self.expected_issue_title = expected_issue_title
+
+    def create_issue(self, title: str, body: str, labels: list[str]) -> MockGithubIssue:
+        # FIXME(@fricklerhandwerk): We shouldn't do assertions here, but it's too much to tear apart now. [ref:todo-github-connection]
+        # XXX(@fricklerhandwerk): This unfortunately does part of the testing for [ref:test-github-create_issue-title] and [ref:test-github-create_issue-description].
+        assert title == self.expected_issue_title, (
+            f"Expected issue title '{self.expected_issue_title}', got '{title}'"
+        )
+        return MockGithubIssue()
+
+
 class MockGithub:
     def __init__(
-        self, security_ids: list[str] = [], committer_ids: list[str] = []
+        self,
+        security_ids: list[str] = [],
+        committer_ids: list[str] = [],
+        expected_issue_title: str = "",
     ) -> None:
         self.security_ids = security_ids
         self.committer_ids = committer_ids
+        # FIXME(@fricklerhandwerk): This shouldn't exist. Instead the mock behavior should be defined in each test. [ref:todo-github-connection]
+        # This is only a cheap hack to prevent tearing everything apart just to fix a bug.
+        self.expected_issue_title = expected_issue_title
 
     def get_user_by_id(self, user_id: int) -> MockGithubUser:
         return MockGithubUser(id_value=str(user_id))
@@ -65,6 +98,9 @@ class MockGithub:
         return MockGithubOrganization(
             security_ids=self.security_ids, committer_ids=self.committer_ids
         )
+
+    def get_repo(self, name: str) -> MockGithubRepo:
+        return MockGithubRepo(name=name, expected_issue_title=self.expected_issue_title)
 
 
 def create_users_with_sociallogin(
