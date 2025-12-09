@@ -65,7 +65,9 @@ class CVEDerivationClusterProposal(TimeStampMixin):
             # end.
             status=IssueStatus.AFFECTED,
             description=Description.objects.create(
-                value=self.cached.payload["description"]
+                # FIXME(@fricklerhandwerk): Ensure the cached payload is correct beforehand instead of an ad-hoc fallback here. [ref:title-fallback-hack]
+                # Or maybe the data model can be relaxed to have an optional description.
+                value=self.cached.payload["description"] or ""
             ),
         )
         issue.cve.add(self.cve)
