@@ -1,8 +1,8 @@
 {% load viewutils %}
 
-<div class="nixpkgs-packages">
+<div class="column dividers">
   {% for attribute, pdata in packages.items %}
-    <div class="nixpkgs-package-container">
+    <div class="row gap">
       {% if selectable %}
       <input
         type="checkbox"

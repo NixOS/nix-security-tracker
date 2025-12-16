@@ -3,47 +3,33 @@
 
 {% block content %}
 
-<header>
-  <nav class="issue-pipeline centered-inline-list">
-    <ul>
-      <li><a href="/dismissed">Dismissed suggestions</a></li>
-      <li><a href="/suggestions">Untriaged suggestions</a></li>
-      <li><a href="/drafts">Draft issues</a></li>
-      <li><a href="/issues">Published issues</a></li>
-    </ul>
-  </nav>
-</header>
-
 {% if status_filter == "pending" %}
-<h1>Automatically generated suggestions</h1>
-<p>
-<span class="hint draft-color">Create Draft</span> to queue a suggestion for refinement.
-</p>
-<p>
-<span class="hint dismissed-color">Dismiss</span> to remove a suggestion from the queue.
-</p>
+
+<h1 class="page-title row gap-small centered"><i class="icon-inbox"></i>Automatically generated suggestions</h1>
+<div class="prose">
+  <p><button class="btn btn-green inline-row gap-small centered" disabled><i class="icon-draft"></i>Create Draft</button> to queue a suggestion for refinement.</p>
+  <p><button class="btn btn-gray inline-row gap-small centered" disabled><i class="icon-bin"></i>Dismiss</button> to remove a suggestion from the queue.</p>
+</div>
+
 {% elif status_filter == "rejected" %}
-<h1>Dismissed suggestions</h1>
-<p>
-These automatic suggestions were dismissed after initial triaging.
-</p>
-<p>
-<span class="hint draft-color">Restore</span> to select a suggestion for a revision.
-</p>
+
+<h1 class="page-title row gap-small centered"><i class="icon-bin"></i>Dismissed suggestions</h1>
+<div class="prose">
+  <p>These automatic suggestions were dismissed after initial triaging.</p>
+  <p><button class="btn btn-green inline-row gap-small centered" disabled><i class="icon-draft"></i>Convert to draft</button> to select a suggestion for a revision.</p>
+</div>
+
 {% elif status_filter == "accepted" %}
-<h1>Drafts</h1>
 
-<p>
-<span class="hint draft-color">Create draft</span> to convert the suggestion into a draft security issue that can be edited before publishing.</br>
-</p>
-
-<p>
-<span class="hint dismissed-color">Dismiss</span> to remove a suggestion from the queue.
-</p>
+<h1 class="page-title row gap-small centered"><i class="icon-draft"></i>Drafts</h1>
+<div class="prose">
+  <p><button class="btn btn-green inline-row gap-small centered" disabled><i class="icon-draft"></i>Create Draft</button> to convert the suggestion into a draft security issue that can be edited before publishing.</p>
+  <p><button class="btn btn-gray inline-row gap-small centered" disabled><i class="icon-bin"></i>Dismiss</button> to remove a suggestion from the queue.</p>
+</div>
 
 {% endif %}
 
-<div id="suggestion-list">
+<div class="column gap">
   {% for object in object_list %}
     {% suggestion object.proposal object.payload object.activity_log %}
   {% endfor %}

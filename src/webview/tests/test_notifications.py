@@ -59,7 +59,7 @@ class NotificationUserStoriesTests(TestCase):
         self.assertContains(response, "This is a test notification")
 
         # Step 4: User sees unread notification highlighted (check CSS class)
-        self.assertContains(response, "notification-unread")
+        self.assertContains(response, "highlight")
 
         # Step 5: User clicks "mark read" - notification updates, badge shows "0"
         response = self.client.post(
@@ -73,7 +73,7 @@ class NotificationUserStoriesTests(TestCase):
 
         # Check notification center no longer shows unread styling
         response = self.client.get(reverse("webview:notifications:center"))
-        self.assertNotContains(response, "notification-unread")
+        self.assertNotContains(response, "highlight")
 
         # Step 6: User clicks "mark unread" - notification updates, badge shows "1"
         response = self.client.post(
@@ -124,7 +124,7 @@ class NotificationUserStoriesTests(TestCase):
 
         # All should be unread initially
         response_content = response.content.decode()
-        unread_count = response_content.count("notification-unread")
+        unread_count = response_content.count("highlight")
         self.assertEqual(unread_count, 3)
 
         # Step 4: User uses "mark all as read" button
@@ -138,7 +138,7 @@ class NotificationUserStoriesTests(TestCase):
 
         # Check notification center shows no unread notifications
         response = self.client.get(reverse("webview:notifications:center"))
-        self.assertNotContains(response, "notification-unread")
+        self.assertNotContains(response, "highlight")
         # Verify counter is 0 in context
         self.assertEqual(response.context["user"].profile.unread_notifications_count, 0)
 

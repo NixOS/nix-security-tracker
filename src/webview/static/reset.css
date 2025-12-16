@@ -1,0 +1,57 @@
+/* CSS style reset
+ *
+ * Resets browsers' default styles for consistency and building upon a clean slate.
+ */
+
+/* Box sizing rules */
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+/* Remove default margin and padding */
+body,
+h1,
+h2,
+h3,
+h4,
+p,
+figure,
+blockquote,
+pre,
+dl,
+dd,
+ul,
+ol {
+  margin: 0;
+  padding: 0;
+  font-size: inherit;
+  font-weight: inherit;
+}
+
+body {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  font-family: "IBM Plex Sans";
+}
+
+/* Remove list styles on lists */
+ul,
+ol {
+  list-style: none;
+}
+
+a {
+  color: inherit;
+}
+
+/* Inherit fonts for form elements */
+input,
+button,
+textarea,
+select {
+  font-family: inherit;
+  font-size: inherit;
+}

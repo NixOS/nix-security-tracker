@@ -1,22 +1,27 @@
-<div class="affected-products">
+<div class="column gap">
   {% for package_name, ap in affected.items %}
     <article
-      class="affected-product"
+      class="row gap spread wrap"
       title="{% if ap.cpes %}{{ ap.cpes|join:'&#13;' }}{% else %}No CPE info{% endif %}"
     >
-      <div class="package-name">
+      <div>
         {{ package_name }}
       </div>
-      <div class="version-constraints">
+      <ul class="w-12">
         {% for status, vc_str in ap.version_constraints %}
-          <div
-            class="version-constraint {{ status }}"
-            title="{% if status == 'affected'%}Affected{% elif status == 'unaffected' %}Unaffected{% else %}Unknown{% endif %}"
-          >
-            {{ vc_str }}
-          </div>
+          <li>
+            <span
+            {% if status == 'affected'%}
+            class="hl-red"
+            title="Affected"
+            {% elif status == 'unaffected' %}
+            class="hl-green"
+            title="Unaffected"
+            {% endif %}
+              >{{ vc_str }}</span>
+          </li>
         {% endfor %}
-      </div>
+      </ul>
     </article>
   {% endfor %}
 </div>

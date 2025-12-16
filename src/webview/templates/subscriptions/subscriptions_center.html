@@ -3,24 +3,26 @@
 
 {% block content %}
 
-<header class="subscription-center-header">
-  <h1>Subscriptions</h1>
-</header>
+<h1 class="page-title">Subscriptions</h1>
 
-<p>When a new CVE is suspected to affect packages you have subscribed to, you will receive a notification.</p>
+<div class="column gap">
 
-<div id="auto-subscribe-container">
-  <h2>Auto-subscription to maintained packages</h2>
+  <p>When a new CVE is suspected to affect packages you have subscribed to, you will receive a notification.</p>
 
-  {% auto_subscribe_toggle user.profile.auto_subscribe_to_maintained_packages %}
-</div>
+  <div class="rounded-box column gap">
+    <h2 class="heading">Auto-subscription to maintained packages</h2>
 
-<div id="package-subscriptions-container">
-  <h2>Additional packages</h2>
+    {% auto_subscribe_toggle user.profile.auto_subscribe_to_maintained_packages %}
+  </div>
 
-  <p>You may subscribe to additional packages here. Those could also be packages you maintain in case you decided to opt out of automatic subscription.</p>
+  <div class="rounded-box column gap">
+    <h2 class="heading">Additional packages</h2>
 
-  {% package_subscriptions package_subscriptions %}
+    <p>You may subscribe to additional packages here. Those could also be packages you maintain in case you decided to opt out of automatic subscription.</p>
+
+    {% package_subscriptions package_subscriptions %}
+  </div>
+
 </div>
 
 {% endblock content %}

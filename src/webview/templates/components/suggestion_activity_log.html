@@ -2,13 +2,13 @@
 {% load viewutils %}
 
 {% if not activity_log|length_is:0 %}
-<details class="activity-log"
+<details class="column align-end"
          id="suggestion-activity-log-{{suggestion.id}}"
          {% if oob_update %}hx-swap-oob="true"{% endif %}
          data-relative=true
 >
-  <summary class="main-summary">
-    <span class="title-when-closed">
+  <summary>
+    <span class="details-closed">
       {% with last_entry=activity_log|last %}
         <span class="activity-log-timestamp">
           updated {{ last_entry.timestamp|naturaltime }}
@@ -16,10 +16,10 @@
         by&nbsp;<strong>@{{ last_entry.username }}</strong>
       {% endwith %}
     </span>
-    <strong class="title-when-opened">Activity log</strong>
+    <strong class="details-open">Activity log</strong>
   </summary>
-  <ul class="activity-log-listing">
-    <li class="activity-log-entry">
+  <ul class="column align-end">
+    <li>
       Created <span class="automatic-suggestion-text">automatic suggestion</span>
       <span class="activity-log-entry-timestamp"
             data-timestamp-relative="{{ suggestion.created_at|naturaltime }}"
@@ -29,7 +29,7 @@
       </span>
     </li>
     {% for log_entry in activity_log %}
-      <li class="activity-log-entry">
+      <li class="row gap-small baseline">
         <strong>@{{ log_entry.username }}</strong>
         {% if "package." in log_entry.action %}
         {# Package update entries #}
@@ -41,11 +41,11 @@
           {% if log_entry.package_names|length == 1 %}
             package <strong>{{ log_entry.package_names.0 }}</strong>
           {% else %}
-            <details class="package-summary">
-              <summary class="package-summary-title">
+            <details>
+              <summary>
                 {{ log_entry.package_names|length }} packages
               </summary>
-              <ul class="package-summary-listing">
+              <ul>
                 {% for packagename in log_entry.package_names %}
                   <li>{{ packagename }}</li>
                 {% endfor %}
@@ -62,11 +62,11 @@
         {% if log_entry.maintainers|length == 1 %}
           maintainer <strong>@{{ log_entry.maintainers.0.github }}</strong>
         {% else %}
-          <details class="maintainer-summary">
-            <summary class="maintainer-summary-title">
+          <details>
+            <summary>
               {{ log_entry.maintainers|length }} maintainers
             </summary>
-            <ul class="maintainer-summary-listing">
+            <ul>
               {% for maintainer in log_entry.maintainers %}
                 <li>@{{ maintainer.github }}</li>
               {% endfor %}
@@ -91,6 +91,30 @@
         >
           {{ log_entry.timestamp|naturaltime }}
         </span>
+        {# Icon #}
+        {% if "package." in log_entry.action %}
+          {% if ".add" in log_entry.action %}
+            <i class="icon-folder-plus"></i>
+          {% else %}
+            <i class="icon-folder-minus"></i>
+          {% endif %}
+        {% elif "maintainers." in log_entry.action %}
+          {% if ".add" in log_entry.action %}
+            <i class="icon-user-plus"></i>
+          {% else %}
+            <i class="icon-user-minus"></i>
+          {% endif %}
+        {% else %}
+          {% if "accepted" in log_entry.status_value  %}
+            <i class="icon-draft"></i>
+          {% elif "rejected" in log_entry.status_value %}
+            <i class="icon-bin"></i>
+          {% elif "pending" in log_entry.status_value %}
+            <i class="icon-inbox"></i>
+          {% else %}
+            {{ log_entry.action }}
+          {% endif %}
+        {% endif %}
       </li>
     {% endfor %}
   </ul>

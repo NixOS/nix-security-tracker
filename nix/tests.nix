@@ -61,7 +61,13 @@ lib.mapAttrs (name: test: pkgs.testers.runNixOSTest (test // { inherit name defa
         server.succeed("wst-manage test webview")
 
       with subtest("Check that stylesheet is served"):
-        machine.succeed("curl --fail -H 'Host: example.org' http://localhost/static/style.css")
+        machine.succeed("curl --fail -H 'Host: example.org' http://localhost/static/reset.css")
+        machine.succeed("curl --fail -H 'Host: example.org' http://localhost/static/font.css")
+        machine.succeed("curl --fail -H 'Host: example.org' http://localhost/static/colors.css")
+        machine.succeed("curl --fail -H 'Host: example.org' http://localhost/static/utility.css")
+        machine.succeed("curl --fail -H 'Host: example.org' http://localhost/static/cvss-tags.css")
+        machine.succeed("curl --fail -H 'Host: example.org' http://localhost/static/page-layout.css")
+        machine.succeed("curl --fail -H 'Host: example.org' http://localhost/static/icons/style.css")
 
       with subtest("Check that admin interface is served"):
         server.succeed("curl --fail -L -H 'Host: example.org' http://localhost/admin")

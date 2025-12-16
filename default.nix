@@ -73,7 +73,7 @@ rec {
           GH_ISSUES_PING_MAINTAINERS = false;
           GH_ORGANIZATION = "Nix-Security-WG";
           GH_ISSUES_REPO = "sectracker-testing";
-          GH_SECURITY_TEAM = "setracker-testing-security";
+          GH_SECURITY_TEAM = "sectracker-testing-security";
           GH_COMMITTERS_TEAM = "sectracker-testing-committers";
           STATIC_ROOT = "${toString ./src/static}";
           REVISION =

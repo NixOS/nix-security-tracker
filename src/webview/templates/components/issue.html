@@ -1,24 +1,24 @@
 {% load viewutils %}
 
-<article class="issue" id="issue-{{ issue.code }}">
+<article class="rounded-box column gap" id="issue-{{ issue.code }}">
 
-  <div class="top-row">
-    <div class="status condensed status-{{ issue.cached_payload.status.label }}">{{ issue.cached_payload.status.label }}</div>
-    <div class="creation-date">created {{ issue.cached_payload.created_at }}</div>
+  <div class="row gap spread">
+    <div class="uppercase">{{ issue.cached_payload.status.label }}</div>
+    <div>created on {{ issue.cached_payload.created_at }}</div>
   </div>
 
-  <details class="description">
-    <summary>
+  <details>
+    <summary class="heading">
       {{ issue.code }}
     </summary>
-    <p class="description-long as-details">{{ issue.cached_payload.description }}</p>
+    <p>{{ issue.cached_payload.description }}</p>
   </details>
 
 
   {% if issue.cached_payload.vulnerabilities %}
-  <details class="vulnerabilities">
-    <summary>Vulnerabilities</summary>
-    <ul>
+  <div class="rounded-box">
+    <h2 class="heading dimmed">Vulnerabilities</h2>
+    <ul class="column gap-small">
       {% for vulnerability in issue.cached_payload.vulnerabilities %}
       <li>
         <a class="cve-id" href="https://nvd.nist.gov/vuln/detail/{{ vulnerability.cve_id | urlencode }}">
@@ -27,20 +27,18 @@
       </li>
       {% endfor %}
     </ul>
-  </details>
+  </div>
   {% endif %}
 
   {% if issue.cached_payload.packages %}
-  <details class="related-derivations">
-    <summary>Related packages</summary>
-    <div class="derivation-list">
-      {% nixpkgs_package_list issue.cached_payload.packages %}
-    </div>
-  </details>
+  <div class="rounded-box">
+    <h2 class="heading dimmed">Related packages</h2>
+    {% nixpkgs_package_list issue.cached_payload.packages %}
+  </div>
   {% endif %}
 
   {% if issue.comment %}
-  <p class="issue-comment">{{ issue.comment|default:"" }}</p>
+  <pre class="rounded-box monospace highlight-nonempty">{{ issue.comment|default:"" }}</pre>
   {% endif %}
 
   {% if show_permalink %}

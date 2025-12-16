@@ -1,0 +1,15 @@
+/* Defines our limited color palette.
+ * You are expected to only use these colors and add new ones there only if strictly necessary.
+ * Colors should not be defined outside this file.
+ * In other css files like `utility.css`, colors are referenced with `var(--color-name)`.
+ */
+
+:root {
+  --green: #5eb55e;
+  --gray: #aaa;
+  --red: #cc2d24;
+  --light-red: #f9ccca;
+  --light-green: #dbfcdb;
+  --light-yellow: #fcfaba;
+  --light-gray: #eee;
+}

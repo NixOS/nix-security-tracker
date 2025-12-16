@@ -5,42 +5,31 @@
 
 <div class="package-subscription">
 
-  <header>
-    <a href="{% url 'webview:subscriptions:center' %}" class="back-link">← Subscription Center</a>
-    <h1>Package Subscription</h1>
+  <header class="column">
+    <a href="{% url 'webview:subscriptions:center' %}">← Subscription Center</a>
+    <h1 class="page-title">Package Subscription</h1>
   </header>
-
-  <!-- Show Django messages -->
-  {% if messages %}
-    {% for message in messages %}
-      <div class="package-subscription-message">{{ message }}</div>
-    {% endfor %}
-  {% endif %}
 
   {% if not package_exists %}
 
-    <div class="package-not-found">
-      <h2>Package Not Found</h2>
-      <div>Package "{{ package_name }}" could not be found.</div>
+    <div class="error-block">
+      Package "{{ package_name }}" could not be found.
     </div>
 
   {% else %}
-    <div class="package-detail">
-      <h2>{{ package_name }}</h2>
+    <div class="rounded-box column gap">
+      <h2 class="heading">{{ package_name }}</h2>
       <p>Subscribe to receive notifications about security alerts suggestions that may affect this package.</p>
       <div class="toggler {% if is_subscribed %}toggler-on{% else %}toggler-off{% endif %}">
-        <div class="toggler-status">
-          <div class="toggler-icon">{% if is_subscribed %}✓{% else %}✕{% endif %}</div>
-          <div>You are {% if not is_subscribed %}not{% endif %} subscribed to this package</div>
-        </div>
+        <div class="grow">You are {% if not is_subscribed %}not{% endif %} subscribed to this package</div>
         <form method="post" class="subscription-form">
           {% csrf_token %}
           {% if is_subscribed %}
             <input type="hidden" name="action" value="unsubscribe">
-            <button type="submit">Unsubscribe</button>
+            <button class="btn btn-gray" type="submit">Unsubscribe</button>
           {% else %}
             <input type="hidden" name="action" value="subscribe">
-            <button type="submit">Subscribe</button>
+            <button class="btn btn-green" type="submit">Subscribe</button>
           {% endif %}
         </form>
       </div>

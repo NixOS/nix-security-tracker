@@ -284,6 +284,21 @@ in
           '';
         };
 
+        web-security-tracker-worker-issues = {
+          description = "Web security tracker - background issues processor";
+          after = [
+            "network.target"
+            "postgresql.service"
+            "web-security-tracker-server.service"
+          ];
+          requires = [ "postgresql.service" ];
+          wantedBy = [ "multi-user.target" ];
+
+          script = ''
+            wst-manage listen --recover --channels shared.channels.NixpkgsIssueChannel
+          '';
+        };
+
         web-security-tracker-fetch-all-channels = {
           description = "Web security tracker - refresh all channels and start nixpkgs evaluation";
 

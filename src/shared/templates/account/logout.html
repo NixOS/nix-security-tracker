@@ -5,12 +5,15 @@
 {% block auth %}{% endblock %}
 
 {% block content %}
-<h1>Sign out</h1>
+<h1 class="page-title">Sign out</h1>
 
-<p>Are you sure you want to sign out?</p>
+<div class="row gap centered wrap">
+  <p>Are you sure you want to sign out?</p>
 
-<form method="post">
-  {% csrf_token %}
-  <button type="submit">Sign out</button>
-</form>
+  <form method="post">
+    {% csrf_token %}
+    <button class="btn btn-red" type="submit">Sign out</button>
+  </form>
+</div>
+
 {% endblock content %}

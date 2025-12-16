@@ -1,15 +1,13 @@
-<nav id="pagination" class="centered-inline-list">
-  <ul>
-    {% for page_number in adjusted_elided_page_range %}
-      <li class="index">
-        {% if page_number == paginator.ELLIPSIS %}
+<ul id="pagination" class="row gap">
+  {% for page_number in adjusted_elided_page_range %}
+    <li class="index">
+      {% if page_number == paginator.ELLIPSIS %}
+      {{page_number}}
+      {% else %}
+      <a href="{{request.path}}?page={{page_number}}" class="{% if page_number == page_obj.number %}bold{% endif %}">
         {{page_number}}
-        {% else %}
-        <a href="{{request.path}}?page={{page_number}}" class="{% if page_number == page_obj.number %}current{% endif %}">
-          {{page_number}}
-        </a>
-        {% endif %}
-      </li>
-    {% endfor %}
-  </ul>
-</nav>
+      </a>
+      {% endif %}
+    </li>
+  {% endfor %}
+</ul>

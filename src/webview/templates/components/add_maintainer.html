@@ -1,7 +1,7 @@
 {% load viewutils %}
 
-<div class="maintainer-add-container">
-  <div class="subform {%if error_msg %}error{% endif %}">
+<div class="maintainer-add-container row centered gap-small">
+  <div class="row centered gap-small">
     <input
       type="text"
       name="new_maintainer_github_handle"
@@ -14,13 +14,15 @@
       hx-swap="outerHTML"
       hx-target="closest .maintainer-add-container"
       hx-indicator=".maintainer-add-spinner"
+      class="btn btn-green row gap-small centered"
     >
+      <i class="icon-user-plus"></i>
       Add
     </button>
   </div>
   <img class="maintainer-add-spinner htmx-indicator" src="/static/spinner.svg">
   {% if error_msg %}
-  <div class="error-message">
+  <div class="error-inline">
     {{ error_msg }}
   </div>
   {% endif %}

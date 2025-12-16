@@ -1,0 +1,27 @@
+/* These styles are to be used only for CVSS Severity tags to match the colors
+ * taken from nvd.nist.gov
+ *
+ * These are not part of our design language, just there to mirror the official CVSS tags colors, and should not be used elsewhere.
+ *
+ * */
+
+.cvsstag {
+  padding: 0 0.3em;
+  font-weight: 700;
+}
+
+.cvsstag.LOW {
+  background: #f2cc0c;
+}
+.cvsstag.MEDIUM {
+  background: #ec971f;
+}
+.cvsstag.HIGH {
+  background: #d9534f;
+}
+.cvsstag.CRITICAL {
+  background: red;
+}
+.cvsstag.NONE {
+  background: #a9a9a9;
+}

@@ -1,0 +1,406 @@
+/* Utility classes
+ *
+ * Utility classes for layout, typography, and various reusable UI components.
+ * This should contain all the classes you need to style your html templates.
+ * New classes should only be added there after due consideration, and never to introduce small ad hoc variations.
+ */
+
+/* Prose
+ *
+ * .prose - Apply to containers with longer text content.
+ *          Restores expected styling (margins between paragraphs, bullets on item lists) that is removed by reset.css for the rest of the UI.
+ */
+
+.prose p {
+  margin: 1em 0;
+}
+
+.prose ul {
+  list-style-type: disc;
+  padding-left: 1em;
+}
+
+.prose li {
+  margin: 1em 0;
+}
+
+/* Buttons
+ *
+ * .btn - Base button style to be used on every standard button
+ * .btn-green - Green button variant
+ * .btn-gray - Gray button variant
+ * .btn-red - Red button variant
+ *
+ * Usage: Combine .btn with one of the color variants
+ * Example: <button class="btn btn-green">Publish</button>
+ */
+
+.btn {
+  font-size: 1em;
+  border: solid 2px white;
+  border-radius: 0.4em;
+  padding: 0.3em 0.5em;
+  outline-width: 2px;
+}
+
+.btn:not(:disabled) {
+  cursor: pointer;
+}
+
+.btn:not(:disabled):hover {
+  outline-style: solid;
+}
+
+.btn-green {
+  background-color: var(--green);
+  outline-color: var(--green);
+  color: white;
+}
+
+.btn-gray {
+  background-color: var(--gray);
+  outline-color: var(--gray);
+  color: white;
+}
+
+.btn-red {
+  background-color: var(--red);
+  outline-color: var(--red);
+  color: white;
+}
+
+/* Titles
+ *
+ * .page-title - Only for the main title of a page
+ * .heading - Box (for instance .rounded-box) or section title
+ */
+
+.page-title {
+  font-size: 2em;
+  font-weight: bold;
+  margin-bottom: 0.5em;
+}
+
+.heading {
+  font-size: 1.2em;
+  font-weight: bold;
+  margin-bottom: 0.5em;
+}
+
+/* Text
+ *
+ * Typography and text styling utilities:
+ *
+ * .bold - Bold font weight
+ * .monospace - Apply monospace font
+ * .condensed - Apply condensed font
+ * .uppercase - Force uppercase
+ * .dimmed - Dimmed gray text color
+ */
+
+.bold {
+  font-weight: bold;
+}
+
+.monospace {
+  font-family: "IBM Plex Mono";
+}
+
+.condensed {
+  font-family: "IBM Plex Sans Condensed";
+}
+
+.uppercase {
+  text-transform: uppercase;
+}
+
+.dimmed {
+  color: var(--gray);
+}
+
+/* Layout
+ *
+ * Layout utilities using flexbox. Start with a required container type,
+ * then add optional alignment, spacing, and sizing classes.
+ *
+ * Required container types (choose one):
+ * .row - Display children horizontally in a row
+ * .row-reverse - Same but from right to left
+ * .inline-row - Same but the container will be inlined (e.g. in text)
+ * .column - Display children vertically in a column
+ * .contents - Removes element from the tree, as if its children were direct children of the parent.
+ *             For instance, a .column div containing a .contents form containing form inputs.
+ *
+ * Alignment of the children relative to each other:
+ * By default - At the start of container (top for rows, left for columns)
+ * .centered - Center items together (e.g. vertical centering for row items)
+ * .baseline - Baseline of the first line of text
+ * .align-end - At the end of container (bottom for rows, right for columns)
+ *
+ * Spacing (use one or none):
+ * .gap - Normal gap between items
+ * .gap-small - Small gap between items
+ * .dividers - Display a separation line between items (handles gaps, don't use .gap or .gap-small)
+ *
+ * Sizing:
+ * .full-width - Force to use all available space (width: 100%)
+ * .grow - Make an item grow in a container
+ * .spread - Force items to be spread across available space
+ *           For instance 2 elements on a .row .spread .full-width will be respectively on the far left and far right.
+ * .wrap - Allow items to wrap for responsivity. This is how responsivity is to be implemented rather than through breakpoints.
+ */
+
+.row {
+  display: flex;
+  flex-direction: row;
+  align-items: flex-start;
+}
+
+.row-reverse {
+  display: flex;
+  flex-direction: row-reverse;
+  align-items: flex-start;
+}
+
+.inline-row {
+  display: inline-flex;
+  flex-direction: row;
+  align-items: flex-start;
+}
+
+.centered {
+  align-items: center;
+}
+
+.baseline {
+  align-items: baseline;
+}
+
+.align-end {
+  align-items: flex-end;
+}
+
+.column {
+  display: flex;
+  flex-direction: column;
+}
+
+.contents {
+  display: contents;
+}
+
+.full-width {
+  width: 100%;
+}
+
+.spread {
+  justify-content: space-between;
+}
+
+.gap {
+  gap: 1em;
+}
+
+.gap-small {
+  gap: 0.5em;
+}
+
+.grow {
+  flex-grow: 1;
+}
+
+.wrap {
+  flex-wrap: wrap;
+}
+
+.dividers > *:not(:first-child) {
+  padding-top: 0.5em;
+}
+
+.dividers > *:not(:last-child) {
+  padding-bottom: 0.5em;
+}
+
+.dividers > * {
+  border-bottom: 1px solid var(--gray);
+}
+
+.dividers > *:last-child {
+  border-bottom: none;
+}
+
+/* Size */
+
+.w-12 {
+  width: 12em;
+}
+
+.w-25 {
+  width: 25em;
+}
+
+.basis-20 {
+  flex-basis: 20em;
+}
+
+/* Boxes
+ *
+ * .rounded-box - Bordered container with padding and rounded corners.
+ *                Includes overflow: auto for locally scrollable content.
+ */
+
+.rounded-box {
+  border: 1px solid var(--gray);
+  padding: 1em;
+  border-radius: 0.4em;
+  overflow: auto;
+}
+
+/* Toggle box
+ *
+ * Big toggler element with visual state indicators:
+ *
+ * .toggler - Base toggler container (padding, border-radius, flex layout)
+ * .toggler-on - Active/on state with green background and checkmark
+ * .toggler-off - Inactive/off state with gray background and X mark
+ *
+ * Usage: <div class="toggler toggler-on">Content</div>
+ */
+
+.toggler {
+  padding: 1em;
+  border-radius: 0.4em;
+  display: flex;
+  gap: 1em;
+  align-items: center;
+}
+
+.toggler::before {
+  font-size: 2.5em;
+  font-weight: bold;
+  text-align: center;
+  width: 1em;
+}
+
+.toggler-on {
+  background-color: var(--light-green);
+}
+
+.toggler-off::before {
+  content: "✕";
+  color: var(--gray);
+}
+
+.toggler-off {
+  background-color: var(--light-gray);
+}
+
+.toggler-on::before {
+  content: "✓";
+  color: var(--green);
+}
+
+/* Accordions (details/summary)
+ *
+ * Utilities for HTML details/summary elements to create expandable content.
+ * These classes should only be used if you want different title for open/closed states.
+ *
+ * Use on <details>
+ * .details-marker-outside - Move the arrow marker outside the container.
+ *                           This align the accordion content with its title (e.g. for presenting table-like data)
+ *
+ * Use on content in <summary>
+ * .details-open - Content shown when accordion is open (hidden by default)
+ * .details-closed - Content shown when accordion is closed (hidden when open)
+ *
+ * Usage:
+ * <details>
+ *   <summary>
+ *     <span class="details-closed">Show more</span>
+ *     <span class="details-open">Show less</span>
+ *   </summary>
+ *   <div>Expandable content here</div>
+ * </details>
+ */
+
+details > summary > .details-open {
+  display: none;
+}
+
+details[open] > summary > .details-open {
+  display: inline;
+}
+
+details[open] > summary > .details-closed {
+  display: none;
+}
+
+details.details-marker-outside {
+  margin-left: 1em;
+}
+
+details.details-marker-outside > summary {
+  list-style-position: outside;
+}
+
+/* Errors
+ *
+ * Error styling utilities:
+ *
+ * .error-block - Red box for error messages
+ * .error-inline - Red text for inline errors
+ */
+
+.error-block {
+  padding: 1em;
+  border-radius: 0.4em;
+  background-color: var(--red);
+  color: white;
+  font-weight: bold;
+}
+
+.error-inline {
+  color: var(--red);
+  font-weight: bold;
+}
+
+/* Highlighting
+ *
+ * Text and background highlighting utilities:
+ *
+ * .highlight - Default yellow highlight background
+ * .highlight-target - Animation highlight for anchor targets: brief highlight that fades away over 3 seconds
+ * .highlight-nonempty - Yellow background when input is not empty
+ * .hl-red - Light red background highlight
+ * .hl-green - Light green background highlight
+ *
+ * Note: @keyframes quick-highlight defines the fade animation from yellow to transparent
+ */
+
+@keyframes quick-highlight {
+  0% {
+    background: var(--light-yellow);
+  }
+  100% {
+  }
+}
+
+.highlight {
+  background-color: var(--light-yellow);
+}
+
+.hl-red {
+  background-color: var(--light-red);
+}
+
+.hl-green {
+  background-color: var(--light-green);
+}
+
+.highlight-target:target {
+  animation: quick-highlight 3s;
+}
+
+.highlight-nonempty:not(:placeholder-shown) {
+  background-color: var(--light-yellow);
+}

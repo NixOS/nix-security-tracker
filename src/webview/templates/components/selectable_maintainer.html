@@ -1,6 +1,6 @@
 {% load viewutils %}
 
-<div class="maintainer-container {% if deleted %} maintainer-edit-add{% else %} maintainer-edit-remove{%endif %}">
+<div class="row gap centered maintainer-container {% if deleted %} maintainer-edit-add{% else %} maintainer-edit-remove{%endif %}">
   <button
     type="submit"
     name="edit_maintainer_id"
@@ -9,7 +9,9 @@
     hx-swap="outerHTML"
     hx-target="closest .maintainer-container"
     hx-indicator="this .state-change-indicator"
+    class="btn {% if deleted %}btn-green{% else %}btn-gray{% endif %} row gap-small centered"
   />
+    {% if deleted %}<i class="icon-user-plus"></i>Restore{% else %}<i class="icon-user-minus"></i>Remove{% endif %}
   </button>
   {% maintainer maintainer %}
 </div>

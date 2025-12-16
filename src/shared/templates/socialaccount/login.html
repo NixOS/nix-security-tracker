@@ -5,12 +5,15 @@
 {% block auth %}{% endblock %}
 
 {% block content %}
-<h1>Sign in with {{ provider.name }}</h1>
+<h1 class="page-title">Sign in with {{ provider.name }}</h1>
+<div class="row gap centered wrap">
 <p>You are about to sign in using a third-party account from {{ provider.name }}.</p>
 
 <form method="post">
   {% csrf_token %}
-  <button type="submit">Continue</button>
+  <button class="btn btn-green" type="submit">Continue</button>
 </form>
+
+</div>
 
 {% endblock content %}

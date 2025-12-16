@@ -1,25 +1,35 @@
-<article class="suggestion state-changed" hx-target="this">
-  <div class="state-identifier {{ status }}"></div>
-  <h2>
-    {% if title %}
-      {{ title }}
-    {% else %}
-      {{ description|truncatewords:10 }}
+<article class="rounded-box row centered spread gap" hx-target="this">
+  <div class="row gap-small centered">
+    {% if status == "rejected" %}
+    <i class="icon-bin"></i>
+    {% elif status == "accepted" %}
+    <i class="icon-draft"></i>
+    {% elif status == "published" %}
+    <i class="icon-github"></i>
     {% endif %}
-  </h2>
-  <img class="state-change-indicator htmx-indicator" src="/static/spinner.svg">
-  <form hx-post="" hx-swap="outerHTML" hx-indicator="previous .state-change-indicator">
-    <input type="hidden" name="undo-status-change">
-    {% csrf_token %}
-    <input type="hidden" name="suggestion_id" value="{{ suggestion_id }}">
-    <!-- We can't undo publication -->
-    <a href="{{ changed_suggestion_link }}">👁</a>
-    {% if status != "published" %}
-    <button type="submit" name="new_status" value="{{ old_status }}" title="Undo">
-      ↺
-    </button>
-    {% else %}
-    <a href="{{ gh_issue_link }}">GitHub issue</a>
-    {% endif %}
-  </form>
+    <h2>
+      {% if title %}
+        {{ title }}
+      {% else %}
+        {{ description|truncatewords:10 }}
+      {% endif %}
+    </h2>
+  </div>
+  <div class="row centered gap">
+    <img class="state-change-indicator htmx-indicator" src="/static/spinner.svg">
+    <a href="{{ changed_suggestion_link }}">View</a>
+    <form hx-post="" hx-swap="outerHTML" hx-indicator="previous .state-change-indicator">
+      <input type="hidden" name="undo-status-change">
+      {% csrf_token %}
+      <input type="hidden" name="suggestion_id" value="{{ suggestion_id }}">
+      <!-- We can't undo publication -->
+      {% if status != "published" %}
+      <button class="btn btn-gray" type="submit" name="new_status" value="{{ old_status }}" title="Undo">
+        Undo
+      </button>
+      {% else %}
+      <a href="{{ gh_issue_link }}">GitHub issue</a>
+      {% endif %}
+    </form>
+  </div>
 </article>
