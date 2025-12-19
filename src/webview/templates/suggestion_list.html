@@ -7,7 +7,7 @@
 
 <h1 class="page-title row gap-small centered"><i class="icon-inbox"></i>Automatically generated suggestions</h1>
 <div class="prose">
-  <p><button class="btn btn-green inline-row gap-small centered" disabled><i class="icon-draft"></i>Create Draft</button> to queue a suggestion for refinement.</p>
+  <p><button class="btn btn-green inline-row gap-small centered" disabled><i class="icon-draft"></i>Create draft</button> to queue a suggestion for refinement.</p>
   <p><button class="btn btn-gray inline-row gap-small centered" disabled><i class="icon-bin"></i>Dismiss</button> to remove a suggestion from the queue.</p>
 </div>
 
@@ -23,7 +23,7 @@
 
 <h1 class="page-title row gap-small centered"><i class="icon-draft"></i>Drafts</h1>
 <div class="prose">
-  <p><button class="btn btn-green inline-row gap-small centered" disabled><i class="icon-draft"></i>Create Draft</button> to convert the suggestion into a draft security issue that can be edited before publishing.</p>
+  <p><button class="btn btn-green inline-row gap-small centered" disabled><i class="icon-github"></i>Publish issue</button> to create a Nixpkgs security record and open a GitHub issue for tracking resolution. This action will notify maintainers and package subscribers, and cannot be revoked.</p>
   <p><button class="btn btn-gray inline-row gap-small centered" disabled><i class="icon-bin"></i>Dismiss</button> to remove a suggestion from the queue.</p>
 </div>
 
@@ -31,7 +31,7 @@
 
 <div class="column gap">
   {% for object in object_list %}
-    {% suggestion object.proposal object.payload object.activity_log %}
+    {% suggestion object.proposal object.activity_log %}
   {% endfor %}
 </div>
 {% endblock content %}

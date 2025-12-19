@@ -3,7 +3,8 @@ from dataclasses import dataclass
 from pgpubsub.channel import TriggerChannel
 
 from shared.models import NixDerivation
-from shared.models.cve import Container, NixpkgsIssue
+from shared.models.cve import Container
+from shared.models.issue import NixpkgsIssue
 from shared.models.linkage import CVEDerivationClusterProposal
 from shared.models.nix_evaluation import NixChannel, NixEvaluation
 

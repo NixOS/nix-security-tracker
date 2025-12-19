@@ -5,11 +5,11 @@ from django import template
 from django.template.context import Context
 
 from shared.auth import isadmin, ismaintainer
-from shared.listeners.cache_issues import CachedNixpkgsIssuePayload
 from shared.listeners.cache_suggestions import parse_drv_name
 from shared.logs.batches import FoldedEventType
 from shared.logs.events import Maintainer
 from shared.models.cve import AffectedProduct
+from shared.models.issue import NixpkgsIssue
 from shared.models.linkage import (
     CVEDerivationClusterProposal,
 )
@@ -53,7 +53,7 @@ class AffectedContext(TypedDict):
 
 class SuggestionActivityLog(TypedDict):
     suggestion: CVEDerivationClusterProposal
-    activity_log: dict
+    activity_log: list[FoldedEventType]
     oob_update: bool
 
 
@@ -205,12 +205,10 @@ def is_maintainer_or_admin(user: Any) -> bool:
 def suggestion(
     context: Context,
     suggestion: CVEDerivationClusterProposal,
-    cached_suggestion: dict,
     activity_log: list[FoldedEventType],
 ) -> dict:
     return {
         "suggestion": suggestion,
-        "cached_suggestion": cached_suggestion,
         "activity_log": activity_log,
         "status_filter": context["status_filter"],
         "page_obj": context["page_obj"],
@@ -221,13 +219,17 @@ def suggestion(
 @register.inclusion_tag("components/issue.html", takes_context=True)
 def issue(
     context: Context,
-    issue: CachedNixpkgsIssuePayload,
+    issue: NixpkgsIssue,
+    activity_log: list[FoldedEventType],
     show_permalink: bool = False,
 ) -> dict:
     return {
         "issue": issue,
         "show_permalink": show_permalink,
+        "activity_log": activity_log,
         "page_obj": context.get("page_obj", None),
+        "status_filter": "published",  # Needed in context for the suggestion component
+        "user": context["user"],
     }
 
 
@@ -282,7 +284,7 @@ def affected_products(affected: list[AffectedProduct]) -> AffectedContext:
 @register.inclusion_tag("components/suggestion_activity_log.html")
 def suggestion_activity_log(
     suggestion: CVEDerivationClusterProposal,
-    activity_log: dict,
+    activity_log: list[FoldedEventType],
     oob_update: bool = False,
 ) -> SuggestionActivityLog:
     return {

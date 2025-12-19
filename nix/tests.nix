@@ -55,10 +55,15 @@ lib.mapAttrs (name: test: pkgs.testers.runNixOSTest (test // { inherit name defa
       server.wait_for_unit("${application}-server.service")
       server.wait_for_unit("${application}-worker.service")
 
-      with subtest("Django application tests"):
-        # https://docs.djangoproject.com/en/5.0/topics/testing/overview/
-        server.succeed("wst-manage test shared")
-        server.succeed("wst-manage test webview")
+      with subtest("Application tests"):
+        ${
+          ""
+          /*
+            XXX(@fricklerhandwerk): `pytest` searches in the working directory.
+            In this environment it can't discover what's needed on its own.
+            It's easiest to list the modules under test explicitly, which are found through `$PYTHONPATH`.
+          */
+        }server.succeed("wst-manage test -- --pyargs shared webview")
 
       with subtest("Check that stylesheet is served"):
         machine.succeed("curl --fail -H 'Host: example.org' http://localhost/static/reset.css")

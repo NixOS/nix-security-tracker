@@ -7,7 +7,7 @@
 
 <div class="column gap">
     {% for object in object_list %}
-      {% issue object True %}
+      {% issue object object.activity_log True %}
     {% endfor %}
 </div>
 {% endblock content %}

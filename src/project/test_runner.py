@@ -7,10 +7,10 @@ Functionality that requires a network call to be tested, will have to mock the r
 from typing import Any
 
 import httpretty
-from django.test.runner import DiscoverRunner
+from pytest_django.runner import TestRunner
 
 
-class CustomTestRunner(DiscoverRunner):
+class CustomTestRunner(TestRunner):
     def run_tests(self, *args: Any, **kwargs: dict[str, Any]) -> Any:
         # ensure tests are isolated, this is important when running them in the development environment
         # this library may be overkill, replace it with something more lightweight if possible

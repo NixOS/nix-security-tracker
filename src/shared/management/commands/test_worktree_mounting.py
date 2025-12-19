@@ -10,13 +10,14 @@ from shared.git import GitRepo
 from shared.models.nix_evaluation import NixChannel
 
 
-async def test_worktree(repo: GitRepo, channel: NixChannel) -> None:
+async def check_worktree(repo: GitRepo, channel: NixChannel) -> None:
     with tempfile.TemporaryDirectory() as tmpdir:
         async with repo.extract_working_tree(channel.head_sha1_commit, tmpdir) as wt:
             print("Tested the creation of a working tree", wt)
             print(await repo.worktrees())
 
 
+# FIXME(@fricklerhandwerk): This should be a proper test in order to cover the code.
 class Command(BaseCommand):
     help = "Test mounting the worktree of a Nix channel"
 
@@ -28,4 +29,4 @@ class Command(BaseCommand):
         )
         channel = NixChannel.objects.first()
         if channel is not None:
-            asyncio.run(test_worktree(repo, channel))
+            asyncio.run(check_worktree(repo, channel))

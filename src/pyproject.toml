@@ -5,3 +5,12 @@ version = "0.0.1"
 [tool.setuptools]
 packages = { find = {} }
 include-package-data = true
+
+[tool.pytest.ini_options]
+DJANGO_SETTINGS_MODULE = "project.settings"
+filterwarnings = [
+  # FIXME(@fricklerhandwerk): Remove the source of the warning.
+  # It may have something to do with the Nix packaging, but TBH I have no idea.
+  # At the time of writing it's not important enough to investigate, but a fix is appreciated.
+  "ignore::pytest.PytestAssertRewriteWarning",
+]

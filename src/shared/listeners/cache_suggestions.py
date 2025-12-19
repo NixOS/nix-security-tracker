@@ -6,6 +6,7 @@ from itertools import chain
 from typing import Any
 
 import pgpubsub
+from django.conf import settings
 from django.db.models import Prefetch
 
 from shared.channels import CVEDerivationClusterProposalCacheChannel
@@ -54,59 +55,59 @@ def to_dict(instance: Any) -> dict[str, Any]:
 
 
 def cache_new_suggestions(suggestion: CVEDerivationClusterProposal) -> None:
-    # Pre-conditions:
-    # - do we have any package_name attached?
-    if (
-        suggestion.cve.container.filter(affected__package_name__isnull=False).count()
-        == 0
-    ):
+    # Do we have any package_name attached?
+    # FIXME(@fricklerhandwerk): We shouldn't have any of these in the database in the first place.
+    # Clean it up in a migration, and add tests to assert the invariants in the data transformation that leads up to here.
+    if not suggestion.cve.container.filter(
+        affected__package_name__isnull=False
+    ).exists():
         return
 
-    relevant_data = (
-        suggestion.cve.container.prefetch_related("affected", "metrics", "descriptions")
-        .values(
+    # This is not a suggestion we want to show.
+    # FIXME(@fricklerhandwerk): Ideally there wouldn't be any in the database to begin with. [ref:max-drv-matches]
+    if suggestion.derivations.count() > settings.MAX_MATCHES:
+        return
+
+    relevant_piece = (
+        suggestion.cve.container.values(
             "title",
             # Only used for relevance checking
             "affected__package_name",
             "descriptions__value",
         )
-        .all()
+        .filter(affected__package_name__isnull=False)
+        .first()
     )
 
-    relevant_piece = [x for x in relevant_data if "affected__package_name" in x]
     if not relevant_piece:
         # No package name.
-        return
-    relevant_piece = relevant_piece[0]
-
-    # This is not a suggestion we want to show.
-    if suggestion.derivations.count() > 1_000:
         return
 
     affected_products = dict()
     all_versions = list()
+
     prefetched_affected_products = AffectedProduct.objects.filter(
-        container__cve=suggestion.cve
-    )
+        container__cve=suggestion.cve, package_name__isnull=False
+    ).prefetch_related("versions", "cpes")
+
     for affected_product in prefetched_affected_products:
-        if affected_product.package_name:
-            all_versions.extend(affected_product.versions.all())
-            if affected_product.package_name not in affected_products:
-                affected_products[affected_product.package_name] = {
-                    "version_constraints": set(),
-                    "cpes": set(),
-                }
-            affected_products[affected_product.package_name][
-                "version_constraints"
-            ].update(
-                [
-                    (vc.status, vc.version_constraint_str())
-                    for vc in affected_product.versions.all()
-                ]
-            )
-            affected_products[affected_product.package_name]["cpes"].update(
-                [cpe.name for cpe in affected_product.cpes.all()]
-            )
+        package_name = affected_product.package_name
+        versions = list(affected_product.versions.all())
+        all_versions.extend(versions)
+
+        if package_name not in affected_products:
+            affected_products[package_name] = {
+                "version_constraints": set(),
+                "cpes": set(),
+            }
+
+        affected_products[package_name]["version_constraints"].update(
+            (vc.status, vc.version_constraint_str()) for vc in versions
+        )
+        affected_products[package_name]["cpes"].update(
+            cpe.name for cpe in affected_product.cpes.all()
+        )
+
     for package_name, data in affected_products.items():
         affected_products[package_name]["version_constraints"] = list(
             data["version_constraints"]

@@ -136,6 +136,12 @@ class Settings(BaseSettings):
             # on the environment.
             default=[],
         )
+        MAX_MATCHES: int = Field(
+            description="""
+            CVEs matching more than this number of derivations are ignored.
+            """,
+            default=1_000,
+        )
         SHOW_DEMO_DISCLAIMER: bool = Field(
             description="""
             When set to True, the application will display a disclaimer about

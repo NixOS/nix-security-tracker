@@ -9,7 +9,6 @@ from django.db import transaction
 from django.urls import reverse
 
 from shared.github import create_gh_issue, fetch_user_info
-from shared.listeners.cache_issues import CachedNixpkgsIssuePayload
 from shared.listeners.cache_suggestions import apply_package_edits, maintainers_list
 from shared.logs.batches import batch_events
 from shared.logs.events import remove_canceling_events
@@ -77,8 +76,19 @@ class NixpkgsIssueView(DetailView):
         issue = cast(
             NixpkgsIssue, get_object_or_404(self.model, code=self.kwargs.get("code"))
         )
-        issue.cached_payload = CachedNixpkgsIssuePayload(**issue.cached.payload)  # type: ignore
         return issue
+
+    def get_context_data(self, **kwargs: Any) -> Any:
+        context = super().get_context_data(**kwargs)
+        issue = self.get_object()
+
+        # Fetch activity log
+        raw_events = fetch_suggestion_events(issue.suggestion.pk)
+        context["activity_log"] = batch_events(
+            remove_canceling_events(raw_events, sort=True)
+        )
+
+        return context
 
 
 class NixpkgsIssueListView(ListView):
@@ -89,8 +99,6 @@ class NixpkgsIssueListView(ListView):
     # TODO Because of how issue codes and cached issues are generated (post save / post insert), it is not trivial to ensure new issues get their code filled up in the cached issue (unless `manage regenerate_cached_issues` is run by hand). Since the view needs the issue code, for now, the cached issue is passed as an additional field instead of being the returned object.
     def get_queryset(self) -> BaseManager[NixpkgsIssue]:
         issues = NixpkgsIssue.objects.all().order_by("-created")
-        for issue in issues:
-            issue.cached_payload = CachedNixpkgsIssuePayload(**issue.cached.payload)  # type: ignore
         return issues
 
     def get_context_data(self, **kwargs: Any) -> Any:
@@ -98,6 +106,13 @@ class NixpkgsIssueListView(ListView):
         context["adjusted_elided_page_range"] = context[
             "paginator"
         ].get_elided_page_range(context["page_obj"].number)
+
+        # Fetch activity logs
+        for issue in context["object_list"]:
+            raw_events = fetch_suggestion_events(issue.suggestion.pk)
+            filtered_events = remove_canceling_events(raw_events, sort=True)
+            issue.activity_log = batch_events(filtered_events)
+
         return context
 
 
@@ -241,7 +256,6 @@ class SuggestionListView(ListView):
             this function.
             """
             return {
-                "cached_suggestion": cached_suggestion.payload,
                 "suggestion": suggestion,
                 "activity_log": activity_log,
                 "status_filter": self.status_filter,
@@ -323,7 +337,7 @@ class SuggestionListView(ListView):
         if status_change and new_status == "published":
             try:
                 with transaction.atomic():
-                    tracker_issue = suggestion.create_nixpkgs_issue()
+                    tracker_issue = NixpkgsIssue.create_nixpkgs_issue(suggestion)
                     tracker_issue_link = request.build_absolute_uri(
                         reverse("webview:issue_detail", args=[tracker_issue.code])
                     )
@@ -353,7 +367,6 @@ class SuggestionListView(ListView):
                 snippet = render_to_string(
                     "components/suggestion.html",
                     {
-                        "cached_suggestion": cached_suggestion.payload,
                         "suggestion": suggestion,
                         "activity_log": fresh_activity_log,
                         "status_filter": self.status_filter,

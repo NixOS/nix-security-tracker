@@ -3,47 +3,14 @@
 <article class="rounded-box column gap" id="issue-{{ issue.code }}">
 
   <div class="row gap spread">
-    <div class="uppercase">{{ issue.cached_payload.status.label }}</div>
-    <div>created on {{ issue.cached_payload.created_at }}</div>
+    <div class="uppercase bold">{{ issue.status_string }}</div>
+    <div>published on {{ issue.created }}</div>
   </div>
 
-  <details>
-    <summary class="heading">
-      {{ issue.code }}
-    </summary>
-    <p>{{ issue.cached_payload.description }}</p>
-  </details>
-
-
-  {% if issue.cached_payload.vulnerabilities %}
-  <div class="rounded-box">
-    <h2 class="heading dimmed">Vulnerabilities</h2>
-    <ul class="column gap-small">
-      {% for vulnerability in issue.cached_payload.vulnerabilities %}
-      <li>
-        <a class="cve-id" href="https://nvd.nist.gov/vuln/detail/{{ vulnerability.cve_id | urlencode }}">
-          {{ vulnerability.cve_id }}
-        </a>
-      </li>
-      {% endfor %}
-    </ul>
-  </div>
-  {% endif %}
-
-  {% if issue.cached_payload.packages %}
-  <div class="rounded-box">
-    <h2 class="heading dimmed">Related packages</h2>
-    {% nixpkgs_package_list issue.cached_payload.packages %}
-  </div>
-  {% endif %}
-
-  {% if issue.comment %}
-  <pre class="rounded-box monospace highlight-nonempty">{{ issue.comment|default:"" }}</pre>
-  {% endif %}
+  {% suggestion issue.suggestion activity_log %}
 
   {% if show_permalink %}
     <a href="/issues/{{ issue.code }}" class="permalink">Permalink</a>
   {% endif %}
 
 </article>
-

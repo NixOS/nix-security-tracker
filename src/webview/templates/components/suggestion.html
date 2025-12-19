@@ -1,6 +1,6 @@
 {% load viewutils %}
 
-<article class="rounded-box column gap highlight-target" hx-target="this" id="suggestion-{{ cached_suggestion.pk }}">
+<article class="rounded-box column gap highlight-target" hx-target="this" id="suggestion-{{ suggestion.cached.payload.pk }}">
   <form
     class="contents"
     method="post"
@@ -13,16 +13,16 @@
   >
     <input type="hidden" name="no-js">
     {% csrf_token %}
-    <input type="hidden" name="suggestion_id" value="{{ cached_suggestion.pk }}">
+    <input type="hidden" name="suggestion_id" value="{{ suggestion.cached.payload.pk }}">
     <input type="hidden" name="page" value="{{ page_obj.number }}">
 
     <div class="row spread gap wrap">
       <div class="row gap wrap">
-        <a href="https://nvd.nist.gov/vuln/detail/{{ cached_suggestion.cve_id | urlencode }}">
-          {{ cached_suggestion.cve_id }}
+        <a href="https://nvd.nist.gov/vuln/detail/{{ suggestion.cached.payload.cve_id | urlencode }}">
+          {{ suggestion.cached.payload.cve_id }}
         </a>
-        {% if cached_suggestion.metrics %}
-          {% severity_badge cached_suggestion.metrics %}
+        {% if suggestion.cached.payload.metrics %}
+          {% severity_badge suggestion.cached.payload.metrics %}
         {% endif %}
       </div>
       <div class="row gap">
@@ -33,83 +33,91 @@
 
     <details>
       <summary class="heading">
-        {% if cached_suggestion.title %}
-          {{ cached_suggestion.title }}
+        {% if suggestion.cached.payload.title %}
+          {{ suggestion.cached.payload.title }}
         {% else %}
-          {{ cached_suggestion.description|truncatewords:10 }}
+          {{ suggestion.cached.payload.description|truncatewords:10 }}
         {% endif %}
       </summary>
-      <p>{{ cached_suggestion.description }}</p>
+      <p>{{ suggestion.cached.payload.description }}</p>
     </details>
 
     <div class="rounded-box column gap">
       <h2 class="heading dimmed">Affected products</h2>
-      {% affected_products cached_suggestion.affected_products %}
+      {% affected_products suggestion.cached.payload.affected_products %}
     </div>
 
     <div class="rounded-box column gap">
       <h2 class="heading dimmed">Matching in nixpkgs</h2>
       {% if user|is_maintainer_or_admin %}
-        {% if status_filter == "rejected" %}
-          {% nixpkgs_package_list cached_suggestion.packages %}
+        {% if status_filter == "rejected" or status_filter == "published" %}
+          {% nixpkgs_package_list suggestion.cached.payload.packages %}
         {% else %}
-          {% selectable_nixpkgs_package_list cached_suggestion.packages %}
+          {% selectable_nixpkgs_package_list suggestion.cached.payload.packages %}
         {% endif %}
       {% else %}
-        {% nixpkgs_package_list cached_suggestion.packages %}
+        {% nixpkgs_package_list suggestion.cached.payload.packages %}
       {% endif %}
     </div>
 
     {% if status_filter == "pending" or status_filter == "accepted" %}
-      {% selectable_maintainers_list maintainers=cached_suggestion.maintainers suggestion_id=cached_suggestion.pk %}
+      {% selectable_maintainers_list maintainers=suggestion.cached.payload.maintainers suggestion_id=suggestion.cached.payload.pk %}
     {% else %}
-      {% maintainers_list cached_suggestion.maintainers %}
+      {% maintainers_list suggestion.cached.payload.maintainers %}
     {% endif %}
 
 
     {% if user|is_maintainer_or_admin %}
-    <textarea 
-      class="rounded-box monospace highlight-nonempty"
-      name="comment" 
-      maxlength="1000" 
-      placeholder="Free comment: context, additional info, dismissal reason, etc."
-      rows="3"
-    >{{ suggestion.comment|default:"" }}</textarea>
-
-    <div class="row-reverse spread">
-      {% if status_filter == "pending" %}
-        <button type="submit" name="new_status" value="accepted" class="btn btn-green row gap-small centered">
-          <i class="icon-draft"></i>
-          Create draft
-        </button>
-        <button type="submit" name="new_status" value="rejected" class="btn btn-gray row gap-small centered">
-          <i class="icon-bin"></i>
-          Dismiss
-        </button>
-      {% elif status_filter == "rejected" %}
-        <button type="submit" name="new_status" value="accepted" class="btn btn-green row gap-small centered">
-          <i class="icon-draft"></i>
-          Convert to draft
-        </button>
-      {% elif status_filter == "accepted" %}
-        <button type="submit" name="new_status" value="published" class="btn btn-green row gap-small centered">
-          <i class="icon-github"></i>
-          Publish issue
-        </button>
-        {% if cached_suggestion.packages %}
-          <div class="remove-when-js-is-enabled row gap-small centered">
-            <button type="submit" class="btn btn-gray">
-              Purge deleted packages
-            </button>
-            <span class="dimmed">(cannot be undone)<span>
-          </div>
-        {% endif %}
-        <button type="submit" name="new_status" value="rejected" class="btn btn-gray row gap-small centered">
-          <i class="icon-bin"></i>
-          Dismiss
-        </button>
+    {% if status_filter == "published" %}
+      {% if suggestion.comment %}
+        <pre class="rounded-box monospace highlight-nonempty">{{ suggestion.comment|default:"" }}</pre>
       {% endif %}
-    </div>
+    {% else %}
+      <textarea 
+        class="rounded-box monospace highlight-nonempty"
+        name="comment" 
+        maxlength="1000" 
+        placeholder="Free comment: context, additional info, dismissal reason, etc."
+        rows="3"
+      >{{ suggestion.comment|default:"" }}</textarea>
+    {% endif %}
+
+    {% if status_filter != "published" %}
+      <div class="row-reverse spread">
+        {% if status_filter == "pending" %}
+          <button type="submit" name="new_status" value="accepted" class="btn btn-green row gap-small centered">
+            <i class="icon-draft"></i>
+            Create draft
+          </button>
+          <button type="submit" name="new_status" value="rejected" class="btn btn-gray row gap-small centered">
+            <i class="icon-bin"></i>
+            Dismiss
+          </button>
+        {% elif status_filter == "rejected" %}
+          <button type="submit" name="new_status" value="accepted" class="btn btn-green row gap-small centered">
+            <i class="icon-draft"></i>
+            Convert to draft
+          </button>
+        {% elif status_filter == "accepted" %}
+          <button type="submit" name="new_status" value="published" class="btn btn-green row gap-small centered">
+            <i class="icon-github"></i>
+            Publish issue
+          </button>
+          {% if suggestion.cached.payload.packages %}
+            <div class="remove-when-js-is-enabled row gap-small centered">
+              <button type="submit" class="btn btn-gray">
+                Purge deleted packages
+              </button>
+              <span class="dimmed">(cannot be undone)<span>
+            </div>
+          {% endif %}
+          <button type="submit" name="new_status" value="rejected" class="btn btn-gray row gap-small centered">
+            <i class="icon-bin"></i>
+            Dismiss
+          </button>
+        {% endif %}
+      </div>
+      {% endif %}
     {% endif %}
   </form>
 

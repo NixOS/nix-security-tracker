@@ -8,7 +8,7 @@ from django.dispatch import receiver
 from django.utils.translation import gettext_lazy as _
 
 import shared.models.cached
-from shared.models.cve import CveRecord, Description, IssueStatus, NixpkgsIssue
+from shared.models.cve import CveRecord
 from shared.models.nix_evaluation import NixDerivation, NixMaintainer, TimeStampMixin
 
 
@@ -51,30 +51,6 @@ class CVEDerivationClusterProposal(TimeStampMixin):
             "Optional free text comment for additional notes, context, dismissal reason"
         ),
     )
-
-    def create_nixpkgs_issue(self) -> NixpkgsIssue:
-        """
-        Create a NixpkgsIssue from this suggestion and save it in the database. Note
-        that this doesn't create a corresponding GitHub issue; interaction with
-        GitHub is handled separately in `shared.github`.
-        """
-
-        issue = NixpkgsIssue.objects.create(
-            # By default we set the status to affected; a human might later
-            # change the status if it turns out we're not affected in the
-            # end.
-            status=IssueStatus.AFFECTED,
-            description=Description.objects.create(
-                # FIXME(@fricklerhandwerk): Ensure the cached payload is correct beforehand instead of an ad-hoc fallback here. [ref:title-fallback-hack]
-                # Or maybe the data model can be relaxed to have an optional description.
-                value=self.cached.payload["description"] or ""
-            ),
-        )
-        issue.cve.add(self.cve)
-        issue.derivations.set(self.derivations.all())
-        issue.comment = self.comment
-        issue.save()
-        return issue
 
 
 @pghistory.track(

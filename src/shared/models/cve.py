@@ -1,18 +1,10 @@
-from typing import Any
-
 from django.contrib.postgres.indexes import BTreeIndex, GinIndex
 from django.contrib.postgres.search import SearchVectorField
 from django.core.validators import RegexValidator
 from django.db import models
 from django.db.models import Index, Q
-from django.db.models.signals import post_save
-from django.dispatch import receiver
 from django.utils.translation import gettext_lazy as _
 from pgtrigger import UpdateSearchVector
-
-import shared.models.cached
-
-from .nix_evaluation import NixDerivation
 
 
 def text_length(choices: type[models.TextChoices]) -> int:
@@ -504,94 +496,3 @@ class CveIngestion(models.Model):
     timestamp = models.DateTimeField(auto_now_add=True)
     valid_to = models.DateField()
     delta = models.BooleanField(default=True)
-
-
-###
-#
-# Nixpkgs related models
-#
-##
-
-
-class IssueStatus(models.TextChoices):
-    UNKNOWN = "U", _("unknown")
-    AFFECTED = "A", _("affected")
-    NOTAFFECTED = "NA", _("notaffected")
-    NOTFORUS = "O", _("notforus")
-    WONTFIX = "W", _("wontfix")
-
-
-class NixpkgsIssue(models.Model):
-    """The Nixpkgs version of a cve."""
-
-    created = models.DateField(auto_now_add=True)
-    code = models.CharField(max_length=len("NIXPKGS-YYYY-") + 19)
-
-    cached: "shared.models.cached.CachedNixpkgsIssue"
-
-    cve = models.ManyToManyField(CveRecord)
-    description = models.ForeignKey(Description, on_delete=models.PROTECT)
-    comment = models.CharField(
-        max_length=1000,
-        default="",
-        help_text=_("Optional comment from the suggestion that lead to this issue"),
-    )
-    status = models.CharField(
-        max_length=text_length(IssueStatus),
-        choices=IssueStatus.choices,
-        default=IssueStatus.UNKNOWN,
-    )
-
-    derivations = models.ManyToManyField(NixDerivation)
-
-    def __str__(self) -> str:
-        return self.code
-
-    @property
-    def status_string(self) -> str:
-        mapping = {
-            IssueStatus.UNKNOWN: "unknown",
-            IssueStatus.AFFECTED: "affected",
-            IssueStatus.NOTAFFECTED: "not affected",
-            IssueStatus.NOTFORUS: "not relevant for us",
-            IssueStatus.WONTFIX: "won't fix",
-        }
-        return mapping.get(self.status, mapping[IssueStatus.UNKNOWN])  # type: ignore
-
-
-@receiver(post_save, sender=NixpkgsIssue)
-def generate_code(
-    sender: type[NixpkgsIssue], instance: NixpkgsIssue, created: bool, **kwargs: Any
-) -> None:
-    if created:
-        number = sender.objects.filter(
-            created__year=instance.created.year, pk__lte=instance.pk
-        ).count()
-        instance.code = f"NIXPKGS-{str(instance.created.year)}-{str(number).zfill(4)}"
-        instance.save()
-
-
-class NixpkgsEvent(models.Model):
-    class EventType(models.TextChoices):
-        ISSUED = "I", _("issue opened")
-        PR_OPENED = "P", _("PR opened")
-        PR_MERGED = "M", _("PR merged")
-
-    issue = models.ForeignKey(NixpkgsIssue, on_delete=models.CASCADE)
-    reference = models.TextField()
-
-
-class NixpkgsAdvisory(models.Model):
-    class AdvisoryStatus(models.TextChoices):
-        DRAFT = "DRAFT", _("draft")
-        RELEASED = "RELEASED", _("released")
-        REVISED = "REVISED", _("revised")
-
-    class AdvisorySeverity(models.TextChoices):
-        UNKNOWN = "UNKNOWN", _("unknown")
-        LOW = "LOW", _("low")
-        MEDIUM = "MEDIUM", _("medium")
-        HIGH = "HIGH", _("high")
-        CRITICAL = "CRITICAL", _("critical")
-
-    issues = models.ManyToManyField(NixpkgsIssue)

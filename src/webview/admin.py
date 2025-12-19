@@ -9,7 +9,6 @@ from django.db.models import CharField, ForeignKey, ManyToManyField, TextField
 
 from shared.models import Container, NixDerivationMeta, NixpkgsIssue
 from shared.models.linkage import (
-    CVEDerivationClusterProposal,
     DerivationClusterProposalLink,
 )
 
@@ -136,5 +135,4 @@ class NixpkgsIssueAdmin(AutocompleteMixin, admin.ModelAdmin):
     readonly_fields = ["code"]
 
 
-admin.site.register(CVEDerivationClusterProposal)
 admin.site.register(DerivationClusterProposalLink)

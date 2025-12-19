@@ -1,6 +1,7 @@
 final: _prev:
 let
   sources = import ../npins;
+  meta = with builtins; fromTOML (readFile ../src/pyproject.toml);
 in
 {
   # go through the motions to make a flake-incompat project use the build
@@ -15,8 +16,8 @@ in
   };
 
   web-security-tracker = final.python3.pkgs.buildPythonPackage rec {
-    pname = "web-security-tracker";
-    version = "0.0.1";
+    pname = meta.project.name;
+    inherit (meta.project) version;
     pyproject = true;
 
     src = final.nix-gitignore.gitignoreSourcePure [ ../.gitignore ] ../src;
@@ -47,6 +48,8 @@ in
       sentry-sdk
       django-pghistory
       django-pgtrigger
+      pytest
+      pytest-django
     ];
 
     postInstall = ''

@@ -172,19 +172,13 @@ hivemind
 
 ### Resetting the database
 
-In order to start over, delete the database and recreate it, then restore it from a dump, and (just in case the dump is behind the code) run migrations:
+In order to start over you need SSH access to the staging environment.
+Delete the database and recreate it, then restore it from a dump, and (just in case the dump is behind the code) run migrations:
 
 ```bash
 dropdb nix-security-tracker
-sudo -u postgres createdb -O nix-security-tracker nix-security-tracker
-pg_restore -O -d nix-security-tracker -v < dump
+ssh root@tracker-staging.security.nixos.org "sudo -u postgres pg_dump --create web-security-tracker | zstd" | zstdcat | sed 's|web-security-tracker|nix-security-tracker|g' | pv | psql
 manage migrate
-```
-
-If you have SSH access to the staging environment, you can instead dump and restore the latest state directly:
-
-```bash
-ssh sectracker.nixpkgs.lahfa.xyz "sudo -u postgres pg_dump --create web-security-tracker | zstd" | zstdcat | sed 's|web-security-tracker|nix-security-tracker|g' | pv | psql
 ```
 
 ## Running the service in a container
@@ -204,42 +198,6 @@ Assuming you have a local checkout of this repository at `~/src/nix-security-tra
 ```
 
 The service will be accessible at <http://172.31.100.1>.
-
-### Using a database dump
-
-To upload a pre-existing database dump into the container with [`nixos-container`](https://nixos.org/manual/nixos/unstable/#sec-imperative-containers):
-
-0. Get the most recent database dump:
-
-   ```bash
-   curl https://dumps.sectracker.nixpkgs.lahfa.xyz/web-security-tracker --output dump
-   ```
-
-1. Stop the server, delete the initial database, and create an empty one.
-
-   ```bash
-   sudo nixos-container run nix-security-tracker -- bash << EOF
-   systemctl stop web-security-tracker-server.service
-   systemctl stop web-security-tracker-worker.service
-   sudo -u postgres dropdb web-security-tracker
-   sudo -u postgres createdb web-security-tracker
-   EOF
-   ```
-
-2. Restore the dump.
-
-   ```bash
-   sudo nixos-container run nix-security-tracker -- sudo -u postgres pg_restore -d web-security-tracker -v < dump
-   ```
-
-3. Start the service again.
-
-   ```bash
-   sudo nixos-container run nix-security-tracker -- bash << EOF
-   systemctl start web-security-tracker-server.service
-   systemctl start web-security-tracker-worker.service
-   EOF
-   ```
 
 ## Running tests
 
@@ -290,15 +248,14 @@ manage ingest_bulk_cve --subset 100
 This will take a few minutes on an average machine.
 Not passing `--subset N` will take about an hour and produce ~500 MB of data.
 
-### Caching suggestions and issues
+### Caching suggestions
 
-Suggestion and issue contents are displayed from a cache to avoid latency from complex database queries.
+Suggestion contents are displayed from a cache to avoid latency from complex database queries.
 
 To compute or re-compute the cached information from scratch:
 
 ```console
 manage regenerate_cached_suggestions
-manage regenerate_cached_issues
 ```
 
 ## Staging deployment
