@@ -94,7 +94,7 @@ in
       GH_ISSUES_REPO = "nixpkgs";
       GH_SECURITY_TEAM = "security";
       GH_COMMITTERS_TEAM = "nixpkgs-committers";
-      GH_ISSUES_LABELS = [ "1.severity:security" ];
+      GH_ISSUES_LABELS = [ "1.severity: security" ];
       GH_ISSUES_COMMITTERS_ONLY = true;
     };
 

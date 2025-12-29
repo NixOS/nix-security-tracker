@@ -81,6 +81,8 @@
             <span class="suggestion-status-dismissed">dismissed</span>
           {% elif "pending" in log_entry.status_value %}
             <span class="suggestion-status-automatic">marked as untriaged</span>
+          {% elif "published" in log_entry.status_value %}
+            <span class="suggestion-status-automatic">published on GitHub</span>
           {% else %}
             {{ log_entry.action }}
           {% endif %}
@@ -111,6 +113,8 @@
             <i class="icon-bin"></i>
           {% elif "pending" in log_entry.status_value %}
             <i class="icon-inbox"></i>
+          {% elif "published" in log_entry.status_value %}
+            <i class="icon-github"></i>
           {% else %}
             {{ log_entry.action }}
           {% endif %}
