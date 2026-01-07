@@ -2,12 +2,14 @@ import itertools
 import logging
 import re
 import urllib.parse
+from datetime import datetime
 from itertools import chain
-from typing import Any
+from typing import Any, overload
 
 import pgpubsub
 from django.conf import settings
 from django.db.models import Prefetch
+from pydantic import BaseModel, field_serializer
 
 from shared.channels import CVEDerivationClusterProposalCacheChannel
 from shared.models import NixDerivation, NixMaintainer
@@ -21,6 +23,54 @@ from shared.models.linkage import (
 from shared.models.nix_evaluation import get_major_channel
 
 logger = logging.getLogger(__name__)
+
+
+class CachedSuggestion(BaseModel):
+    class AffectedProduct(BaseModel):
+        version_constraints: set[tuple[str, str]] = set()
+        cpes: set[str] = set()
+
+        @overload
+        def from_set(self, value: set[str]) -> list[str]: ...
+
+        @overload
+        def from_set(self, value: set[tuple[str, str]]) -> list[tuple[str, str]]: ...
+
+        @field_serializer("version_constraints", "cpes", when_used="json")
+        def from_set(self, value):
+            return list(value)
+
+    class PackageOnBranch(BaseModel):
+        version: str
+        status: Version.Status
+        src_position: str | None
+        # Evaluation timestamps
+        updated: datetime
+
+    # FIXME(@fricklerhandwerk): This currently subsumes PackageOnBranch, duplicates its structure, and conflates two unrelated concerns.
+    # We may instead want to collect all branches that have the same *status* (i.e. rolling, stable, deprecated) and display them as a group.
+    # Then we could collapse the group if all channels have the same version, and display that version in the summary.
+    class PackageOnPrimaryChannel(BaseModel):
+        # Package version on the primary ("major") channel
+        major_version: str | None
+        status: Version.Status | None
+        # Evaluation timestamps
+        updated: datetime | None
+        # Whether package version is the same for all branches where the package appears
+        uniform_versions: bool | None
+        src_position: str | None
+        sub_branches: dict[str, "CachedSuggestion.PackageOnBranch"]
+
+    pk: int
+    cve_id: str
+    title: str
+    description: str | None
+    affected_products: dict[str, AffectedProduct]
+    original_packages: dict[str, Any]  #  FIXME(@fricklerhandwerk)
+    packages: dict[str, Any]  #  FIXME(@fricklerhandwerk)
+    # XXX(@fricklerhandwerk): These are converted with `to_dict()` naively, we're not doing anything interesting to them here.
+    metrics: list[dict]
+    maintainers: list[dict]
 
 
 def apply_package_edits(packages: dict, edits: list[PackageEdit]) -> dict:
@@ -83,7 +133,7 @@ def cache_new_suggestions(suggestion: CVEDerivationClusterProposal) -> None:
         # No package name.
         return
 
-    affected_products = dict()
+    affected_products: dict[str, CachedSuggestion.AffectedProduct] = {}
     all_versions = list()
 
     prefetched_affected_products = AffectedProduct.objects.filter(
@@ -92,27 +142,20 @@ def cache_new_suggestions(suggestion: CVEDerivationClusterProposal) -> None:
 
     for affected_product in prefetched_affected_products:
         package_name = affected_product.package_name
+        # XXX(@fricklerhandwerk): Satisfy the static typecheck that doesn't know we already filtered those out...
+        assert package_name is not None
         versions = list(affected_product.versions.all())
         all_versions.extend(versions)
 
         if package_name not in affected_products:
-            affected_products[package_name] = {
-                "version_constraints": set(),
-                "cpes": set(),
-            }
+            affected_products[package_name] = CachedSuggestion.AffectedProduct()
 
-        affected_products[package_name]["version_constraints"].update(
+        affected_products[package_name].version_constraints.update(
             (vc.status, vc.version_constraint_str()) for vc in versions
         )
-        affected_products[package_name]["cpes"].update(
+        affected_products[package_name].cpes.update(
             cpe.name for cpe in affected_product.cpes.all()
         )
-
-    for package_name, data in affected_products.items():
-        affected_products[package_name]["version_constraints"] = list(
-            data["version_constraints"]
-        )
-        affected_products[package_name]["cpes"] = list(data["cpes"])
 
     derivations = list(
         suggestion.derivations.select_related("metadata", "parent_evaluation")
@@ -125,6 +168,10 @@ def cache_new_suggestions(suggestion: CVEDerivationClusterProposal) -> None:
                 to_attr="prefetched_maintainers",
             ),
         )
+        # Oldest first, primary key is tie breaker.
+        # That way the most recent information will end up being displayed.
+        # Sorting in the database is surely faster than conditional update in Python, since there's a low limit of `settings.MAX_MATCHES`
+        .order_by("parent_evaluation__updated_at", "pk")
         .all()
     )
 
@@ -137,23 +184,23 @@ def cache_new_suggestions(suggestion: CVEDerivationClusterProposal) -> None:
     packages = apply_package_edits(original_packages, package_edits)
     maintainers = maintainers_list(packages, maintainers_edits)
 
-    only_relevant_data = {
-        "pk": suggestion.pk,
-        "cve_id": suggestion.cve.cve_id,
-        "package_name": relevant_piece["affected__package_name"],
-        "title": relevant_piece["title"],
-        "description": relevant_piece["descriptions__value"],
-        "affected_products": affected_products,
-        "original_packages": packages,
-        "packages": packages,
-        "metrics": [to_dict(m) for m in prefetched_metrics],
-        "maintainers": maintainers,
-    }
-
-    # TODO: add format checking to avoid disasters in the frontend.
+    only_relevant_data = CachedSuggestion(
+        pk=suggestion.pk,
+        cve_id=suggestion.cve.cve_id,
+        title=relevant_piece["title"],
+        description=relevant_piece["descriptions__value"],
+        affected_products=affected_products,
+        # FIXME(@fricklerhandwerk): It's probably because I don't understand the code involved too well, but it seems wrong that we don't keep the original packages here.
+        # If it must be that way, document why.
+        original_packages=packages,
+        packages=packages,
+        metrics=[to_dict(m) for m in prefetched_metrics],
+        maintainers=maintainers,
+    )
 
     _, created = CachedSuggestions.objects.update_or_create(
-        proposal_id=suggestion.pk, defaults={"payload": dict(only_relevant_data)}
+        proposal_id=suggestion.pk,
+        defaults={"payload": only_relevant_data.model_dump(mode="json")},
     )
 
     if created:
@@ -231,83 +278,92 @@ def get_src_position(derivation: NixDerivation) -> str | None:
     return None
 
 
-# TODO This is also used when caching issues. This definition may be moved to
-# another module that would be imported by both this and cache_issues.py
 def channel_structure(
     version_constraints: list[Version], derivations: list[NixDerivation]
 ) -> dict:  # TODO Refine the return type
     """
-    For a list of derivations, massage the data so that in can rendered easily in the suggestions view
+    For a list of derivations and a list of version constraints that all belong to the same package, massage the data so that in can rendered easily in the suggestions view
     """
     packages = dict()
     for derivation in derivations:
-        attribute = derivation.attribute
-        _, version = parse_drv_name(derivation.name)
-        if attribute not in packages:
-            packages[attribute] = {
-                "versions": {},
+        attribute_path = derivation.attribute
+        _, package_version = parse_drv_name(derivation.name)
+        if attribute_path not in packages:
+            packages[attribute_path] = {
+                "channels": {},
                 "derivation_ids": [],
                 "maintainers": [],
             }
             if derivation.metadata:
                 if derivation.metadata.description:
-                    packages[attribute]["description"] = derivation.metadata.description
-                packages[attribute]["maintainers"] = [
+                    packages[attribute_path]["description"] = (
+                        derivation.metadata.description
+                    )
+                packages[attribute_path]["maintainers"] = [
                     to_dict(m) for m in derivation.metadata.prefetched_maintainers
                 ]
-        packages[attribute]["derivation_ids"].append(derivation.pk)
+        packages[attribute_path]["derivation_ids"].append(derivation.pk)
+        # Get the branch from which that derivation originates
         branch_name = derivation.parent_evaluation.channel.channel_branch
+        # Get primary ("major") channel to which that branch belongs
         major_channel = get_major_channel(branch_name)
         # FIXME This quietly drops unfamiliar branch names
         if major_channel:
-            if major_channel not in packages[attribute]["versions"]:
-                packages[attribute]["versions"][major_channel] = {
-                    "major_version": None,
-                    "status": None,
-                    "uniform_versions": None,
-                    "src_position": None,
-                    "sub_branches": dict(),
-                }
-            if branch_name == major_channel:
-                packages[attribute]["versions"][major_channel]["major_version"] = (
-                    version
+            # XXX(@fricklerhandwerk): Here we assign package information to channel names in iteration order, which in the query we have established to be olders-first by evaluation time.
+            channels = packages[attribute_path]["channels"]
+            if major_channel not in channels:
+                channels[major_channel] = CachedSuggestion.PackageOnPrimaryChannel(
+                    major_version=None,
+                    status=None,
+                    src_position=None,
+                    # XXX(@fricklerhandwerk): If this is not replaced in subsequent processing, it will display "-"
+                    uniform_versions=None,
+                    sub_branches=dict(),
+                    updated=None,
                 )
-                packages[attribute]["versions"][major_channel]["src_position"] = (
-                    get_src_position(derivation)
+            if branch_name == major_channel:
+                channels[major_channel] = CachedSuggestion.PackageOnPrimaryChannel(
+                    major_version=package_version,
+                    status=is_version_affected(
+                        [c.affects(package_version) for c in version_constraints]
+                    ),
+                    src_position=get_src_position(derivation),
+                    uniform_versions=channels[major_channel].uniform_versions,
+                    sub_branches=channels[major_channel].sub_branches,
+                    updated=derivation.parent_evaluation.updated_at,
                 )
             else:
-                packages[attribute]["versions"][major_channel]["sub_branches"][
-                    branch_name
-                ] = {
-                    "version": version,
-                    "status": is_version_affected(
-                        [v.is_affected(version) for v in version_constraints]
-                    ),
-                    "src_position": get_src_position(derivation),
-                }
-    for package_name in packages:
-        for mc in packages[package_name]["versions"].keys():
-            uniform_versions = True
-            major_version = packages[package_name]["versions"][mc]["major_version"]
-            packages[package_name]["versions"][mc]["status"] = is_version_affected(
-                [v.is_affected(major_version) for v in version_constraints]
-            )
-            for _branch_name, vdata in packages[package_name]["versions"][mc][
-                "sub_branches"
-            ].items():
-                uniform_versions = (
-                    uniform_versions and str(major_version) == vdata["version"]
+                channels[major_channel].sub_branches[branch_name] = (
+                    CachedSuggestion.PackageOnBranch(
+                        version=package_version,
+                        status=is_version_affected(
+                            [c.affects(package_version) for c in version_constraints]
+                        ),
+                        src_position=get_src_position(derivation),
+                        updated=derivation.parent_evaluation.updated_at,
+                    )
                 )
-            packages[package_name]["versions"][mc]["uniform_versions"]
+
+    for package_name in packages:
+        channels = packages[package_name]["channels"]
+        for mc in channels.keys():
+            uniform_versions = True
+            major_version = channels[mc].major_version
+            for _, branch in channels[mc].sub_branches.items():
+                uniform_versions = (
+                    uniform_versions and str(major_version) == branch.version
+                )
+            channels[mc].uniform_versions = uniform_versions
             # We just sort branch names by length to get a good-enough order
-            packages[package_name]["versions"][mc]["sub_branches"] = sorted(
-                packages[package_name]["versions"][mc]["sub_branches"].items(),
-                reverse=True,
-                key=lambda item: len(item[0]),
+            channels[mc].sub_branches = dict(
+                sorted(
+                    channels[mc].sub_branches.items(),
+                    reverse=True,
+                )
             )
         # Sorting major channel names happens to work out well for bringing them into historical order
-        packages[package_name]["versions"] = sorted(
-            packages[package_name]["versions"].items()
+        packages[package_name]["channels"] = dict(
+            sorted(packages[package_name]["channels"].items())
         )
     return packages
 

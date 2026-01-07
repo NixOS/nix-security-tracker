@@ -312,7 +312,7 @@ class Version(models.Model):
             return None
 
     # TODO(kerstin) This could use regression testing
-    def is_affected(self, version: str) -> str:
+    def affects(self, version: str) -> str:
         """
         Determines wether a given version string is affected by this version constraint
         FIXME(kerstin): We currently compare versions by comparing strings, which is really wrong.

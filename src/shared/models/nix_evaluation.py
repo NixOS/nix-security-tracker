@@ -196,7 +196,7 @@ class NixChannel(TimeStampMixin):
         STAGING = "STAGING", _("Staging")
 
     # A staging branch is the `release-$number` branch or `master` for unstable.
-    # Not to confuse with the staging branch itself.
+    # Not to confuse with the `staging` branch itself.
     staging_branch = models.CharField(max_length=255)
     # A channel branch is the `nixos-$number` branch of
     # `nixos-unstable(-small)` for unstable(-small). Not to confuse with the
@@ -322,8 +322,15 @@ class NixDerivation(models.Model):
 
 
 # Major channels are the important channels that a user wants to keep an eye on.
-# FIXME figure this out dynamically
-MAJOR_CHANNELS = ["25.05", "25.11", "unstable"]
+# FIXME figure this out dynamically [ref:channel-structure]
+# This should aggregate by `status` and pick the `primary` channels.
+# Probably `nixpkgs-unstable` needs a keep its special role:
+# https://github.com/NixOS/infra/pull/921
+MAJOR_CHANNELS = [
+    "unstable",
+    "25.11",
+    "25.05",
+]
 
 
 # The major channel that a branch name (e.g. nixpkgs-24.05-darwin) belongs to

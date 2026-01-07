@@ -5,10 +5,9 @@ from django import template
 from django.template.context import Context
 
 from shared.auth import isadmin, ismaintainer
-from shared.listeners.cache_suggestions import parse_drv_name
+from shared.listeners.cache_suggestions import CachedSuggestion, parse_drv_name
 from shared.logs.batches import FoldedEventType
 from shared.logs.events import Maintainer
-from shared.models.cve import AffectedProduct
 from shared.models.issue import NixpkgsIssue
 from shared.models.linkage import (
     CVEDerivationClusterProposal,
@@ -18,14 +17,9 @@ from webview.models import Notification
 register = template.Library()
 
 
-class VersionInfo(TypedDict):
-    major_version: str | None
-    uniform_versions: bool
-    sub_branches: list[tuple[str, str]]
-
-
 class Package(TypedDict):
-    items: dict[str, str | list[str] | VersionInfo]
+    description: str
+    channels: dict[str, CachedSuggestion.PackageOnPrimaryChannel]
 
 
 class DerivationFields(TypedDict):
@@ -48,7 +42,7 @@ class PackageListContext(TypedDict):
 
 
 class AffectedContext(TypedDict):
-    affected: list[AffectedProduct]
+    affected: list[CachedSuggestion.AffectedProduct]
 
 
 class SuggestionActivityLog(TypedDict):
@@ -172,6 +166,8 @@ def severity_badge(metrics: list[dict]) -> dict:
 
 @register.filter
 def iso(date: datetime.datetime) -> str:
+    if isinstance(date, str):
+        date = datetime.datetime.fromisoformat(date)
     return date.replace(microsecond=0).isoformat()
 
 
@@ -277,7 +273,9 @@ def nixpkgs_package_list(packages: PackageList) -> PackageListContext:
 
 
 @register.inclusion_tag("components/affected_products.html")
-def affected_products(affected: list[AffectedProduct]) -> AffectedContext:
+def affected_products(
+    affected: list[CachedSuggestion.AffectedProduct],
+) -> AffectedContext:
     return {"affected": affected}
 
 

@@ -80,6 +80,13 @@ def aggregate_by_channels(data: list[dict[str, Any]]) -> dict[str, MonitoredChan
 
 def fetch_from_monitoring() -> dict[str, MonitoredChannel]:
     resp = requests.get(
+        # XXX(@fricklerhandwerk): The sources for this are declared in the `NixOS/infra` repo. [tag:channel-structure]
+        # exporter logic:
+        # https://github.com/NixOS/infra/blob/795508213eb35eee099b1b8d12dd46a9f7b03697/build/pluto/prometheus/exporters/channel-exporter.py#L13-L17
+        # systemd service:
+        # https://github.com/NixOS/infra/blob/795508213eb35eee099b1b8d12dd46a9f7b03697/build/pluto/prometheus/exporters/channel.nix#L4-L6
+        # channel structure:
+        # https://github.com/NixOS/infra/blob/795508213eb35eee099b1b8d12dd46a9f7b03697/channels.nix
         "https://monitoring.nixos.org/prometheus/api/v1/query?query=channel_revision"
     )
     resp.raise_for_status()

@@ -79,9 +79,9 @@ let
       --property "Group=web-security-tracker" \
       --property "WorkingDirectory=/var/lib/web-security-tracker" \
       ${concatStringsSep "\n" (map (cred: "--property 'LoadCredential=${cred}' \\") credentials)}
-      --property "Environment=${
+      --property 'Environment=${
         toString (lib.mapAttrsToList (name: value: "${name}=${value}") environment)
-      }" \
+      }' \
       "${wstManageScript}/bin/wst-manage" "$@"
   '';
 in

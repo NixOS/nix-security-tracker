@@ -31,6 +31,7 @@ let
         GH_ISSUES_REPO = "dummy";
         GH_COMMITTERS_TEAM = "dummy-committers";
         GH_SECURITY_TEAM = "dummy-security";
+        GH_ISSUES_LABELS = [ "label with spaces" ];
       };
       secrets =
         let
