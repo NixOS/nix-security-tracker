@@ -60,8 +60,12 @@ class GithubState:
             member.id for member in self.committers_team.get_members()
         }
 
-        users = User.objects.prefetch_related("socialaccount_set").iterator()
-        for user in users:
+        for user in User.objects.prefetch_related("socialaccount_set").iterator(
+            # XXX(@fricklerhandwerk): `chunk_size` must be set in presence of `prefetch_related`
+            # https://docs.djangoproject.com/en/5.2/ref/models/querysets/#iterator
+            # This is probably totally okay, but consider choosing a non-arbitrary value.
+            chunk_size=2000
+        ):
             social = user.socialaccount_set.filter(provider="github").first()  # type: ignore
             if not social:
                 # Superusers are the only possible users with no social account.

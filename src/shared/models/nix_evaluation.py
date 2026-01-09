@@ -270,6 +270,22 @@ class NixEvaluation(TimeStampMixin):
         unique_together = ("channel", "commit_sha1")
 
 
+class NixDerivationDependencyThrough(models.Model):
+    pk = models.CompositePrimaryKey("nixderivation_id", "nixderivationoutput_id")
+
+    nixderivation = models.ForeignKey(
+        "NixDerivation",
+        on_delete=models.CASCADE,
+    )
+    nixderivationoutput = models.ForeignKey(
+        NixDerivationOutput,
+        on_delete=models.CASCADE,
+    )
+
+    class Meta:
+        db_table = "shared_nixderivation_dependencies"
+
+
 class NixDerivation(models.Model):
     """
     This represents a Nix derivation "evaluated",
@@ -281,7 +297,10 @@ class NixDerivation(models.Model):
 
     attribute = models.CharField(max_length=255)
     derivation_path = models.CharField(max_length=255)
-    dependencies = models.ManyToManyField(NixDerivationOutput)
+    dependencies = models.ManyToManyField(
+        NixDerivationOutput,
+        through=NixDerivationDependencyThrough,
+    )
     name = models.CharField(max_length=255)
     metadata = models.OneToOneField(
         NixDerivationMeta,

@@ -1,9 +1,18 @@
-final: _prev:
+final: prev:
 let
   sources = import ../npins;
   meta = with builtins; fromTOML (readFile ../src/pyproject.toml);
 in
 {
+  /*
+    XXX(@fricklerhandwerk): At the time of writing, Nixpkgs has Django 4 as default.
+    Some packages that depend on Django use that default implicitly, so we override it for everything.
+  */
+  python3 = prev.python3.override {
+    packageOverrides = pyfinal: _pyprev: {
+      django = pyfinal.django_5;
+    };
+  };
   # go through the motions to make a flake-incompat project use the build
   # inputs we want
   pre-commit-hooks = final.callPackage "${sources.pre-commit-hooks}/nix/run.nix" {
@@ -30,7 +39,7 @@ in
       django-debug-toolbar
       django-filter
       django-types
-      django_4
+      django
       djangorestframework
       httpretty
       ipython

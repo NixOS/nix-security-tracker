@@ -1,7 +1,7 @@
 {% load humanize %}
 {% load viewutils %}
 
-{% if not activity_log|length_is:0 %}
+{% if activity_log %}
 <details class="column align-end"
          id="suggestion-activity-log-{{suggestion.id}}"
          {% if oob_update %}hx-swap-oob="true"{% endif %}

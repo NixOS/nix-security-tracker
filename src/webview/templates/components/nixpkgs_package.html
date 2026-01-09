@@ -12,16 +12,17 @@
           <summary>
             <div class="inline-row gap-small">
               <span class="w-12">{{ major_channel }}</span>
-              {% if major_version %}
-              <a class="{% if major_version.status == 'affected' %}hl-red{% elif major_version.status == 'unaffected' %}hl-green{% endif %}" target="_blank" href="{{ major_version.src_position }}">
-                {% if major_version.major_version %}
-                  {{ major_version.major_version }}
-                {% else %}
-                  ???
-                {% endif %}
+              {% if major_version.major_version %}
+              <a
+                class="{% if major_version.status == 'affected' %}hl-red{% elif major_version.status == 'unaffected' %}hl-green{% endif %}"
+                target="_blank"
+                href="{{ major_version.src_position }}"
+                title="evaluated {{ major_version.updated|iso }}"
+              >
+                {{ major_version.major_version }}
               </a>
               {% else %}
-              ???
+              -
               {% endif %}
             </div>
           </summary>

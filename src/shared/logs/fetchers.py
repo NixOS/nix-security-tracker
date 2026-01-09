@@ -68,7 +68,10 @@ def fetch_suggestion_events(suggestion_id: int) -> list[RawEventType]:
         .filter(pgh_obj_id=suggestion_id)
     )
 
-    for status_event in status_qs.all().iterator():
+    # XXX(@fricklerhandwerk): `chunk_size` must be set in presence of `prefetch_related`
+    # https://docs.djangoproject.com/en/5.2/ref/models/querysets/#iterator
+    # This is probably okay, but consider choosing a non-arbitrary value.
+    for status_event in status_qs.all().iterator(chunk_size=2000):
         all_events.append(
             RawStatusEvent(
                 suggestion_id=status_event.pgh_obj_id,
@@ -102,7 +105,10 @@ def fetch_suggestion_events(suggestion_id: int) -> list[RawEventType]:
         ).filter(suggestion_id=suggestion_id)
     )
 
-    for maintainer_event in maintainer_qs.all().iterator():
+    # XXX(@fricklerhandwerk): `chunk_size` must be set in presence of `prefetch_related`
+    # https://docs.djangoproject.com/en/5.2/ref/models/querysets/#iterator
+    # This is probably okay, but consider choosing a non-arbitrary value.
+    for maintainer_event in maintainer_qs.all().iterator(chunk_size=2000):
         all_events.append(
             RawMaintainerEvent(
                 suggestion_id=maintainer_event.suggestion.id,
