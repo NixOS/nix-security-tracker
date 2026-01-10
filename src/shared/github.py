@@ -96,7 +96,7 @@ def create_gh_issue(
 
         for attribute_name, pkg in cached_suggestion.payload["packages"].items():
             versions = []
-            for major_channel, version_data in pkg["versions"]:
+            for major_channel, version_data in pkg["channels"].items():
                 if version_data["major_version"]:
                     versions.append(f"{version_data['major_version']}@{major_channel}")
 

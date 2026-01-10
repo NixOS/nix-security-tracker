@@ -46,6 +46,7 @@ def test_publish_gh_issue_empty_title(
                 "suggestion_id": suggestion.pk,
                 "new_status": "published",
                 "comment": "",  # Empty comment
+                "attribute": suggestion.cached.payload["packages"].keys(),
             },
         )
         mock.assert_called()
@@ -87,6 +88,7 @@ def test_publish_gh_issue_empty_description(
                 "suggestion_id": suggestion.pk,
                 "new_status": "published",
                 "comment": "",  # Empty comment
+                "attribute": suggestion.cached.payload["packages"].keys(),
             },
         )
         mock.assert_called()
