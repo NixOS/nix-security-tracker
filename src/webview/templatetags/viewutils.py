@@ -1,4 +1,5 @@
 import datetime
+from collections.abc import ItemsView
 from typing import Any, TypedDict
 
 from django import template
@@ -15,6 +16,13 @@ from shared.models.linkage import (
 from webview.models import Notification
 
 register = template.Library()
+
+
+@register.filter
+def reverse_keys(
+    value: dict[str, CachedSuggestion.PackageOnPrimaryChannel],
+) -> ItemsView[str, CachedSuggestion.PackageOnPrimaryChannel]:
+    return dict(sorted(value.items(), reverse=True)).items()
 
 
 class Package(TypedDict):

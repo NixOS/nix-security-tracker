@@ -27,7 +27,7 @@ def enqueue_evaluation_job(channel: NixChannel) -> tuple[NixEvaluation, bool]:
         commit_sha1=channel.head_sha1_commit,
     )
     logger.info(
-        "Enqueued evaluation job %s (already existing: %r ?)", eval_job, created
+        f"Enqueued evaluation job {eval_job}{' (already existing!)' if not created else ''}"
     )
     return eval_job, created
 

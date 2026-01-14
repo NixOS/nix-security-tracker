@@ -7,7 +7,6 @@ from itertools import chain
 from typing import Any, overload
 
 import pgpubsub
-from django.conf import settings
 from django.db.models import Prefetch
 from pydantic import BaseModel, field_serializer
 
@@ -61,19 +60,27 @@ class CachedSuggestion(BaseModel):
         src_position: str | None
         sub_branches: dict[str, "CachedSuggestion.PackageOnBranch"]
 
+    class Package(BaseModel):
+        channels: dict[str, "CachedSuggestion.PackageOnPrimaryChannel"] = {}
+        derivation_ids: list[int] = []
+        maintainers: list[dict] = []
+        description: str | None = None
+
     pk: int
     cve_id: str
     title: str
     description: str | None
     affected_products: dict[str, AffectedProduct]
-    original_packages: dict[str, Any]  #  FIXME(@fricklerhandwerk)
-    packages: dict[str, Any]  #  FIXME(@fricklerhandwerk)
+    original_packages: dict[str, Package]
+    packages: dict[str, Package]
     # XXX(@fricklerhandwerk): These are converted with `to_dict()` naively, we're not doing anything interesting to them here.
     metrics: list[dict]
     maintainers: list[dict]
 
 
-def apply_package_edits(packages: dict, edits: list[PackageEdit]) -> dict:
+def apply_package_edits(
+    packages: dict, edits: list[PackageEdit]
+) -> dict[str, CachedSuggestion.Package]:
     """
     Returns the packages dict with user-supplied package edits applied.
     Packages marked for removal are filtered out.
@@ -105,33 +112,21 @@ def to_dict(instance: Any) -> dict[str, Any]:
 
 
 def cache_new_suggestions(suggestion: CVEDerivationClusterProposal) -> None:
-    # Do we have any package_name attached?
-    # FIXME(@fricklerhandwerk): We shouldn't have any of these in the database in the first place.
-    # Clean it up in a migration, and add tests to assert the invariants in the data transformation that leads up to here.
-    if not suggestion.cve.container.filter(
-        affected__package_name__isnull=False
-    ).exists():
-        return
-
-    # This is not a suggestion we want to show.
-    # FIXME(@fricklerhandwerk): Ideally there wouldn't be any in the database to begin with. [ref:max-drv-matches]
-    if suggestion.derivations.count() > settings.MAX_MATCHES:
-        return
-
+    # FIXME(@fricklerhandwerk): Here we're blindly picking a title and description, which can be arbitrarily bad.
+    # For instance, at the time of writing, most titles in containers are one of
+    # - "CVE Program Container" (>600k)
+    # - "CISA ADP VUlnrichment" (>270k)
     relevant_piece = (
         suggestion.cve.container.values(
             "title",
-            # Only used for relevance checking
-            "affected__package_name",
             "descriptions__value",
         )
         .filter(affected__package_name__isnull=False)
         .first()
     )
 
-    if not relevant_piece:
-        # No package name.
-        return
+    # XXX(@fricklerhandwerk): Satisfy static typecheck. This must hold due to how we construct matches.
+    assert relevant_piece is not None
 
     affected_products: dict[str, CachedSuggestion.AffectedProduct] = {}
     all_versions = list()
@@ -182,7 +177,10 @@ def cache_new_suggestions(suggestion: CVEDerivationClusterProposal) -> None:
     )
     package_edits = list(suggestion.package_edits.all())
     packages = apply_package_edits(original_packages, package_edits)
-    maintainers = maintainers_list(packages, maintainers_edits)
+    # FIXME(@fricklerhandwerk): We should just pass `packages`, but a tangled legacy view is still using this seemingly internal function and wants to pass a dict.
+    maintainers = maintainers_list(
+        {k: v.model_dump() for k, v in packages.items()}, maintainers_edits
+    )
 
     only_relevant_data = CachedSuggestion(
         pk=suggestion.pk,
@@ -280,7 +278,7 @@ def get_src_position(derivation: NixDerivation) -> str | None:
 
 def channel_structure(
     version_constraints: list[Version], derivations: list[NixDerivation]
-) -> dict:  # TODO Refine the return type
+) -> dict[str, CachedSuggestion.Package]:
     """
     For a list of derivations and a list of version constraints that all belong to the same package, massage the data so that in can rendered easily in the suggestions view
     """
@@ -289,20 +287,16 @@ def channel_structure(
         attribute_path = derivation.attribute
         _, package_version = parse_drv_name(derivation.name)
         if attribute_path not in packages:
-            packages[attribute_path] = {
-                "channels": {},
-                "derivation_ids": [],
-                "maintainers": [],
-            }
+            packages[attribute_path] = CachedSuggestion.Package()
             if derivation.metadata:
                 if derivation.metadata.description:
-                    packages[attribute_path]["description"] = (
-                        derivation.metadata.description
-                    )
-                packages[attribute_path]["maintainers"] = [
+                    packages[
+                        attribute_path
+                    ].description = derivation.metadata.description
+                packages[attribute_path].maintainers = [
                     to_dict(m) for m in derivation.metadata.prefetched_maintainers
                 ]
-        packages[attribute_path]["derivation_ids"].append(derivation.pk)
+        packages[attribute_path].derivation_ids.append(derivation.pk)
         # Get the branch from which that derivation originates
         branch_name = derivation.parent_evaluation.channel.channel_branch
         # Get primary ("major") channel to which that branch belongs
@@ -310,7 +304,7 @@ def channel_structure(
         # FIXME This quietly drops unfamiliar branch names
         if major_channel:
             # XXX(@fricklerhandwerk): Here we assign package information to channel names in iteration order, which in the query we have established to be olders-first by evaluation time.
-            channels = packages[attribute_path]["channels"]
+            channels = packages[attribute_path].channels
             if major_channel not in channels:
                 channels[major_channel] = CachedSuggestion.PackageOnPrimaryChannel(
                     major_version=None,
@@ -345,7 +339,7 @@ def channel_structure(
                 )
 
     for package_name in packages:
-        channels = packages[package_name]["channels"]
+        channels = packages[package_name].channels
         for mc in channels.keys():
             uniform_versions = True
             major_version = channels[mc].major_version
@@ -361,10 +355,6 @@ def channel_structure(
                     reverse=True,
                 )
             )
-        # Sorting major channel names happens to work out well for bringing them into historical order
-        packages[package_name]["channels"] = dict(
-            sorted(packages[package_name]["channels"].items())
-        )
     return packages
 
 

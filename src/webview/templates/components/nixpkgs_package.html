@@ -6,7 +6,7 @@
     <p>{{ pdata.description }}</p>
   </div>
   <ul class="w-25 column">
-    {% for major_channel, major_version in pdata.channels.items %}
+    {% for major_channel, major_version in pdata.channels|reverse_keys %}
       <li>
         <details {% if not major_version.uniform_versions %}open{% endif %} class="details-marker-outside">
           <summary>

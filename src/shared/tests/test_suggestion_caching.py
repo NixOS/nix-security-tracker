@@ -10,6 +10,7 @@ from shared.models.linkage import (
     ProvenanceFlags,
 )
 from shared.models.nix_evaluation import (
+    NixChannel,
     NixDerivation,
     NixEvaluation,
 )
@@ -18,7 +19,8 @@ from shared.models.nix_evaluation import (
 # The Pydantic class for the cached value gives us some assurance about the shape of the data, but ultimately we probabyly want property tests here.
 def test_caching_newest_package(
     cve: Container,
-    make_evaluation: Callable[[], NixEvaluation],
+    make_channel: Callable[[str, NixChannel.ChannelState], NixChannel],
+    make_evaluation: Callable[[NixChannel], NixEvaluation],
     make_drv: Callable[[NixEvaluation], NixDerivation],
     suggestion: CVEDerivationClusterProposal,
 ) -> None:
@@ -28,8 +30,9 @@ def test_caching_newest_package(
 
     # Order of creation matters for triggering the bug.
     # This is brittle because it assumes things about the database, but it seems that derivations are scanned in insertion order of their evaluations.
-    eval_new = make_evaluation()
-    eval_old = make_evaluation()
+    channel = make_channel("unstable", NixChannel.ChannelState.UNSTABLE)
+    eval_new = make_evaluation(channel)
+    eval_old = make_evaluation(channel)
     # Overwrite the timestamp without triggering the `save()` hook that would write the current time again
     target_time = eval_old.created_at - timedelta(hours=1)
     NixEvaluation.objects.filter(pk=eval_old.pk).update(

@@ -111,7 +111,13 @@ async def realtime_batch_process_attributes(
     drvs = await sync_to_async(ingester.ingest)(parent_evaluation)
 
     elapsed = time.time() - start
-    logger.info("%d attributes were ingested in %f seconds", len(drvs), elapsed)
+    logger.info(
+        "%d attributes were ingested in %f seconds (%s, %s)",
+        len(drvs),
+        elapsed,
+        parent_evaluation.channel,
+        parent_evaluation.commit_sha1[:8],
+    )
 
     return drvs
 

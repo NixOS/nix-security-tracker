@@ -107,7 +107,7 @@ def process_day(repo: Repository, day: datetime.datetime) -> None:
 def parallel_ingestion(
     repo: Repository,
     next_ingestion: datetime.datetime,
-    date: datetime.datetime,
+    until_date: datetime.datetime,
     num_processes: int,
 ) -> None:
     """
@@ -120,7 +120,7 @@ def parallel_ingestion(
     """
     days = [
         next_ingestion + datetime.timedelta(days=x)
-        for x in range((date - next_ingestion).days + 1)
+        for x in range((until_date - next_ingestion).days + 1)
     ]
 
     with ProcessPoolExecutor(max_workers=num_processes) as executor:
@@ -161,7 +161,7 @@ class Command(BaseCommand):
         )
 
     def handle(self, *args: Any, **kwargs: Any) -> None:
-        date = kwargs["date"]
+        until_date = kwargs["date"]
         default_start_ingestion = kwargs["default_start_ingestion"]
         num_processes = kwargs["num_parallel_processes"]
 
@@ -170,9 +170,9 @@ class Command(BaseCommand):
                 "Do not run with more than one process if you do not know what you are doing, the ingestion layer is not ready yet."
             )
 
-        if CveIngestion.objects.filter(valid_to__gte=date).exists():
+        if CveIngestion.objects.filter(valid_to__gte=until_date).exists():
             logger.warning(
-                f"The database already contains the delta contents from {date}."
+                f"The database already contains the delta contents from {until_date}."
             )
 
             return
@@ -199,4 +199,4 @@ class Command(BaseCommand):
         # Select the CVEList repository
         repo = g.get_repo("CVEProject/cvelistV5")
 
-        parallel_ingestion(repo, next_ingestion, date, num_processes)
+        parallel_ingestion(repo, next_ingestion, until_date, num_processes)

@@ -6,7 +6,10 @@ from django.conf import settings
 from shared.channels import ContainerChannel
 from shared.models.cve import Container
 from shared.models.linkage import CVEDerivationClusterProposal, ProvenanceFlags
-from shared.models.nix_evaluation import NixDerivation
+from shared.models.nix_evaluation import (
+    NixDerivation,
+    NixEvaluation,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -22,9 +25,11 @@ def produce_linkage_candidates(
         # TODO: record what is used to expand the candidate list.
         if affected.package_name is not None:
             drvs = set(
-                # TODO: improve accuracy by performing case normalization.
                 # TODO: improve accuracy by using bigrams similarity with a `| Q(...)` query.
-                NixDerivation.objects.filter(name__contains=affected.package_name)
+                NixDerivation.objects.filter(
+                    name__icontains=affected.package_name,
+                    parent_evaluation__state=NixEvaluation.EvaluationState.COMPLETED,
+                )
             )
             for d in drvs:
                 if d in candidates:
@@ -50,15 +55,15 @@ def build_new_links(container: Container) -> bool:
         return False
 
     if CVEDerivationClusterProposal.objects.filter(cve=container.cve).exists():
+        logger.info("Suggestion already exists for '%s', skipping", container.cve)
         return False
 
     drvs = produce_linkage_candidates(container)
     if not drvs:
+        logger.info("No derivations matching '%s', ignoring", container.cve)
         return False
 
     if len(drvs) > settings.MAX_MATCHES:
-        # FIXME: [tag:max-drv-matches] Previously we only filtered these out during caching.
-        # So there may still be some in the database; clean that out.
         logger.warning(
             "More than '%d' derivations matching '%s', ignoring",
             settings.MAX_MATCHES,

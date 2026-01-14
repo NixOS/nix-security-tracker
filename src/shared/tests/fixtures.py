@@ -53,22 +53,31 @@ def cve(db: None) -> Container:
 
 
 @pytest.fixture
-def channel(db: None) -> NixChannel:
-    # FIXME(@fricklerhandwerk): This will fall apart when we obtain the channel structure dynamically [ref:channel-structure]
-    release = MAJOR_CHANNELS[1]
-    return NixChannel.objects.create(
-        staging_branch=f"nixos-{release}",
-        channel_branch=f"nixos-{release}",
-        head_sha1_commit="deadbeef",
-        state=NixChannel.ChannelState.STABLE,
-        release_version=release,
-        repository="https://github.com/NixOS/nixpkgs",
-    )
+def make_channel(db: None) -> Callable[[str, NixChannel.ChannelState], NixChannel]:
+    def wrapped(release: str, state: NixChannel.ChannelState) -> NixChannel:
+        return NixChannel.objects.create(
+            staging_branch=f"nixos-{release}",
+            channel_branch=f"nixos-{release}",
+            head_sha1_commit=secrets.token_hex(16),
+            state=state,
+            release_version=release,
+            repository="https://github.com/NixOS/nixpkgs",
+        )
+
+    return wrapped
 
 
 @pytest.fixture
-def make_evaluation(channel: NixChannel) -> Callable[[], NixEvaluation]:
-    def wrapped() -> NixEvaluation:
+def channel(
+    make_channel: Callable[[str, NixChannel.ChannelState], NixChannel],
+) -> NixChannel:
+    # FIXME(@fricklerhandwerk): This will fall apart when we obtain the channel structure dynamically [ref:channel-structure]
+    return make_channel(MAJOR_CHANNELS[1], NixChannel.ChannelState.STABLE)
+
+
+@pytest.fixture
+def make_evaluation() -> Callable[[NixChannel], NixEvaluation]:
+    def wrapped(channel: NixChannel) -> NixEvaluation:
         return NixEvaluation.objects.create(
             channel=channel,
             commit_sha1=secrets.token_hex(16),
@@ -79,8 +88,10 @@ def make_evaluation(channel: NixChannel) -> Callable[[], NixEvaluation]:
 
 
 @pytest.fixture
-def evaluation(make_evaluation: Callable[[], NixEvaluation]) -> NixEvaluation:
-    return make_evaluation()
+def evaluation(
+    channel: NixChannel, make_evaluation: Callable[[NixChannel], NixEvaluation]
+) -> NixEvaluation:
+    return make_evaluation(channel)
 
 
 @pytest.fixture
