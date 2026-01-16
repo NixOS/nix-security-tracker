@@ -7,7 +7,7 @@ from itertools import chain
 from typing import Any, overload
 
 import pgpubsub
-from django.db.models import Prefetch
+from django.db.models import Prefetch, Q
 from pydantic import BaseModel, field_serializer
 
 from shared.channels import CVEDerivationClusterProposalCacheChannel
@@ -131,12 +131,19 @@ def cache_new_suggestions(suggestion: CVEDerivationClusterProposal) -> None:
     affected_products: dict[str, CachedSuggestion.AffectedProduct] = {}
     all_versions = list()
 
-    prefetched_affected_products = AffectedProduct.objects.filter(
-        container__cve=suggestion.cve, package_name__isnull=False
-    ).prefetch_related("versions", "cpes")
+    prefetched_affected_products = (
+        AffectedProduct.objects.filter(
+            container__cve=suggestion.cve,
+        )
+        .filter(
+            Q(package_name__isnull=False) | Q(product__isnull=False),
+        )
+        .prefetch_related("versions", "cpes")
+    )
 
     for affected_product in prefetched_affected_products:
-        package_name = affected_product.package_name
+        # FIXME(@fricklerhandwerk): We should have a more sophisticated data structure that allows displaying what exactly we're matching.
+        package_name = affected_product.package_name or affected_product.product
         # XXX(@fricklerhandwerk): Satisfy the static typecheck that doesn't know we already filtered those out...
         assert package_name is not None
         versions = list(affected_product.versions.all())

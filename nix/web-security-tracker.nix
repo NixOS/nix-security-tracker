@@ -182,6 +182,11 @@ in
 
       nginx.enable = true;
       nginx.virtualHosts = {
+        "_" = {
+          default = true;
+          rejectSSL = true;
+          locations."/".return = 200;
+        };
         ${cfg.domain} = {
           locations = {
             "/".proxyPass = "http://localhost:${toString cfg.wsgi-port}";
