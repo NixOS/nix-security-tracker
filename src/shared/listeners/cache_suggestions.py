@@ -121,7 +121,10 @@ def cache_new_suggestions(suggestion: CVEDerivationClusterProposal) -> None:
             "title",
             "descriptions__value",
         )
-        .filter(affected__package_name__isnull=False)
+        .filter(
+            Q(affected__package_name__isnull=False)
+            | Q(affected__product__isnull=False),
+        )
         .first()
     )
 

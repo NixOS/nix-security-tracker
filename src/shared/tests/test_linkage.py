@@ -4,6 +4,7 @@ from datetime import timedelta
 import pytest
 
 from shared.listeners.automatic_linkage import build_new_links
+from shared.listeners.cache_suggestions import cache_new_suggestions
 from shared.models.cve import Container
 from shared.models.linkage import (
     CVEDerivationClusterProposal,
@@ -75,6 +76,9 @@ def test_link_only_latest_eval(
     assert suggestion.derivations.count() == len(channels)
     assert suggestion.derivations.count() < len(evaluations)
 
+    # Check the whole data pipeline by also caching the suggestion
+    cache_new_suggestions(suggestion)
+
 
 @pytest.mark.parametrize(
     "package_name,product,drv_pname,expected_flags",
@@ -115,5 +119,7 @@ def test_link_product_or_package_name(
         assert match
         link = DerivationClusterProposalLink.objects.get(derivation=drv)
         assert link.provenance_flags == expected_flags
+        # Check the whole data pipeline by also caching the suggestion
+        cache_new_suggestions(link.proposal)
     else:
         assert not match
