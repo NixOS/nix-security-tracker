@@ -59,6 +59,7 @@ in
       django-pgtrigger
       pytest
       pytest-django
+      cvss
     ];
 
     postInstall = ''
