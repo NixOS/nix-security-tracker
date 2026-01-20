@@ -237,12 +237,14 @@ def issue(
     context: Context,
     issue: NixpkgsIssue,
     activity_log: list[FoldedEventType],
+    github_issue: str | None,
     show_permalink: bool = False,
 ) -> dict:
     return {
         "issue": issue,
         "show_permalink": show_permalink,
         "activity_log": activity_log,
+        "github_issue": github_issue,
         "page_obj": context.get("page_obj", None),
         "status_filter": "published",  # Needed in context for the suggestion component
         "user": context["user"],

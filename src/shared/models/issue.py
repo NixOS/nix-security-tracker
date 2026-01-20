@@ -1,6 +1,8 @@
 import logging
+from enum import STRICT, IntFlag, auto
 from typing import Any
 
+from django.core.exceptions import ValidationError
 from django.db import models
 from django.db.models.signals import post_save
 from django.dispatch import receiver
@@ -8,6 +10,7 @@ from django.utils.translation import gettext_lazy as _
 
 from shared.models.cve import text_length
 from shared.models.linkage import CVEDerivationClusterProposal
+from shared.models.nix_evaluation import TimeStampMixin
 
 logger = logging.getLogger(__name__)
 
@@ -89,14 +92,51 @@ def generate_code(
         instance.save()
 
 
-class NixpkgsEvent(models.Model):
-    class EventType(models.TextChoices):
-        ISSUED = "I", _("issue opened")
-        PR_OPENED = "P", _("PR opened")
-        PR_MERGED = "M", _("PR merged")
+class EventType(IntFlag, boundary=STRICT):
+    ISSUE = auto()
+    PULL_REQUEST = auto()
+    OPENED = auto()
+    CLOSED = auto()
+    COMPLETED = auto()
+    NOT_PLANNED = auto()
+    DUPLICATE = auto()
+    MERGED = auto()
 
-    issue = models.ForeignKey(NixpkgsIssue, on_delete=models.CASCADE)
-    reference = models.TextField()
+    @classmethod
+    def valid(cls, value: int) -> bool:
+        flags = cls(value)
+
+        if cls.OPENED in flags:
+            return value in (cls.OPENED | cls.ISSUE, cls.OPENED | cls.PULL_REQUEST)
+
+        if cls.CLOSED in flags:
+            if cls.ISSUE in flags:
+                return value in (
+                    cls.CLOSED | cls.ISSUE | cls.COMPLETED,
+                    cls.CLOSED | cls.ISSUE | cls.NOT_PLANNED,
+                    cls.CLOSED | cls.ISSUE | cls.DUPLICATE,
+                )
+            if cls.PULL_REQUEST in flags:
+                return value in (
+                    cls.CLOSED | cls.PULL_REQUEST,
+                    cls.CLOSED | cls.PULL_REQUEST | cls.MERGED,
+                )
+            return False
+
+        return False
+
+    @classmethod
+    def validator(cls, value: int) -> None:
+        if not cls.valid(value):
+            raise ValidationError(f"Invalid event type: 0b{value:b}")
+
+
+class NixpkgsEvent(TimeStampMixin):
+    issue = models.ForeignKey(
+        NixpkgsIssue, on_delete=models.CASCADE, related_name="events"
+    )
+    event_type = models.IntegerField(validators=[EventType.validator])
+    url = models.URLField()
 
 
 class NixpkgsAdvisory(models.Model):

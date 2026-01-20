@@ -6,6 +6,7 @@ from typing import Any, cast
 from django.contrib import messages
 from django.core.validators import RegexValidator
 from django.db import transaction
+from django.db.models import Prefetch
 from django.urls import reverse
 
 from shared.github import create_gh_issue, fetch_user_info
@@ -42,9 +43,11 @@ from django.views.generic import DetailView, ListView, TemplateView
 from shared.auth import can_publish_github_issue
 from shared.models import (
     CveRecord,
+    EventType,
     IssueStatus,
     NixChannel,
     NixMaintainer,
+    NixpkgsEvent,
     NixpkgsIssue,
 )
 from shared.models.linkage import (
@@ -84,9 +87,16 @@ class NixpkgsIssueView(DetailView):
 
         # Fetch activity log
         raw_events = fetch_suggestion_events(issue.suggestion.pk)
-        context["activity_log"] = batch_events(
-            remove_canceling_events(raw_events, sort=True)
-        )
+        github_issue_opened = NixpkgsEvent.objects.filter(
+            issue=issue,
+            event_type=EventType.ISSUE | EventType.OPENED,
+        ).first()
+        context |= {
+            "activity_log": batch_events(
+                remove_canceling_events(raw_events, sort=True),
+            ),
+            "github_issue": github_issue_opened.url if github_issue_opened else None,
+        }
 
         return context
 
@@ -98,7 +108,18 @@ class NixpkgsIssueListView(ListView):
 
     # TODO Because of how issue codes and cached issues are generated (post save / post insert), it is not trivial to ensure new issues get their code filled up in the cached issue (unless `manage regenerate_cached_issues` is run by hand). Since the view needs the issue code, for now, the cached issue is passed as an additional field instead of being the returned object.
     def get_queryset(self) -> BaseManager[NixpkgsIssue]:
-        issues = NixpkgsIssue.objects.all().order_by("-created")
+        issues = (
+            NixpkgsIssue.objects.all()
+            .prefetch_related(
+                Prefetch(
+                    "events",
+                    queryset=NixpkgsEvent.objects.filter(
+                        event_type=EventType.ISSUE | EventType.OPENED,
+                    ),
+                ),
+            )
+            .order_by("-created")
+        )
         return issues
 
     def get_context_data(self, **kwargs: Any) -> Any:
@@ -111,7 +132,13 @@ class NixpkgsIssueListView(ListView):
         for issue in context["object_list"]:
             raw_events = fetch_suggestion_events(issue.suggestion.pk)
             filtered_events = remove_canceling_events(raw_events, sort=True)
+            # FIXME(@fricklerhandwerk): We're assigning an object field that doesn't exist.
+            # The horrible thing is that it still works, because somewhere in the template processing it does the equivalent of `object.__dict__` and there the key shows up again.
             issue.activity_log = batch_events(filtered_events)
+            github_issue_opened = issue.events.first()
+            issue.github_issue = (
+                github_issue_opened.url if github_issue_opened else None
+            )
 
         return context
 
@@ -344,6 +371,11 @@ class SuggestionListView(ListView):
                     gh_issue_link = create_gh_issue(
                         cached_suggestion, tracker_issue_link, new_comment
                     ).html_url
+                    NixpkgsEvent.objects.create(
+                        issue=tracker_issue,
+                        event_type=EventType.ISSUE | EventType.OPENED,
+                        url=gh_issue_link,
+                    )
                     suggestion.status = CVEDerivationClusterProposal.Status.PUBLISHED
                     suggestion.save()
             except Exception as e:

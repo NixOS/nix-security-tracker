@@ -7,7 +7,7 @@
 
 <div class="column gap">
     {% for object in object_list %}
-      {% issue object object.activity_log True %}
+      {% issue object object.activity_log object.github_issue show_permalink=True %}
     {% endfor %}
 </div>
 {% endblock content %}

@@ -36,17 +36,18 @@ def make_container(db: None) -> Callable[..., Container]:
     def wrapped(
         cve_id: str = "CVE-2025-0001",
         title: str = "Dummy Title",
-        description: str = "Test description",
+        description: str | None = "Test description",
         affected_version: str = "1.0",
         package_name: str | None = "foo",
         product: str | None = "bar",
     ) -> Container:
-        org = Organization.objects.create(uuid=1, short_name="test-org")
+        org, _created = Organization.objects.get_or_create(
+            uuid=1, short_name="test-org"
+        )
         cve = CveRecord.objects.create(
             cve_id=cve_id,
             assigner=org,
         )
-        desc = Description.objects.create(value=description)
         metric = Metric.objects.create(format="cvssV3_1", raw_cvss_json={})
         version = Version.objects.create(
             status=Version.Status.AFFECTED, version=affected_version
@@ -59,7 +60,9 @@ def make_container(db: None) -> Callable[..., Container]:
 
         container = cve.container.create(provider=org, title=title)
         container.affected.add(affected)
-        container.descriptions.add(desc)
+        if description is not None:
+            desc = Description.objects.create(value=description)
+            container.descriptions.add(desc)
         container.metrics.add(metric)
 
         return container
@@ -178,19 +181,39 @@ def drv(
 
 
 @pytest.fixture
-def suggestion(cve: Container, drv: NixDerivation) -> CVEDerivationClusterProposal:
-    suggestion = CVEDerivationClusterProposal.objects.create(
-        status="pending",
-        cve=cve.cve,
-    )
+def make_suggestion(
+    cve: Container, drv: NixDerivation
+) -> Callable[..., CVEDerivationClusterProposal]:
+    def wrapped(
+        # FIXME(@fricklerhandwerk): This should be a whole CVE
+        container: Container = cve,
+        drvs: dict[NixDerivation, ProvenanceFlags] = {
+            drv: ProvenanceFlags.PACKAGE_NAME_MATCH
+        },
+        status: CVEDerivationClusterProposal.Status = CVEDerivationClusterProposal.Status.PENDING,
+    ) -> CVEDerivationClusterProposal:
+        suggestion = CVEDerivationClusterProposal.objects.create(
+            status=status,
+            cve=container.cve,
+        )
 
-    DerivationClusterProposalLink.objects.create(
-        proposal=suggestion,
-        derivation=drv,
-        provenance_flags=ProvenanceFlags.PACKAGE_NAME_MATCH,
-    )
+        for drv, provenance in drvs.items():
+            DerivationClusterProposalLink.objects.create(
+                proposal=suggestion,
+                derivation=drv,
+                provenance_flags=provenance,
+            )
 
-    return suggestion
+        return suggestion
+
+    return wrapped
+
+
+@pytest.fixture
+def suggestion(
+    make_suggestion: Callable[..., CVEDerivationClusterProposal],
+) -> CVEDerivationClusterProposal:
+    return make_suggestion()
 
 
 @pytest.fixture
