@@ -3,7 +3,7 @@ from collections.abc import Callable
 
 import pytest
 from allauth.socialaccount.models import SocialAccount
-from django.contrib.auth.models import AbstractBaseUser
+from django.contrib.auth.models import User
 from django.test import Client
 
 from shared.listeners.cache_suggestions import cache_new_suggestions
@@ -226,9 +226,7 @@ def cached_suggestion(
 
 
 @pytest.fixture
-def authenticated_client(
-    client: Client, django_user_model: type[AbstractBaseUser]
-) -> Client:
+def user(django_user_model: type[User]) -> User:
     user = django_user_model.objects.create_user(
         username="testuser",
         is_staff=True,
@@ -239,6 +237,14 @@ def authenticated_client(
         uid="123456",
         extra_data={"login": user.username},
     )
+    return user
+
+
+@pytest.fixture
+def authenticated_client(
+    client: Client,
+    user: User,
+) -> Client:
     # https://docs.djangoproject.com/en/6.0/topics/testing/tools/#django.test.Client.force_login
     client.force_login(
         user,

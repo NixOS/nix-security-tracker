@@ -1,3 +1,5 @@
+from collections.abc import Callable
+
 from allauth.socialaccount.models import SocialAccount
 from django.contrib.auth.models import User
 from django.test import Client, TestCase
@@ -13,7 +15,7 @@ from shared.models.cve import (
     Organization,
     Version,
 )
-from shared.models.linkage import CVEDerivationClusterProposal
+from shared.models.linkage import CVEDerivationClusterProposal, ProvenanceFlags
 from shared.models.nix_evaluation import (
     NixChannel,
     NixDerivation,
@@ -21,6 +23,7 @@ from shared.models.nix_evaluation import (
     NixEvaluation,
     NixMaintainer,
 )
+from webview.models import Notification
 
 
 class SubscriptionTests(TestCase):
@@ -426,8 +429,8 @@ class SubscriptionTests(TestCase):
 
         notification = notifications[0]
         self.assertEqual(notification.user, self.user)
-        self.assertIn("firefox", notification.title)
-        self.assertIn("CVE-2025-0001", notification.message)
+        self.assertIn("firefox", notification.message)
+        self.assertIn("CVE-2025-0001", notification.title)
         self.assertFalse(notification.is_read)  # Should be unread initially
 
     def test_user_receives_notification_for_maintained_package_suggestion(self) -> None:
@@ -474,8 +477,8 @@ class SubscriptionTests(TestCase):
 
         notification = notifications[0]
         self.assertEqual(notification.user, self.user)
-        self.assertIn("neovim", notification.title)
-        self.assertIn("CVE-2025-0002", notification.message)
+        self.assertIn("neovim", notification.message)
+        self.assertIn("CVE-2025-0002", notification.title)
         self.assertFalse(notification.is_read)  # Should be unread initially
 
     def test_user_does_not_receive_notification_when_auto_subscribe_disabled(
@@ -613,3 +616,27 @@ class SubscriptionTests(TestCase):
         response = self.client.get(response.url)
         self.assertEqual(response.status_code, 200)
         self.assertFalse(response.context["is_subscribed"])
+
+
+def test_maintainer_notification_many_packages_in_suggestion(
+    make_suggestion: Callable[..., CVEDerivationClusterProposal],
+    make_drv: Callable[..., NixDerivation],
+    maintainer: NixMaintainer,
+    user: User,
+) -> None:
+    """
+    Check that many packages by one maintainer in a suggestion can be processed.
+    """
+
+    drvs = {
+        make_drv(
+            attribute=f"package{i}", maintainer=maintainer
+        ): ProvenanceFlags.PACKAGE_NAME_MATCH
+        for i in range(100)
+    }
+    suggestion = make_suggestion(drvs=drvs)
+
+    create_package_subscription_notifications(suggestion)
+
+    notification = Notification.objects.first()
+    assert notification

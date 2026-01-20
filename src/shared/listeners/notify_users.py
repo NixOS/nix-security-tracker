@@ -97,9 +97,8 @@ def create_package_subscription_notifications(
             reason_text = " and ".join(notification_reason)
             Notification.objects.create_for_user(
                 user=user,
-                title=f"New security suggestion affects: {', '.join(user_affected_packages)}",
-                message=f"CVE {cve_id} may affect packages you're {reason_text}. "
-                f"Affected packages: {', '.join(user_affected_packages)}. ",
+                title=f"{cve_id} may affect {len(user_affected_packages)} packages you're {reason_text}",
+                message=f"Affected packages: {', '.join(user_affected_packages)}. ",
             )
             logger.debug(
                 f"Created notification for user {user.username} ({reason_text}) for packages: {user_affected_packages}"
