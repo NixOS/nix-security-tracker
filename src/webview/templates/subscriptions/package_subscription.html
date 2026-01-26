@@ -17,7 +17,7 @@
     </div>
 
   {% else %}
-    <div class="rounded-box column gap">
+    <div id="{{ package_name }}" class="rounded-box column gap">
       <h2 class="heading">{{ package_name }}</h2>
       <p>Subscribe to receive notifications about security alerts suggestions that may affect this package.</p>
       <div class="toggler {% if is_subscribed %}toggler-on{% else %}toggler-off{% endif %}">

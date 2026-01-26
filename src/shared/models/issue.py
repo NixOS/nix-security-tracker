@@ -3,7 +3,7 @@ from enum import STRICT, IntFlag, auto
 from typing import Any
 
 from django.core.exceptions import ValidationError
-from django.db import models
+from django.db import IntegrityError, models
 from django.db.models.signals import post_save
 from django.dispatch import receiver
 from django.utils.translation import gettext_lazy as _
@@ -33,7 +33,7 @@ class NixpkgsIssue(models.Model):
     """The Nixpkgs version of a cve."""
 
     created = models.DateField(auto_now_add=True)
-    code = models.CharField(max_length=len("NIXPKGS-YYYY-") + 19)
+    code = models.CharField(max_length=len("NIXPKGS-YYYY-") + 19, unique=True)
 
     suggestion = models.OneToOneField(
         CVEDerivationClusterProposal, on_delete=models.PROTECT
@@ -85,11 +85,25 @@ def generate_code(
     sender: type[NixpkgsIssue], instance: NixpkgsIssue, created: bool, **kwargs: Any
 ) -> None:
     if created:
-        number = sender.objects.filter(
-            created__year=instance.created.year, pk__lte=instance.pk
-        ).count()
-        instance.code = f"NIXPKGS-{str(instance.created.year)}-{str(number).zfill(4)}"
-        instance.save()
+        for attempt in range(1, 11):
+            number = (
+                sender.objects.filter(
+                    created__year=instance.created.year,
+                ).count()
+                + attempt
+            )
+            instance.code = (
+                f"NIXPKGS-{str(instance.created.year)}-{str(number).zfill(4)}"
+            )
+            try:
+                instance.save()
+                return
+            except IntegrityError:
+                continue
+        raise RuntimeError(
+            "Failed to generate unique issue code for '%s'",
+            instance.suggestion.cve.cve_id,
+        )
 
 
 class EventType(IntFlag, boundary=STRICT):

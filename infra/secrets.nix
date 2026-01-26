@@ -15,4 +15,6 @@ in
   "secrets/gh-webhook-secret.age".publicKeys = [ prod ];
   "secrets/gh-app-installation-id.age".publicKeys = [ prod ];
   "secrets/nixpkgs-security-tracker.private-key.pem.age".publicKeys = [ prod ];
+  "secrets/email-host-password.age".publicKeys = [ prod ];
+  "secrets/admins.age".publicKeys = [ prod ];
 }

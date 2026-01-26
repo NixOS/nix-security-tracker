@@ -41,7 +41,7 @@ in
       django-types
       django
       djangorestframework
-      httpretty
+      pytest-socket
       ipython
       psycopg2
       pydantic-settings
@@ -59,8 +59,11 @@ in
       django-pgtrigger
       pytest
       pytest-django
+      pytest-playwright
       cvss
     ];
+
+    passthru.PLAYWRIGHT_BROWSERS_PATH = final.playwright-driver.browsers;
 
     postInstall = ''
       mkdir -p $out/bin

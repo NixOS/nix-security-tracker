@@ -14,11 +14,11 @@ import importlib.util
 import sys
 from os import environ as env
 from pathlib import Path
-from typing import Annotated
+from typing import Annotated, Self
 
 import dj_database_url
 import sentry_sdk
-from pydantic import BaseModel, DirectoryPath, Field, PlainSerializer
+from pydantic import BaseModel, DirectoryPath, Field, PlainSerializer, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 from sentry_sdk.integrations.django import DjangoIntegration
 
@@ -53,6 +53,9 @@ class Secrets(BaseSettings):
     GH_WEBHOOK_SECRET: str
     GH_APP_INSTALLATION_ID: int
     GH_APP_PRIVATE_KEY: str
+    EMAIL_HOST_PASSWORD: str = ""
+    # This changes in Django 6 to a list of strings. In the actual secret we use a list of lists
+    ADMINS: list[tuple[str, str]] = [("", "")]
 
 
 secrets = Secrets()  # type: ignore[reportCallIssue]
@@ -149,6 +152,20 @@ class Settings(BaseSettings):
             """,
             default=False,
         )
+        EMAIL_BACKEND: str = "django.core.mail.backends.console.EmailBackend"
+        EMAIL_HOST: str = "localhost"
+        EMAIL_PORT: int = 25
+        EMAIL_TIMEOUT: int = 10
+        EMAIL_HOST_USER: str = ""
+        EMAIL_USE_SSL: bool = False
+        DEFAULT_FROM_EMAIL: str = ""
+        SERVER_EMAIL: str = ""
+
+        @model_validator(mode="after")
+        def default_server_email(self) -> Self:
+            if not self.SERVER_EMAIL:
+                self.SERVER_EMAIL = self.DEFAULT_FROM_EMAIL
+            return self
 
         class SocialAccountProviders(BaseModel):
             class GitHub(BaseModel):
@@ -449,7 +466,7 @@ DB_SECURITY_TEAM = "security_team"
 
 GH_WEBHOOK_SECRET = get_secret("GH_WEBHOOK_SECRET")
 
-TEST_RUNNER = "project.test_runner.CustomTestRunner"
+TEST_RUNNER = "pytest_django.runner.TestRunner"
 
 # Make history log immutable by default
 PGHISTORY_APPEND_ONLY = True

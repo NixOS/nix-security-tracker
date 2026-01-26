@@ -14,3 +14,4 @@ filterwarnings = [
   # At the time of writing it's not important enough to investigate, but a fix is appreciated.
   "ignore::pytest.PytestAssertRewriteWarning",
 ]
+addopts = "--disable-socket --allow-hosts=localhost"

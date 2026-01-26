@@ -89,19 +89,15 @@ in
     enable = true;
     production = true;
     domain = "tracker-staging.security.nixos.org";
-    env = {
+    settings = {
       SHOW_DEMO_DISCLAIMER = true;
       SYNC_GITHUB_STATE_AT_STARTUP = true;
-      # set to `true` when going live
       GH_ISSUES_PING_MAINTAINERS = false;
-      # set to `NixOS` when going live
       GH_ORGANIZATION = "Nix-Security-WG";
-      # set to `nixpkgs` when going live
       GH_ISSUES_REPO = "sectracker-testing";
-      # set to `security` when going live
       GH_SECURITY_TEAM = "sectracker-testing-security";
-      # set to `nixpkgs-committers` when going live
       GH_COMMITTERS_TEAM = "sectracker-testing-committers";
+      EMAIL_BACKEND = "django.core.mail.backends.console.EmailBackend";
     };
 
     secrets = {

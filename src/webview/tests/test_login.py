@@ -1,50 +1,23 @@
-from typing import Any
-from unittest.mock import patch
+from collections.abc import Callable
+from unittest.mock import _patch
 
-from allauth.account.utils import get_login_redirect_url
-from allauth.socialaccount.providers.oauth2.views import OAuth2LoginView
-from allauth.socialaccount.templatetags.socialaccount import provider_login_url
-from django.contrib.auth import get_user_model, login
-from django.http import HttpRequest, HttpResponse
-from django.shortcuts import redirect
-from django.test import Client
+from django.contrib.auth.models import User
 from django.urls import reverse
+from playwright.sync_api import Page, expect
+from pytest_django.live_server_helper import LiveServer
 
 
-def test_redirect_after_login(db: None, client: Client) -> None:
-    # location to start navigation
+def test_redirect_after_login(
+    live_server: LiveServer,
+    user: User,
+    mock_oauth_login: Callable[[User], _patch],
+    page: Page,
+) -> None:
     entry_point = reverse("webview:suggestions_view")
-    response = client.get(entry_point)
-    # expect the correct login URL in the response,
-    # which will redirect back to the same page on success
-    context = response.context[0]
-    login_url = provider_login_url(
-        context,
-        provider="github",
-        next=context.request.get_full_path(),
-    )
-    assert login_url in response.content.decode("utf-8")
-    # follow the login workflow as displayed
-    response = client.get(login_url)
-    # expect confirmation to log in and a CSRF barrier via POST request
-    assert "form" in response.content.decode("utf-8")
-
-    def mock_login(
-        self: OAuth2LoginView, request: HttpRequest, *args: Any, **kwargs: Any
-    ) -> HttpResponse:
-        user, _ = get_user_model().objects.get_or_create(username="testuser")
-        login(
-            request,
-            user,
-            backend="allauth.account.auth_backends.AuthenticationBackend",
-        )
-        return redirect(get_login_redirect_url(request))
-
-    with patch.object(OAuth2LoginView, "dispatch", mock_login):
-        # log in and follow redirect
-        response = client.post(login_url, {}, follow=True)
-
-    assert response.status_code == 200
-    assert response.context["user"].is_authenticated
-    location, status = response.redirect_chain[-1]
-    assert location == entry_point
+    page.goto(f"{live_server.url}{entry_point}")
+    login_link = page.get_by_role("link", name="Login with GitHub")
+    expect(login_link).to_be_visible()
+    with mock_oauth_login(user):
+        login_link.click()
+    # We skip the confirmation form in the mock, so the response will be the final redirect
+    expect(page).to_have_url(f"{live_server.url}{entry_point}")

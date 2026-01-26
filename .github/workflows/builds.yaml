@@ -14,4 +14,6 @@ jobs:
       - uses: cachix/install-nix-action@4e002c8ec80594ecd40e759629461e26c8abed15 # v31.9.0
       - run: nix-build -A git-hooks
       - run: nix-build -A tests
-      - run: nix-shell default.nix -A ci --run "deploy build"
+      - run: |
+          nix-build -A ci
+          result/bin/deploy build

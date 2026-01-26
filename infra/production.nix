@@ -87,7 +87,7 @@ in
     enable = true;
     production = true;
     domain = "tracker.security.nixos.org";
-    env = {
+    settings = {
       SYNC_GITHUB_STATE_AT_STARTUP = true;
       GH_ISSUES_PING_MAINTAINERS = true;
       GH_ORGANIZATION = "nixos";
@@ -96,6 +96,12 @@ in
       GH_COMMITTERS_TEAM = "nixpkgs-committers";
       GH_ISSUES_LABELS = [ "1.severity: security" ];
       GH_ISSUES_COMMITTERS_ONLY = true;
+      EMAIL_BACKEND = "django.core.mail.backends.smtp.EmailBackend";
+      EMAIL_HOST = "umbriel.nixos.org";
+      EMAIL_PORT = 465;
+      EMAIL_USE_SSL = true;
+      EMAIL_HOST_USER = "noreply-securitytracker@nixos.org";
+      DEFAULT_FROM_EMAIL = "noreply-securitytracker@nixos.org";
     };
 
     secrets = {
@@ -105,6 +111,8 @@ in
       GH_WEBHOOK_SECRET = config.age.secrets.gh-webhook-secret.path;
       GH_APP_PRIVATE_KEY = config.age.secrets.gh-app-private-key.path;
       GH_APP_INSTALLATION_ID = config.age.secrets.gh-app-installation-id.path;
+      EMAIL_HOST_PASSWORD = config.age.secrets.email-host-password.path;
+      ADMINS = config.age.secrets.admins.path;
     };
     maxJobProcessors = 1;
   };
@@ -116,6 +124,8 @@ in
     gh-webhook-secret.file = ./secrets/gh-webhook-secret.age;
     gh-app-private-key.file = ./secrets/nixpkgs-security-tracker.private-key.pem.age;
     gh-app-installation-id.file = ./secrets/gh-app-installation-id.age;
+    email-host-password.file = ./secrets/email-host-password.age;
+    admins.file = ./secrets/admins.age;
   };
 
   nix.optimise.automatic = true;

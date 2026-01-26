@@ -20,7 +20,6 @@ def get_gh(per_page: int = 30) -> Github:
     gh_auth = Auth.AppAuth(
         settings.GH_CLIENT_ID, settings.GH_APP_PRIVATE_KEY
     ).get_installation_auth(settings.GH_APP_INSTALLATION_ID)
-    logger.info("Successfully authenticated with GitHub.")
 
     return Github(auth=gh_auth, per_page=per_page)
 

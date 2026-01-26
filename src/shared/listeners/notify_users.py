@@ -12,7 +12,7 @@ logger = logging.getLogger(__name__)
 
 def create_package_subscription_notifications(
     suggestion: CVEDerivationClusterProposal,
-) -> None:
+) -> list[Notification]:
     """
     Create notifications for users subscribed to packages affected by the suggestion
     and for maintainers of those packages (if they have auto-subscribe enabled).
@@ -26,7 +26,7 @@ def create_package_subscription_notifications(
 
     if not affected_packages:
         logger.debug(f"No packages found for suggestion {suggestion.pk}")
-        return
+        return []
 
     # Find users subscribed to ANY of these packages
     subscribed_users_qs = User.objects.filter(
@@ -63,6 +63,7 @@ def create_package_subscription_notifications(
         f"({len(subscribed_users_set)} subscribed, {len(maintainer_users)} maintainers)"
     )
 
+    notifications = []
     for user in all_users_to_notify:
         # Determine notification reason and affected packages for this user
         user_affected_packages = []
@@ -95,16 +96,18 @@ def create_package_subscription_notifications(
         # Create notification
         try:
             reason_text = " and ".join(notification_reason)
-            Notification.objects.create_for_user(
+            notification = Notification.objects.create_for_user(
                 user=user,
                 title=f"{cve_id} may affect {len(user_affected_packages)} packages you're {reason_text}",
                 message=f"Affected packages: {', '.join(user_affected_packages)}. ",
             )
+            notifications.append(notification)
             logger.debug(
                 f"Created notification for user {user.username} ({reason_text}) for packages: {user_affected_packages}"
             )
         except Exception as e:
             logger.error(f"Failed to create notification for user {user.username}: {e}")
+    return notifications
 
 
 @pgpubsub.post_insert_listener(CVEDerivationClusterProposalNotificationChannel)

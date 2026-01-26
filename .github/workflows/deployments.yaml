@@ -31,4 +31,6 @@ jobs:
       - name: Deploy to ${{ matrix.environment }}
         # Only deploy production when on production branch
         if: github.ref_name == matrix.branch
-        run: nix-shell default.nix -A ci --run "deploy switch ${{ matrix.host }}"
+        run: |
+          nix-build -A ci
+          result/bin/deploy switch ${{ matrix.host }}
