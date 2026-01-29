@@ -2,7 +2,7 @@ import logging
 
 import pgpubsub
 
-from shared.channels import NixChannelChannel
+from shared.channels import NixChannelInsertChannel, NixChannelUpdateChannel
 from shared.models import NixChannel, NixEvaluation
 
 logger = logging.getLogger(__name__)
@@ -32,19 +32,22 @@ def enqueue_evaluation_job(channel: NixChannel) -> tuple[NixEvaluation, bool]:
     return eval_job, created
 
 
-@pgpubsub.post_update_listener(NixChannelChannel)
+@pgpubsub.post_insert_listener(NixChannelInsertChannel)
+def start_evaluation_jobs_upon_insertion(old: NixChannel, new: NixChannel) -> None:
+    logger.info("Nix channel created: %s", new.head_sha1_commit)
+    if new.state in ADMISSIBLE_CHANNEL_STATES:
+        enqueue_evaluation_job(new)
+
+
+# XXX(@fricklerhandwerk): We can't reuse the same channel for different eventss
+# https://github.com/PaulGilmartin/django-pgpubsub/issues/86
+@pgpubsub.post_update_listener(NixChannelUpdateChannel)
 def start_evaluation_jobs_upon_updates(old: NixChannel, new: NixChannel) -> None:
-    if old is None:
-        logger.info("Nix channel created: %s", new.head_sha1_commit)
-        if new.state in ADMISSIBLE_CHANNEL_STATES:
-            enqueue_evaluation_job(new)
-    else:
-        # Channel updated.
-        logger.info(
-            "Nix channel updated: %s -> %s", old.head_sha1_commit, new.head_sha1_commit
-        )
-        if (
-            old.head_sha1_commit != new.head_sha1_commit
-            and new.state in ADMISSIBLE_CHANNEL_STATES
-        ):
-            enqueue_evaluation_job(new)
+    logger.info(
+        "Nix channel updated: %s -> %s", old.head_sha1_commit, new.head_sha1_commit
+    )
+    if (
+        old.head_sha1_commit != new.head_sha1_commit
+        and new.state in ADMISSIBLE_CHANNEL_STATES
+    ):
+        enqueue_evaluation_job(new)

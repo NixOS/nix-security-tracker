@@ -64,7 +64,12 @@ let
   wstExternalManageScript = writeScriptBin "wst-manage" ''
     #!${stdenv.shell}
     echo "${concatStringsSep " " credentials}"
-    systemd-run --pty \
+    if [ -t 0 ]; then
+      pty_flag="--pty"
+    else
+      pty_flag="--pipe"
+    fi
+    systemd-run "$pty_flag" \
       --wait \
       --collect \
       --service-type=exec \
@@ -308,7 +313,8 @@ in
           script = ''
             wst-manage listen --recover \
               --channels \
-                shared.channels.NixChannelChannel \
+                shared.channels.NixChannelInsertChannel \
+                shared.channels.NixChannelUpdateChannel \
                 shared.channels.ContainerChannel \
                 shared.channels.CVEDerivationClusterProposalCacheChannel \
                 shared.channels.CVEDerivationClusterProposalNotificationChannel \

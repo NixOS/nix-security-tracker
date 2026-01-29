@@ -37,7 +37,7 @@ def make_date(date: str | None) -> datetime | None:
 def make_media(data: dict[str, str]) -> models.SupportingMedia:
     ctx: dict[str, Any] = dict()
     ctx["_type"] = data["type"]
-    ctx["base64"] = data["base64"]
+    ctx["base64"] = data.get("base64", False)
     ctx["value"] = data["value"]
 
     return models.SupportingMedia.objects.create(**ctx)

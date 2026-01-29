@@ -10,13 +10,15 @@ from shared.models.nix_evaluation import NixChannel, NixEvaluation
 
 
 @dataclass
-class NixChannelChannel(TriggerChannel):
-    """
-    The name is unfortunate but this is a Django Channel
-    for Nix Channel updates.
-    """
-
+class NixChannelUpdateChannel(TriggerChannel):
     model = NixChannel
+    lock_notifications = True
+
+
+@dataclass
+class NixChannelInsertChannel(TriggerChannel):
+    model = NixChannel
+    lock_notifications = True
 
 
 @dataclass

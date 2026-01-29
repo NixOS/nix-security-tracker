@@ -71,6 +71,7 @@ rec {
         inherit (package.passthru) PLAYWRIGHT_BROWSERS_PATH;
         DJANGO_SETTINGS = builtins.toJSON {
           DEBUG = true;
+          LOCAL_NIXPKGS_CHECKOUT = toString ./. + "/nixpkgs";
           PRODUCTION = false;
           SYNC_GITHUB_STATE_AT_STARTUP = false;
           GH_ISSUES_PING_MAINTAINERS = false;
@@ -89,10 +90,6 @@ rec {
             if git ? dirtyRev then "${git.shortRev}-dirty" else git.shortRev;
         };
       };
-
-      # `./src/project/settings.py` by default looks for LOCAL_NIXPKGS_CHECKOUT
-      # in the root of the repo. Make it the default here for local development.
-      LOCAL_NIXPKGS_CHECKOUT = toString ./. + "/nixpkgs";
 
       packages = [
         manage
@@ -126,5 +123,5 @@ rec {
       '';
     };
 
-  tests = pkgs.callPackage ./nix/tests.nix { };
+  tests = pkgs.callPackage ./nix/tests { inherit module; };
 }

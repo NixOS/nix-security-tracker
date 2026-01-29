@@ -1,19 +1,53 @@
-{ lib, pkgs }:
+{
+  lib,
+  pkgs,
+  module,
+}:
 let
   # TODO: specify project/service name globally
   application = "web-security-tracker";
-  defaults =
+  defaults = {
+    documentation.enable = lib.mkDefault false;
+
+    virtualisation = {
+      memorySize = 2048;
+      cores = 2;
+    };
+  };
+  channels = with builtins; toFile "channels.json" (toJSON (import ./channels.nix));
+  channels-port = toString 8080;
+in
+pkgs.testers.runNixOSTest {
+  name = "default";
+  inherit defaults;
+  nodes.server =
     { config, ... }:
     let
       cfg = config.services.${application};
+      dummy-nixpkgs =
+        pkgs.runCommand "dummy-nixpkgs"
+          {
+            nativeBuildInputs = [ pkgs.git ];
+          }
+          ''
+            mkdir -p $out/pkgs/top-level
+
+            cat > $out/pkgs/top-level/release.nix << EOF
+            { ... }:
+            {
+              hello.x86_64-linux = (import ${pkgs.path} {}).hello;
+            }
+            EOF
+
+            cd $out
+            git init
+            git add -A
+            git -c user.name=test -c user.email=test@test commit -m "test"
+            git rev-parse HEAD > REVISION
+          '';
     in
     {
-      documentation.enable = lib.mkDefault false;
-
-      virtualisation = {
-        memorySize = 2048;
-        cores = 2;
-      };
+      imports = [ module ];
 
       services.postgresql.ensureUsers = [
         {
@@ -30,6 +64,8 @@ let
         domain = "example.org";
         settings = {
           DEBUG = true;
+          CHANNEL_MONITORING_URL = "http://localhost:${channels-port}/channels.json";
+          GIT_CLONE_URL = "file://${dummy-nixpkgs}";
           SYNC_GITHUB_STATE_AT_STARTUP = false;
           GH_ISSUES_PING_MAINTAINERS = true;
           GH_ORGANIZATION = "dummy";
@@ -55,14 +91,55 @@ let
             GH_APP_PRIVATE_KEY = dummy-str;
           };
       };
+      systemd.services.mock-channels = {
+        wantedBy = [ "multi-user.target" ];
+        before = [ "${application}-server.service" ];
+        path = with pkgs; [
+          python3
+          gnused
+        ];
+        script = ''
+          cd /tmp
+          sed "s/@commit@/$(cat ${dummy-nixpkgs}/REVISION)/g" ${channels} > channels.json
+          python -m http.server ${channels-port}
+        '';
+      };
+      systemd.services.setup-git-repo = {
+        wantedBy = [ "multi-user.target" ];
+        before = [ "${application}-server.service" ];
+        serviceConfig.Type = "oneshot";
+        path = [ pkgs.git ];
+        script = ''
+          # Create source repo with a known commit
+          mkdir -p ${cfg.settings.LOCAL_NIXPKGS_CHECKOUT}
+          cd ${cfg.settings.LOCAL_NIXPKGS_CHECKOUT}
+          git init --bare
+        '';
+      };
     };
-in
-lib.mapAttrs (name: test: pkgs.testers.runNixOSTest (test // { inherit name defaults; })) {
-  basic = {
-    nodes.server = _: { imports = [ ./web-security-tracker.nix ]; };
-    testScript = ''
+  testScript =
+    let
+      in-shell = command: python-lines: ''
+        server.${command}("""echo '
+        ${python-lines}
+        ' | wst-manage shell""")
+      '';
+    in
+    ''
       server.wait_for_unit("${application}-server.service")
       server.wait_for_unit("${application}-worker.service")
+      server.wait_for_unit("mock-channels.service")
+
+      with subtest("Check that channel are fetched and evaluations enqueued"):
+        server.succeed("wst-manage fetch_all_channels")
+        ${in-shell "succeed" ''
+          from shared.models import NixChannel
+          assert NixChannel.objects.count() == 4
+        ''}
+        ${in-shell "succeed " ''
+          from shared.models import NixEvaluation
+          assert NixEvaluation.objects.count() == 3
+        ''}
 
       with subtest("Application tests"):
         ${
@@ -93,6 +170,16 @@ lib.mapAttrs (name: test: pkgs.testers.runNixOSTest (test // { inherit name defa
 
       with subtest("Check that admin interface is served"):
         server.succeed("curl --fail -L -H 'Host: example.org' http://localhost/admin")
+
+      with subtest("Check that evaluations succeed"):
+          ${
+            # XXX(@fricklerhandwerk): We do this at the end since it takes a while and would otherwise stall the Django tests.
+            in-shell "wait_until_succeeds" ''
+              from shared.models import NixEvaluation
+              assert NixEvaluation.objects.filter(
+                state=NixEvaluation.EvaluationState.COMPLETED,
+              ).count() == 3
+            ''
+          }
     '';
-  };
 }

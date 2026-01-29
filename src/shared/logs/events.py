@@ -2,6 +2,7 @@ from abc import ABC, abstractmethod
 from datetime import datetime
 from typing import Literal, TypedDict
 
+from django.conf import settings
 from pydantic import BaseModel
 
 
@@ -14,7 +15,8 @@ class RawEvent(BaseModel, ABC):
 
     @abstractmethod
     def is_canceled_by(
-        self, other: "RawEvent", time_threshold_seconds: int = 30
+        self,
+        other: "RawEvent",
     ) -> bool:
         """Check if this event is canceled by another event.
 
@@ -23,14 +25,15 @@ class RawEvent(BaseModel, ABC):
         pass
 
     def precedes_close_related_event(
-        self, other: "RawEvent", time_threshold_seconds: int = 30
+        self,
+        other: "RawEvent",
     ) -> bool:
         """Checks if the event is followed by one related to the same suggestion by the same user within a given time window"""
         return (
             self.username == other.username
             and self.suggestion_id == other.suggestion_id
             and (other.timestamp - self.timestamp).total_seconds()
-            <= time_threshold_seconds
+            <= settings.DEBOUNCE_ACTIVITY_LOG_SECONDS
         )
 
 
@@ -40,9 +43,7 @@ class RawStatusEvent(RawEvent):
     action: Literal["insert", "update"]
     status_value: str
 
-    def is_canceled_by(
-        self, other: "RawEvent", time_threshold_seconds: int = 30
-    ) -> bool:
+    def is_canceled_by(self, other: "RawEvent") -> bool:
         """Status events don't cancel each other."""
         return False
 
@@ -53,11 +54,9 @@ class RawPackageEvent(RawEvent):
     action: Literal["package.add", "package.remove"]
     package_attribute: str
 
-    def is_canceled_by(
-        self, other: "RawEvent", time_threshold_seconds: int = 30
-    ) -> bool:
+    def is_canceled_by(self, other: "RawEvent") -> bool:
         """Check if this package event is canceled by another package event."""
-        if not self.precedes_close_related_event(other, time_threshold_seconds):
+        if not self.precedes_close_related_event(other):
             return False
 
         if isinstance(other, RawPackageEvent):
@@ -84,10 +83,11 @@ class RawMaintainerEvent(RawEvent):
     maintainer: Maintainer
 
     def is_canceled_by(
-        self, other: "RawEvent", time_threshold_seconds: int = 30
+        self,
+        other: "RawEvent",
     ) -> bool:
         """Check if this maintainer event is canceled by another maintainer event."""
-        if not self.precedes_close_related_event(other, time_threshold_seconds):
+        if not self.precedes_close_related_event(other):
             return False
 
         if isinstance(other, RawMaintainerEvent):
@@ -113,7 +113,7 @@ def sort_events_chronologically(events: list[RawEventType]) -> list[RawEventType
 
 
 def remove_canceling_events(
-    events: list[RawEventType], time_threshold_seconds: int = 30, sort: bool = False
+    events: list[RawEventType], sort: bool = False
 ) -> list[RawEventType]:
     """
     Remove consecutive events that cancel each other out within a time window.
@@ -125,9 +125,7 @@ def remove_canceling_events(
     events = sort_events_chronologically(events) if sort else events
 
     while i < len(events):
-        if i + 1 < len(events) and events[i].is_canceled_by(
-            events[i + 1], time_threshold_seconds
-        ):
+        if i + 1 < len(events) and events[i].is_canceled_by(events[i + 1]):
             # Skip both events
             i += 2
         else:

@@ -47,7 +47,7 @@
       {% affected_products suggestion.cached.payload.affected_products %}
     </div>
 
-    <div class="rounded-box column gap">
+    <div id="nixpkgs-matches-{{ suggestion.cached.payload.pk }}" class="rounded-box column gap">
       <h2 class="heading dimmed">Matching in nixpkgs</h2>
       {% if user|is_maintainer_or_admin %}
         {% if status_filter == "rejected" or status_filter == "published" %}
@@ -89,6 +89,14 @@
             <i class="icon-draft"></i>
             Create draft
           </button>
+          {% if suggestion.cached.payload.packages %}
+            <div class="remove-when-js-is-enabled row gap-small centered">
+              <button type="submit" class="btn btn-gray">
+                Purge deleted packages
+              </button>
+              <span class="dimmed">(cannot be undone)<span>
+            </div>
+          {% endif %}
           <button type="submit" name="new_status" value="rejected" class="btn btn-gray row gap-small centered">
             <i class="icon-bin"></i>
             Dismiss

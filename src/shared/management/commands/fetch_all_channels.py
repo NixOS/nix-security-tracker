@@ -1,6 +1,5 @@
 import asyncio
 import sys
-from argparse import ArgumentParser
 from collections.abc import Coroutine
 from dataclasses import dataclass
 from pprint import pprint
@@ -87,7 +86,7 @@ def fetch_from_monitoring() -> dict[str, MonitoredChannel]:
         # https://github.com/NixOS/infra/blob/795508213eb35eee099b1b8d12dd46a9f7b03697/build/pluto/prometheus/exporters/channel.nix#L4-L6
         # channel structure:
         # https://github.com/NixOS/infra/blob/795508213eb35eee099b1b8d12dd46a9f7b03697/channels.nix
-        "https://monitoring.nixos.org/prometheus/api/v1/query?query=channel_revision"
+        settings.CHANNEL_MONITORING_URL
     )
     resp.raise_for_status()
     return aggregate_by_channels(resp.json()["data"]["result"])
@@ -102,22 +101,12 @@ async def wait_for_parallel_fetches(
 class Command(BaseCommand):
     help = "Register Nix channels"
 
-    def add_arguments(self, parser: ArgumentParser) -> None:
-        parser.add_argument(
-            "-r",
-            "--repository",
-            type=str,
-            help="Repository for those specific Nix channels",
-            default=settings.GIT_CLONE_URL,
-        )
-
     def handle(self, *args: Any, **kwargs: Any) -> str | None:
         fresh_channels = fetch_from_monitoring()
-        defaults = {"repository": kwargs["repository"]}
         for channel in fresh_channels.values():
             channel_branch = channel.name
             staging_branch = staging_from_branch(channel.name)
-            branch_info = defaults | {
+            branch_info = {
                 "staging_branch": staging_branch,
                 "state": state_from_status(channel.status),
                 "head_sha1_commit": channel.revision,

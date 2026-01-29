@@ -18,7 +18,15 @@ from typing import Annotated, Self
 
 import dj_database_url
 import sentry_sdk
-from pydantic import BaseModel, DirectoryPath, Field, PlainSerializer, model_validator
+from pydantic import (
+    AnyUrl,
+    BaseModel,
+    DirectoryPath,
+    Field,
+    HttpUrl,
+    PlainSerializer,
+    model_validator,
+)
 from pydantic_settings import BaseSettings, SettingsConfigDict
 from sentry_sdk.integrations.django import DjangoIntegration
 
@@ -78,6 +86,26 @@ class Settings(BaseSettings):
             description="""
             Writeable directory for compilimg static files, such as stylesheets, when running `manage collectstatic`.
             """
+        )
+        GIT_CLONE_URL: AnyUrl = Field(
+            description="""
+            URL from which to clone the Nix expressions encoding the software distribution.
+            """,
+            default=HttpUrl("https://github.com/NixOS/nixpkgs"),
+        )
+        LOCAL_NIXPKGS_CHECKOUT: DirectoryPath = Field(
+            description="""
+            This is the path where a local checkout of Nixpkgs will be instantiated for this application's needsr
+            By default, in the root of this Git repository.
+            """
+        )
+        CHANNEL_MONITORING_URL: HttpUrl = Field(
+            description="""
+            URL from which to fetch the current channel structure.
+            """,
+            default=HttpUrl(
+                "https://monitoring.nixos.org/prometheus/api/v1/query?query=channel_revision"
+            ),
         )
         SYNC_GITHUB_STATE_AT_STARTUP: bool = Field(
             description="""
@@ -151,6 +179,12 @@ class Settings(BaseSettings):
             this deployment being a demo installation.
             """,
             default=False,
+        )
+        DEBOUNCE_ACTIVITY_LOG_SECONDS: int = Field(
+            description="""
+            Time interval (in seconds) within which complementary events will be collapsed in the activity log.
+            """,
+            default=30,
         )
         EMAIL_BACKEND: str = "django.core.mail.backends.console.EmailBackend"
         EMAIL_HOST: str = "localhost"
@@ -291,11 +325,6 @@ LOGGING = {
 }
 ## Evaluation settings
 
-GIT_CLONE_URL = "https://github.com/NixOS/nixpkgs"
-# This is the path where a local checkout of Nixpkgs
-# will be instantiated for this application's needs.
-# By default, in the root of this Git repository.
-LOCAL_NIXPKGS_CHECKOUT = (BASE_DIR / ".." / ".." / "nixpkgs").resolve()
 # Evaluation concurrency
 # Do not go overboard with this, as Nixpkgs evaluation
 # is _very_ expensive.

@@ -14,6 +14,7 @@
         "\\.html$"
         "npins"
         "migrations"
+        "grafana-dashboard.json"
       ];
       # XXX(@fricklerhandwerk): due to implementation details of pre-commit.nix this is
       # required for running in CI when building the hooks as a derivation

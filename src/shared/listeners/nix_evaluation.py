@@ -242,8 +242,9 @@ async def evaluation_entrypoint(
                     )
                 else:
                     logger.info(
-                        "Processed %d derivations in real-time in %f seconds",
+                        "Processed %d derivations from %s in %f seconds",
                         count,
+                        evaluation,
                         elapsed,
                     )
                     await NixEvaluation.objects.filter(id=evaluation.pk).aupdate(
@@ -268,6 +269,7 @@ async def evaluation_entrypoint(
 
 @pgpubsub.post_insert_listener(NixEvaluationChannel)
 def run_evaluation_job(old: NixEvaluation, new: NixEvaluation) -> None:
+    evaluation = NixEvaluation.objects.select_related("channel").get(pk=new.pk)
     average_evaluation_time = NixEvaluation.objects.aggregate(
         avg_eval_time=Avg("elapsed")
     )
@@ -275,20 +277,22 @@ def run_evaluation_job(old: NixEvaluation, new: NixEvaluation) -> None:
         average_evaluation_time = average_evaluation_time["avg_eval_time"]
     if average_evaluation_time is not None:
         logger.info(
-            "Nix evaluation requested: %s, expecting to finish in %f seconds",
-            new.commit_sha1,
+            "Nix evaluation requested: %s %s, expecting to finish in %f seconds",
+            evaluation.channel,
+            new.commit_sha1[:8],
             average_evaluation_time,
         )
     else:
-        logger.info("First nix evaluation requested: %s, no ETA", new.commit_sha1)
-    # Can we schedule this one or should we wait on the lock?
-    # Lock nix-eval-jobs concurrency behind a lock.
-    # Lock this evaluation to avoid any modification for now.
-    NixEvaluation.objects.select_for_update().filter(pk=new.pk)
+        logger.info(
+            "First nix evaluation requested: %s %s, no ETA",
+            evaluation.channel,
+            new.commit_sha1[:8],
+        )
+    # FIXME(@raitobezarius): Can we schedule this one instead of waiting on the lock?
     asyncio.run(
         evaluation_entrypoint(
             average_evaluation_time
             or settings.DEFAULT_SLEEP_WAITING_FOR_EVALUATION_SLOT,
-            new,
+            evaluation,
         )
     )

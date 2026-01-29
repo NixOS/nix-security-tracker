@@ -201,22 +201,16 @@ The service will be accessible at <http://172.31.100.1>.
 
 ## Running tests
 
-Run all integration tests:
+Run integration tests:
 
 ```console
 nix-build -A tests
 ```
 
-Run a smoke test:
-
-```console
-nix-build -A tests.vm-basic
-```
-
 Interact with the involved virtual machines in a test:
 
 ```
-$(nix-build -A tests.vm-basic.driverInteractive)/bin/nixos-test-driver
+$(nix-build -A tests.driverInteractive)/bin/nixos-test-driver
 ```
 
 ## Changing the database schema

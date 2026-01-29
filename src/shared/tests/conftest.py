@@ -1,5 +1,6 @@
 import secrets
 from collections.abc import Callable
+from typing import ParamSpec
 
 import pytest
 from allauth.socialaccount.models import SocialAccount
@@ -236,6 +237,21 @@ def make_suggestion(
                 provenance_flags=provenance,
             )
 
+        return suggestion
+
+    return wrapped
+
+
+P = ParamSpec("P")
+
+
+@pytest.fixture
+def make_cached_suggestion(  # noqa: UP047
+    make_suggestion: Callable[P, CVEDerivationClusterProposal],
+) -> Callable[P, CVEDerivationClusterProposal]:
+    def wrapped(*args: P.args, **kwargs: P.kwargs) -> CVEDerivationClusterProposal:
+        suggestion = make_suggestion(*args, **kwargs)
+        cache_new_suggestions(suggestion)
         return suggestion
 
     return wrapped
