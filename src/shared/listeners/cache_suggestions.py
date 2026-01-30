@@ -75,7 +75,17 @@ class CachedSuggestion(BaseModel):
     packages: dict[str, Package]
     # XXX(@fricklerhandwerk): These are converted with `to_dict()` naively, we're not doing anything interesting to them here.
     metrics: list[dict]
-    maintainers: list[dict]
+
+    # FIXME(@florentc): improve typing here
+    # Using lists of actual NixMaintainer model would be great
+    # Alternatively use a typed dict like the Maintainer defined in shared.logs.events
+    class CategorizedMaintainers(BaseModel):
+        original: list[dict]  # Maintainers of original packages
+        active: list[dict]  # Non ignored original maintainers
+        ignored: list[dict]  # Ignored original maintainers
+        added: list[dict]  # Additional maintainers (not part of original maintainers)
+
+    categorized_maintainers: CategorizedMaintainers
 
 
 def apply_package_edits(
@@ -188,8 +198,8 @@ def cache_new_suggestions(suggestion: CVEDerivationClusterProposal) -> None:
     package_edits = list(suggestion.package_edits.all())
     packages = apply_package_edits(original_packages, package_edits)
     # FIXME(@fricklerhandwerk): We should just pass `packages`, but a tangled legacy view is still using this seemingly internal function and wants to pass a dict.
-    maintainers = maintainers_list(
-        {k: v.model_dump() for k, v in packages.items()}, maintainers_edits
+    categorized_maintainers = categorize_maintainers(
+        original_packages, maintainers_edits
     )
 
     only_relevant_data = CachedSuggestion(
@@ -203,7 +213,7 @@ def cache_new_suggestions(suggestion: CVEDerivationClusterProposal) -> None:
         original_packages=packages,
         packages=packages,
         metrics=[to_dict(m) for m in prefetched_metrics],
-        maintainers=maintainers,
+        categorized_maintainers=categorized_maintainers,
     )
 
     _, created = CachedSuggestions.objects.update_or_create(
@@ -414,3 +424,48 @@ def maintainers_list(packages: dict, edits: list[MaintainersEdit]) -> list[dict]
             maintainers.append(m)
 
     return maintainers
+
+
+def categorize_maintainers(
+    original_packages: dict[str, CachedSuggestion.Package],
+    maintainers_edits: list[MaintainersEdit],
+) -> CachedSuggestion.CategorizedMaintainers:
+    """
+    Categorize maintainers associated the packages of a suggestion.
+    """
+    # Collect all original maintainers from packages (deduplicated by github_id)
+    original_maintainers_dict: dict[int, dict] = {}
+    for package in original_packages.values():
+        for maintainer_dict in package.maintainers:
+            github_id = maintainer_dict["github_id"]
+            if github_id not in original_maintainers_dict:
+                original_maintainers_dict[github_id] = maintainer_dict
+
+    original_maintainers = list(original_maintainers_dict.values())
+
+    # Process edits to categorize maintainers
+    removed_github_ids = set()
+    added_maintainers = []
+
+    for edit in maintainers_edits:
+        if edit.edit_type == MaintainersEdit.EditType.REMOVE:
+            removed_github_ids.add(edit.maintainer.github_id)
+        elif edit.edit_type == MaintainersEdit.EditType.ADD:
+            added_maintainers.append(to_dict(edit.maintainer))
+
+    # Categorize original maintainers into active and ignored
+    active_maintainers = []
+    ignored_maintainers = []
+
+    for maintainer_dict in original_maintainers:
+        if maintainer_dict["github_id"] in removed_github_ids:
+            ignored_maintainers.append(maintainer_dict)
+        else:
+            active_maintainers.append(maintainer_dict)
+
+    return CachedSuggestion.CategorizedMaintainers(
+        original=original_maintainers,
+        active=active_maintainers,
+        ignored=ignored_maintainers,
+        added=added_maintainers,
+    )

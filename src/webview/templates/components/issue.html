@@ -7,7 +7,7 @@
     <div>published on {{ issue.created }}</div>
   </div>
 
-  {% suggestion issue.suggestion activity_log %}
+  {% suggestion suggestion_context %}
 
   <div class="row gap spread">
     {% if show_permalink %}

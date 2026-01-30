@@ -2,7 +2,6 @@ from collections.abc import Callable
 
 from django.urls import reverse
 from playwright.sync_api import Page, expect
-from pytest import xfail
 from pytest_django.live_server_helper import LiveServer
 from pytest_mock import MockerFixture
 
@@ -16,7 +15,7 @@ def test_add_maintainer_widget_present_when_logged_in(
     cached_suggestion: CVEDerivationClusterProposal,
 ) -> None:
     """Test that logged in user can see the add user form"""
-    as_staff.goto(live_server.url + reverse("webview:suggestions_view"))
+    as_staff.goto(live_server.url + reverse("webview:suggestion:untriaged_suggestions"))
     suggestion = as_staff.locator(f"#suggestion-{cached_suggestion.pk}")
     add_user_text_field = suggestion.get_by_placeholder("GitHub username")
     add_user_submit_button = suggestion.get_by_role("button", name="Add")
@@ -30,7 +29,7 @@ def test_add_maintainer_widget_absent_when_logged_out(
     cached_suggestion: CVEDerivationClusterProposal,
 ) -> None:
     """Test that the add user form isn't present when logged out"""
-    page.goto(live_server.url + reverse("webview:suggestions_view"))
+    page.goto(live_server.url + reverse("webview:suggestion:untriaged_suggestions"))
     suggestion = page.locator(f"#suggestion-{cached_suggestion.pk}")
     add_user_text_field = suggestion.get_by_placeholder("GitHub username")
     add_user_submit_button = suggestion.get_by_role("button", name="Add")
@@ -45,22 +44,17 @@ def test_add_existing_maintainer_returns_error(
     no_js: bool,
 ) -> None:
     """Test that adding a maintainer who is already attached to a suggestion returns the right error"""
+    as_staff.goto(live_server.url + reverse("webview:suggestion:untriaged_suggestions"))
+    suggestion = as_staff.locator(f"#suggestion-{cached_suggestion.pk}")
+    add_user_text_field = suggestion.get_by_placeholder("GitHub username")
+    add_user_submit_button = suggestion.get_by_role("button", name="Add")
+    add_user_text_field.fill("maintainer")
+    add_user_submit_button.click()
     if no_js:
-        xfail(
-            "No-javascript support is not implemented for the 'add maintainer' feature"
-        )
+        error = as_staff.locator(".error-block", has_text="Already a maintainer")
     else:
-        as_staff.goto(live_server.url + reverse("webview:suggestions_view"))
-        suggestion = as_staff.locator(f"#suggestion-{cached_suggestion.pk}")
-        add_user_text_field = suggestion.get_by_placeholder("GitHub username")
-        add_user_submit_button = suggestion.get_by_role("button", name="Add")
-        add_user_text_field.fill("maintainer")
-        add_user_submit_button.click()
-        error = suggestion.locator(
-            ".error-inline",
-            has_text="Already a maintainer",
-        )
-        expect(error).to_be_visible()
+        error = suggestion.locator(".error-inline", has_text="Already a maintainer")
+    expect(error).to_be_visible()
 
 
 def test_add_new_maintainer_already_in_db_succeeds(
@@ -71,55 +65,44 @@ def test_add_new_maintainer_already_in_db_succeeds(
     no_js: bool,
 ) -> None:
     """Test that adding a new maintainer who is already present in our database succeeds"""
-    if no_js:
-        xfail(
-            "No-javascript support is not implemented for the 'add maintainer' feature"
-        )
-    else:
-        make_maintainer(
-            github_id=555,
-            github="alice",
-            name="Alice DeBob",
-            email="alice@somewhere.com",
-        )
-        as_staff.goto(live_server.url + reverse("webview:suggestions_view"))
-        suggestion = as_staff.locator(f"#suggestion-{cached_suggestion.pk}")
-        add_user_text_field = suggestion.get_by_placeholder("GitHub username")
-        add_user_submit_button = suggestion.get_by_role("button", name="Add")
-        add_user_text_field.fill("alice")
-        add_user_submit_button.click()
-        new_maintainer_item = suggestion.get_by_text("Alice DeBob")
-        expect(new_maintainer_item).to_be_visible()
+    make_maintainer(
+        github_id=555,
+        github="alice",
+        name="Alice DeBob",
+        email="alice@somewhere.com",
+    )
+    as_staff.goto(live_server.url + reverse("webview:suggestion:untriaged_suggestions"))
+    suggestion = as_staff.locator(f"#suggestion-{cached_suggestion.pk}")
+    add_user_text_field = suggestion.get_by_placeholder("GitHub username")
+    add_user_submit_button = suggestion.get_by_role("button", name="Add")
+    add_user_text_field.fill("alice")
+    add_user_submit_button.click()
+    new_maintainer_item = suggestion.get_by_text("Alice DeBob")
+    expect(new_maintainer_item).to_be_visible()
 
 
 def test_add_new_maintainer_from_github_succeeds(
     live_server: LiveServer,
     as_staff: Page,
     cached_suggestion: CVEDerivationClusterProposal,
-    no_js: bool,
     mocker: MockerFixture,
 ) -> None:
     """Test that adding a new maintainer who exists on GitHub but not in our database succeeds"""
-    if no_js:
-        xfail(
-            "No-javascript support is not implemented for the 'add maintainer' feature"
-        )
-    else:
-        mock_fetch = mocker.patch("webview.views.fetch_user_info")
-        mock_fetch.return_value = {
-            "id": 555,
-            "login": "alice",
-            "name": "Alice DeBob",
-            "email": "alice@somewhere.com",
-        }
-        as_staff.goto(live_server.url + reverse("webview:suggestions_view"))
-        suggestion = as_staff.locator(f"#suggestion-{cached_suggestion.pk}")
-        add_user_text_field = suggestion.get_by_placeholder("GitHub username")
-        add_user_submit_button = suggestion.get_by_role("button", name="Add")
-        add_user_text_field.fill("alice")
-        add_user_submit_button.click()
-        new_maintainer_item = suggestion.get_by_text("Alice DeBob")
-        expect(new_maintainer_item).to_be_visible()
+    mock_fetch = mocker.patch("webview.suggestions.views.maintainers.fetch_user_info")
+    mock_fetch.return_value = {
+        "id": 555,
+        "login": "alice",
+        "name": "Alice DeBob",
+        "email": "alice@somewhere.com",
+    }
+    as_staff.goto(live_server.url + reverse("webview:suggestion:untriaged_suggestions"))
+    suggestion = as_staff.locator(f"#suggestion-{cached_suggestion.pk}")
+    add_user_text_field = suggestion.get_by_placeholder("GitHub username")
+    add_user_submit_button = suggestion.get_by_role("button", name="Add")
+    add_user_text_field.fill("alice")
+    add_user_submit_button.click()
+    new_maintainer_item = suggestion.get_by_text("Alice DeBob")
+    expect(new_maintainer_item).to_be_visible()
 
 
 def test_add_maintainer_from_invalid_github_handle_returns_error(
@@ -130,21 +113,20 @@ def test_add_maintainer_from_invalid_github_handle_returns_error(
     mocker: MockerFixture,
 ) -> None:
     """Test that adding a new maintainer who doesn't exist on GitHub returns the right error"""
+    mock_fetch = mocker.patch("webview.suggestions.views.maintainers.fetch_user_info")
+    mock_fetch.return_value = None
+    as_staff.goto(live_server.url + reverse("webview:suggestion:untriaged_suggestions"))
+    suggestion = as_staff.locator(f"#suggestion-{cached_suggestion.pk}")
+    add_user_text_field = suggestion.get_by_placeholder("GitHub username")
+    add_user_submit_button = suggestion.get_by_role("button", name="Add")
+    add_user_text_field.fill("alice")
+    add_user_submit_button.click()
     if no_js:
-        xfail(
-            "No-javascript support is not implemented for the 'add maintainer' feature"
+        error = as_staff.locator(
+            ".error-block", has_text="Could not fetch maintainer from GitHub"
         )
     else:
-        mock_fetch = mocker.patch("webview.views.fetch_user_info")
-        mock_fetch.return_value = None
-        as_staff.goto(live_server.url + reverse("webview:suggestions_view"))
-        suggestion = as_staff.locator(f"#suggestion-{cached_suggestion.pk}")
-        add_user_text_field = suggestion.get_by_placeholder("GitHub username")
-        add_user_submit_button = suggestion.get_by_role("button", name="Add")
-        add_user_text_field.fill("alice")
-        add_user_submit_button.click()
         error = suggestion.locator(
-            ".error-inline",
-            has_text="Could not fetch maintainer from GitHub",
+            ".error-inline", has_text="Could not fetch maintainer from GitHub"
         )
-        expect(error).to_be_visible()
+    expect(error).to_be_visible()

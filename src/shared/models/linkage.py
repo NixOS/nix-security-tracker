@@ -52,6 +52,13 @@ class CVEDerivationClusterProposal(TimeStampMixin):
         ),
     )
 
+    @property
+    def is_editable(self) -> bool:
+        return self.status in [
+            CVEDerivationClusterProposal.Status.PENDING,
+            CVEDerivationClusterProposal.Status.ACCEPTED,
+        ]
+
 
 @pghistory.track(
     pghistory.ManualEvent("maintainers.add"),

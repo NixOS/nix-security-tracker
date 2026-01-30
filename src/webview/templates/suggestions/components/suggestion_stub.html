@@ -1,0 +1,39 @@
+{% load viewutils %}
+
+<article id="suggestion-{{ data.suggestion.pk }}" class="rounded-box row centered spread gap" hx-target="this">
+  <div class="row gap-small centered">
+    {% status_icon data.suggestion.status %}
+    <h2>
+      {% if data.suggestion.cached.payload.title %}
+        {{ data.suggestion.cached.payload.title }}
+      {% else %}
+        {{ data.suggestion.cached.payload.description|truncatewords:10 }}
+      {% endif %}
+    </h2>
+  </div>
+  <div class="row centered gap">
+    <a role="link" href="{% url 'webview:suggestion:detail' suggestion_id=data.suggestion.pk %}">View</a>
+    {% if data.undo_status_target %}
+    <form
+      class="contents"
+      method="post"
+      action="{% url 'webview:suggestion:update_status' suggestion_id=data.suggestion.pk %}"
+      hx-boost="true"
+      hx-swap="outerHTML show:none"
+      hx-indicator="find button"
+      hx-push-url="false"
+      autocomplete="off"
+    >
+      {% csrf_token %}
+      <input type="hidden" name="undo_status_change" value="true"></input>
+      <button class="btn btn-gray row gap-small centered" type="submit" name="new_status" value="{{ data.undo_status_target }}" title="Undo">
+        {% status_icon data.undo_status_target %}
+        Undo
+      </button>
+    </form>
+    {% endif %}
+    {% if data.issue_link %}
+    <div class="inline-row gap-small baseline"><i class="icon-github"></i><a role="link" href="{{ data.issue_link }}">GitHub issue</a></div>
+    {% endif %}
+  </div>
+</article>

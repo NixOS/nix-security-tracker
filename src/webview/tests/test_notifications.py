@@ -24,7 +24,7 @@ def test_mark_notification_read_unread(
     """
     db_notification, *_ = make_maintainer_notification(staff)
 
-    as_staff.goto(live_server.url + reverse("webview:suggestions_view"))
+    as_staff.goto(live_server.url + reverse("webview:suggestion:untriaged_suggestions"))
     badge = as_staff.locator("#notifications-badge")
     expect(badge).to_have_text("1")
 
@@ -58,7 +58,7 @@ def test_notifications_bulk_operations(
         make_maintainer_notification(staff)[0] for i in range(num_notifications)
     ]
 
-    as_staff.goto(live_server.url + reverse("webview:suggestions_view"))
+    as_staff.goto(live_server.url + reverse("webview:suggestion:untriaged_suggestions"))
     badge = as_staff.locator("#notifications-badge")
     expect(badge).to_have_text(str(num_notifications))
     badge.click()
@@ -106,7 +106,7 @@ def test_paginated_notifications(
         make_maintainer_notification(staff)[0] for i in range(num_notifications)
     ]
 
-    as_staff.goto(live_server.url + reverse("webview:suggestions_view"))
+    as_staff.goto(live_server.url + reverse("webview:suggestion:untriaged_suggestions"))
     badge = as_staff.locator("#notifications-badge")
     expect(badge).to_have_text(str(num_notifications))
     badge.click()

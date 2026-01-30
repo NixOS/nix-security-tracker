@@ -88,11 +88,11 @@
     {% endif %}
 
     <nav id="menu-bar">
-      <ul>
-        <li class="row gap-small centered"><i class="icon-bin"></i><a href="/dismissed">Dismissed suggestions</a></li>
-        <li class="row gap-small centered"><i class="icon-inbox"></i><a href="/suggestions">Untriaged suggestions</a></li>
-        <li class="row gap-small centered"><i class="icon-draft"></i><a href="/drafts">Draft issues</a></li>
-        <li class="row gap-small centered"><i class="icon-github"></i><a href="/issues">Published issues</a></li>
+      <ul class="row gap">
+        <li class="row gap-small centered"><i class="icon-bin"></i><a href="{% url 'webview:suggestion:dismissed_suggestions' %}">Dismissed suggestions</a></li>
+        <li class="row gap-small centered"><i class="icon-inbox"></i><a href="{% url 'webview:suggestion:untriaged_suggestions' %}">Untriaged suggestions</a></li>
+        <li class="row gap-small centered"><i class="icon-draft"></i><a href="{% url 'webview:suggestion:accepted_suggestions' %}">Accepted suggestions</a></li>
+        <li class="row gap-small centered"><i class="icon-github"></i><a href="{% url 'webview:issue_list' %}">Published issues</a></li>
       </ul>
     </nav>
 
@@ -123,9 +123,5 @@
       </p>
     </footer>
     <script src="/static/htmx.min.js"></script>
-    <script>
-      // We didn't find a better way to remove buttons that are only needed for non-JS workflows
-      document.querySelectorAll(".remove-when-js-is-enabled").forEach(e => e.remove());
-    </script>
   </body>
 </html>

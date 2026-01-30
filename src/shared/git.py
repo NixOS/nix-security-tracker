@@ -147,7 +147,7 @@ class GitRepo:
             while locking_problem:
                 # We need to acquire a shallow lock here.
                 # TODO: replace me by an async variant.
-                while os.path.exists(os.path.join(repo_clone_url, "shallow.lock")):
+                while os.path.exists(os.path.join(self.repo_path, "shallow.lock")):
                     await asyncio.sleep(1)
                 process = await self.execute_git_command(
                     f"git fetch --porcelain --depth=1 {repo_clone_url} {object_sha1}",

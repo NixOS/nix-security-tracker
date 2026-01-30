@@ -13,7 +13,7 @@ def test_redirect_after_login(
     mock_oauth_login: Callable[[User], _patch],
     page: Page,
 ) -> None:
-    entry_point = reverse("webview:suggestions_view")
+    entry_point = reverse("webview:suggestion:untriaged_suggestions")
     page.goto(f"{live_server.url}{entry_point}")
     login_link = page.get_by_role("link", name="Login with GitHub")
     expect(login_link).to_be_visible()

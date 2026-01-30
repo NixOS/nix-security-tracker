@@ -1,0 +1,40 @@
+{% extends "base.html" %}
+{% load viewutils %}
+
+{% block content %}
+
+{% if status_filter == "pending" %}
+
+<h1 class="page-title row gap-small centered">{% status_icon "pending" %}Automatically generated suggestions</h1>
+<div class="prose">
+  <p><button class="btn btn-gray inline-row gap-small centered" disabled>{% status_icon "rejected" %}Dismiss</button> to remove a suggestion from the queue.</p>
+</div>
+
+{% elif status_filter == "rejected" %}
+
+<h1 class="page-title row gap-small centered">{% status_icon "rejected" %}Dismissed suggestions</h1>
+<div class="prose">
+  <p>These automatic suggestions were dismissed after initial triaging.</p>
+  <p><button class="btn btn-green inline-row gap-small centered" disabled>{% status_icon "accepted" %}Accept suggestion</button> to select a suggestion for a revision.</p>
+</div>
+
+{% elif status_filter == "accepted" %}
+
+<h1 class="page-title row gap-small centered">{% status_icon "accepted" %}Accepted suggestions</h1>
+<div class="prose">
+  <p><button class="btn btn-green inline-row gap-small centered" disabled>{% status_icon "published" %}Publish issue</button> to create a Nixpkgs security record and open a GitHub issue for tracking resolution. This action will notify maintainers and package subscribers, and cannot be revoked.</p>
+  <p><button class="btn btn-gray inline-row gap-small centered" disabled>{% status_icon "rejected" %}Dismiss</button> to remove a suggestion from the queue.</p>
+</div>
+
+{% elif status_filter == "published" %}
+
+<h1 class="page-title row gap-small centered">{% status_icon "published" %}Published suggestions</h1>
+
+{% endif %}
+
+<div class="column gap">
+  {% for suggestion_context in suggestion_contexts %}
+    {% suggestion suggestion_context %}
+  {% endfor %}
+</div>
+{% endblock content %}

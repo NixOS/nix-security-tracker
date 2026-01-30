@@ -6,7 +6,8 @@
         action="{% url 'webview:subscriptions:toggle_auto_subscribe' %}" 
         hx-post="{% url 'webview:subscriptions:toggle_auto_subscribe' %}" 
         hx-target="closest .auto-subscribe-toggler" 
-        hx-swap="outerHTML">
+        hx-swap="outerHTML"
+        hx-indicator="find button">
     {% csrf_token %}
     {% if auto_subscribe_enabled %}
       <input type="hidden" name="action" value="disable">

@@ -1,0 +1,58 @@
+{% load viewutils %}
+
+{% if data.active or data.ignored or data.additional %}
+  <div
+    id="maintainers-list-{{ data.suggestion_id }}"
+    class="rounded-box column gap"
+    {% if oob_update %}hx-swap-oob="true" open{% endif %}
+  >
+    <h2 class="heading dimmed">Package maintainers</h2>
+
+    <div class="column gap">
+      <!-- Active maintainers -->
+      {% if data.active %}
+        <ul id="maintainers-list-{{ data.suggestion_id }}-active" class="column gap-small">
+          {% for maintainer_context in data.active %}
+            <li class="maintainer-container">
+              {% maintainer maintainer_context %}
+            </li>
+          {% endfor %}
+        </ul>
+      {% endif %}
+
+      <!-- Ignored maintainers (collapsed by default) -->
+      {% if data.ignored %}
+        <details class="column gap-small">
+          <summary class="heading dimmed">Ignored maintainers ({{ data.ignored|length }})</summary>
+          <ul id="maintainers-list-{{ data.suggestion_id }}-ignored" class="column gap-small">
+            {% for maintainer_context in data.ignored %}
+              <li class="maintainer-container">
+                {% maintainer maintainer_context %}
+              </li>
+            {% endfor %}
+          </ul>
+        </details>
+      {% endif %}
+
+      <!-- Additional maintainers -->
+      {% if data.additional %}
+        <div class="column gap-small">
+          <h3 class="heading dimmed">Additional maintainers</h3>
+          <ul id="maintainers-list-{{ data.suggestion_id }}-added" class="column gap-small">
+            {% for maintainer_context in data.additional %}
+              <li class="maintainer-container">
+                {% maintainer maintainer_context %}
+              </li>
+            {% endfor %}
+          </ul>
+        </div>
+      {% endif %}
+
+
+      <!-- Add maintainer section (only if editable) -->
+      {% if data.editable and user|is_maintainer_or_admin %}
+      {% maintainer_add data.maintainer_add_context %}
+      {% endif %}
+    </div>
+  </div>
+{% endif %}

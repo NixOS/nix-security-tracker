@@ -1,0 +1,38 @@
+{% load viewutils %}
+
+<div class="row gap centered">
+  {% if data.editable and user|is_maintainer_or_admin %}
+    <form
+      class="contents"
+      method="post"
+      action="{% if data.status.value == 'restorable' %}{% url 'webview:suggestion:restore_maintainer' data.suggestion_id data.maintainer.github_id %}{% elif data.status.value == 'ignorable' %}{% url 'webview:suggestion:ignore_maintainer' data.suggestion_id data.maintainer.github_id %}{% elif data.status.value == 'deletable' %}{% url 'webview:suggestion:delete_maintainer' data.suggestion_id data.maintainer.github_id %}{% endif %}"
+      hx-boost="true"
+      hx-target="#suggestion-{{ data.suggestion_id }}"
+      hx-swap="outerHTML show:none"
+      hx-push-url="false"
+      hx-indicator="find button"
+      autocomplete="off"
+    >
+      {% csrf_token %}
+      <button
+        type="submit"
+        class="btn {% if data.status.value == 'restorable' %}btn-green{% else %}btn-gray{% endif %} row gap-small centered"
+      >
+        {% if data.status.value == 'restorable' %}
+          <i class="icon-user-plus"></i>Restore
+        {% elif data.status.value == 'ignorable' %}
+          <i class="icon-user-minus"></i>Ignore
+        {% elif data.status.value == 'deletable' %}
+          <i class="icon-user-minus"></i>Delete
+        {% endif %}
+      </button>
+    </form>
+  {% endif %}
+  <div>
+    <a class="bold" href="https://github.com/{{ data.maintainer.github | urlencode }}">@{{ data.maintainer.github }}</a>
+      {{ data.maintainer.name }}
+      {% if data.maintainer.email %}
+        <span>&lt;<a class="email" href="mailto:{{ data.maintainer.email | urlencode }}">{{ data.maintainer.email }}</a>&gt;</span>
+      {% endif %}
+  </div>
+</div>

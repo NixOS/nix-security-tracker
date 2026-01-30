@@ -76,13 +76,13 @@
         {% else %}
         {# Status update entries #}
           {% if "accepted" in log_entry.status_value  %}
-            <span class="suggestion-status-draft">accepted as draft</span>
+            <span>accepted</span>
           {% elif "rejected" in log_entry.status_value %}
-            <span class="suggestion-status-dismissed">dismissed</span>
+            <span>dismissed</span>
           {% elif "pending" in log_entry.status_value %}
-            <span class="suggestion-status-automatic">marked as untriaged</span>
+            <span>marked as untriaged</span>
           {% elif "published" in log_entry.status_value %}
-            <span class="suggestion-status-automatic">published on GitHub</span>
+            <span>published on GitHub</span>
           {% else %}
             {{ log_entry.action }}
           {% endif %}

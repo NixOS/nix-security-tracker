@@ -1,0 +1,127 @@
+{% load viewutils %}
+
+{% if data.suggestion_stub_context %}
+  {% suggestion_stub data.suggestion_stub_context %}
+{% else %}
+
+  <article class="rounded-box column gap highlight-target" hx-target="this" id="suggestion-{{ data.suggestion.cached.payload.pk }}">
+    {% if data.show_status %}
+      <div class="row gap-small centered">
+        {% status_icon data.suggestion.status %}
+        {% if data.suggestion.status == "pending" %}
+          <div class="bold">Untriaged</div>
+          <div>(<a href="{% url 'webview:suggestion:untriaged_suggestions' %}">browse all</a>)</div>
+        {% elif data.suggestion.status == "rejected" %}
+          <div class="bold">Dismissed</div>
+          <div>(<a href="{% url 'webview:suggestion:dismissed_suggestions' %}">browse all</a>)</div>
+        {% elif data.suggestion.status == "accepted" %}
+          <div class="bold">Accepted</div>
+          <div>(<a href="{% url 'webview:suggestion:accepted_suggestions' %}">browse all</a>)</div>
+        {% elif data.suggestion.status == "published" %}
+          <div class="bold">Published</div>
+          <div>(<a href="{% url 'webview:suggestion:published_suggestions' %}">browse all</a>)</div>
+        {% endif %}
+      </div>
+    {% endif %}
+
+
+    <div class="row spread gap wrap">
+      <div class="row gap wrap">
+        <a href="{% url 'webview:suggestion:detail' suggestion_id=data.suggestion.pk %}">Permalink</a>
+        <a href="https://nvd.nist.gov/vuln/detail/{{ data.suggestion.cached.payload.cve_id | urlencode }}">
+          {{ data.suggestion.cached.payload.cve_id }}
+        </a>
+        {% if data.suggestion.cached.payload.metrics %}
+          {% severity_badge data.suggestion.cached.payload.metrics %}
+        {% endif %}
+      </div>
+      <div class="row gap">
+        {% suggestion_activity_log data.suggestion data.activity_log %}
+      </div>
+    </div>
+
+    <details>
+      <summary class="heading">
+        {% if data.suggestion.cached.payload.title %}
+          {{ data.suggestion.cached.payload.title }}
+        {% else %}
+          {{ data.suggestion.cached.payload.description|truncatewords:10 }}
+        {% endif %}
+      </summary>
+      <p>{{ data.suggestion.cached.payload.description }}</p>
+    </details>
+
+    <div class="rounded-box column gap">
+      <h2 class="heading dimmed">Affected products</h2>
+      {% affected_products data.suggestion.cached.payload.affected_products %}
+    </div>
+
+    <div class="rounded-box column gap">
+      {% package_list data.package_list_context %}
+    </div>
+
+    {% maintainer_list data.maintainer_list_context %}
+
+
+    <form
+      class="contents"
+      method="post"
+      action="{% url 'webview:suggestion:update_status' suggestion_id=data.suggestion.pk %}"
+      hx-boost="true"
+      hx-swap="outerHTML show:none"
+      hx-indicator="#suggestion-{{ data.suggestion.cached.payload.pk }} .status-change-button"
+      hx-push-url="false"
+      autocomplete="off"
+    >
+      {% csrf_token %}
+      {% if not user|is_maintainer_or_admin or data.suggestion.status == "published" %}
+        {% if data.suggestion.comment %}
+          <pre class="rounded-box monospace highlight-nonempty">{{ data.suggestion.comment|default:"" }}</pre>
+        {% endif %}
+      {% else %}
+        <textarea 
+          class="rounded-box monospace highlight-nonempty"
+          name="comment" 
+          maxlength="1000" 
+          placeholder="Free comment: context, additional info, dismissal reason, etc."
+          rows="3"
+        >{{ data.suggestion.comment|default:"" }}</textarea>
+      {% endif %}
+
+      {% if user|is_maintainer_or_admin and data.suggestion.status != "published" %}
+        <div class="row-reverse spread">
+          {% if data.suggestion.status == "pending" %}
+            <button type="submit" name="new_status" value="accepted" class="status-change-button btn btn-green row gap-small centered">
+              {% status_icon "accepted" %}
+              Accept suggestion
+            </button>
+            <button type="submit" name="new_status" value="rejected" class="status-change-button btn btn-gray row gap-small centered">
+              {% status_icon "rejected" %}
+              Dismiss
+            </button>
+          {% elif data.suggestion.status == "rejected" %}
+            <button type="submit" name="new_status" value="accepted" class="status-change-button btn btn-green row gap-small centered">
+              {% status_icon "accepted" %}
+              Accept suggestion
+            </button>
+          {% elif data.suggestion.status == "accepted" %}
+            <button type="submit" name="new_status" value="published" class="status-change-button btn btn-green row gap-small centered">
+              {% status_icon "published" %}
+              Publish issue
+            </button>
+            <button type="submit" name="new_status" value="rejected" class="status-change-button btn btn-gray row gap-small centered">
+              {% status_icon "rejected" %}
+              Dismiss
+            </button>
+          {% endif %}
+        </div>
+      {% endif %}
+    </form>
+
+    {% if data.error_message %}
+    <div class="error-block">
+      {{ data.error_message }}
+    </div>
+    {% endif %}
+  </article>
+{% endif %}

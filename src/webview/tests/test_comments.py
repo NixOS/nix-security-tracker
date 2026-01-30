@@ -4,6 +4,8 @@ from pytest_django.live_server_helper import LiveServer
 
 from shared.models.linkage import CVEDerivationClusterProposal
 
+# TODO(@florentc): Add tests for detail views
+
 
 def test_dismiss_requires_comment_htmx(
     live_server: LiveServer,
@@ -12,7 +14,7 @@ def test_dismiss_requires_comment_htmx(
     no_js: bool,
 ) -> None:
     """Test that dismissing a suggestion requires a comment (HTMX case)"""
-    as_staff.goto(live_server.url + reverse("webview:suggestions_view"))
+    as_staff.goto(live_server.url + reverse("webview:suggestion:untriaged_suggestions"))
     suggestion = as_staff.locator(f"#suggestion-{cached_suggestion.pk}")
     dismiss = suggestion.get_by_role("button", name="Dismiss")
     dismiss.click()
@@ -36,14 +38,16 @@ def test_dismiss_with_comment_succeeds(
     no_js: bool,
 ) -> None:
     """Test that dismissing with a comment works and the comment appears in the view context"""
-    as_staff.goto(live_server.url + reverse("webview:suggestions_view"))
+    as_staff.goto(live_server.url + reverse("webview:suggestion:untriaged_suggestions"))
     suggestion = as_staff.locator(f"#suggestion-{cached_suggestion.pk}")
     comment_text = "This suggestion is not relevant because the package is deprecated."
     suggestion.locator("textarea").fill(comment_text)
     dismiss = suggestion.get_by_role("button", name="Dismiss")
     dismiss.click()
     if no_js:
-        as_staff.goto(live_server.url + reverse("webview:dismissed_view"))
+        as_staff.goto(
+            live_server.url + reverse("webview:suggestion:dismissed_suggestions")
+        )
     else:
         link = as_staff.get_by_role("link", name="View")
         link.click()
@@ -59,12 +63,14 @@ def test_accept_without_comment_succeeds(
     no_js: bool,
 ) -> None:
     """Test that accepting a suggestion without a comment is allowed"""
-    as_staff.goto(live_server.url + reverse("webview:suggestions_view"))
+    as_staff.goto(live_server.url + reverse("webview:suggestion:untriaged_suggestions"))
     suggestion = as_staff.locator(f"#suggestion-{cached_suggestion.pk}")
-    accept = suggestion.get_by_role("button", name="Create draft")
+    accept = suggestion.get_by_role("button", name="Accept suggestion")
     accept.click()
     if no_js:
-        as_staff.goto(live_server.url + reverse("webview:drafts_view"))
+        as_staff.goto(
+            live_server.url + reverse("webview:suggestion:accepted_suggestions")
+        )
     else:
         link = as_staff.get_by_role("link", name="View")
         link.click()
@@ -78,14 +84,16 @@ def test_accept_with_comment_shows_comment_in_context(
     no_js: bool,
 ) -> None:
     """Test that accepting with a comment shows the comment in the view context"""
-    as_staff.goto(live_server.url + reverse("webview:suggestions_view"))
+    as_staff.goto(live_server.url + reverse("webview:suggestion:untriaged_suggestions"))
     suggestion = as_staff.locator(f"#suggestion-{cached_suggestion.pk}")
     comment_text = "This looks good, creating draft issue."
     suggestion.locator("textarea").fill(comment_text)
-    accept = suggestion.get_by_role("button", name="Create draft")
+    accept = suggestion.get_by_role("button", name="Accept suggestion")
     accept.click()
     if no_js:
-        as_staff.goto(live_server.url + reverse("webview:drafts_view"))
+        as_staff.goto(
+            live_server.url + reverse("webview:suggestion:accepted_suggestions")
+        )
     else:
         link = as_staff.get_by_role("link", name="View")
         link.click()
@@ -101,26 +109,29 @@ def test_updating_comment_on_existing_suggestion(
     no_js: bool,
 ) -> None:
     """Test that updating a comment on an existing suggestion works"""
-    as_staff.goto(live_server.url + reverse("webview:suggestions_view"))
+    as_staff.goto(live_server.url + reverse("webview:suggestion:untriaged_suggestions"))
     suggestion = as_staff.locator(f"#suggestion-{cached_suggestion.pk}")
     initial_comment = "Initial comment"
     suggestion.locator("textarea").fill(initial_comment)
     dismiss = suggestion.get_by_role("button", name="Dismiss")
     dismiss.click()
     if no_js:
-        as_staff.goto(live_server.url + reverse("webview:dismissed_view"))
+        as_staff.goto(
+            live_server.url + reverse("webview:suggestion:dismissed_suggestions")
+        )
     else:
         link = as_staff.get_by_role("link", name="View")
         link.click()
+        # From now on, with javascript on, we are in the detailed view
     updated_comment = "Updated comment with more details"
     suggestion.locator("textarea").fill(updated_comment)
-    to_draft = suggestion.get_by_role("button", name="Convert to draft")
+    to_draft = suggestion.get_by_role("button", name="Accept suggestion")
     to_draft.click()
+    # With javascript on, we are in the detail view, therefore changing status is reflected directly rather than showing a stub with a "View" link.
     if no_js:
-        as_staff.goto(live_server.url + reverse("webview:drafts_view"))
-    else:
-        link = as_staff.get_by_role("link", name="View")
-        link.click()
+        as_staff.goto(
+            live_server.url + reverse("webview:suggestion:accepted_suggestions")
+        )
     expect(suggestion).to_be_visible()
     comment = suggestion.locator("textarea")
     expect(comment).to_have_value(updated_comment)

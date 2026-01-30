@@ -73,7 +73,10 @@ def create_gh_issue(
         # we have the user id (which is stable), we can ask the GitHub API
         maintainers_list = [
             get_maintainer_username(maintainer, github)
-            for maintainer in cached_suggestion.payload["maintainers"]
+            for maintainer in (
+                cached_suggestion.payload["categorized_maintainers"]["active"]
+                + cached_suggestion.payload["categorized_maintainers"]["added"]
+            )
             if "github_id" in maintainer and "github" in maintainer
         ]
 

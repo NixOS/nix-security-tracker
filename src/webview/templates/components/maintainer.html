@@ -1,7 +1,0 @@
-<article>
-  <a class="bold" href="https://github.com/{{ maintainer.github | urlencode }}">@{{ maintainer.github }}</a>
-    {{ maintainer.name }}
-    {% if maintainer.email %}
-      <span>&lt;<a class="email" href="mailto:{{maintainer.email | urlencode}}">{{ maintainer.email }}</a>&gt;</span>
-    {% endif %}
-</article>

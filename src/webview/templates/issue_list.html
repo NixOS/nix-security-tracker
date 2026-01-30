@@ -3,11 +3,11 @@
 
 {% block content %}
 
-<h1 class="page-title row gap-small centered"><i class="icon-github"></i>Published issues</h1>
+<h1 class="page-title row gap-small centered">{% status_icon "published" %}Published issues</h1>
 
 <div class="column gap">
     {% for object in object_list %}
-      {% issue object object.activity_log object.github_issue show_permalink=True %}
+      {% issue object object.suggestion_context github_issue=object.github_issue show_permalink=True %}
     {% endfor %}
 </div>
 {% endblock content %}

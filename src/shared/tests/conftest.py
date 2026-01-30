@@ -324,7 +324,7 @@ def staff(make_user: Callable[..., User]) -> User:
 
 @pytest.fixture
 def make_maintainer_notification(
-    make_suggestion: Callable[..., CVEDerivationClusterProposal],
+    make_cached_suggestion: Callable[..., CVEDerivationClusterProposal],
     make_maintainer_from_user: Callable[..., NixMaintainer],
     make_drv: Callable[..., NixDerivation],
 ) -> Callable[..., list[Notification]]:
@@ -333,7 +333,9 @@ def make_maintainer_notification(
     ) -> list[Notification]:
         maintainer = make_maintainer_from_user(user)
         drv = make_drv(maintainer=maintainer)
-        suggestion = make_suggestion(drvs={drv: ProvenanceFlags.PACKAGE_NAME_MATCH})
+        suggestion = make_cached_suggestion(
+            drvs={drv: ProvenanceFlags.PACKAGE_NAME_MATCH}
+        )
         return create_package_subscription_notifications(suggestion)
 
     return wrapped

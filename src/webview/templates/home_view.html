@@ -9,17 +9,17 @@
   </p>
   <ul>
     <li>
-      <a href="/suggestions">Untriaged suggestions</a> are automatically generated matches between a <a href="https://www.cve.org/ResourcesSupport/Glossary#glossaryCVE">CVE</a> and Nixpkgs derivations.
+      <span class="inline-row gap-small centered"><i class="icon-inbox"></i><a href="{% url 'webview:suggestion:untriaged_suggestions' %}">Untriaged suggestions</a></span> are automatically generated matches between a <a href="https://www.cve.org/ResourcesSupport/Glossary#glossaryCVE">CVE</a> and Nixpkgs derivations.
     </li>
     <li>
-      <a href="/dismissed">Dismissed suggestions</a> are CVEs that already were classified by a human as <em>not affecting</em> Nixpkgs.
+      <span class="inline-row gap-small centered"><i class="icon-bin"></i><a href="{% url 'webview:suggestion:dismissed_suggestions' %}">Dismissed suggestions</a></span> are CVEs that already were classified by a human as <em>not affecting</em> Nixpkgs.
     </li>
     <li>
-      <a href="/drafts">Draft issues</a> are matches between a CVE and Nixpkgs attributes that were selected as <em>security relevant</em>.
+      <span class="inline-row gap-small centered"><i class="icon-draft"></i><a href="{% url 'webview:suggestion:accepted_suggestions' %}">Accepted suggestions</a></span> are matches between a CVE and Nixpkgs attributes that were selected as <em>security relevant</em>.
       They are slated to be published as a GitHub issue, but might need further refinement.
     </li>
     <li>
-      <a href="/issues">Published issues</a> have a persistent identifier and link to GitHub issues, which are used for notifications and coordinating mitigation.
+      <span class="inline-row gap-small centered"><i class="icon-github"></i><a href="/issues">Published issues</a></span> have a persistent identifier and link to GitHub issues, which are used for notifications and coordinating mitigation.
     </li>
   <ul>
 </article>

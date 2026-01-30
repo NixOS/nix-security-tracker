@@ -1,0 +1,37 @@
+{% load viewutils %}
+
+<div class="maintainer-add-container row centered gap-small">
+  <div class="row centered gap-small">
+    <form
+      class="contents"
+      method="post"
+      action="{% url 'webview:suggestion:add_maintainer' data.suggestion_id%}"
+      hx-boost="true"
+      hx-target="#suggestion-{{ data.suggestion_id }}"
+      hx-swap="outerHTML show:none"
+      hx-push-url="false"
+      hx-indicator="find button"
+      autocomplete="off"
+    >
+      {% csrf_token %}
+      <input
+        type="text"
+        name="new_maintainer_github_handle"
+        placeholder="GitHub username"
+        autocomplete="off"
+      />
+      <button
+        type="submit"
+        class="btn btn-green row gap-small centered"
+      >
+        <i class="icon-user-plus"></i>
+        Add
+      </button>
+    </form>
+  </div>
+  {% if data.error_message %}
+  <div class="error-inline">
+    {{ data.error_message }}
+  </div>
+  {% endif %}
+</div>

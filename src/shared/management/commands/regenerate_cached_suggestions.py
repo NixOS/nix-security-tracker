@@ -18,5 +18,9 @@ class Command(BaseCommand):
         deleted, _ = CachedSuggestions.objects.all().delete()
         print(f"Cleared {deleted} cached suggestions")
 
-        for suggestion in CVEDerivationClusterProposal.objects.all().iterator():
+        for suggestion in (
+            CVEDerivationClusterProposal.objects.all()
+            .order_by("-updated_at")
+            .iterator()
+        ):
             cache_new_suggestions(suggestion)

@@ -1,4 +1,5 @@
 import datetime
+import logging
 from collections.abc import ItemsView
 from typing import Any, TypedDict
 
@@ -10,14 +11,23 @@ from django.template.context import Context
 from shared.auth import isadmin, ismaintainer
 from shared.listeners.cache_suggestions import CachedSuggestion, parse_drv_name
 from shared.logs.batches import FoldedEventType
-from shared.logs.events import Maintainer
 from shared.models.issue import NixpkgsIssue
 from shared.models.linkage import (
     CVEDerivationClusterProposal,
 )
 from webview.models import Notification
+from webview.suggestions.context.types import (
+    MaintainerAddContext,
+    MaintainerContext,
+    MaintainerListContext,
+    PackageListContext,
+    SuggestionContext,
+    SuggestionStubContext,
+)
 
 register = template.Library()
+
+logger = logging.getLogger(__name__)
 
 
 @register.filter
@@ -32,23 +42,9 @@ class Package(TypedDict):
     channels: dict[str, CachedSuggestion.PackageOnPrimaryChannel]
 
 
-class DerivationFields(TypedDict):
-    attribute: str
-    name: str
-
-
 class PackageContext(TypedDict):
     attribute_name: str
     pdata: Package
-
-
-class PackageList(TypedDict):
-    items: dict[str, Package]
-
-
-class PackageListContext(TypedDict):
-    packages: PackageList
-    selectable: bool
 
 
 class AffectedContext(TypedDict):
@@ -58,31 +54,6 @@ class AffectedContext(TypedDict):
 class SuggestionActivityLog(TypedDict):
     suggestion: CVEDerivationClusterProposal
     activity_log: list[FoldedEventType]
-    oob_update: bool
-
-
-class MaintainerContext(TypedDict):
-    maintainer: Maintainer
-
-
-class SelectableMaintainerContext(TypedDict):
-    maintainer: Maintainer
-    deleted: bool
-
-
-class AddMaintainerContext(TypedDict):
-    error_msg: str | None
-
-
-class MaintainersListContext(TypedDict):
-    maintainers: list[Maintainer]
-    selectable: bool
-
-
-class EditableMaintainersListContext(TypedDict):
-    maintainers: list[Maintainer]
-    selectable: bool
-    suggestion_id: int
     oob_update: bool
 
 
@@ -217,33 +188,18 @@ def is_maintainer_or_admin(user: Any) -> bool:
     return is_maintainer(user) or is_admin(user)
 
 
-@register.inclusion_tag("components/suggestion.html", takes_context=True)
-def suggestion(
-    context: Context,
-    suggestion: CVEDerivationClusterProposal,
-    activity_log: list[FoldedEventType],
-) -> dict:
-    return {
-        "suggestion": suggestion,
-        "activity_log": activity_log,
-        "status_filter": context["status_filter"],
-        "page_obj": context["page_obj"],
-        "user": context["user"],
-    }
-
-
 @register.inclusion_tag("components/issue.html", takes_context=True)
 def issue(
     context: Context,
     issue: NixpkgsIssue,
-    activity_log: list[FoldedEventType],
+    suggestion_context: SuggestionContext,
     github_issue: str | None,
     show_permalink: bool = False,
 ) -> dict:
     return {
         "issue": issue,
         "show_permalink": show_permalink,
-        "activity_log": activity_log,
+        "suggestion_context": suggestion_context,
         "github_issue": github_issue,
         "page_obj": context.get("page_obj", None),
         "status_filter": "published",  # Needed in context for the suggestion component
@@ -254,44 +210,6 @@ def issue(
 @register.inclusion_tag("components/nixpkgs_package.html")
 def nixpkgs_package(attribute_name: str, pdata: Package) -> PackageContext:
     return {"attribute_name": attribute_name, "pdata": pdata}
-
-
-@register.inclusion_tag("components/nixpkgs_package_list.html")
-def selectable_nixpkgs_package_list(packages: PackageList) -> PackageListContext:
-    """Renders the nixpkgs package list with additional checkboxes to have packages selectable.
-
-    Args:
-        packages: Dictionary of package attributes and their channel versions
-
-    Returns:
-        Context dictionary for the template
-
-    Example:
-        {% selectable_nixpkgs_package_list package_dict %}
-    """
-    return {
-        "packages": packages,
-        "selectable": True,
-    }
-
-
-@register.inclusion_tag("components/nixpkgs_package_list.html")
-def nixpkgs_package_list(packages: PackageList) -> PackageListContext:
-    """Renders the nixpkgs package list.
-
-    Args:
-        packages: Dictionary of package attributes and their channel versions
-
-    Returns:
-        Context dictionary for the template
-
-    Example:
-        {% nixpkgs_package_list package_dict %}
-    """
-    return {
-        "packages": packages,
-        "selectable": False,
-    }
 
 
 @register.inclusion_tag("components/affected_products.html")
@@ -314,50 +232,83 @@ def suggestion_activity_log(
     }
 
 
-@register.inclusion_tag("components/maintainers_list.html")
-def maintainers_list(
-    maintainers: list[Maintainer],
-) -> MaintainersListContext:
-    return {
-        "maintainers": maintainers,
-        "selectable": False,
+@register.inclusion_tag("components/status_icon.html")
+def status_icon(status: str) -> dict[str, str]:
+    icon_mapping = {
+        "pending": "icon-inbox",
+        "rejected": "icon-bin",
+        "accepted": "icon-draft",
+        "published": "icon-github",
     }
+    return {
+        "icon_class": icon_mapping.get(status, "icon-inbox")
+    }  # Default to inbox icon
 
 
-@register.inclusion_tag("components/maintainers_list.html", takes_context=True)
-def selectable_maintainers_list(
+@register.inclusion_tag("suggestions/components/suggestion.html", takes_context=True)
+def suggestion(
     context: Context,
-    maintainers: list[Maintainer],
-    suggestion_id: int,
-    oob_update: bool = False,
-) -> EditableMaintainersListContext:
-    user = context.get("user")
-    selectable = is_maintainer_or_admin(user)
+    data: SuggestionContext,
+) -> dict:
     return {
-        "maintainers": maintainers,
-        "selectable": selectable,
-        "suggestion_id": suggestion_id,
-        "oob_update": oob_update,
+        "data": data,
+        "user": context["user"],
     }
 
 
-@register.inclusion_tag("components/maintainer.html")
+@register.inclusion_tag(
+    "suggestions/components/suggestion_stub.html", takes_context=True
+)
+def suggestion_stub(
+    context: Context,
+    data: SuggestionStubContext,
+) -> dict:
+    return {
+        "data": data,
+        "user": context["user"],
+    }
+
+
+@register.inclusion_tag("suggestions/components/package_list.html", takes_context=True)
+def package_list(
+    context: Context,
+    data: PackageListContext,
+) -> dict[str, Any]:
+    """
+    Renders the nixpkgs package list for suggestions with ignore/restore functionality.
+    """
+    return {
+        "data": data,
+        "user": context["user"],
+    }
+
+
+@register.inclusion_tag("suggestions/components/maintainer.html", takes_context=True)
 def maintainer(
-    maintainer: Maintainer,
-) -> MaintainerContext:
-    return {"maintainer": maintainer}
+    context: Context,
+    data: MaintainerContext,
+) -> dict:
+    return {
+        "data": data,
+        "user": context["user"],
+    }
 
 
-@register.inclusion_tag("components/selectable_maintainer.html")
-def selectable_maintainer(
-    maintainer: Maintainer,
-    deleted: bool = False,
-) -> SelectableMaintainerContext:
-    return {"maintainer": maintainer, "deleted": deleted}
+@register.inclusion_tag(
+    "suggestions/components/maintainers_list.html", takes_context=True
+)
+def maintainer_list(
+    context: Context,
+    data: MaintainerListContext,
+) -> dict:
+    return {
+        "data": data,
+        "user": context["user"],
+    }
 
 
-@register.inclusion_tag("components/add_maintainer.html")
-def add_maintainer(
-    error_msg: str | None = None,
-) -> AddMaintainerContext:
-    return {"error_msg": error_msg}
+@register.inclusion_tag("suggestions/components/maintainer_add.html")
+def maintainer_add(
+    data: MaintainerAddContext,
+) -> dict:
+    return {"data": data}

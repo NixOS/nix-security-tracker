@@ -1,0 +1,12 @@
+{% extends "base.html" %}
+{% load viewutils %}
+
+{% block content %}
+
+<h1 class="page-title">Suggestion detail</h1>
+
+<div class="column gap">
+  {% suggestion suggestion_context %}
+</div>
+
+{% endblock content %}

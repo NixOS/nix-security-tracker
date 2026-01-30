@@ -10,7 +10,7 @@
   <div class="notification-content">
     {{ notification.message|linebreaks }}
   </div>
-  <form method="post" action="{% url 'webview:notifications:toggle_read' notification.id %}" class="row-reverse">
+  <form method="post" action="{% url 'webview:notifications:toggle_read' notification.id %}" class="row-reverse" hx-indicator="find button">
     {% csrf_token %}
     {% if current_page %}
       <!-- Preserve current page if we're in a paginated view in no-js mode -->

@@ -9,7 +9,7 @@
 
   {% if notifications %}
     <div class="row-reverse gap-small">
-      <form method="post" action="{% url 'webview:notifications:mark_all_read' %}">
+      <form method="post" action="{% url 'webview:notifications:mark_all_read' %}" hx-indicator="find button">
         {% csrf_token %}
         <!-- Preserve current page in no-js mode -->
         <input type="hidden" name="page" value="{{ page_obj.number }}">
@@ -21,7 +21,7 @@
           Mark all as read
         </button>
       </form>
-      <form method="post" action="{% url 'webview:notifications:remove_all_read' %}">
+      <form method="post" action="{% url 'webview:notifications:remove_all_read' %}" hx-indicator="find button">
         {% csrf_token %}
         <!-- Preserve current page in no-js mode -->
         <input type="hidden" name="page" value="{{ page_obj.number }}">

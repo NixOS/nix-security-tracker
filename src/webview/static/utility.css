@@ -69,6 +69,29 @@
   color: white;
 }
 
+@keyframes pulse-outline {
+  0%,
+  100% {
+    outline-width: 2px;
+    opacity: 1;
+  }
+  50% {
+    outline-width: 4px;
+    opacity: 0.7;
+  }
+}
+
+.btn.htmx-request {
+  outline-style: solid;
+  animation: pulse-outline 0.5s ease-in-out infinite;
+  pointer-events: none; /* Prevent additional clicks during request */
+}
+
+.btn.htmx-request:hover {
+  /* Override hover styles during request to maintain consistent animation */
+  outline-style: solid;
+}
+
 /* Titles
  *
  * .page-title - Only for the main title of a page
