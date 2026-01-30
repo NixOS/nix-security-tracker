@@ -103,6 +103,8 @@ class SuggestionBaseView(TemplateView, ABC):
 class SuggestionContentEditBaseView(SuggestionBaseView, ABC):
     """Base view for package and maintainers operations."""
 
+    http_method_names = ["post"]
+
     template_name = "suggestions/components/suggestion.html"
 
     class ForbiddenOperationError(Exception):

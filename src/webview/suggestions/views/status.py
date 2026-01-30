@@ -24,6 +24,8 @@ from .base import (
 class UpdateSuggestionStatusView(SuggestionBaseView):
     """Handle suggestion status changes (accept/reject/publish)."""
 
+    http_method_names = ["post"]
+
     template_name = "suggestions/components/suggestion.html"
 
     def post(self, request: HttpRequest, suggestion_id: int) -> HttpResponse:

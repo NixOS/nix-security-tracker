@@ -135,3 +135,43 @@ def test_updating_comment_on_existing_suggestion(
     expect(suggestion).to_be_visible()
     comment = suggestion.locator("textarea")
     expect(comment).to_have_value(updated_comment)
+
+
+def test_get_requests_ignored(
+    live_server: LiveServer,
+    as_staff: Page,
+    cached_suggestion: CVEDerivationClusterProposal,
+    no_js: bool,
+) -> None:
+    drv = cached_suggestion.derivations.first()
+    assert drv
+    with as_staff.expect_response(lambda response: response.status == 405):
+        """
+        Check that the HTTP API rejects GET requests.
+        """
+        as_staff.goto(
+            live_server.url
+            + reverse(
+                "webview:suggestion:update_status",
+                kwargs={"suggestion_id": cached_suggestion.pk},
+            ),
+        )
+        as_staff.goto(
+            live_server.url
+            + reverse(
+                "webview:suggestion:ignore_package",
+                kwargs={
+                    "suggestion_id": cached_suggestion.pk,
+                    "package_attr": drv.attribute,
+                },
+            ),
+        )
+        as_staff.goto(
+            live_server.url
+            + reverse(
+                "webview:suggestion:add_maintainer",
+                kwargs={
+                    "suggestion_id": cached_suggestion.pk,
+                },
+            ),
+        )
