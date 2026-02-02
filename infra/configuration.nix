@@ -67,7 +67,7 @@ in
     tmux
     tree
     unar
-    vim_configurable
+    vim-full
     wget
     zip
   ];

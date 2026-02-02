@@ -28,6 +28,10 @@ in
     pname = meta.project.name;
     inherit (meta.project) version;
     pyproject = true;
+    build-system = with final.python3.pkgs; [
+      setuptools
+      wheel
+    ];
 
     src = final.nix-gitignore.gitignoreSourcePure [ ../.gitignore ] ../src;
 
