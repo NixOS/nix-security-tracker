@@ -64,6 +64,7 @@ class NixpkgsIssueView(DetailView):
 
         # Fetch suggestion_context
         context["suggestion_context"] = get_suggestion_context(issue.suggestion)
+        context["suggestion_context"].show_status = False
         github_issue_opened = NixpkgsEvent.objects.filter(
             issue=issue,
             event_type=EventType.ISSUE | EventType.OPENED,
@@ -107,6 +108,8 @@ class NixpkgsIssueListView(ListView):
             # FIXME(@fricklerhandwerk): We're assigning an object field that doesn't exist.
             # The horrible thing is that it still works, because somewhere in the template processing it does the equivalent of `object.__dict__` and there the key shows up again.
             issue.suggestion_context = get_suggestion_context(issue.suggestion)
+
+            issue.suggestion_context.show_status = False
             github_issue_opened = issue.events.first()
             issue.github_issue = (
                 github_issue_opened.url if github_issue_opened else None

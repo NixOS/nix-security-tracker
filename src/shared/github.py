@@ -68,13 +68,30 @@ def create_gh_issue(
             return ""
 
     def maintainers() -> str:
+        # Get all maintainer github_ids from currently active packages
+        active_package_maintainer_ids = {
+            maintainer["github_id"]
+            for package in cached_suggestion.payload["packages"].values()
+            for maintainer in package["maintainers"]
+            if "github_id" in maintainer
+        }
+
+        # Filter active maintainers to only those still in active packages
+        filtered_active_maintainers = [
+            maintainer
+            for maintainer in cached_suggestion.payload["categorized_maintainers"][
+                "active"
+            ]
+            if maintainer["github_id"] in active_package_maintainer_ids
+        ]
+
         # We need to query for the latest username of each maintainer, because
         # those might have changed since they were written out in Nixpkgs; since
         # we have the user id (which is stable), we can ask the GitHub API
         maintainers_list = [
             get_maintainer_username(maintainer, github)
             for maintainer in (
-                cached_suggestion.payload["categorized_maintainers"]["active"]
+                filtered_active_maintainers
                 + cached_suggestion.payload["categorized_maintainers"]["added"]
             )
             if "github_id" in maintainer and "github" in maintainer

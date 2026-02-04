@@ -348,7 +348,6 @@ class NixDerivation(models.Model):
 MAJOR_CHANNELS = [
     "unstable",
     "25.11",
-    "25.05",
 ]
 
 

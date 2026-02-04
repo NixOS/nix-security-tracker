@@ -2,7 +2,6 @@ import re
 from collections.abc import Callable
 from contextlib import AbstractContextManager
 
-import pytest
 from django.contrib.auth.models import User
 from django.urls import reverse
 from playwright.sync_api import Page, expect
@@ -32,6 +31,16 @@ def test_mark_notification_read_unread(
 
     notification = as_staff.locator(f"#notification-{db_notification.pk}")
     expect(notification).to_be_visible()
+
+    suggestion_link = notification.get_by_role("link", name="View")
+    assert db_notification.suggestion
+    link = re.compile(
+        reverse(
+            "webview:suggestion:detail",
+            kwargs={"suggestion_id": db_notification.suggestion.pk},
+        )
+    )
+    expect(suggestion_link).to_have_attribute("href", link)
 
     mark_read = notification.get_by_role("button", name="Mark read")
     mark_read.click()
@@ -141,41 +150,6 @@ def test_paginated_notifications(
 
     expect(mark_read).to_have_count(num_notifications - 1)
     expect(badge).to_have_text(str(num_notifications - 1))
-
-
-@pytest.mark.parametrize(
-    "user_fixture,has_access",
-    [
-        ("committer", False),
-        ("staff", True),
-    ],
-)
-def test_notification_access_control(
-    has_access: bool,
-    request: pytest.FixtureRequest,
-    staff: User,
-    user_fixture: str,
-    make_maintainer_notification: Callable[..., list[Notification]],
-) -> None:
-    """
-    Low-level test of access control on notifications
-
-    This only tests methods in use at the time of writing.
-    """
-    notification, *_ = make_maintainer_notification(staff)
-
-    # https://docs.pytest.org/en/latest/reference/reference.html?highlight=getfixturevalue#pytest.FixtureRequest.getfixturevalue
-    user = request.getfixturevalue(user_fixture)
-
-    if has_access:
-        assert Notification.objects.toggle_read_for_user(user, notification.id) == 0
-        assert Notification.objects.toggle_read_for_user(user, notification.id) == 1
-        assert Notification.objects.mark_all_read_for_user(user) == 1
-        assert Notification.objects.clear_all_for_user(user) == 1
-    else:
-        assert Notification.objects.toggle_read_for_user(user, notification.id) is None
-        assert Notification.objects.mark_all_read_for_user(user) == 0
-        assert Notification.objects.clear_all_for_user(user) == 0
 
 
 def test_notifications_per_user(

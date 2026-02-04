@@ -1,11 +1,79 @@
-# Create your models here.
 from typing import Any
 
 from django.contrib.auth.models import User
 from django.contrib.postgres import fields
-from django.db import models
+from django.db import models, transaction
 from django.db.models.signals import post_save
 from django.dispatch import receiver
+from model_utils.managers import InheritanceManager
+
+from shared.models import TimeStampMixin
+from shared.models.linkage import CVEDerivationClusterProposal
+
+
+class Notification(TimeStampMixin):
+    """
+    Notification to appear in the notification center of a user.
+    """
+
+    objects = InheritanceManager()
+
+    user = models.ForeignKey(
+        User, on_delete=models.CASCADE, related_name="notifications"
+    )
+    is_read = models.BooleanField(default=False)
+
+    def toggle_read(self) -> int:
+        """
+        Toggle a notification's read status and update user's unread counter.
+
+        Returns the new unread counter.
+        """
+        profile = self.user.profile
+        with transaction.atomic():
+            self.is_read = not self.is_read
+            self.save(update_fields=["is_read"])
+
+            # FIXME(@fricklerhandwerk): [tag:count-notifications]: We may want to simply `.count()` on every full page instead of risking permanent inconsistency arising from unforseen edge cases.
+            # The rationale by @florentc for denormalising was a performance consideration, but
+            # - the difference will likely not be noticeable with <100 users
+            # - it needs measurement in any case
+            # - may resolve itself eventually as we increasingly avoid page reloads
+            if not self.is_read:
+                profile.unread_notifications_count += 1
+            else:
+                profile.unread_notifications_count = max(
+                    0, profile.unread_notifications_count - 1
+                )
+            profile.save(update_fields=["unread_notifications_count"])
+
+        return profile.unread_notifications_count
+
+
+class TextNotification(Notification):
+    # FIXME(@fricklerhandwerk): Generate suggestion status change notification text in the view. [ref:suggestion-notification-text]
+    title = models.CharField(max_length=255, blank=False)
+    message = models.TextField()
+
+
+class SuggestionNotification(Notification):
+    suggestion = models.ForeignKey(
+        CVEDerivationClusterProposal,
+        # XXX(@fricklerhandwerk): It's unlikely we'll delete suggestions any time soon.
+        # But when we do, we don't want to mess up the notification counter. [ref:count-notifications]
+        on_delete=models.PROTECT,
+    )
+
+    @property
+    def title(self) -> str:
+        # XXX(@fricklerhandwerk): This is hard to be more precise about without tracking or carefully extracting more data.
+        # Ideally we'd always say the matching was automatic, and also why it happened.
+        # For example, show the package that corresponds to subscribed attribute name or auto-subscription by maintainer.
+        # But a suggestion can be edited after the match was made and the notification created.
+        # We should then also show (maybe in the equivalent of the text message) what state that match is now in (e.g. ingored, ideally for which reason).
+        # Maybe even garbage-collect the notification if it got obsolete and wasn't yet served or otherwise exposed to the user.
+        # FIXME(@fricklerhandwerk): User-facing text should be generated from structured data in templates.
+        return f"{self.suggestion.cve.cve_id} was automatically matched to packages you subscribed to"
 
 
 class Profile(models.Model):
@@ -27,12 +95,42 @@ class Profile(models.Model):
         help_text="Automatically subscribe to notifications for packages this user maintains",
     )
 
-    def recalculate_unread_notifications_count(self) -> None:
-        """Recalculate and update the unread notifications count from the database."""
-        count = self.user.notifications.filter(is_read=False).count()
-        if self.unread_notifications_count != count:
-            self.unread_notifications_count = count
+    def create_notification(
+        self, suggestion: CVEDerivationClusterProposal
+    ) -> SuggestionNotification:
+        """Create a notification and update the user's unread counter."""
+        notification = SuggestionNotification.objects.create(
+            user=self.user,
+            suggestion=suggestion,
+        )
+
+        self.unread_notifications_count += 1
+        self.save(update_fields=["unread_notifications_count"])
+
+        return notification
+
+    def mark_all_read_for_user(self) -> int:
+        """Mark all notifications as read for a user and reset counter. Returns count of notifications marked."""
+        unread = Notification.objects.filter(user=self.user, is_read=False)
+        unread_count = unread.count()
+
+        if unread_count > 0:
+            unread.update(is_read=True)
+
+            self.unread_notifications_count = 0
             self.save(update_fields=["unread_notifications_count"])
+
+        return unread_count
+
+    def clear_read_for_user(self) -> int:
+        """Delete all read notifications for a user. Counter should remain unchanged."""
+        read = Notification.objects.filter(user=self.user, is_read=True)
+        count = read.count()
+
+        if count > 0:
+            read.delete()
+
+        return count
 
 
 @receiver(post_save, sender=User)
@@ -41,139 +139,3 @@ def create_profile(
 ) -> None:
     if created:
         Profile.objects.create(user=instance)
-
-
-class NotificationManager(models.Manager):
-    def create_for_user(
-        self, user: User, title: str, message: str, is_read: bool = False
-    ) -> "Notification":
-        """Create a notification and update the user's unread counter."""
-        notification = self.create(
-            user=user, title=title, message=message, is_read=is_read
-        )
-
-        # Update counter if notification is unread
-        if not is_read:
-            profile = user.profile
-            profile.unread_notifications_count += 1
-            profile.save(update_fields=["unread_notifications_count"])
-
-        return notification
-
-    def mark_read_for_user(self, user: User, notification_id: int) -> bool:
-        """Mark a specific notification as read and update counter."""
-        try:
-            notification = self.get(id=notification_id, user=user)
-            if not notification.is_read:
-                notification.is_read = True
-                notification.save(update_fields=["is_read"])
-
-                # Update counter
-                profile = user.profile
-                profile.unread_notifications_count = max(
-                    0, profile.unread_notifications_count - 1
-                )
-                profile.save(update_fields=["unread_notifications_count"])
-                return True
-            return False
-        except self.model.DoesNotExist:
-            return False
-
-    def mark_unread_for_user(self, user: User, notification_id: int) -> bool:
-        """Mark a specific notification as unread and update counter. Returns True if status changed."""
-        try:
-            notification = self.get(id=notification_id, user=user)
-            if notification.is_read:
-                notification.is_read = False
-                notification.save(update_fields=["is_read"])
-
-                # Update counter
-                profile = user.profile
-                profile.unread_notifications_count += 1
-                profile.save(update_fields=["unread_notifications_count"])
-                return True
-            return False
-        except self.model.DoesNotExist:
-            return False
-
-    def toggle_read_for_user(self, user: User, notification_id: int) -> int | None:
-        """Toggle a notification's read status and update counter. Returns the new unread counter."""
-        try:
-            notification = self.get(id=notification_id, user=user)
-            old_is_read = notification.is_read
-            notification.is_read = not notification.is_read
-            notification.save(update_fields=["is_read"])
-
-            # Update counter based on the change
-            profile = user.profile
-            if old_is_read and not notification.is_read:
-                # Was read, now unread - increment
-                profile.unread_notifications_count += 1
-                profile.save(update_fields=["unread_notifications_count"])
-            elif not old_is_read and notification.is_read:
-                # Was unread, now read - decrement
-                profile.unread_notifications_count = max(
-                    0, profile.unread_notifications_count - 1
-                )
-                profile.save(update_fields=["unread_notifications_count"])
-
-            return profile.unread_notifications_count
-        except self.model.DoesNotExist:
-            return None
-
-    def mark_all_read_for_user(self, user: User) -> int:
-        """Mark all notifications as read for a user and reset counter. Returns count of notifications marked."""
-        unread_count = self.filter(user=user, is_read=False).count()
-
-        if unread_count > 0:
-            # Mark all as read
-            self.filter(user=user, is_read=False).update(is_read=True)
-
-            # Reset counter to 0
-            profile = user.profile
-            profile.unread_notifications_count = 0
-            profile.save(update_fields=["unread_notifications_count"])
-
-        return unread_count
-
-    def clear_all_for_user(self, user: User) -> int:
-        """Delete all notifications for a user and reset counter. Returns count of notifications deleted."""
-        count = self.filter(user=user).count()
-
-        if count > 0:
-            self.filter(user=user).delete()
-
-            # Reset counter to 0
-            profile = user.profile
-            profile.unread_notifications_count = 0
-            profile.save(update_fields=["unread_notifications_count"])
-
-        return count
-
-    def clear_read_for_user(self, user: User) -> int:
-        """Delete all read notifications for a user. Counter should remain unchanged."""
-        count = self.filter(user=user, is_read=True).count()
-
-        if count > 0:
-            self.filter(user=user, is_read=True).delete()
-            # Note: Counter doesn't change since we only deleted read notifications
-
-        return count
-
-
-class Notification(models.Model):
-    """
-    Notification to appear in the notification center of a user.
-    """
-
-    user = models.ForeignKey(
-        User, on_delete=models.CASCADE, related_name="notifications"
-    )
-    # FIXME(@fricklerhandwerk): I find it questionable whether notifications should be character blobs.
-    title = models.CharField(max_length=255)
-    message = models.TextField()
-    is_read = models.BooleanField(default=False)
-    created_at = models.DateTimeField(auto_now_add=True)
-    updated_at = models.DateTimeField(auto_now=True)
-
-    objects = NotificationManager()

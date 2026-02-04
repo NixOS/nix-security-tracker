@@ -1,3 +1,4 @@
+import re
 from collections.abc import Callable
 
 import pytest
@@ -74,7 +75,7 @@ def test_ignore_restore_package(
         # Click ignore and open the list of ignored packages
         ignore_package1_button.click()
         as_staff.locator(f"#suggestion-{suggestion.pk}").get_by_text(
-            "Ignored packages"
+            re.compile("Ignored packages"),
         ).click()
 
     # Check package 1 now appears under the ignored packages

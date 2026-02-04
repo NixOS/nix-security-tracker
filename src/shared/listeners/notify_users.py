@@ -5,7 +5,8 @@ from django.contrib.auth.models import User
 
 from shared.channels import CVEDerivationClusterProposalNotificationChannel
 from shared.models.linkage import CVEDerivationClusterProposal
-from webview.models import Notification
+from webview.models import Profile
+from webview.models import SuggestionNotification as Notification
 
 logger = logging.getLogger(__name__)
 
@@ -65,46 +66,12 @@ def create_package_subscription_notifications(
 
     notifications = []
     for user in all_users_to_notify:
-        # Determine notification reason and affected packages for this user
-        user_affected_packages = []
-        notification_reason = []
-
-        # Check if user is subscribed to any affected packages
-        if user in subscribed_users_set:
-            user_subscribed_packages = [
-                pkg
-                for pkg in user.profile.package_subscriptions
-                if pkg in affected_packages
-            ]
-            user_affected_packages.extend(user_subscribed_packages)
-            if user_subscribed_packages:
-                notification_reason.append("subscribed to")
-
-        # Check if user is a maintainer with auto-subscribe enabled
-        if user in maintainer_users:
-            # For maintainers, all affected packages are relevant
-            maintainer_packages = [
-                pkg for pkg in affected_packages if pkg not in user_affected_packages
-            ]
-            user_affected_packages.extend(maintainer_packages)
-            if maintainer_packages or (user not in subscribed_users_set):
-                notification_reason.append("maintainer of")
-
-        if not user_affected_packages:
-            continue
-
-        # Create notification
         try:
-            reason_text = " and ".join(notification_reason)
-            notification = Notification.objects.create_for_user(
-                user=user,
-                title=f"{cve_id} may affect {len(user_affected_packages)} packages you're {reason_text}",
-                message=f"Affected packages: {', '.join(user_affected_packages)}. ",
+            notification = Profile.objects.get(user=user).create_notification(
+                suggestion=suggestion,
             )
             notifications.append(notification)
-            logger.debug(
-                f"Created notification for user {user.username} ({reason_text}) for packages: {user_affected_packages}"
-            )
+            logger.debug(f"Created notification for user {user.username}")
         except Exception as e:
             logger.error(f"Failed to create notification for user {user.username}: {e}")
     return notifications

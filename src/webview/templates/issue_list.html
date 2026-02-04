@@ -5,6 +5,12 @@
 
 <h1 class="page-title row gap-small centered">{% status_icon "published" %}Published issues</h1>
 
+<div class="prose">
+  <p>
+    All published security issues are <a href="https://github.com/NixOS/nixpkgs/issues?q=is%3Aissue%20state%3Aopen%20label%3A%221.severity%3A%20security%22" target="_blank">tracked and resolved on GitHub</a>.
+  </p>
+</div>
+
 <div class="column gap">
     {% for object in object_list %}
       {% issue object object.suggestion_context github_issue=object.github_issue show_permalink=True %}

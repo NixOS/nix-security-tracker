@@ -1,9 +1,9 @@
 from typing import Any
 
 from django.http import HttpRequest, HttpResponse
-from django.shortcuts import redirect
+from django.shortcuts import get_object_or_404, redirect
 from django.urls import reverse
-from django.views.generic import DetailView
+from django.views.generic import DetailView, View
 
 from shared.models.issue import NixpkgsIssue
 from shared.models.linkage import (
@@ -33,3 +33,15 @@ class SuggestionDetailView(DetailView, SuggestionBaseView):
                 reverse("webview:issue_detail", kwargs={"code": issue.code})
             )
         return super().get(request, suggestion_id)
+
+
+class SuggestionDetailByCveView(View):
+    """Redirect to suggestion detail by CVE ID."""
+
+    def get(self, request: HttpRequest, cve_id: str) -> HttpResponse:
+        suggestion = get_object_or_404(CVEDerivationClusterProposal, cve__cve_id=cve_id)
+        return redirect(
+            reverse(
+                "webview:suggestion:detail", kwargs={"suggestion_id": suggestion.pk}
+            )
+        )

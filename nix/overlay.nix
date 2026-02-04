@@ -28,6 +28,10 @@ in
     pname = meta.project.name;
     inherit (meta.project) version;
     pyproject = true;
+    build-system = with final.python3.pkgs; [
+      setuptools
+      wheel
+    ];
 
     src = final.nix-gitignore.gitignoreSourcePure [ ../.gitignore ] ../src;
 
@@ -63,6 +67,7 @@ in
       pytest-mock
       cvss
       freezegun
+      django-model-utils
     ];
 
     passthru.PLAYWRIGHT_BROWSERS_PATH = final.playwright-driver.browsers;

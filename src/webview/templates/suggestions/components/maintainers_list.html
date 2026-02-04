@@ -6,10 +6,13 @@
     class="rounded-box column gap"
     {% if oob_update %}hx-swap-oob="true" open{% endif %}
   >
-    <h2 class="heading dimmed">Package maintainers</h2>
 
     <div class="column gap">
       <!-- Active maintainers -->
+      <div class="row gap spread wrap baseline">
+        <h2 class="heading dimmed">Package maintainers</h2>
+        {% if data.editable and user|is_maintainer_or_admin %}<p class="dimmed">Maintainers of ignored packages won't be notified.</p>{% endif %}
+      </div>
       {% if data.active %}
         <ul id="maintainers-list-{{ data.suggestion_id }}-active" class="column gap-small">
           {% for maintainer_context in data.active %}

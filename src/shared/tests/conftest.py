@@ -32,7 +32,7 @@ from shared.models.nix_evaluation import (
     NixEvaluation,
     NixMaintainer,
 )
-from webview.models import Notification
+from webview.models import SuggestionNotification as Notification
 
 
 @pytest.fixture

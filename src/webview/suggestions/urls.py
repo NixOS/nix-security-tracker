@@ -1,6 +1,6 @@
 from django.urls import path
 
-from .views.detail import SuggestionDetailView
+from .views.detail import SuggestionDetailByCveView, SuggestionDetailView
 from .views.lists import (
     AcceptedSuggestionsView,
     PublishedSuggestionsView,
@@ -21,6 +21,11 @@ app_name = "suggestion"
 urlpatterns = [
     # Individual suggestion detail page
     path("by-id/<int:suggestion_id>/", SuggestionDetailView.as_view(), name="detail"),
+    path(
+        "by-cve/<str:cve_id>/",
+        SuggestionDetailByCveView.as_view(),
+        name="detail_by_cve",
+    ),
     # Lists
     path(
         "untriaged/",

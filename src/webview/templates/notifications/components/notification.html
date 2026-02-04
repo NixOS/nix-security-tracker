@@ -7,16 +7,18 @@
     <h3 class="heading">{{ notification.title }}</h3>
     <time datetime="{{ notification.created_at|date }}" class="notification-date">{{ notification.created_at|date:"M d, Y H:i" }}</time>
   </header>
-  <div class="notification-content">
+  {% if notification.message %}
     {{ notification.message|linebreaks }}
-  </div>
+  {% elif notification.suggestion %}
+    {% include "../../suggestions/components/suggestion_stub.html" with data=notification %}
+  {% endif %}
   <form method="post" action="{% url 'webview:notifications:toggle_read' notification.id %}" class="row-reverse" hx-indicator="find button">
     {% csrf_token %}
     {% if current_page %}
       <!-- Preserve current page if we're in a paginated view in no-js mode -->
       <input type="hidden" name="page" value="{{ current_page }}">
     {% endif %}
-    <button 
+    <button
       type="submit"
       hx-post="{% url 'webview:notifications:toggle_read' notification.id %}"
       hx-swap="outerHTML"

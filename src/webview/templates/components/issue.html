@@ -3,23 +3,17 @@
 <article class="rounded-box column gap" id="issue-{{ issue.code }}">
 
   <div class="row gap spread">
-    <div class="uppercase bold">{{ issue.code }}</div>
-    <div>published on {{ issue.created }}</div>
+    <div class="uppercase bold">
+      {{ issue.code }}
+    </div>
+    <div>
+      {% if github_issue %}
+        <a href="{{ github_issue }}" target="_blank" class="permalink">GitHub issue</a>
+      {% endif %}
+      published on {{ issue.created }}
+    </div>
   </div>
 
   {% suggestion suggestion_context %}
-
-  <div class="row gap spread">
-    {% if show_permalink %}
-      <a href="/issues/{{ issue.code }}" class="permalink">Permalink</a>
-    {% else %}
-      <div></div>
-    {% endif %}
-    {% if github_issue %}
-      <a href="{{ github_issue }}" target="_blank" class="permalink">GitHub issue</a>
-    {% else %}
-      <div></div>
-    {% endif %}
-  </div>
 
 </article>
