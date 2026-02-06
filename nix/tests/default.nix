@@ -149,7 +149,7 @@ pkgs.testers.runNixOSTest {
             In this environment it can't discover what's needed on its own.
             It's easiest to list the modules under test explicitly, which are found through `$PYTHONPATH`.
           */
-        }server.succeed("wst-manage test -- --pyargs shared")
+        }server.succeed("wst-manage test -- --pyargs shared -v | tee /dev/ttyS0")
         ${
           ""
           /*
@@ -157,7 +157,7 @@ pkgs.testers.runNixOSTest {
             Importing fixtures from one module in another doesn't work in one invocation of `pytest`.
             This is because `conftest.py` files are discovered from the provided module names and registered globally.
           */
-        }server.succeed("wst-manage test -- --pyargs webview")
+        }server.succeed("wst-manage test -- --pyargs webview -v | tee /dev/ttyS0")
 
       with subtest("Check that stylesheet is served"):
         machine.succeed("curl --fail -H 'Host: example.org' http://localhost/static/reset.css")

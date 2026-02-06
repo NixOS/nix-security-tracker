@@ -2,6 +2,7 @@ from abc import ABC
 from typing import Any
 
 from django.core.paginator import Paginator
+from django.db.models import Q
 
 from shared.models.linkage import (
     CVEDerivationClusterProposal,
@@ -16,14 +17,20 @@ class SuggestionListView(SuggestionBaseView, ABC):
     template_name = "suggestions/suggestion_list.html"
     paginate_by = 10
     status_filter = None  # To be defined in concrete classes
+    package_filter: str | None = None  # To be defined in concrete classes
 
     def get_context_data(self, **kwargs: Any) -> dict[str, Any]:
         """Get paginated suggestions for the specific status."""
         context = super().get_context_data(**kwargs)
 
         # Get suggestions with the specific status
+        query_filters = Q()
+        if self.status_filter is not None:
+            query_filters &= Q(status=self.status_filter)
+        if self.package_filter is not None:
+            query_filters &= Q(cached__payload__packages__has_key=self.package_filter)
         suggestions = CVEDerivationClusterProposal.objects.filter(
-            status=self.status_filter
+            query_filters
         ).order_by("-updated_at", "-created_at")
 
         # Pagination first
@@ -37,7 +44,8 @@ class SuggestionListView(SuggestionBaseView, ABC):
         for suggestion in page_obj.object_list:
             suggestion_context = get_suggestion_context(suggestion)
             suggestion_context.show_status = (
-                False  # We don't show status in list views (they are "by status" lists)
+                self.status_filter
+                is None  # We don't show status in lists already filtered by status
             )
             suggestion_contexts.append(suggestion_context)
 
@@ -46,6 +54,7 @@ class SuggestionListView(SuggestionBaseView, ABC):
                 "suggestion_contexts": suggestion_contexts,
                 "page_obj": page_obj,
                 "status_filter": self.status_filter,
+                "package_filter": self.package_filter,
                 "adjusted_elided_page_range": paginator.get_elided_page_range(),
                 "is_paginated": True,
             }
@@ -67,4 +76,26 @@ class RejectedSuggestionsView(SuggestionListView):
 
 
 class PublishedSuggestionsView(SuggestionListView):
+    status_filter = CVEDerivationClusterProposal.Status.PUBLISHED
+
+
+class SuggestionsByPackageView(SuggestionListView):
+    def get_context_data(self, **kwargs: Any) -> dict[str, Any]:
+        self.package_filter = self.kwargs.get("package_name")
+        return super().get_context_data(**kwargs)
+
+
+class UntriagedSuggestionsByPackageView(SuggestionsByPackageView):
+    status_filter = CVEDerivationClusterProposal.Status.PENDING
+
+
+class AcceptedSuggestionsByPackageView(SuggestionsByPackageView):
+    status_filter = CVEDerivationClusterProposal.Status.ACCEPTED
+
+
+class RejectedSuggestionsByPackageView(SuggestionsByPackageView):
+    status_filter = CVEDerivationClusterProposal.Status.REJECTED
+
+
+class PublishedSuggestionsByPackageView(SuggestionsByPackageView):
     status_filter = CVEDerivationClusterProposal.Status.PUBLISHED

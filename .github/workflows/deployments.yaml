@@ -1,15 +1,12 @@
 name: Deployments
 on:
-  # Run the deployment only once staging has been prepared.
-  workflow_run:
-    workflows: ["Dry activations"]
-    branches: [main]
-    types:
-      - completed
   push:
     branches: [main, production]
 jobs:
   deploy-environment:
+    concurrency:
+      group: deploy-${{ matrix.environment }}
+      cancel-in-progress: false
     runs-on: ubuntu-latest
     strategy:
       matrix:
@@ -26,10 +23,9 @@ jobs:
       - uses: webfactory/ssh-agent@a6f90b1f127823b31d4d4a8d96047790581349bd # v0.9.1
         with:
           ssh-private-key: ${{ secrets.DEPLOY_SSH_PRIVATE_KEY }}
-      - name: Trust staging server public SSH host keys
+      - name: Trust server public SSH host keys
         run: cat ./infra/host_keys >> ~/.ssh/known_hosts
       - name: Deploy to ${{ matrix.environment }}
-        # Only deploy production when on production branch
         if: github.ref_name == matrix.branch
         run: |
           nix-build -A ci

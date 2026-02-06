@@ -1,9 +1,9 @@
 @font-face {
   font-family: "icomoon";
   src:
-    url("fonts/icomoon.ttf?owrnj1") format("truetype"),
-    url("fonts/icomoon.woff?owrnj1") format("woff"),
-    url("fonts/icomoon.svg?owrnj1#icomoon") format("svg");
+    url("fonts/icomoon.ttf?e6jw58") format("truetype"),
+    url("fonts/icomoon.woff?e6jw58") format("woff"),
+    url("fonts/icomoon.svg?e6jw58#icomoon") format("svg");
   font-weight: normal;
   font-style: normal;
   font-display: block;
@@ -27,6 +27,9 @@ i {
 .icon-draft:before {
   content: "\e908";
 }
+.icon-folder:before {
+  content: "\e92f";
+}
 .icon-folder-plus:before {
   content: "\e931";
 }
@@ -41,6 +44,9 @@ i {
 }
 .icon-user-minus:before {
   content: "\e974";
+}
+.icon-search:before {
+  content: "\e986";
 }
 .icon-bin:before {
   content: "\e9ac";

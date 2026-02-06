@@ -181,7 +181,6 @@ in
           "[::1]"
         ];
         CSRF_TRUSTED_ORIGINS = mkDefault [ "https://${cfg.domain}" ];
-        EVALUATION_GC_ROOTS_DIRECTORY = mkDefault "/var/lib/web-security-tracker/gc-roots";
         EVALUATION_LOGS_DIRECTORY = mkDefault "/var/log/web-security-tracker/evaluation";
         LOCAL_NIXPKGS_CHECKOUT = mkDefault "/var/lib/web-security-tracker/nixpkgs-repo";
         CVE_CACHE_DIR = mkDefault "/var/lib/web-security-tracker/cve-cache";

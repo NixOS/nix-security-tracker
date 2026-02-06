@@ -1,6 +1,7 @@
 {
   config,
   pkgs,
+  lib,
   ...
 }:
 let
@@ -23,6 +24,31 @@ in
     fsType = "ext4";
   };
   swapDevices = [ { device = "/dev/disk/by-label/swap"; } ];
+
+  # Given 16G RAM, this should be enough at the time of writing:
+  # - Postgres needs ~1.5G RAM
+  # - The application server needs <1G RAM
+  # - An evaluation of Nixpkgs peaks at 6-7G of RAM.
+  # - We run at most one instance of `nix-eval-jobs` concurrently.
+  #   See `config.services.web-security-tracker.maxJobProcessors` to make sure.
+  # - We observe ~2M store paths in an active evaluation, taking ~5GB
+  # Adjust parameters (or get a bigger machine) if it doesn't work out.
+  systemd.mounts = [
+    {
+      what = "tmpfs";
+      where = "/tmp";
+      type = "tmpfs";
+      mountConfig.Options = lib.concatStringsSep "," [
+        "mode=1777"
+        "strictatime"
+        "rw"
+        "nosuid"
+        "nodev"
+        "size=37%"
+        "nr_inodes=4m"
+      ];
+    }
+  ];
 
   systemd.network.networks."10-wan" = {
     matchConfig.MACAddress = "96:00:03:d9:7c:85";

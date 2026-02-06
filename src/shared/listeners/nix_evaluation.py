@@ -29,7 +29,10 @@ SIGABRT = 134
 
 
 async def perform_evaluation(
-    working_tree: pathlib.Path, evaluation_log_fd: int, limit: int = 16 * 1024 * 1024
+    working_tree: pathlib.Path,
+    eval_store: pathlib.Path,
+    evaluation_log_fd: int,
+    limit: int = 16 * 1024 * 1024,
 ) -> asyncio.subprocess.Process:
     """
     This will run `nix-eval-jobs` on the working tree as a nixpkgs
@@ -52,8 +55,8 @@ async def perform_evaluation(
         "--meta",
         "--repair",
         "--quiet",
-        "--gc-roots-dir",
-        settings.EVALUATION_GC_ROOTS_DIRECTORY,
+        "--eval-store",
+        eval_store,
         "--expr",
         evaluation_wrapper,
         "--include",
@@ -204,55 +207,56 @@ async def evaluation_entrypoint(
                 ) as working_tree,
                 aiofiles.open(evaluation_log_filepath, "w") as eval_log,
             ):
-                # Kickstart the evaluation asynchronously.
-                eval_process = await perform_evaluation(
-                    working_tree.path, eval_log.fileno()
-                )
-                assert eval_process.stdout is not None, (
-                    "Expected a valid `stdout` pipe for the asynchronous evaluation process"
-                )
+                with tempfile.TemporaryDirectory() as eval_store:
+                    # Kickstart the evaluation asynchronously.
+                    eval_process = await perform_evaluation(
+                        working_tree.path, pathlib.Path(eval_store), eval_log.fileno()
+                    )
+                    assert eval_process.stdout is not None, (
+                        "Expected a valid `stdout` pipe for the asynchronous evaluation process"
+                    )
 
-                # The idea here is that we want to match as close as possible
-                # our evaluation speed. So, we read as much lines as possible
-                # and then insert them During the insertion time, more lines
-                # may come in our internal buffer. On the next read, we will
-                # drain them again.
-                # Adding an item in the database takes around 1s max.
-                # So we don't want to wait more than one second for all the lines we can get.
-                count = 0
-                async for lines in drain_lines(eval_process.stdout):
-                    await realtime_batch_process_attributes(
-                        evaluation, [line.decode("utf8") for line in lines]
-                    )
-                    count += len(lines)
-                # Wait for `nix-eval-jobs` to exit, at this point,
-                # It should be fairly quick because EOF has been reached.
-                rc = await eval_process.wait()
-                elapsed = time.time() - start
-                if rc in (SIGSEGV, SIGABRT):
-                    raise RuntimeError("`nix-eval-jobs` crashed!")
-                elif rc != 0:
-                    logger.error(
-                        "`nix-eval-jobs` failed to evaluate (non-zero exit status), check the evaluation logs"
-                    )
-                    await NixEvaluation.objects.filter(id=evaluation.pk).aupdate(
-                        state=NixEvaluation.EvaluationState.FAILED,
-                        elapsed=elapsed,
-                        updated_at=timezone.now(),
-                    )
-                else:
-                    logger.info(
-                        "Processed %d derivations from %s in %f seconds",
-                        count,
-                        evaluation,
-                        elapsed,
-                    )
-                    await NixEvaluation.objects.filter(id=evaluation.pk).aupdate(
-                        state=NixEvaluation.EvaluationState.COMPLETED,
-                        elapsed=elapsed,
-                        failure_reason=None,
-                        updated_at=timezone.now(),
-                    )
+                    # The idea here is that we want to match as close as possible
+                    # our evaluation speed. So, we read as much lines as possible
+                    # and then insert them During the insertion time, more lines
+                    # may come in our internal buffer. On the next read, we will
+                    # drain them again.
+                    # Adding an item in the database takes around 1s max.
+                    # So we don't want to wait more than one second for all the lines we can get.
+                    count = 0
+                    async for lines in drain_lines(eval_process.stdout):
+                        await realtime_batch_process_attributes(
+                            evaluation, [line.decode("utf8") for line in lines]
+                        )
+                        count += len(lines)
+                    # Wait for `nix-eval-jobs` to exit, at this point,
+                    # It should be fairly quick because EOF has been reached.
+                    rc = await eval_process.wait()
+                    elapsed = time.time() - start
+                    if rc in (SIGSEGV, SIGABRT):
+                        raise RuntimeError("`nix-eval-jobs` crashed!")
+                    elif rc != 0:
+                        logger.error(
+                            "`nix-eval-jobs` failed to evaluate (non-zero exit status), check the evaluation logs"
+                        )
+                        await NixEvaluation.objects.filter(id=evaluation.pk).aupdate(
+                            state=NixEvaluation.EvaluationState.FAILED,
+                            elapsed=elapsed,
+                            updated_at=timezone.now(),
+                        )
+                    else:
+                        logger.info(
+                            "Processed %d derivations from %s in %f seconds",
+                            count,
+                            evaluation,
+                            elapsed,
+                        )
+                        await NixEvaluation.objects.filter(id=evaluation.pk).aupdate(
+                            state=NixEvaluation.EvaluationState.COMPLETED,
+                            elapsed=elapsed,
+                            failure_reason=None,
+                            updated_at=timezone.now(),
+                        )
     except Exception as e:
         elapsed = time.time() - start
         logger.exception(

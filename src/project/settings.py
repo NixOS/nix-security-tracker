@@ -331,10 +331,6 @@ LOGGING = {
 # The more cores you have, the more RAM you will consume.
 # TODO(raitobezarius): implement fine-grained tuning on `nix-eval-jobs`.
 MAX_PARALLEL_EVALUATION = 3
-# Where are stored the evaluation gc roots directory
-EVALUATION_GC_ROOTS_DIRECTORY: str = str(
-    Path(BASE_DIR / ".." / ".." / "nixpkgs-gc-roots").resolve()
-)
 # Where are the stderr of each `nix-eval-jobs` stored.
 EVALUATION_LOGS_DIRECTORY: str = str(
     Path(BASE_DIR / ".." / ".." / "nixpkgs-evaluation-logs").resolve()
@@ -515,6 +511,4 @@ if user_settings_file is not None:
 
 # Settings side-effect, must be after the loading of ALL settings, including user ones.
 
-# Ensure the following directories exist.
-Path(EVALUATION_GC_ROOTS_DIRECTORY).mkdir(exist_ok=True)
 Path(EVALUATION_LOGS_DIRECTORY).mkdir(exist_ok=True)
