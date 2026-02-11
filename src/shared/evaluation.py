@@ -100,7 +100,7 @@ def parse_total_evaluation(raw: dict[str, Any]) -> EvaluatedAttribute:
     # Various fixups to deal with... things.
     # my lord...
     if raw.get("meta", {}) is None:
-        print(raw)
+        logger.info(f"'{raw['attr']}' has no metadata")
 
     if (
         raw.get("meta", {}) is not None
