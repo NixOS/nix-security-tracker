@@ -109,9 +109,9 @@ async def realtime_batch_process_attributes(
         return None
 
     start = time.time()
-    ingester = SyncBatchAttributeIngester(evaluated)
+    ingester = SyncBatchAttributeIngester(evaluated, parent_evaluation)
     await sync_to_async(ingester.initialize)()
-    drvs = await sync_to_async(ingester.ingest)(parent_evaluation)
+    drvs = await sync_to_async(ingester.ingest)()
 
     elapsed = time.time() - start
     logger.info(
@@ -246,7 +246,7 @@ async def evaluation_entrypoint(
                         )
                     else:
                         logger.info(
-                            "Processed %d derivations from %s in %f seconds",
+                            "Processed %d attributes from %s in %f seconds",
                             count,
                             evaluation,
                             elapsed,

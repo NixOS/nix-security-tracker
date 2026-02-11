@@ -11,6 +11,7 @@ from django.db.models import Model
 from django.db.utils import IntegrityError
 
 from shared.models.nix_evaluation import (
+    MAJOR_CHANNELS,
     NixDerivation,
     NixDerivationMeta,
     NixDerivationOutput,
@@ -81,6 +82,28 @@ class EvaluatedAttribute(JSONWizard):
     outputs: dict[str, str]
     system: str
 
+    def as_key(self) -> tuple[str, str, str, str | None]:
+        """
+        Unique dictionary key for a derivation
+
+        These are the actual degrees of freedom for a derivation, judging from the data.
+        """
+        # FIXME(@fricklerhandwerk): We should only need the derivation path!
+        # Extract the extra fields to save more space.
+        # A `NixPackage` could indeed consist of just `pname` (parsed from `name`, validate against `attribute` and `drv_metadata.name`).
+        # Then we'd describe all occurrences of a `NixPackage` with
+        # - NixDerivation
+        # - attribute_name
+        # - metadata__name
+        # - parent_evaluation (also extracted since derivation paths of close-to-root packages can be the same across evaluations)
+        # - version (also parsed from `name`, for easier querying)
+        return (
+            self.drv_path,
+            self.attr,
+            self.name,
+            self.meta.name or None if self.meta else None,
+        )
+
 
 @dataclass
 class PartialEvaluatedAttribute:
@@ -142,11 +165,10 @@ def parse_evaluation_result(line: str) -> PartialEvaluatedAttribute:
     )
 
 
-def bulkify[T](
+def by_drv_key[T](
     gen: Generator[tuple[EvaluatedAttribute, list[T]]],
-) -> Generator[tuple[str, list[T]]]:
-    for origin, elements in gen:
-        yield (origin.drv_path, elements)
+) -> dict[tuple[str, str, str, str | None], list[T]]:
+    return dict((origin.as_key(), elements) for origin, elements in gen)
 
 
 class SyncBatchAttributeIngester:
@@ -155,8 +177,15 @@ class SyncBatchAttributeIngester:
     of a bunch of **evaluated** attribute synchronously.
     """
 
-    def __init__(self, evaluations: list[EvaluatedAttribute]) -> None:
+    def __init__(
+        self, evaluations: list[EvaluatedAttribute], parent_evaluation: NixEvaluation
+    ) -> None:
         self.evaluations = evaluations
+        self.parent_evaluation = parent_evaluation
+        # FIXME(@fricklerhandwerk): This will fall apart when we obtain the channel structure dynamically [ref:channel-structure]
+        self.rolling_release = (
+            MAJOR_CHANNELS[0] in self.parent_evaluation.channel.channel_branch
+        )
 
     def initialize(self) -> None:
         self.maintainers = list(NixMaintainer.objects.all())
@@ -164,85 +193,82 @@ class SyncBatchAttributeIngester:
         outputs = list(NixOutput.objects.all())
         self.outputs = {model.output_name: model for model in outputs}
 
-    def ingest_maintainers(
+    def parse_maintainers(
         self, maintainers: list[MaintainerAttribute]
     ) -> list[NixMaintainer]:
-        ms = []
+        bulk = []
         seen = set()
+
         for m in maintainers:
-            # Maintainers without a GitHub or a GitHub ID cannot be reconciled.
+            # Maintainers without a GitHub ID cannot be reconciled.
             # This unfortunately creates a partial view of all maintainers of a
             # given package. If you want to fix this, you can start from
             # looking around https://github.com/NixOS/nixpkgs/pull/273220.
-            if m.github is None or m.github_id is None:
+            missing = []
+            if m.github is None:
+                missing.append("GitHub handle")
+                # FIXME(@fricklerhandwerk): We could try to recover the maintainer based on the handle alone.
+            if m.github_id is None:
+                missing.append("GitHub ID")
+                logger.info(
+                    f"Skipping maintainer '{m.name}': no {' and no '.join(missing)}"
+                )
                 continue
 
-            # Duplicate...
             if m.github_id in seen:
                 continue
-            try:
-                ms.append(
-                    NixMaintainer.objects.update_or_create(
-                        defaults={
-                            "github": m.github,
-                            "email": m.email,
-                            "matrix": m.matrix,
-                            "name": m.name,
-                        },
-                        github_id=m.github_id,
-                    )
+
+            bulk.append(
+                NixMaintainer(
+                    github_id=m.github_id,
+                    github=m.github,
+                    email=m.email,
+                    matrix=m.matrix,
+                    name=m.name,
                 )
-            except IntegrityError:
-                # Skip this maintainer until we decide how to handle #657
-                logger.debug(f"Skipping maintainer {m.github} due to username conflict")
-                continue
+            )
 
             seen.add(m.github_id)
 
-        return [obj for obj, _ in ms]
+        return bulk
 
-    def ingest_licenses(self, licenses: list[LicenseAttribute]) -> list[NixLicense]:
-        lics = []
+    def parse_licenses(self, licenses: list[LicenseAttribute]) -> list[NixLicense]:
+        bulk = []
         seen = set()
 
         for lic in licenses:
-            if lic.spdx_id is None or lic.spdx_id in seen:
+            if lic.spdx_id is None:
+                logger.debug(f"Skipping license without SPDX-ID: {lic}")
                 continue
 
-            lics.append(
-                NixLicense.objects.get_or_create(
-                    defaults={
-                        "deprecated": lic.deprecated,
-                        "free": lic.free,
-                        "redistributable": lic.redistributable,
-                        "full_name": lic.full_name,
-                        "short_name": lic.short_name,
-                        "url": lic.url,
-                    },
+            if lic.spdx_id in seen:
+                continue
+
+            bulk.append(
+                NixLicense(
                     spdx_id=lic.spdx_id,
+                    deprecated=lic.deprecated,
+                    free=lic.free,
+                    redistributable=lic.redistributable,
+                    full_name=lic.full_name,
+                    short_name=lic.short_name,
+                    url=lic.url,
                 )
             )
             seen.add(lic.spdx_id)
 
-        return [obj for obj, _ in lics]
+        return bulk
 
-    def ingest_meta(
-        self, evaluation: EvaluatedAttribute
+    def parse_meta(
+        self, metadata: MetadataAttribute
     ) -> tuple[
         NixDerivationMeta,
-        DeferredThrough[NixMaintainer],
-        DeferredThrough[NixLicense],
+        list[NixMaintainer],
+        list[NixLicense],
     ]:
-        metadata = evaluation.meta
-        assert metadata is not None, (
-            "invalid ingest_meta call to an invalid metadata attribute"
-        )
+        maintainers = self.parse_maintainers(metadata.maintainers)
+        licenses = self.parse_licenses(metadata.license)
 
-        maintainers = self.ingest_maintainers(metadata.maintainers)
-        if isinstance(metadata.license, list):
-            licenses = self.ingest_licenses(metadata.license)
-        else:
-            licenses = self.ingest_licenses([metadata.license])
         meta = NixDerivationMeta(
             name=metadata.name,
             insecure=metadata.insecure,
@@ -257,28 +283,7 @@ class SyncBatchAttributeIngester:
             known_vulnerabilities=metadata.known_vulnerabilities,
         )
 
-        # Those thunks are here to delay the evaluation of the M2M throughs.
-        def thunk_maintainers_throughs(
-            meta_pk: int,
-        ) -> list[NixMaintainer]:
-            return [
-                NixDerivationMeta.maintainers.through(
-                    nixderivationmeta_id=meta_pk, nixmaintainer_id=maintainer.pk
-                )
-                for maintainer in maintainers
-            ]
-
-        def thunk_licenses_throughs(
-            meta_pk: int,
-        ) -> list[NixLicense]:
-            return [
-                NixDerivationMeta.licenses.through(
-                    nixderivationmeta_id=meta_pk, nixlicense_id=license.pk
-                )
-                for license in licenses
-            ]
-
-        return meta, thunk_maintainers_throughs, thunk_licenses_throughs
+        return meta, maintainers, licenses
 
     def ingest_outputs(
         self, evaluation: EvaluatedAttribute
@@ -293,7 +298,7 @@ class SyncBatchAttributeIngester:
             if store_path not in existing
         ]
 
-    def ingest_dependencies(
+    def parse_dependencies(
         self, evaluation: EvaluatedAttribute
     ) -> list[NixDerivationOutput]:
         # FIXME(raitobezarius): bulk upsert the outputs
@@ -304,28 +309,25 @@ class SyncBatchAttributeIngester:
             for drvpath in evaluation.input_drvs.keys()
         ]
 
-    def ingest_derivation_shell(
+    def make_derivation_shell(
         self,
-        evaluation: EvaluatedAttribute,
-        parent_evaluation: NixEvaluation,
+        attribute: EvaluatedAttribute,
         metadata: NixDerivationMeta | None = None,
     ) -> NixDerivation:
         return NixDerivation(
-            attribute=evaluation.attr.removesuffix(f".{evaluation.system}"),
-            derivation_path=evaluation.drv_path,
-            name=evaluation.name,
+            attribute=attribute.attr.removesuffix(f".{attribute.system}"),
+            derivation_path=attribute.drv_path,
+            name=attribute.name,
             metadata=metadata,
-            system=evaluation.system,
-            parent_evaluation=parent_evaluation,
+            system=attribute.system,
+            parent_evaluation=self.parent_evaluation,
         )
 
-    def ingest(self, parent_evaluation: NixEvaluation) -> list[NixDerivation]:
+    def ingest(self) -> list[NixDerivation]:
         start = time.time()
-        dependencies = dict(
-            bulkify(
-                (evaluation, self.ingest_dependencies(evaluation))
-                for evaluation in self.evaluations
-            )
+        dependencies = by_drv_key(
+            (evaluation, self.parse_dependencies(evaluation))
+            for evaluation in self.evaluations
         )
         NixDerivationOutput.objects.bulk_create(
             chain.from_iterable(dependencies.values())
@@ -336,13 +338,11 @@ class SyncBatchAttributeIngester:
             time.time() - start,
         )
 
-        outputs = dict(
-            bulkify(
-                (evaluation, self.ingest_outputs(evaluation))
-                for evaluation in self.evaluations
-            )
+        outputs = by_drv_key(
+            (evaluation, self.ingest_outputs(evaluation))
+            for evaluation in self.evaluations
         )
-        # When Django 5 will be available, we will be able to get PKs directly.
+        # FIXME(@fricklerhandwerk): Bulk-insert the store paths following the same pattern as the rest.
         start = time.time()
         inserted = False
         attempt = 0
@@ -385,65 +385,165 @@ class SyncBatchAttributeIngester:
                     store_path_outputs[spath].pk = existing.pk
                 continue
 
-        # FIXME(raitobezarius): bulk ingest the maintainers or licenses themselves.
-        # This requires knowing in advance the maintainer PK or license PK
-        # and thunking it further.
-        derivations: dict[str, NixDerivation] = {}
-        thunked_maintainers_throughs = []
-        thunked_licenses_throughs = []
+        start = time.time()
+        bulk_derivations: dict[tuple[str, str, str, str | None], NixDerivation] = {}
+        bulk_maintainers: dict[int, NixMaintainer] = {}
+        bulk_licenses: dict[str, NixLicense] = {}
+        metadata = []
+        meta_maintainers = []
+        meta_licenses = []
+        for index, attribute in enumerate(self.evaluations):
+            drv_metadata = None
+            if attribute.meta is not None:
+                (
+                    drv_metadata,
+                    drv_maintainers,
+                    drv_licenses,
+                ) = self.parse_meta(attribute.meta)
+
+                metadata.append(drv_metadata)
+                meta_maintainers.append(drv_maintainers)
+                meta_licenses.append(drv_licenses)
+                for maintainer in drv_maintainers:
+                    bulk_maintainers[maintainer.github_id] = maintainer
+                for license in drv_licenses:
+                    bulk_licenses[license.spdx_id] = license
+
+            bulk_derivations[attribute.as_key()] = self.make_derivation_shell(
+                attribute, drv_metadata
+            )
+
+        logger.debug(
+            "Parsed %d maintainers and %d licences for %d derivations in %f s",
+            len(bulk_maintainers),
+            len(bulk_licenses),
+            len(bulk_derivations),
+            time.time() - start,
+        )
+
+        # Anything but the rolling release must be considered stale.
+        # Therefore we only add new rows if this is not a rolling release.
+        start = time.time()
+        NixMaintainer.objects.bulk_create(
+            bulk_maintainers.values(),
+            # This will ignore existing rows and won't return primary keys when `True`.
+            # That's okay because we'll fetch the relevant objects aftwards unconditionally.
+            ignore_conflicts=not self.rolling_release,
+            update_conflicts=self.rolling_release,
+            unique_fields=["github_id"],
+            update_fields=["github", "email", "matrix", "name"],
+        )
+        db_maintainers = NixMaintainer.objects.in_bulk(
+            bulk_maintainers.keys(),
+            field_name="github_id",
+        )
+        logger.debug(
+            "Ingested %d maintainers for %d derivations in %f s",
+            len(bulk_maintainers),
+            len(bulk_derivations),
+            time.time() - start,
+        )
+        start = time.time()
+        NixLicense.objects.bulk_create(
+            bulk_licenses.values(),
+            ignore_conflicts=not self.rolling_release,
+            update_conflicts=self.rolling_release,
+            unique_fields=["spdx_id"],
+            update_fields=[
+                "deprecated",
+                "free",
+                "redistributable",
+                "full_name",
+                "short_name",
+                "url",
+            ],
+        )
+        # FIXME(@fricklerhandwerk): This duplicates metadata entries at least by the number of systems we evaluate.
+        # In practice, the only variation is on these fields, which should be `unique_together`:
+        # - position
+        # - available
+        # - broken
+        # - unfree
+        # - unsupported
+        # - insecure
+        db_licenses = NixLicense.objects.in_bulk(
+            bulk_licenses.keys(),
+            field_name="spdx_id",
+        )
+        logger.debug(
+            "Ingested %d licenses for %d derivations in %f s",
+            len(bulk_licenses),
+            len(bulk_derivations),
+            time.time() - start,
+        )
+
+        start = time.time()
+        db_metadata = NixDerivationMeta.objects.bulk_create(metadata)
+        logger.debug(
+            "Ingested %d metadata entries for %d derivations in %f s",
+            len(metadata),
+            len(bulk_derivations),
+            time.time() - start,
+        )
+
+        start = time.time()
         maintainers_throughs = []
         licenses_throughs = []
-        metadatas = []
-        start = time.time()
-        for index, evaluation in enumerate(self.evaluations):
-            eval_dependencies = dependencies[evaluation.drv_path]
-            eval_outputs = outputs[evaluation.drv_path]
-            metadata = None
-            if evaluation.meta is not None:
-                (
-                    metadata,
-                    drv_maintainers_throughs,
-                    drv_licenses_throughs,
-                ) = self.ingest_meta(evaluation)
-                metadata_index = len(metadatas)
-                thunked_maintainers_throughs.append(
-                    (metadata_index, drv_maintainers_throughs)
-                )
-                thunked_licenses_throughs.append(
-                    (metadata_index, drv_licenses_throughs)
-                )
-                metadatas.append(metadata)
-
-            derivations[evaluation.drv_path] = self.ingest_derivation_shell(
-                evaluation, parent_evaluation, metadata
+        for db_meta, maintainers, licenses in zip(
+            db_metadata, meta_maintainers, meta_licenses
+        ):
+            maintainers_throughs.extend(
+                [
+                    NixDerivationMeta.maintainers.through(
+                        nixderivationmeta_id=db_meta.pk,
+                        nixmaintainer_id=db_maintainers[maintainer.github_id].pk,
+                    )
+                    for maintainer in maintainers
+                ]
             )
+            licenses_throughs.extend(
+                [
+                    NixDerivationMeta.licenses.through(
+                        nixderivationmeta_id=db_meta.pk,
+                        nixlicense_id=db_licenses[license.spdx_id].pk,
+                    )
+                    for license in licenses
+                ]
+            )
+
+        NixDerivationMeta.maintainers.through.objects.bulk_create(maintainers_throughs)
         logger.debug(
-            "Ingestion of derivation shells (%d) and their maintainers or licenses took %f s",
-            len(derivations),
+            "Ingested %d maintainers M2Ms for %d derivations in %f s",
+            len(maintainers_throughs),
+            len(bulk_derivations),
             time.time() - start,
         )
 
         start = time.time()
-        metadatas = NixDerivationMeta.objects.bulk_create(metadatas)
+        NixDerivationMeta.licenses.through.objects.bulk_create(licenses_throughs)
         logger.debug(
-            "Ingestion of all metadata (%d) took %f s",
-            len(metadatas),
+            "Ingested %d licenses M2Ms for %d derivations in %f s",
+            len(licenses_throughs),
+            len(bulk_derivations),
             time.time() - start,
         )
 
-        derivations = {
-            drv.derivation_path: drv
-            for drv in NixDerivation.objects.bulk_create(derivations.values())
-        }
-        for index, thunk in thunked_maintainers_throughs:
-            maintainers_throughs.extend(thunk(metadatas[index].pk))
+        start = time.time()
+        db_derivations_list = NixDerivation.objects.bulk_create(
+            bulk_derivations.values()
+        )
+        db_derivations = dict(zip(bulk_derivations.keys(), db_derivations_list))
+        logger.debug(
+            "Ingested %d derivation shells in %f s",
+            len(bulk_derivations),
+            time.time() - start,
+        )
 
-        for index, thunk in thunked_licenses_throughs:
-            licenses_throughs.extend(thunk(metadatas[index].pk))
-
+        start = time.time()
+        # FIXME(@fricklerhandwerk): Dependencies should link to each other, not to store derivation paths.
+        # We're currently wasting tons of space because of that.
         deps_throughs = []
-        outputs_throughs = []
-        for drvpath, eval_dependencies in dependencies.items():
+        for key, eval_dependencies in dependencies.items():
             assert all(dep.pk is not None for dep in eval_dependencies), (
                 "One dependency has no PK"
             )
@@ -451,13 +551,22 @@ class SyncBatchAttributeIngester:
                 [
                     NixDerivation.dependencies.through(
                         nixderivationoutput_id=dep.pk,
-                        nixderivation_id=derivations[drvpath].pk,
+                        nixderivation_id=db_derivations[key].pk,
                     )
                     for dep in eval_dependencies
                 ]
             )
+        NixDerivation.dependencies.through.objects.bulk_create(deps_throughs)
+        logger.debug(
+            "Ingested %d dependencies M2Ms for %d derivations in %f s",
+            len(deps_throughs),
+            len(bulk_derivations),
+            time.time() - start,
+        )
 
-        for drvpath, eval_outputs in outputs.items():
+        start = time.time()
+        outputs_throughs = []
+        for key, eval_outputs in outputs.items():
             assert all(
                 store_path_outputs[output.store_path].pk is not None
                 for output in eval_outputs
@@ -466,41 +575,17 @@ class SyncBatchAttributeIngester:
                 [
                     NixDerivation.outputs.through(
                         nixstorepathoutput_id=store_path_outputs[output.store_path].pk,
-                        nixderivation_id=derivations[drvpath].pk,
+                        nixderivation_id=db_derivations[key].pk,
                     )
                     for output in eval_outputs
                 ]
             )
-
-        start = time.time()
-        NixDerivationMeta.maintainers.through.objects.bulk_create(maintainers_throughs)
-        logger.debug(
-            "Ingestion of all maintainers M2M (%d) took %f s",
-            len(maintainers_throughs),
-            time.time() - start,
-        )
-
-        start = time.time()
-        NixDerivationMeta.licenses.through.objects.bulk_create(licenses_throughs)
-        logger.debug(
-            "Ingestion of all licenses M2M (%d) took %f s",
-            len(licenses_throughs),
-            time.time() - start,
-        )
-
-        start = time.time()
-        NixDerivation.dependencies.through.objects.bulk_create(deps_throughs)
-        logger.debug(
-            "Ingestion of all dependencies M2M (%d) took %f s",
-            len(deps_throughs),
-            time.time() - start,
-        )
-        start = time.time()
         NixDerivation.outputs.through.objects.bulk_create(outputs_throughs)
         logger.debug(
-            "Ingestion of all outputs M2M (%d)  took %f s",
+            "Ingested %d outputs M2Ms for %d derivations in %f s",
             len(outputs_throughs),
+            len(bulk_derivations),
             time.time() - start,
         )
 
-        return list(derivations.values())
+        return list(db_derivations.values())
