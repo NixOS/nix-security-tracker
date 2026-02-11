@@ -1,12 +1,12 @@
 import json
 import logging
 import time
-from collections.abc import Callable, Generator, Iterable
+from collections.abc import Callable, Generator
 from dataclasses import dataclass, field
 from itertools import chain
 from typing import Any, TypeVar
 
-from dataclass_wizard import DumpMixin, JSONWizard, LoadMixin
+from dataclass_wizard import JSONWizard, LoadMixin
 from django.db.models import Model
 from django.db.utils import IntegrityError
 
@@ -47,7 +47,7 @@ class LicenseAttribute(JSONWizard):
 
 
 @dataclass
-class MetadataAttribute(JSONWizard, LoadMixin, DumpMixin):
+class MetadataAttribute(JSONWizard, LoadMixin):
     outputs_to_install: list[str] = field(default_factory=list)
     available: bool = True
     broken: bool = False
@@ -63,17 +63,6 @@ class MetadataAttribute(JSONWizard, LoadMixin, DumpMixin):
     license: list[LicenseAttribute] = field(default_factory=list)
     platforms: list[str] = field(default_factory=list)
     known_vulnerabilities: list[str] = field(default_factory=list)
-
-    def __pre_as_dict__(self) -> None:
-        linearized_maintainers = []
-        for maintainer in self.maintainers:
-            if maintainer.get("scope") is not None:  # pyright: ignore generalTypeIssue
-                linearized_maintainers.extend(
-                    maintainer.get("members", [])  # pyright: ignore generalTypeIssue
-                )
-            else:
-                linearized_maintainers.append(maintainer)
-        self.maintainers = linearized_maintainers
 
 
 @dataclass
@@ -149,13 +138,6 @@ def parse_evaluation_result(line: str) -> PartialEvaluatedAttribute:
         error=None,
         evaluation=parse_total_evaluation(raw) if raw.get("error") is None else None,
     )
-
-
-def parse_evaluation_results(
-    lines: Iterable[str],
-) -> Generator[PartialEvaluatedAttribute]:
-    for line in lines:
-        yield parse_evaluation_result(line)
 
 
 def bulkify[T](
