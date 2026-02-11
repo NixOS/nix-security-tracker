@@ -96,7 +96,7 @@ class PartialEvaluatedAttribute:
     evaluation: EvaluatedAttribute | None = None
 
 
-def parse_total_evaluation(raw: dict[str, Any]) -> EvaluatedAttribute:
+def fixup_evaluated_attribute(raw: dict[str, Any]) -> EvaluatedAttribute:
     # Various fixups to deal with... things.
     # my lord...
     if raw.get("meta", {}) is None:
@@ -121,7 +121,9 @@ def parse_total_evaluation(raw: dict[str, Any]) -> EvaluatedAttribute:
         and isinstance(raw.get("meta", {})["maintainers"], list)
     ):
         for maintainer in raw.get("meta", {})["maintainers"]:
-            if maintainer.get("scope") is not None:
+            if maintainer.get("shortName") is not None:
+                # FIXME(@fricklerhandwerk): This should actually never happen, judging from recent data.
+                logger.info("Maintainer '{maintainer['shortName']}' is actually a team")
                 new_maintainers.extend(maintainer["members"])
             else:
                 new_maintainers.append(maintainer)
@@ -136,7 +138,7 @@ def parse_evaluation_result(line: str) -> PartialEvaluatedAttribute:
         attr=raw.get("attr"),
         attr_path=raw.get("attr_path"),
         error=None,
-        evaluation=parse_total_evaluation(raw) if raw.get("error") is None else None,
+        evaluation=fixup_evaluated_attribute(raw) if raw.get("error") is None else None,
     )
 
 
