@@ -175,10 +175,23 @@ pkgs.testers.runNixOSTest {
           ${
             # XXX(@fricklerhandwerk): We do this at the end since it takes a while and would otherwise stall the Django tests.
             in-shell "wait_until_succeeds" ''
-              from shared.models import NixEvaluation
+              from shared.models import (
+                NixEvaluation,
+                NixDerivation,
+                NixDerivationMeta,
+                NixMaintainer,
+                NixLicense,
+              )
               assert NixEvaluation.objects.filter(
                 state=NixEvaluation.EvaluationState.COMPLETED,
               ).count() == 3
+              for model, count in [
+                (NixDerivation, 3),
+                (NixDerivationMeta, 3),
+                (NixMaintainer, 1),
+                (NixLicense, 1),
+              ]:
+                assert model.objects.count() == count, f"{model._meta.object_name}: expected {count}, got {model.objects.count()}"
             ''
           }
     '';
