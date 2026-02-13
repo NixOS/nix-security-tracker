@@ -175,8 +175,6 @@ def cache_new_suggestions(suggestion: CVEDerivationClusterProposal) -> None:
     derivations = list(
         suggestion.derivations.select_related("metadata", "parent_evaluation")
         .prefetch_related(
-            "outputs",
-            "dependencies",
             Prefetch(
                 "metadata__maintainers",
                 queryset=NixMaintainer.objects.distinct(),
@@ -197,10 +195,6 @@ def cache_new_suggestions(suggestion: CVEDerivationClusterProposal) -> None:
     )
     package_edits = list(suggestion.package_edits.all())
     packages = apply_package_edits(original_packages, package_edits)
-    # FIXME(@fricklerhandwerk): We should just pass `packages`, but a tangled legacy view is still using this seemingly internal function and wants to pass a dict.
-    categorized_maintainers = categorize_maintainers(
-        original_packages, maintainers_edits
-    )
 
     only_relevant_data = CachedSuggestion(
         pk=suggestion.pk,
@@ -213,7 +207,7 @@ def cache_new_suggestions(suggestion: CVEDerivationClusterProposal) -> None:
         original_packages=packages,
         packages=packages,
         metrics=[to_dict(m) for m in prefetched_metrics],
-        categorized_maintainers=categorized_maintainers,
+        categorized_maintainers=categorize_maintainers(packages, maintainers_edits),
     )
 
     _, created = CachedSuggestions.objects.update_or_create(
@@ -427,19 +421,17 @@ def maintainers_list(packages: dict, edits: list[MaintainersEdit]) -> list[dict]
 
 
 def categorize_maintainers(
-    original_packages: dict[str, CachedSuggestion.Package],
+    packages: dict[str, CachedSuggestion.Package],
     maintainers_edits: list[MaintainersEdit],
 ) -> CachedSuggestion.CategorizedMaintainers:
     """
-    Categorize maintainers associated the packages of a suggestion.
+    Categorize maintainers associated to the packages of a suggestion.
     """
     # Collect all original maintainers from packages (deduplicated by github_id)
     original_maintainers_dict: dict[int, dict] = {}
-    for package in original_packages.values():
-        for maintainer_dict in package.maintainers:
-            github_id = maintainer_dict["github_id"]
-            if github_id not in original_maintainers_dict:
-                original_maintainers_dict[github_id] = maintainer_dict
+    for package in packages.values():
+        for maintainer in package.maintainers:
+            original_maintainers_dict[maintainer["github_id"]] = maintainer
 
     original_maintainers = list(original_maintainers_dict.values())
 

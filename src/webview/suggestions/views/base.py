@@ -113,6 +113,9 @@ class SuggestionContentEditBaseView(SuggestionBaseView, ABC):
         def __init__(self, response: HttpResponse) -> None:
             self.error = response
 
+    # FIXME(@fricklerhandwerk): This conflates access control with database queries and bypasses the standard Django mechanism of overriding the respective view methods.
+    # The main problem here is that it results in very inefficient queries, as we can't express fetching related data in one go.
+    # A minor problem for now is obscured and coarse-grained access control, but there's no user story at the moment for which it's in the way.
     def _check_access_rights_and_get_suggestion(
         self, request: HttpRequest, suggestion_id: int
     ) -> tuple[CVEDerivationClusterProposal, SuggestionContext]:

@@ -333,9 +333,9 @@ LOGGING = {
 MAX_PARALLEL_EVALUATION = 3
 # Where are the stderr of each `nix-eval-jobs` stored.
 EVALUATION_LOGS_DIRECTORY: str = str(
-    Path(BASE_DIR / ".." / ".." / "nixpkgs-evaluation-logs").resolve()
+    Path(BASE_DIR / ".." / "nixpkgs-evaluation-logs").resolve()
 )
-CVE_CACHE_DIR: str = str(Path(BASE_DIR / ".." / ".." / "cve-cache").resolve())
+CVE_CACHE_DIR: str = str(Path(BASE_DIR / ".." / "cve-cache").resolve())
 # This can be tuned for your specific deployment,
 # this is used to wait for an evaluation slot to be available
 # It should be around the average evaluation time on your machine.

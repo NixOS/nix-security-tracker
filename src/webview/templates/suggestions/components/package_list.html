@@ -39,11 +39,11 @@
   
   <!-- Ignored packages (collapsed section) -->
   {% if data.ignored %}
-    <details class="details-marker-outside">
+    <details class="details-marker-outside" id="suggestion-{{ data.suggestion_id }}-ignored-packages">
       <summary class="heading dimmed">
         Ignored packages ({{ data.ignored|length }})
       </summary>
-      <div id="suggestion-{{ data.suggestion_id }}-ignored-packages" class="column dividers">
+      <div class="column dividers">
         {% for attribute, pdata in data.ignored.items %}
           <div class="package-{{attribute}} row gap">
             {% if user|is_maintainer_or_admin and data.editable %}

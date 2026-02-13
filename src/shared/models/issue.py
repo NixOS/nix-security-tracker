@@ -101,8 +101,7 @@ def generate_code(
             except IntegrityError:
                 continue
         raise RuntimeError(
-            "Failed to generate unique issue code for '%s'",
-            instance.suggestion.cve.cve_id,
+            f"Failed to generate unique issue code for '{instance.suggestion.cve.cve_id}'"
         )
 
 

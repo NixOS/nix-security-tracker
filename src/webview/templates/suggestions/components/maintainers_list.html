@@ -11,7 +11,6 @@
       <!-- Active maintainers -->
       <div class="row gap spread wrap baseline">
         <h2 class="heading dimmed">Package maintainers</h2>
-        {% if data.editable and user|is_maintainer_or_admin %}<p class="dimmed">Maintainers of ignored packages won't be notified.</p>{% endif %}
       </div>
       {% if data.active %}
         <ul id="maintainers-list-{{ data.suggestion_id }}-active" class="column gap-small">
@@ -25,9 +24,9 @@
 
       <!-- Ignored maintainers (collapsed by default) -->
       {% if data.ignored %}
-        <details class="column gap-small">
+        <details id="maintainers-list-{{ data.suggestion_id }}-ignored" class="column gap-small">
           <summary class="heading dimmed">Ignored maintainers ({{ data.ignored|length }})</summary>
-          <ul id="maintainers-list-{{ data.suggestion_id }}-ignored" class="column gap-small">
+          <ul class="column gap-small">
             {% for maintainer_context in data.ignored %}
               <li class="maintainer-container">
                 {% maintainer maintainer_context %}

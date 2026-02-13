@@ -24,7 +24,7 @@ class NixMaintainer(models.Model):
     """
 
     github_id = models.IntegerField(unique=True, primary_key=True)
-    github = models.CharField(max_length=200, unique=True)
+    github = models.CharField(max_length=200)
     email = models.CharField(max_length=200, null=True)
     matrix = models.CharField(max_length=200, null=True)
     name = models.CharField(max_length=200, null=True)
@@ -135,45 +135,6 @@ class NixDerivationMeta(models.Model):
         ]
 
 
-class NixOutput(models.Model):
-    """
-    This is all the known outputs names.
-    """
-
-    output_name = models.CharField(max_length=255, unique=True)
-
-    def __str__(self) -> str:
-        return self.output_name
-
-
-class NixStorePathOutput(models.Model):
-    """
-    This is all the outputs of a given derivation, e.g. out, doc, etc.
-    associated to their store paths.
-
-    This represents in database as '{store_path}!{out}'.
-    """
-
-    store_path = models.CharField(max_length=255, unique=True)
-
-    def __hash__(self) -> int:
-        return hash(self.store_path)
-
-
-class NixDerivationOutput(models.Model):
-    """
-    A derivation may depend on another derivation,
-    but it must specify two things:
-
-    - derivation path
-    - output depended upon
-    e.g. depending on /nix/store/eeeeeeeeeeeeeee-something.drv and its 'out' output.
-    """
-
-    outputs = models.ManyToManyField(NixOutput)
-    derivation_path = models.CharField(max_length=255)
-
-
 class NixChannel(TimeStampMixin):
     """
     This represents a "Nixpkgs" (*) channel, e.g.
@@ -270,22 +231,6 @@ class NixEvaluation(TimeStampMixin):
         unique_together = ("channel", "commit_sha1")
 
 
-class NixDerivationDependencyThrough(models.Model):
-    pk = models.CompositePrimaryKey("nixderivation_id", "nixderivationoutput_id")
-
-    nixderivation = models.ForeignKey(
-        "NixDerivation",
-        on_delete=models.CASCADE,
-    )
-    nixderivationoutput = models.ForeignKey(
-        NixDerivationOutput,
-        on_delete=models.CASCADE,
-    )
-
-    class Meta:
-        db_table = "shared_nixderivation_dependencies"
-
-
 class NixDerivation(models.Model):
     """
     This represents a Nix derivation "evaluated",
@@ -297,18 +242,15 @@ class NixDerivation(models.Model):
 
     attribute = models.CharField(max_length=255)
     derivation_path = models.CharField(max_length=255)
-    dependencies = models.ManyToManyField(
-        NixDerivationOutput,
-        through=NixDerivationDependencyThrough,
-    )
     name = models.CharField(max_length=255)
+    # FIXME(@fricklerhandwerk): [tag:deduplicate-metadata] We always need the metadata, so it shouldn't be in a separate table.
+    # Also we're currently paying for the join for practically all accesses: only 2k out of 35M have no metadata at all.
     metadata = models.OneToOneField(
         NixDerivationMeta,
         related_name="derivation",
         on_delete=models.CASCADE,
         null=True,
     )
-    outputs = models.ManyToManyField(NixStorePathOutput)
     system = models.CharField(max_length=255)
     parent_evaluation = models.ForeignKey(
         NixEvaluation, related_name="derivations", on_delete=models.CASCADE

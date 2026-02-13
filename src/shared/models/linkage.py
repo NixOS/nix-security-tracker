@@ -59,6 +59,21 @@ class CVEDerivationClusterProposal(TimeStampMixin):
             CVEDerivationClusterProposal.Status.ACCEPTED,
         ]
 
+    def ignore_package(self, package: str) -> None:
+        edit, created = self.package_edits.get_or_create(
+            package_attribute=package,
+            defaults={"edit_type": PackageEdit.EditType.REMOVE},
+        )
+        if not created and edit.edit_type != PackageEdit.EditType.REMOVE:
+            edit.edit_type = PackageEdit.EditType.REMOVE
+            edit.save()
+
+    def restore_package(self, package: str) -> None:
+        self.package_edits.filter(
+            package_attribute=package,
+            edit_type=PackageEdit.EditType.REMOVE,
+        ).delete()
+
 
 @pghistory.track(
     pghistory.ManualEvent("maintainers.add"),

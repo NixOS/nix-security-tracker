@@ -3,12 +3,16 @@ from abc import ABC, abstractmethod
 from django.db import transaction
 from django.http import HttpRequest, HttpResponse
 
-from shared.listeners.cache_suggestions import apply_package_edits
+from shared.listeners.cache_suggestions import (
+    CachedSuggestion,
+    apply_package_edits,
+    categorize_maintainers,
+)
 from shared.models.linkage import (
     CVEDerivationClusterProposal,
-    PackageEdit,
 )
 from webview.suggestions.context.builders import (
+    get_maintainer_list_context,
     get_package_list_context,
 )
 
@@ -40,11 +44,19 @@ class PackageOperationBaseView(SuggestionContentEditBaseView, ABC):
         try:
             with transaction.atomic():
                 self._perform_operation(suggestion, package_attr)
-                new_active_packages = apply_package_edits(
+                suggestion.cached.payload["packages"] = apply_package_edits(
                     suggestion.cached.payload["original_packages"],
                     suggestion.package_edits.all(),
                 )
-                suggestion.cached.payload["packages"] = new_active_packages
+                suggestion.cached.payload["categorized_maintainers"] = (
+                    categorize_maintainers(
+                        {
+                            k: CachedSuggestion.Package.model_validate(v)
+                            for k, v in suggestion.cached.payload["packages"].items()
+                        },
+                        suggestion.maintainers_edits.all(),
+                    ).model_dump()
+                )
                 suggestion.cached.save()
         except Exception:
             return self._handle_error(
@@ -55,6 +67,9 @@ class PackageOperationBaseView(SuggestionContentEditBaseView, ABC):
 
         # Refresh the package list context and activity log
         suggestion_context.package_list_context = get_package_list_context(suggestion)
+        suggestion_context.maintainer_list_context = get_maintainer_list_context(
+            suggestion
+        )
         suggestion_context.activity_log = fetch_activity_log(suggestion.pk)
 
         # Handle response based on request type
@@ -88,13 +103,7 @@ class IgnorePackageView(PackageOperationBaseView):
         self, suggestion: CVEDerivationClusterProposal, package_attr: str
     ) -> None:
         """Create or update PackageEdit to ignore the package."""
-        edit, created = suggestion.package_edits.get_or_create(
-            package_attribute=package_attr,
-            defaults={"edit_type": PackageEdit.EditType.REMOVE},
-        )
-        if not created and edit.edit_type != PackageEdit.EditType.REMOVE:
-            edit.edit_type = PackageEdit.EditType.REMOVE
-            edit.save()
+        suggestion.ignore_package(package_attr)
 
     def _get_operation_name(self) -> str:
         return "ignore"
@@ -107,10 +116,7 @@ class RestorePackageView(PackageOperationBaseView):
         self, suggestion: CVEDerivationClusterProposal, package_attr: str
     ) -> None:
         """Remove PackageEdit entries to restore the package."""
-        suggestion.package_edits.filter(
-            package_attribute=package_attr,
-            edit_type=PackageEdit.EditType.REMOVE,
-        ).delete()
+        suggestion.restore_package(package_attr)
 
     def _get_operation_name(self) -> str:
         return "restore"
