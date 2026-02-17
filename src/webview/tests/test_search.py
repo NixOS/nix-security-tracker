@@ -1,4 +1,5 @@
 from collections.abc import Callable
+from urllib.parse import quote, urlencode
 
 from django.urls import reverse
 from playwright.sync_api import Page, expect
@@ -98,20 +99,16 @@ def test_status_filters(
     live_server: LiveServer,
     as_staff: Page,
     make_cached_suggestion: Callable[..., CVEDerivationClusterProposal],
-    drv: NixDerivation,
+    make_drv: Callable[..., NixDerivation],
     make_container: Callable[..., Container],
 ) -> None:
     """Test only the suggestions of the targeted status are shown on by-status pages"""
-    status_view_map = {
-        CVEDerivationClusterProposal.Status.ACCEPTED: "accepted_suggestions_by_package",
-        CVEDerivationClusterProposal.Status.PENDING: "untriaged_suggestions_by_package",
-        CVEDerivationClusterProposal.Status.REJECTED: "dismissed_suggestions_by_package",
-        CVEDerivationClusterProposal.Status.PUBLISHED: "published_suggestions_by_package",
-    }
 
+    # Such package names exist, and we quote them the same way when linking in the templates.
+    drv = make_drv(pname=quote("nodePackages.@something/foo", safe=""))
     # Create suggestions, one in each status, all with the same package
     status_suggestion_map = {}
-    for i, status in enumerate(status_view_map.keys(), 1):
+    for i, status in enumerate(CVEDerivationClusterProposal.Status, 1):
         container = make_container(cve_id=f"CVE-2026-000{i}")
         suggestion = make_cached_suggestion(
             container=container,
@@ -121,18 +118,22 @@ def test_status_filters(
         status_suggestion_map[status] = suggestion
 
     # Test each status filter for the by-package search
-    for target_status, view_name in status_view_map.items():
+    for status in CVEDerivationClusterProposal.Status:
         # Go to the filtered-by-status page
         as_staff.goto(
             live_server.url
             + reverse(
-                f"webview:suggestion:{view_name}",
-                kwargs={"package_name": drv.attribute},
+                "webview:suggestion:suggestions_by_package",
+                kwargs={
+                    "package_name": drv.attribute,
+                },
             )
+            + "?"
+            + urlencode({"status": status})
         )
 
         # Check only the suggestion with that status appears
-        for status, suggestion in status_suggestion_map.items():
+        for target_status, suggestion in status_suggestion_map.items():
             locator = as_staff.locator(f"#suggestion-{suggestion.pk}")
             if status == target_status:
                 expect(locator).to_be_visible()

@@ -3,6 +3,7 @@ from typing import Any
 
 from django.core.paginator import Paginator
 from django.db.models import Q
+from django.http import Http404
 
 from shared.models.linkage import (
     CVEDerivationClusterProposal,
@@ -82,20 +83,13 @@ class PublishedSuggestionsView(SuggestionListView):
 class SuggestionsByPackageView(SuggestionListView):
     def get_context_data(self, **kwargs: Any) -> dict[str, Any]:
         self.package_filter = self.kwargs.get("package_name")
+        status_param = self.request.GET.get("status")
+        try:
+            self.status_filter = (
+                CVEDerivationClusterProposal.Status(status_param)
+                if status_param
+                else None
+            )
+        except ValueError:
+            raise Http404
         return super().get_context_data(**kwargs)
-
-
-class UntriagedSuggestionsByPackageView(SuggestionsByPackageView):
-    status_filter = CVEDerivationClusterProposal.Status.PENDING
-
-
-class AcceptedSuggestionsByPackageView(SuggestionsByPackageView):
-    status_filter = CVEDerivationClusterProposal.Status.ACCEPTED
-
-
-class RejectedSuggestionsByPackageView(SuggestionsByPackageView):
-    status_filter = CVEDerivationClusterProposal.Status.REJECTED
-
-
-class PublishedSuggestionsByPackageView(SuggestionsByPackageView):
-    status_filter = CVEDerivationClusterProposal.Status.PUBLISHED

@@ -2,6 +2,7 @@ import datetime
 import logging
 from collections.abc import ItemsView
 from typing import Any, TypedDict
+from urllib.parse import quote
 
 from cvss import CVSS3
 from cvss.constants3 import METRICS_ABBREVIATIONS
@@ -209,7 +210,7 @@ def issue(
 
 @register.inclusion_tag("components/nixpkgs_package.html")
 def nixpkgs_package(attribute_name: str, pdata: Package) -> PackageContext:
-    return {"attribute_name": attribute_name, "pdata": pdata}
+    return {"attribute_name": quote(attribute_name, safe=""), "pdata": pdata}
 
 
 @register.inclusion_tag("components/affected_products.html")

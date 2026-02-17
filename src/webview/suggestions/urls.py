@@ -2,14 +2,10 @@ from django.urls import path
 
 from .views.detail import SuggestionDetailByCveView, SuggestionDetailView
 from .views.lists import (
-    AcceptedSuggestionsByPackageView,
     AcceptedSuggestionsView,
-    PublishedSuggestionsByPackageView,
     PublishedSuggestionsView,
-    RejectedSuggestionsByPackageView,
     RejectedSuggestionsView,
     SuggestionsByPackageView,
-    UntriagedSuggestionsByPackageView,
     UntriagedSuggestionsView,
 )
 from .views.maintainers import (
@@ -48,31 +44,10 @@ urlpatterns = [
         PublishedSuggestionsView.as_view(),
         name="published_suggestions",
     ),
-    # Lists by package
     path(
-        "by-package/<str:package_name>",
+        "by-package/<path:package_name>",
         SuggestionsByPackageView.as_view(),
         name="suggestions_by_package",
-    ),
-    path(
-        "by-package/<str:package_name>/untriaged",
-        UntriagedSuggestionsByPackageView.as_view(),
-        name="untriaged_suggestions_by_package",
-    ),
-    path(
-        "by-package/<str:package_name>/accepted",
-        AcceptedSuggestionsByPackageView.as_view(),
-        name="accepted_suggestions_by_package",
-    ),
-    path(
-        "by-package/<str:package_name>/dismissed",
-        RejectedSuggestionsByPackageView.as_view(),
-        name="dismissed_suggestions_by_package",
-    ),
-    path(
-        "by-package/<str:package_name>/published",
-        PublishedSuggestionsByPackageView.as_view(),
-        name="published_suggestions_by_package",
     ),
     # Status change operation
     path(

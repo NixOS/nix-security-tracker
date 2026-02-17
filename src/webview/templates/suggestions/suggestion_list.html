@@ -27,10 +27,10 @@
             Filter by:
             <ul class="row gap">
               <li class="row gap-small centered"><a href="{% url 'webview:suggestion:suggestions_by_package' package_filter %}">All statuses</a></li>
-              <li class="row gap-small centered"><i class="icon-bin"></i><a href="{% url 'webview:suggestion:dismissed_suggestions_by_package' package_filter %}">Dismissed</a></li>
-              <li class="row gap-small centered"><i class="icon-inbox"></i><a href="{% url 'webview:suggestion:untriaged_suggestions_by_package' package_filter %}">Untriaged</a></li>
-              <li class="row gap-small centered"><i class="icon-draft"></i><a href="{% url 'webview:suggestion:accepted_suggestions_by_package' package_filter %}">Accepted</a></li>
-              <li class="row gap-small centered"><i class="icon-github"></i><a href="{% url 'webview:suggestion:published_suggestions_by_package' package_filter %}">Published</a></li>
+              <li class="row gap-small centered"><i class="icon-bin"></i><a href="{% url 'webview:suggestion:suggestions_by_package' package_filter %}?status=rejected">Dismissed</a></li>
+              <li class="row gap-small centered"><i class="icon-inbox"></i><a href="{% url 'webview:suggestion:suggestions_by_package' package_filter %}?status=pending">Untriaged</a></li>
+              <li class="row gap-small centered"><i class="icon-draft"></i><a href="{% url 'webview:suggestion:suggestions_by_package' package_filter %}?status=accepted">Accepted</a></li>
+              <li class="row gap-small centered"><i class="icon-github"></i><a href="{% url 'webview:suggestion:suggestions_by_package' package_filter %}?status=published">Published</a></li>
             </ul>
           </div>
         </div>
