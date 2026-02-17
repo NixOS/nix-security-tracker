@@ -57,33 +57,33 @@ urlpatterns = [
     ),
     # Package operations
     path(
-        "by-id/<int:suggestion_id>/packages/<str:package_attr>/ignore/",
+        "by-id/<int:suggestion_id>/package/ignore/<path:package_attr>/",
         IgnorePackageView.as_view(),
         name="ignore_package",
     ),
     path(
-        "by-id/<int:suggestion_id>/packages/<str:package_attr>/restore/",
+        "by-id/<int:suggestion_id>/package/restore/<path:package_attr>/",
         RestorePackageView.as_view(),
         name="restore_package",
     ),
     # Maintainers operations
     path(
-        "by-id/<int:suggestion_id>/maintainers/<int:github_id>/ignore/",
+        "by-id/<int:suggestion_id>/maintainer/ignore/<int:github_id>/",
         IgnoreMaintainerView.as_view(),
         name="ignore_maintainer",
     ),
     path(
-        "by-id/<int:suggestion_id>/maintainers/<int:github_id>/delete/",
+        "by-id/<int:suggestion_id>/maintainer/delete/<int:github_id>/",
         DeleteMaintainerView.as_view(),
         name="delete_maintainer",
     ),
     path(
-        "by-id/<int:suggestion_id>/maintainers/<int:github_id>/restore/",
+        "by-id/<int:suggestion_id>/maintainer/restore/<int:github_id>/",
         RestoreMaintainerView.as_view(),
         name="restore_maintainer",
     ),
     path(
-        "by-id/<int:suggestion_id>/maintainers/add/",
+        "by-id/<int:suggestion_id>/maintainer/add/",
         AddMaintainerView.as_view(),
         name="add_maintainer",
     ),

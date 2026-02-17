@@ -1,5 +1,5 @@
 from collections.abc import Callable
-from urllib.parse import quote, urlencode
+from urllib.parse import urlencode
 
 from django.urls import reverse
 from playwright.sync_api import Page, expect
@@ -105,7 +105,7 @@ def test_status_filters(
     """Test only the suggestions of the targeted status are shown on by-status pages"""
 
     # Such package names exist, and we quote them the same way when linking in the templates.
-    drv = make_drv(pname=quote("nodePackages.@something/foo", safe=""))
+    drv = make_drv(pname="nodePackages.@something/foo")
     # Create suggestions, one in each status, all with the same package
     status_suggestion_map = {}
     for i, status in enumerate(CVEDerivationClusterProposal.Status, 1):
