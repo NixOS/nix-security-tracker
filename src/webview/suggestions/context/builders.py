@@ -10,6 +10,7 @@ from webview.suggestions.context.types import (
 
 def get_package_list_context(
     suggestion: CVEDerivationClusterProposal,
+    can_edit: bool,
 ) -> PackageListContext:
     # Split packages into active and ignored
     all_packages = suggestion.cached.payload["original_packages"]
@@ -22,12 +23,14 @@ def get_package_list_context(
         active=active_packages,
         ignored=ignored_packages,
         editable=suggestion.is_editable,
+        can_edit=can_edit,
         suggestion_id=suggestion.pk,
     )
 
 
 def get_maintainer_list_context(
     suggestion: CVEDerivationClusterProposal,
+    can_edit: bool,
     maintainer_add_error_message: str | None = None,
 ) -> MaintainerListContext:
     # FIXME(@florent): There is a pydantic model for cached suggestions and
@@ -43,6 +46,7 @@ def get_maintainer_list_context(
         MaintainerContext(
             maintainer=maintainer,
             editable=editable,
+            can_edit=can_edit,
             status=MaintainerStatus.IGNORABLE,
             suggestion_id=suggestion.pk,
         )
@@ -53,6 +57,7 @@ def get_maintainer_list_context(
         MaintainerContext(
             maintainer=maintainer,
             editable=editable,
+            can_edit=can_edit,
             status=MaintainerStatus.RESTORABLE,
             suggestion_id=suggestion.pk,
         )
@@ -63,6 +68,7 @@ def get_maintainer_list_context(
         MaintainerContext(
             maintainer=maintainer,
             editable=editable,
+            can_edit=can_edit,
             status=MaintainerStatus.DELETABLE,
             suggestion_id=suggestion.pk,
         )
@@ -74,6 +80,7 @@ def get_maintainer_list_context(
         ignored=ignored_contexts,
         additional=additional_contexts,
         editable=editable,
+        can_edit=can_edit,
         suggestion_id=suggestion.pk,
         maintainer_add_context=MaintainerAddContext(
             suggestion.pk, maintainer_add_error_message

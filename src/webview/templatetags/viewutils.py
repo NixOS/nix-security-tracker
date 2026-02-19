@@ -9,7 +9,6 @@ from cvss.constants3 import METRICS_ABBREVIATIONS
 from django import template
 from django.template.context import Context
 
-from shared.auth import isadmin, ismaintainer
 from shared.listeners.cache_suggestions import CachedSuggestion, parse_drv_name
 from shared.logs.batches import FoldedEventType
 from shared.models.issue import NixpkgsIssue
@@ -167,26 +166,6 @@ def iso(date: datetime.datetime) -> str:
 def versioned_package_name(package_entry: dict[str, Any]) -> str:
     _, version = parse_drv_name(package_entry["name"])
     return f"pkgs.{package_entry['attribute']} {version}"
-
-
-def is_admin(user: Any) -> bool:
-    if user is None or user.is_anonymous:
-        return False
-    else:
-        return isadmin(user)
-
-
-@register.filter
-def is_maintainer(user: Any) -> bool:
-    if user is None or user.is_anonymous:
-        return False
-    else:
-        return ismaintainer(user)
-
-
-@register.filter
-def is_maintainer_or_admin(user: Any) -> bool:
-    return is_maintainer(user) or is_admin(user)
 
 
 @register.inclusion_tag("components/issue.html", takes_context=True)

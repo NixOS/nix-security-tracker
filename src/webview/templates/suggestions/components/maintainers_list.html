@@ -52,7 +52,7 @@
 
 
       <!-- Add maintainer section (only if editable) -->
-      {% if data.editable and user|is_maintainer_or_admin %}
+      {% if data.editable and data.can_edit %}
       {% maintainer_add data.maintainer_add_context %}
       {% endif %}
     </div>

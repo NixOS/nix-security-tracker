@@ -61,17 +61,14 @@ def fetch_suggestion_events(suggestion_id: int) -> list[RawEventType]:
 
     # Fetch status events
     status_qs = _annotate_username(
-        CVEDerivationClusterProposalStatusEvent.objects.prefetch_related(
+        CVEDerivationClusterProposalStatusEvent.objects.select_related(
             "pgh_context",
         )
         .exclude(pgh_label="insert")
         .filter(pgh_obj_id=suggestion_id)
     )
 
-    # XXX(@fricklerhandwerk): `chunk_size` must be set in presence of `prefetch_related`
-    # https://docs.djangoproject.com/en/5.2/ref/models/querysets/#iterator
-    # This is probably okay, but consider choosing a non-arbitrary value.
-    for status_event in status_qs.all().iterator(chunk_size=2000):
+    for status_event in status_qs.iterator():
         all_events.append(
             RawStatusEvent(
                 suggestion_id=status_event.pgh_obj_id,
@@ -84,13 +81,15 @@ def fetch_suggestion_events(suggestion_id: int) -> list[RawEventType]:
 
     # Fetch package events
     package_edit_qs = _annotate_username(
-        PackageEditEvent.objects.filter(suggestion_id=suggestion_id)
+        PackageEditEvent.objects.select_related(
+            "pgh_context",
+        ).filter(suggestion_id=suggestion_id)
     )
 
-    for package_edit_event in package_edit_qs.all().iterator():
+    for package_edit_event in package_edit_qs.iterator():
         all_events.append(
             RawPackageEvent(
-                suggestion_id=package_edit_event.suggestion.id,
+                suggestion_id=package_edit_event.suggestion_id,
                 timestamp=package_edit_event.pgh_created_at,
                 username=package_edit_event.username,
                 action=package_edit_event.pgh_label,
@@ -100,18 +99,15 @@ def fetch_suggestion_events(suggestion_id: int) -> list[RawEventType]:
 
     # Fetch maintainer events
     maintainer_qs = _annotate_username(
-        MaintainersEditEvent.objects.prefetch_related(
-            "pgh_context", "maintainer"
-        ).filter(suggestion_id=suggestion_id)
+        MaintainersEditEvent.objects.select_related("pgh_context", "maintainer").filter(
+            suggestion_id=suggestion_id
+        )
     )
 
-    # XXX(@fricklerhandwerk): `chunk_size` must be set in presence of `prefetch_related`
-    # https://docs.djangoproject.com/en/5.2/ref/models/querysets/#iterator
-    # This is probably okay, but consider choosing a non-arbitrary value.
-    for maintainer_event in maintainer_qs.all().iterator(chunk_size=2000):
+    for maintainer_event in maintainer_qs.iterator():
         all_events.append(
             RawMaintainerEvent(
-                suggestion_id=maintainer_event.suggestion.id,
+                suggestion_id=maintainer_event.suggestion_id,
                 timestamp=maintainer_event.pgh_created_at,
                 username=maintainer_event.username,
                 action=maintainer_event.pgh_label,

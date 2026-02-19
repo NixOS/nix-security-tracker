@@ -9,7 +9,7 @@
   <div id="search-panel">
     <h1 class="page-title row gap-small centered"><i class="icon-search"></i>Suggestions search</h1>
     <div class="column gap-small">
-      <div class="rounded-box {% if suggestion_contexts|length == 0 %}hl-red{% else %}hl-green{% endif %} column gap-small">
+      <div class="rounded-box {% if result_count == 0 %}hl-red{% else %}hl-green{% endif %} column gap-small">
         <div class="row gap spread wrap">
             <div class="row gap-small centered bold">
               {% if status_filter is not None %}
@@ -36,10 +36,10 @@
         </div>
         <div class="row gap-small baseline"><i class="icon-folder"></i>With package: <span class="bold">{{package_filter}}</span></div>
         <div>
-          {% if suggestion_contexts|length == 0 %}
+          {% if result_count == 0 %}
           <p>No matching suggestions found</p>
           {% else %}
-          <p>Found {{ suggestion_contexts|length }} matching suggestions</p>
+          <p>Found {{ result_count }} matching suggestions</p>
           {% endif %}
         </div>
       </div>
@@ -82,8 +82,8 @@
   {% endif %}
 
   <div class="column gap">
-    {% for suggestion_context in suggestion_contexts %}
-      {% suggestion suggestion_context %}
+    {% for s in suggestions %}
+      {% suggestion s %}
     {% endfor %}
   </div>
 

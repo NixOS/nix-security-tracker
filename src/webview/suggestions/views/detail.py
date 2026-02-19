@@ -5,24 +5,31 @@ from django.shortcuts import get_object_or_404, redirect
 from django.urls import reverse
 from django.views.generic import DetailView, View
 
+from shared.auth import can_publish_github_issue
 from shared.models.issue import NixpkgsIssue
 from shared.models.linkage import (
     CVEDerivationClusterProposal,
 )
 
-from .base import SuggestionBaseView, get_suggestion_context
+from .base import get_suggestion_context
 
 
-class SuggestionDetailView(DetailView, SuggestionBaseView):
-    """Individual suggestion detail page."""
-
+class SuggestionDetailView(DetailView):
     model = CVEDerivationClusterProposal
     template_name = "suggestions/suggestion_detail.html"
     pk_url_kwarg = "suggestion_id"
 
     def get_context_data(self, **kwargs: Any) -> dict[str, Any]:
         context = super().get_context_data(**kwargs)
-        context.update({"suggestion_context": get_suggestion_context(self.object)})  # type: ignore
+        can_edit = can_publish_github_issue(self.request.user)
+        context.update(
+            {
+                "suggestion_context": get_suggestion_context(
+                    self.object,  # type: ignore
+                    can_edit=can_edit,
+                )
+            }
+        )
         return context
 
     def get(self, request: HttpRequest, suggestion_id: int) -> HttpResponse:

@@ -49,7 +49,8 @@ class MaintainerOperationBaseView(SuggestionContentEditBaseView, ABC):
 
         # Refresh the maintainer list context and activity_log
         suggestion_context.maintainer_list_context = get_maintainer_list_context(
-            suggestion
+            suggestion,
+            can_edit=True,  # Prior permission checks enforce this.
         )
         suggestion_context.activity_log = fetch_activity_log(suggestion.pk)
 
@@ -354,8 +355,10 @@ class AddMaintainerView(SuggestionContentEditBaseView):
             suggestion.cached.save()
 
         # Refresh the maintainer list context and activity_log
+
         suggestion_context.maintainer_list_context = get_maintainer_list_context(
-            suggestion
+            suggestion,
+            can_edit=True,  # Prior permission checks enforce this.
         )
         suggestion_context.activity_log = fetch_activity_log(suggestion.pk)
 

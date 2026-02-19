@@ -285,8 +285,9 @@ def make_cve(
     cve.save()
 
     if record is not None:
-        # TODO: Remove stale data to prevent overgrowth
-        pass
+        # FIXME(@fricklerhandwerk): This loses updates, but acutely we don't care all that much about them.
+        # Also remove stale data from past duplication.
+        return record
 
     make_container(data["containers"]["cna"], _type=models.Container.Type.CNA, cve=cve)
 

@@ -30,12 +30,13 @@ class UpdateSuggestionStatusView(SuggestionBaseView):
 
     def post(self, request: HttpRequest, suggestion_id: int) -> HttpResponse:
         """Handle status change requests."""
-        if not request.user or not can_publish_github_issue(request.user):
+        can_edit = can_publish_github_issue(request.user)
+        if not request.user or not can_edit:
             return HttpResponseForbidden()
 
         # Get suggestion context
         suggestion = fetch_suggestion(suggestion_id)
-        suggestion_context = get_suggestion_context(suggestion)
+        suggestion_context = get_suggestion_context(suggestion, can_edit=can_edit)
 
         # Get form data
         new_status = request.POST.get("new_status")

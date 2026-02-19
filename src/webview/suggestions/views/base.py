@@ -32,11 +32,15 @@ def fetch_activity_log(suggestion_id: int) -> list[FoldedEventType]:
 
 def get_suggestion_context(
     suggestion: CVEDerivationClusterProposal,
+    can_edit: bool,
 ) -> SuggestionContext:
     return SuggestionContext(
         suggestion=suggestion,
-        package_list_context=get_package_list_context(suggestion),
-        maintainer_list_context=get_maintainer_list_context(suggestion),
+        can_edit=can_edit,
+        package_list_context=get_package_list_context(suggestion, can_edit=can_edit),
+        maintainer_list_context=get_maintainer_list_context(
+            suggestion, can_edit=can_edit
+        ),
         activity_log=fetch_activity_log(suggestion.pk),
     )
 
@@ -124,7 +128,8 @@ class SuggestionContentEditBaseView(SuggestionBaseView, ABC):
 
         # Get suggestion context
         suggestion = fetch_suggestion(suggestion_id)
-        suggestion_context = get_suggestion_context(suggestion)
+        can_edit = can_publish_github_issue(self.request.user)
+        suggestion_context = get_suggestion_context(suggestion, can_edit=can_edit)
 
         # Validate that the suggestion status allows package editing
         if not suggestion.is_editable:

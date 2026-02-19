@@ -1,7 +1,7 @@
 {% load viewutils %}
 
 <div class="row gap centered">
-  {% if data.editable and user|is_maintainer_or_admin %}
+  {% if data.editable and data.can_edit %}
     <form
       class="contents"
       method="post"

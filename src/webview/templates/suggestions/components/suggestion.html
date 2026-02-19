@@ -74,21 +74,21 @@
       autocomplete="off"
     >
       {% csrf_token %}
-      {% if not user|is_maintainer_or_admin or data.suggestion.status == "published" %}
+      {% if not data.can_edit or data.suggestion.status == "published" %}
         {% if data.suggestion.comment %}
           <pre class="rounded-box monospace highlight-nonempty">{{ data.suggestion.comment|default:"" }}</pre>
         {% endif %}
       {% else %}
-        <textarea 
+        <textarea
           class="rounded-box monospace highlight-nonempty"
-          name="comment" 
-          maxlength="1000" 
+          name="comment"
+          maxlength="1000"
           placeholder="Free comment: context, additional info, dismissal reason, etc."
           rows="3"
         >{{ data.suggestion.comment|default:"" }}</textarea>
       {% endif %}
 
-      {% if user|is_maintainer_or_admin and data.suggestion.status != "published" %}
+      {% if data.can_edit and data.suggestion.status != "published" %}
         <div class="row-reverse spread">
           {% if data.suggestion.status == "pending" %}
             <button type="submit" name="new_status" value="accepted" class="status-change-button btn btn-green row gap-small centered">

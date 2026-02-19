@@ -15,6 +15,8 @@ class PackageListContext:
     active: dict
     ignored: dict
     editable: bool
+    # FIXME(@fricklerhandwerk): Arguably the same thing as `editable` if both views and template handle it right.
+    can_edit: bool
     suggestion_id: int
     # FIXME(@florentc): Add a state for whether to pre-open the "ignored
     # packages" list, in case it was already opened before component update
@@ -41,6 +43,8 @@ class MaintainerStatus(Enum):
 class MaintainerContext:
     maintainer: Maintainer
     editable: bool
+    # FIXME(@fricklerhandwerk): Arguably the same thing as `editable` if both views and template handle it right.
+    can_edit: bool
     status: MaintainerStatus
     suggestion_id: int
 
@@ -57,6 +61,8 @@ class MaintainerListContext:
     ignored: list[MaintainerContext]
     additional: list[MaintainerContext]
     editable: bool
+    # FIXME(@fricklerhandwerk): Arguably the same thing as `editable` if both views and template handle it right.
+    can_edit: bool
     suggestion_id: int
     maintainer_add_context: MaintainerAddContext
 
@@ -69,6 +75,7 @@ class SuggestionContext:
     suggestion: CVEDerivationClusterProposal
     package_list_context: PackageListContext
     maintainer_list_context: MaintainerListContext
+    can_edit: bool
     activity_log: list[FoldedEventType]
     show_status: bool = True
     suggestion_stub_context: SuggestionStubContext | None = None

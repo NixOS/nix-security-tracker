@@ -5,6 +5,7 @@ from django.core.paginator import Paginator
 from django.db.models import Q
 from django.http import Http404
 
+from shared.auth import can_publish_github_issue
 from shared.models.linkage import (
     CVEDerivationClusterProposal,
 )
@@ -30,9 +31,13 @@ class SuggestionListView(SuggestionBaseView, ABC):
             query_filters &= Q(status=self.status_filter)
         if self.package_filter is not None:
             query_filters &= Q(cached__payload__packages__has_key=self.package_filter)
-        suggestions = CVEDerivationClusterProposal.objects.filter(
-            query_filters
-        ).order_by("-updated_at", "-created_at")
+        suggestions = (
+            CVEDerivationClusterProposal.objects.select_related(
+                "cached",
+            )
+            .filter(query_filters)
+            .order_by("-updated_at", "-created_at")
+        )
 
         # Pagination first
         paginator = Paginator(suggestions, self.paginate_by)
@@ -41,9 +46,10 @@ class SuggestionListView(SuggestionBaseView, ABC):
 
         # Convert suggestions to SuggestionContext objects for the current page
         suggestion_contexts = []
-        # FIXME(@fricklerhandwerk): This is very slow, it should batch all related queries.
+        can_edit = can_publish_github_issue(self.request.user)
+        # FIXME(@fricklerhandwerk): This is very slow (scales with number of events in the activity log), it should batch all related queries and do the wiring in Python.
         for suggestion in page_obj.object_list:
-            suggestion_context = get_suggestion_context(suggestion)
+            suggestion_context = get_suggestion_context(suggestion, can_edit=can_edit)
             suggestion_context.show_status = (
                 self.status_filter
                 is None  # We don't show status in lists already filtered by status
@@ -52,11 +58,12 @@ class SuggestionListView(SuggestionBaseView, ABC):
 
         context.update(
             {
-                "suggestion_contexts": suggestion_contexts,
+                "suggestions": suggestion_contexts,
                 "page_obj": page_obj,
                 "status_filter": self.status_filter,
                 "package_filter": self.package_filter,
                 "adjusted_elided_page_range": paginator.get_elided_page_range(),
+                "result_count": suggestions.count(),
                 "is_paginated": True,
             }
         )

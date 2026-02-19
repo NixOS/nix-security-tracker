@@ -66,9 +66,13 @@ class PackageOperationBaseView(SuggestionContentEditBaseView, ABC):
             )
 
         # Refresh the package list context and activity log
-        suggestion_context.package_list_context = get_package_list_context(suggestion)
+        suggestion_context.package_list_context = get_package_list_context(
+            suggestion,
+            can_edit=True,  # Prior permission checks enforce this.
+        )
         suggestion_context.maintainer_list_context = get_maintainer_list_context(
-            suggestion
+            suggestion,
+            can_edit=True,  # Prior permission checks enforce this.
         )
         suggestion_context.activity_log = fetch_activity_log(suggestion.pk)
 
