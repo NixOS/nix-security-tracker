@@ -5,7 +5,7 @@
 }:
 let
   # TODO: specify project/service name globally
-  application = "web-security-tracker";
+  application = "nix-security-tracker";
   defaults = {
     documentation.enable = lib.mkDefault false;
 

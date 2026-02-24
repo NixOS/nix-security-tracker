@@ -18,11 +18,11 @@ in
 
     The container can be managed at runtime with [`nixos-container`](https://nixos.org/manual/nixos/unstable/#sec-imperative-containers).
   */
-  users.users.web-security-tracker = {
+  users.users.nix-security-tracker = {
     isSystemUser = true;
-    group = "web-security-tracker";
+    group = "nix-security-tracker";
   };
-  users.groups.web-security-tracker = { };
+  users.groups.nix-security-tracker = { };
   systemd.services."container@nix-security-tracker" = {
     serviceConfig = {
       TimeoutStartSec = lib.mkForce "15m";
@@ -56,7 +56,7 @@ in
         # which almost certainly won't be the same as the user under which the service runs
         boot.postBootCommands = ''
           cp -r ${secretsGuestPath}/* ${secretsPath}
-          chown web-security-tracker ${secretsPath}
+          chown nix-security-tracker ${secretsPath}
         '';
         networking.firewall.allowedTCPPorts = map (forward: forward.containerPort) (
           lib.filter (forward: forward.protocol == "tcp") cfg.forwardPorts
@@ -67,7 +67,7 @@ in
         imports = [
           sectracker.module
         ];
-        services.web-security-tracker = {
+        services.nix-security-tracker = {
           enable = true;
           domain = "sectracker.local";
           production = false;

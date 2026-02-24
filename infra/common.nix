@@ -45,14 +45,20 @@ in
   };
 
   users.mutableUsers = false;
-  users.users.root = {
-    openssh.authorizedKeys.keyFiles =
-      with lib;
-      map (n: ./keys/${n}) (attrNames (builtins.readDir ./keys));
-    # We're using both keys and keyFiles here in order to keep some alignment
-    # with github:nixos/infra
-    openssh.authorizedKeys.keys = (import "${sources.infra}/ssh-keys.nix").infra;
-  };
+  users.users.root =
+    let
+      keys = with lib; mapAttrs (n: _: ./keys/${n}) (builtins.readDir ./keys);
+    in
+    {
+      openssh.authorizedKeys.keyFiles = with keys; [
+        fricklerhandwerk
+        erethon
+        security-tracker-gh-actions
+      ];
+      # We're using both keys and keyFiles here in order to keep some alignment
+      # with github:nixos/infra
+      openssh.authorizedKeys.keys = (import "${sources.infra}/ssh-keys.nix").infra;
+    };
 
   environment.systemPackages = with pkgs; [
     curl
@@ -142,7 +148,7 @@ in
           values = [ "count" ];
         };
       };
-      connections = [ "postgres://postgres@/web-security-tracker?host=/run/postgresql" ];
+      connections = [ "postgres://postgres@/nix-security-tracker?host=/run/postgresql" ];
       interval = "1h";
     };
   };

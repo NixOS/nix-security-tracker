@@ -19,7 +19,7 @@ let
     optionalString
     ;
   inherit (pkgs) writeScriptBin writeShellApplication stdenv;
-  cfg = config.services.web-security-tracker;
+  cfg = config.services.nix-security-tracker;
   pythonFmt = pkgs.formats.pythonVars { };
 
   settingsFile = pythonFmt.generate "wst-settings.py" cfg.settings;
@@ -50,15 +50,15 @@ let
 
     text = ''
       sudo="exec"
-      if [[ "$USER" != "web-security-tracker" ]]; then
-        sudo='exec /run/wrappers/bin/sudo -u web-security-tracker --preserve-env --preserve-env=PYTHONPATH'
+      if [[ "$USER" != "nix-security-tracker" ]]; then
+        sudo='exec /run/wrappers/bin/sudo -u nix-security-tracker --preserve-env --preserve-env=PYTHONPATH'
       fi
       export PYTHONPATH=${toString cfg.package.pythonPath}
       $sudo ${cfg.package}/bin/manage.py "$@"
     '';
   };
   credentials = mapAttrsToList (name: secretPath: "${name}:${secretPath}") cfg.secrets;
-  databaseUrl = "postgres:///web-security-tracker";
+  databaseUrl = "postgres:///nix-security-tracker";
 
   # This script has access to the credentials, no matter where it is.
   wstExternalManageScript = writeScriptBin "wst-manage" ''
@@ -74,9 +74,9 @@ let
       --collect \
       --service-type=exec \
       --unit "wst-manage.service" \
-      --property "User=web-security-tracker" \
-      --property "Group=web-security-tracker" \
-      --property "WorkingDirectory=/var/lib/web-security-tracker" \
+      --property "User=nix-security-tracker" \
+      --property "Group=nix-security-tracker" \
+      --property "WorkingDirectory=/var/lib/nix-security-tracker" \
       ${concatStringsSep "\n" (map (cred: "--property 'LoadCredential=${cred}' \\") credentials)}
       --property 'Environment=${
         toString (lib.mapAttrsToList (name: value: "${name}=${value}") cfg.env)
@@ -85,10 +85,10 @@ let
   '';
 in
 {
-  options.services.web-security-tracker = {
+  options.services.nix-security-tracker = {
     enable = mkEnableOption "web security tracker for Nixpkgs and similar monorepo";
 
-    package = mkPackageOption pkgs "web-security-tracker" { };
+    package = mkPackageOption pkgs "nix-security-tracker" { };
     production = mkOption {
       type = types.bool;
       default = true;
@@ -128,7 +128,7 @@ in
       type = types.attrsOf types.anything;
       default = {
         PRODUCTION = cfg.production;
-        STATIC_ROOT = "/var/lib/web-security-tracker/static/"; # trailing slash is required!
+        STATIC_ROOT = "/var/lib/nix-security-tracker/static/"; # trailing slash is required!
         REVISION =
           (builtins.fetchGit {
             url = ../.;
@@ -173,7 +173,7 @@ in
     environment.systemPackages = [ wstExternalManageScript ];
     services = {
       # TODO(@fricklerhandwerk): move all configuration over to pydantic-settings
-      web-security-tracker.settings = {
+      nix-security-tracker.settings = {
         ALLOWED_HOSTS = mkDefault [
           (with cfg; if production then domain else "*")
           "localhost"
@@ -181,9 +181,9 @@ in
           "[::1]"
         ];
         CSRF_TRUSTED_ORIGINS = mkDefault [ "https://${cfg.domain}" ];
-        EVALUATION_LOGS_DIRECTORY = mkDefault "/var/log/web-security-tracker/evaluation";
-        LOCAL_NIXPKGS_CHECKOUT = mkDefault "/var/lib/web-security-tracker/nixpkgs-repo";
-        CVE_CACHE_DIR = mkDefault "/var/lib/web-security-tracker/cve-cache";
+        EVALUATION_LOGS_DIRECTORY = mkDefault "/var/log/nix-security-tracker/evaluation";
+        LOCAL_NIXPKGS_CHECKOUT = mkDefault "/var/lib/nix-security-tracker/nixpkgs-repo";
+        CVE_CACHE_DIR = mkDefault "/var/lib/nix-security-tracker/cve-cache";
         ACCOUNT_DEFAULT_HTTP_PROTOCOL = mkDefault (with cfg; if production then "https" else "http");
       };
 
@@ -210,19 +210,19 @@ in
       postgresql = {
         ensureUsers = [
           {
-            name = "web-security-tracker";
+            name = "nix-security-tracker";
             ensureDBOwnership = true;
           }
         ];
-        ensureDatabases = [ "web-security-tracker" ];
+        ensureDatabases = [ "nix-security-tracker" ];
       };
     };
 
-    users.users.web-security-tracker = {
+    users.users.nix-security-tracker = {
       isSystemUser = true;
-      group = "web-security-tracker";
+      group = "nix-security-tracker";
     };
-    users.groups.web-security-tracker = { };
+    users.groups.nix-security-tracker = { };
 
     systemd.services =
       let
@@ -233,18 +233,18 @@ in
             pkgs.nix-eval-jobs
           ];
           serviceConfig = {
-            User = "web-security-tracker";
-            WorkingDirectory = "/var/lib/web-security-tracker";
-            StateDirectory = "web-security-tracker";
-            RuntimeDirectory = "web-security-tracker";
-            LogsDirectory = "web-security-tracker";
+            User = "nix-security-tracker";
+            WorkingDirectory = "/var/lib/nix-security-tracker";
+            StateDirectory = "nix-security-tracker";
+            RuntimeDirectory = "nix-security-tracker";
+            LogsDirectory = "nix-security-tracker";
             LoadCredential = credentials;
           };
           environment = cfg.env;
         };
       in
       mapAttrs (_: recursiveUpdate defaults) {
-        web-security-tracker-server = {
+        nix-security-tracker-server = {
           description = "A web security tracker ASGI server";
           after = [
             "network.target"
@@ -258,7 +258,7 @@ in
           };
           preStart = ''
             # Auto-migrate on first run or if the package has changed
-            versionFile="/var/lib/web-security-tracker/package-version"
+            versionFile="/var/lib/nix-security-tracker/package-version"
             if [[ $(cat "$versionFile" 2>/dev/null) != ${cfg.package} ]]; then
               wst-manage migrate --no-input
               wst-manage collectstatic --no-input --clear
@@ -278,12 +278,12 @@ in
             '';
         };
 
-        web-security-tracker-evaluator = {
+        nix-security-tracker-evaluator = {
           description = "Web security tracker - Nixpkgs evaluation worker";
           after = [
             "network.target"
             "postgresql.service"
-            "web-security-tracker-server.service"
+            "nix-security-tracker-server.service"
           ];
           requires = [ "postgresql.service" ];
           wantedBy = [ "multi-user.target" ];
@@ -299,12 +299,12 @@ in
           '';
         };
 
-        web-security-tracker-worker = {
+        nix-security-tracker-worker = {
           description = "Web security tracker - background job processor";
           after = [
             "network.target"
             "postgresql.service"
-            "web-security-tracker-server.service"
+            "nix-security-tracker-server.service"
           ];
           requires = [ "postgresql.service" ];
           wantedBy = [ "multi-user.target" ];
@@ -320,13 +320,13 @@ in
           '';
         };
 
-        web-security-tracker-fetch-all-channels = {
+        nix-security-tracker-fetch-all-channels = {
           description = "Web security tracker - refresh all channels and start nixpkgs evaluation";
 
           after = [
             "network.target"
             "postgresql.service"
-            "web-security-tracker-server.service"
+            "nix-security-tracker-server.service"
           ];
           requires = [ "postgresql.service" ];
 
@@ -340,12 +340,12 @@ in
           startAt = "*-*-* 04:00:00";
         };
 
-        web-security-tracker-delta = {
+        nix-security-tracker-delta = {
           description = "Web security tracker catch up with CVEs";
           after = [
             "network.target"
             "postgresql.service"
-            "web-security-tracker-server.service"
+            "nix-security-tracker-server.service"
           ];
           requires = [ "postgresql.service" ];
           serviceConfig.Type = "oneshot";

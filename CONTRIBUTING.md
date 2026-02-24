@@ -142,13 +142,13 @@ Or set up [`nix-direnv`](https://github.com/nix-community/nix-direnv) on your sy
 ### Set up a local database
 
 Currently only [PostgreSQL](https://www.postgresql.org/) is supported as a database.
-You can set up a database on NixOS like this:
+Assuming you have a local checkout of this repository at `~/src/nix-security-tracker`, in your NixOS configuration, add the following entry to `imports` and rebuild your system:
 
 ```nix
 { ... }:
 {
   imports = [
-    (import nix-security-tracker { }).dev-setup
+    (import ~/src/nix-security-tracker { }).dev-setup
   ];
 
   nix-security-tracker-dev-environment = {
@@ -172,12 +172,13 @@ hivemind
 
 ### Resetting the database
 
-In order to start over you need SSH access to the staging environment.
+In order to start over you need SSH [access to the staging environment](./infra/README.md#adding-ssh-keys).
+Tools for the following are available in the development shell.
 Delete the database and recreate it, then restore it from a dump, and (just in case the dump is behind the code) run migrations:
 
 ```bash
 dropdb nix-security-tracker
-ssh root@tracker-staging.security.nixos.org "sudo -u postgres pg_dump --create web-security-tracker | zstd" | zstdcat | sed 's|web-security-tracker|nix-security-tracker|g' | pv | psql
+ssh root@tracker-staging.security.nixos.org "sudo -u postgres pg_dump --create nix-security-tracker | zstd" | zstdcat | pv | psql
 manage migrate
 ```
 

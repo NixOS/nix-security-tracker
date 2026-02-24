@@ -44,12 +44,12 @@ def make_media(data: dict[str, str]) -> models.SupportingMedia:
 
 
 def make_description(data: dict[str, Any]) -> models.Description:
-    ctx: dict[str, Any] = dict()
-    ctx["lang"] = data["lang"]
-    ctx["value"] = data["value"]
-
-    obj = models.Description.objects.create(**ctx)
-    obj.media.set(map(make_media, data.get("supportingMedia", [])))
+    obj, created = models.Description.objects.get_or_create(
+        lang=data["lang"],
+        value=data["value"],
+    )
+    if created:
+        obj.media.set(map(make_media, data.get("supportingMedia", [])))
 
     return obj
 
@@ -61,12 +61,12 @@ def make_tag(name: str) -> models.Tag:
 
 
 def make_reference(data: dict[str, Any]) -> models.Reference:
-    ctx: dict[str, Any] = dict()
-    ctx["url"] = data["url"]
-    ctx["name"] = data.get("name", "")
-
-    obj = models.Reference.objects.create(**ctx)
-    obj.tags.set(map(make_tag, data.get("tags", [])))
+    obj, created = models.Reference.objects.get_or_create(
+        url=data["url"],
+        name=data.get("name", ""),
+    )
+    if created:
+        obj.tags.set(map(make_tag, data.get("tags", [])))
 
     return obj
 

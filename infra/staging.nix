@@ -9,7 +9,7 @@ in
 {
   imports = [
     sectracker.module
-    ./configuration.nix
+    ./common.nix
   ];
 
   networking.hostName = "sectracker-staging";
@@ -85,7 +85,7 @@ in
     80
     443
   ];
-  services.web-security-tracker = {
+  services.nix-security-tracker = {
     enable = true;
     production = true;
     domain = "tracker-staging.security.nixos.org";

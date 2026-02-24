@@ -28,6 +28,13 @@ If in the future we need to create more VMs and do it in a declarative way, we c
 Deployments happen automatically via GitHub Actions. Whenever a merge happens on the `main` branch, a GitHub Action runs that updates the staging deployment of the tracker (tracker-staging.security.nixos.org).
 Similarly, merges on the `production` branch get automatically applied to tracker.security.nixos.org.
 
+## Adding SSH keys
+
+To request access to the staging or production environment, open a pull request with:
+
+- Your SSH public key added to the [`keys`][./keys] directory
+- An addition to `user.users.<name>.openssh.authorizedKeys.keyFiles` in the respective environment ([staging](./staging.nix), [production](./production.nix), or [both](./common.nix)).
+
 ## Secrets
 
 Secrets are managed using [Agenix](https://github.com/ryantm/agenix).

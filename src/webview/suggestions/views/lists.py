@@ -62,7 +62,9 @@ class SuggestionListView(SuggestionBaseView, ABC):
                 "page_obj": page_obj,
                 "status_filter": self.status_filter,
                 "package_filter": self.package_filter,
-                "adjusted_elided_page_range": paginator.get_elided_page_range(),
+                "adjusted_elided_page_range": paginator.get_elided_page_range(
+                    page_obj.number
+                ),
                 "result_count": suggestions.count(),
                 "is_paginated": True,
             }

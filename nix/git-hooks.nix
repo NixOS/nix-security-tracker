@@ -44,7 +44,7 @@
 
       pyright =
         let
-          pyEnv = pkgs.python3.withPackages (_: pkgs.web-security-tracker.propagatedBuildInputs);
+          pyEnv = pkgs.python3.withPackages (_: pkgs.nix-security-tracker.propagatedBuildInputs);
           wrappedPyright = pkgs.runCommand "pyright" { nativeBuildInputs = [ pkgs.makeWrapper ]; } ''
             makeWrapper ${pkgs.pyright}/bin/pyright $out \
               --set PYTHONPATH ${pyEnv}/${pyEnv.sitePackages} \

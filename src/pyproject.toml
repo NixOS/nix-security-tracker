@@ -1,5 +1,5 @@
 [project]
-name = "web-security-tracker"
+name = "nix-security-tracker"
 version = "0.0.1"
 
 [tool.setuptools]

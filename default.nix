@@ -13,8 +13,8 @@ rec {
 
   # For exports.
   overlays = [ overlay ];
-  package = pkgs.web-security-tracker;
-  module = import ./nix/web-security-tracker.nix;
+  package = pkgs.nix-security-tracker;
+  module = import ./nix/configuration.nix;
   dev-container = import ./infra/container.nix;
   dev-setup = import ./nix/dev-setup.nix;
 
@@ -97,7 +97,7 @@ rec {
         pkgs.nix-eval-jobs
         pkgs.npins
         pkgs.hivemind
-        pkgs.awscli
+        pkgs.pv
         (import sources.agenix { inherit pkgs; }).agenix
         format
       ]

@@ -31,7 +31,7 @@ class PackageOperationBaseView(SuggestionContentEditBaseView, ABC):
             suggestion, suggestion_context = (
                 self._check_access_rights_and_get_suggestion(request, suggestion_id)
             )
-        except self.AccessDeniedError as e:
+        except self.ForbiddenOperationError as e:
             return e.response
 
         # Validate that the package exists in the suggestion

@@ -24,7 +24,7 @@ in
     isFlakes = false;
   };
 
-  web-security-tracker = final.python3.pkgs.buildPythonPackage rec {
+  nix-security-tracker = final.python3.pkgs.buildPythonPackage rec {
     pname = meta.project.name;
     inherit (meta.project) version;
     pyproject = true;
