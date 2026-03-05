@@ -51,7 +51,8 @@
   <div>
     <h1 class="page-title row gap-small centered">{% status_icon "pending" %}Automatically generated suggestions</h1>
     <div class="prose">
-      <p><button class="btn btn-gray inline-row gap-small centered" disabled>{% status_icon "rejected" %}Dismiss</button> to remove a suggestion from the queue.</p>
+      <p><button class="btn btn-green inline-row gap-small centered" disabled>{% status_icon "accepted" %}Accept</button> to slate a suggestion for refinement.</p>
+      <p><button class="btn btn-red inline-row gap-small centered" disabled>{% status_icon "rejected" %}Dismiss</button> to mark a suggestion as irrelevant and log the reason.</p>
     </div>
   </div>
 
@@ -61,7 +62,7 @@
     <h1 class="page-title row gap-small centered">{% status_icon "rejected" %}Dismissed suggestions</h1>
     <div class="prose">
       <p>These automatic suggestions were dismissed after initial triaging.</p>
-      <p><button class="btn btn-green inline-row gap-small centered" disabled>{% status_icon "accepted" %}Accept suggestion</button> to select a suggestion for a revision.</p>
+      <p><button class="btn btn-green inline-row gap-small centered" disabled>{% status_icon "accepted" %}Accept</button> to select a suggestion for revision.</p>
     </div>
   </div>
 
@@ -71,7 +72,7 @@
     <h1 class="page-title row gap-small centered">{% status_icon "accepted" %}Accepted suggestions</h1>
     <div class="prose">
       <p><button class="btn btn-green inline-row gap-small centered" disabled>{% status_icon "published" %}Publish issue</button> to create a Nixpkgs security record and open a GitHub issue for tracking resolution. This action will notify maintainers and package subscribers, and cannot be revoked.</p>
-      <p><button class="btn btn-gray inline-row gap-small centered" disabled>{% status_icon "rejected" %}Dismiss</button> to remove a suggestion from the queue.</p>
+      <p><button class="btn btn-red inline-row gap-small centered" disabled>{% status_icon "rejected" %}Dismiss</button> to mark as irrelevant.</p>
     </div>
   </div>
 

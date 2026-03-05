@@ -7,27 +7,15 @@ from django.shortcuts import get_object_or_404, redirect
 from django.urls import resolve
 from django.views.generic import TemplateView
 
-from shared.auth import can_publish_github_issue
-from shared.logs.batches import FoldedEventType, batch_events
-from shared.logs.events import remove_canceling_events
-from shared.logs.fetchers import fetch_suggestion_events
+from shared.auth import can_edit_suggestion
 from shared.models.linkage import (
     CVEDerivationClusterProposal,
-)
-from webview.suggestions.context.builders import (
-    get_maintainer_list_context,
-    get_package_list_context,
 )
 from webview.suggestions.context.types import SuggestionContext
 
 
 def fetch_suggestion(suggestion_id: int) -> CVEDerivationClusterProposal:
     return get_object_or_404(CVEDerivationClusterProposal, id=suggestion_id)
-
-
-def fetch_activity_log(suggestion_id: int) -> list[FoldedEventType]:
-    raw_events = fetch_suggestion_events(suggestion_id)
-    return batch_events(remove_canceling_events(raw_events, sort=True))
 
 
 def get_suggestion_context(
@@ -37,11 +25,6 @@ def get_suggestion_context(
     return SuggestionContext(
         suggestion=suggestion,
         can_edit=can_edit,
-        package_list_context=get_package_list_context(suggestion, can_edit=can_edit),
-        maintainer_list_context=get_maintainer_list_context(
-            suggestion, can_edit=can_edit
-        ),
-        activity_log=fetch_activity_log(suggestion.pk),
     )
 
 
@@ -96,7 +79,7 @@ class SuggestionBaseView(TemplateView, ABC):
                 "untriaged_suggestions",
                 "accepted_suggestions",
                 "dismissed_suggestions",
-                "published_suggestions",
+                "issue_list",
             ]
 
             return resolved.url_name in list_url_names
@@ -123,12 +106,13 @@ class SuggestionContentEditBaseView(SuggestionBaseView, ABC):
     def _check_access_rights_and_get_suggestion(
         self, request: HttpRequest, suggestion_id: int
     ) -> tuple[CVEDerivationClusterProposal, SuggestionContext]:
-        if not request.user or not can_publish_github_issue(request.user):
+        can_edit = can_edit_suggestion(self.request.user)
+
+        if not request.user or not can_edit:
             raise self.ForbiddenOperationError(HttpResponseForbidden())
 
         # Get suggestion context
         suggestion = fetch_suggestion(suggestion_id)
-        can_edit = can_publish_github_issue(self.request.user)
         suggestion_context = get_suggestion_context(suggestion, can_edit=can_edit)
 
         # Validate that the suggestion status allows package editing

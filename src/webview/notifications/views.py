@@ -19,7 +19,11 @@ class NotificationCenterView(LoginRequiredMixin, ListView):
     def get_queryset(self) -> QuerySet[Notification]:
         return (
             Notification.objects.filter(user=self.request.user)
-            .select_related("user__profile", "suggestionnotification__suggestion__cve")
+            .select_related(
+                "user__profile",
+                "suggestionnotification__suggestion__cve",
+                "suggestionnotification__suggestion__cached",
+            )
             .order_by("-created_at")
             .select_subclasses()
         )

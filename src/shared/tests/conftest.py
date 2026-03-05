@@ -17,6 +17,8 @@ from shared.models.cve import (
     Description,
     Metric,
     Organization,
+    Reference,
+    Tag,
     Version,
 )
 from shared.models.linkage import (
@@ -44,6 +46,7 @@ def make_container(db: None) -> Callable[..., Container]:
         affected_version: str = "1.0",
         package_name: str | None = "foo",
         product: str | None = "bar",
+        references: list[tuple[str, str, list[str]]] = [],
     ) -> Container:
         org, _created = Organization.objects.get_or_create(
             uuid=1, short_name="test-org"
@@ -63,6 +66,19 @@ def make_container(db: None) -> Callable[..., Container]:
         affected.versions.add(version)
 
         container = cve.container.create(provider=org, title=title)
+        refs = []
+        for text, link, tags in references:
+            tag_objs: dict[str, Tag] = {}
+            for tag in tags:
+                tag_objs[tag], _ = Tag.objects.get_or_create(value=tag)
+            refs.append(
+                Reference.objects.create(
+                    url=link,
+                    name=text,
+                    tags=tag_objs.values(),
+                )
+            )
+        container.references.set(refs)
         container.affected.add(affected)
         if description is not None:
             desc = Description.objects.create(value=description)

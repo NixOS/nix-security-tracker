@@ -65,7 +65,7 @@ def test_accept_without_comment_succeeds(
     """Test that accepting a suggestion without a comment is allowed"""
     as_staff.goto(live_server.url + reverse("webview:suggestion:untriaged_suggestions"))
     suggestion = as_staff.locator(f"#suggestion-{cached_suggestion.pk}")
-    accept = suggestion.get_by_role("button", name="Accept suggestion")
+    accept = suggestion.get_by_role("button", name="Accept")
     accept.click()
     if no_js:
         as_staff.goto(
@@ -88,7 +88,7 @@ def test_accept_with_comment_shows_comment_in_context(
     suggestion = as_staff.locator(f"#suggestion-{cached_suggestion.pk}")
     comment_text = "This looks good, creating draft issue."
     suggestion.locator("textarea").fill(comment_text)
-    accept = suggestion.get_by_role("button", name="Accept suggestion")
+    accept = suggestion.get_by_role("button", name="Accept")
     accept.click()
     if no_js:
         as_staff.goto(
@@ -125,7 +125,7 @@ def test_updating_comment_on_existing_suggestion(
         # From now on, with javascript on, we are in the detailed view
     updated_comment = "Updated comment with more details"
     suggestion.locator("textarea").fill(updated_comment)
-    to_draft = suggestion.get_by_role("button", name="Accept suggestion")
+    to_draft = suggestion.get_by_role("button", name="Accept")
     to_draft.click()
     # With javascript on, we are in the detail view, therefore changing status is reflected directly rather than showing a stub with a "View" link.
     if no_js:

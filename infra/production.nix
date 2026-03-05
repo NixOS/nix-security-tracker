@@ -95,7 +95,6 @@ in
       GH_SECURITY_TEAM = "security";
       GH_COMMITTERS_TEAM = "nixpkgs-committers";
       GH_ISSUES_LABELS = [ "1.severity: security" ];
-      GH_ISSUES_COMMITTERS_ONLY = true;
       EMAIL_BACKEND = "django.core.mail.backends.smtp.EmailBackend";
       EMAIL_HOST = "umbriel.nixos.org";
       EMAIL_PORT = 465;

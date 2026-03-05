@@ -11,12 +11,8 @@ from shared.listeners.cache_suggestions import (
 from shared.models.linkage import (
     CVEDerivationClusterProposal,
 )
-from webview.suggestions.context.builders import (
-    get_maintainer_list_context,
-    get_package_list_context,
-)
 
-from .base import SuggestionContentEditBaseView, fetch_activity_log
+from .base import SuggestionContentEditBaseView
 
 
 class PackageOperationBaseView(SuggestionContentEditBaseView, ABC):
@@ -58,6 +54,7 @@ class PackageOperationBaseView(SuggestionContentEditBaseView, ABC):
                     ).model_dump()
                 )
                 suggestion.cached.save()
+                suggestion_context.suggestion.cached = suggestion.cached
         except Exception:
             return self._handle_error(
                 request,
@@ -66,15 +63,13 @@ class PackageOperationBaseView(SuggestionContentEditBaseView, ABC):
             )
 
         # Refresh the package list context and activity log
-        suggestion_context.package_list_context = get_package_list_context(
-            suggestion,
+        suggestion_context.update_package_list_context(
             can_edit=True,  # Prior permission checks enforce this.
         )
-        suggestion_context.maintainer_list_context = get_maintainer_list_context(
-            suggestion,
+        suggestion_context.update_maintainer_list_context(
             can_edit=True,  # Prior permission checks enforce this.
         )
-        suggestion_context.activity_log = fetch_activity_log(suggestion.pk)
+        suggestion_context.fetch_activity_log()
 
         # Handle response based on request type
         if request.headers.get("HX-Request"):

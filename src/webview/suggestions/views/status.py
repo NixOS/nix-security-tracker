@@ -2,7 +2,7 @@ from django.db import transaction
 from django.http import HttpRequest, HttpResponse, HttpResponseForbidden
 from django.urls import reverse
 
-from shared.auth import can_publish_github_issue
+from shared.auth import can_edit_suggestion
 from shared.github import create_gh_issue
 from shared.models import (
     NixpkgsIssue,
@@ -15,7 +15,6 @@ from webview.suggestions.context.types import SuggestionStubContext
 
 from .base import (
     SuggestionBaseView,
-    fetch_activity_log,
     fetch_suggestion,
     get_suggestion_context,
 )
@@ -30,7 +29,7 @@ class UpdateSuggestionStatusView(SuggestionBaseView):
 
     def post(self, request: HttpRequest, suggestion_id: int) -> HttpResponse:
         """Handle status change requests."""
-        can_edit = can_publish_github_issue(request.user)
+        can_edit = can_edit_suggestion(request.user)
         if not request.user or not can_edit:
             return HttpResponseForbidden()
 
@@ -103,7 +102,7 @@ class UpdateSuggestionStatusView(SuggestionBaseView):
         suggestion.save()
 
         # Refresh activity_log
-        suggestion_context.activity_log = fetch_activity_log(suggestion.pk)
+        suggestion_context.fetch_activity_log()
 
         # Refresh packages and maintainers edit status
         suggestion_context.package_list_context.editable = suggestion.is_editable

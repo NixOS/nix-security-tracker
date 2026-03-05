@@ -10,7 +10,7 @@
   {% if notification.message %}
     {{ notification.message|linebreaks }}
   {% elif notification.suggestion %}
-    {% include "../../suggestions/components/suggestion_stub.html" with data=notification %}
+    {% include  "../../suggestions/components/suggestion_stub.html" with data=notification show_affected_product=True %}
   {% endif %}
   <form method="post" action="{% url 'webview:notifications:toggle_read' notification.id %}" class="row-reverse" hx-indicator="find button">
     {% csrf_token %}

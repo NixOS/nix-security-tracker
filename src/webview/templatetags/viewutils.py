@@ -2,11 +2,12 @@ import datetime
 import logging
 from collections.abc import ItemsView
 from typing import Any, TypedDict
-from urllib.parse import quote
+from urllib.parse import quote, urlencode
 
 from cvss import CVSS3
 from cvss.constants3 import METRICS_ABBREVIATIONS
 from django import template
+from django.conf import settings
 from django.template.context import Context
 
 from shared.listeners.cache_suggestions import CachedSuggestion, parse_drv_name
@@ -292,3 +293,11 @@ def maintainer_add(
     data: MaintainerAddContext,
 ) -> dict:
     return {"data": data}
+
+
+@register.simple_tag
+def gh_issues_url() -> str:
+    base = f"https://github.com/{settings.GH_ORGANIZATION}/{settings.GH_ISSUES_REPO}/issues"
+    labels = " ".join(f"label:{label!r}" for label in settings.GH_ISSUES_LABELS)
+    query = f"is:issue state:open {labels}".strip()
+    return f"{base}?{urlencode({'q': query})}"

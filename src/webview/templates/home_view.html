@@ -1,27 +1,48 @@
 {% extends "base.html" %}
 
+{% block workflow %}
+{% endblock %}
+
 {% block content %}
+{% load viewutils %}
 
 <article class="prose">
   <p>
-    The <strong>Nixpkgs Security Tracker</strong> is a web service for managing information on <em>vulnerabilities</em> in software distributed through <a href="https://github.com/nixos/nixpkgs">Nixpkgs and NixOS</a>.
-    It operates on the following distinctions:
+    The <strong>Nixpkgs Security Tracker</strong> is a web service for managing information on vulnerabilities in software distributed through <a href="https://github.com/nixos/nixpkgs">Nixpkgs and NixOS</a>.
   </p>
-  <ul>
-    <li>
-      <span class="inline-row gap-small centered"><i class="icon-inbox"></i><a href="{% url 'webview:suggestion:untriaged_suggestions' %}">Untriaged suggestions</a></span> are automatically generated matches between a <a href="https://www.cve.org/ResourcesSupport/Glossary#glossaryCVE">CVE</a> and Nixpkgs derivations.
-    </li>
-    <li>
+  <p>
+    It is intended to help with solving the <a href="https://en.wikipedia.org/wiki/Record_linkage" target="_blank">record linkage</a> problem of matching packages in the <a href="https://www.cve.org/" target="_blank">CVE database</a> and <a href="https://search.nixos.org/packages" target="_blank">Nixpkgs</a>.
+  </p>
+  <h2 class="heading">Workflow</h2>
+    <p>
+      <span class="inline-row gap-small centered"><i class="icon-inbox"></i><a href="{% url 'webview:suggestion:untriaged_suggestions' %}">Untriaged suggestions</a></span> are automatically generated matches between a <a href="https://www.cve.org/ResourcesSupport/Glossary#glossaryRecord">CVE Record</a> and Nixpkgs derivations.
+    </p>
+    <p>
       <span class="inline-row gap-small centered"><i class="icon-bin"></i><a href="{% url 'webview:suggestion:dismissed_suggestions' %}">Dismissed suggestions</a></span> are CVEs that already were classified by a human as <em>not affecting</em> Nixpkgs.
-    </li>
-    <li>
-      <span class="inline-row gap-small centered"><i class="icon-draft"></i><a href="{% url 'webview:suggestion:accepted_suggestions' %}">Accepted suggestions</a></span> are matches between a CVE and Nixpkgs attributes that were selected as <em>security relevant</em>.
-      They are slated to be published as a GitHub issue, but might need further refinement.
-    </li>
-    <li>
-      <span class="inline-row gap-small centered"><i class="icon-github"></i><a href="/issues">Published issues</a></span> have a persistent identifier and link to GitHub issues, which are used for notifications and coordinating mitigation.
-    </li>
-  <ul>
+    </p>
+    <p>
+      <span class="inline-row gap-small centered"><i class="icon-draft"></i><a href="{% url 'webview:suggestion:accepted_suggestions' %}">Accepted suggestions</a></span> are slated to be published, but might need further refinement.
+    </p>
+    <p>
+      <span class="inline-row gap-small centered"><i class="icon-github"></i><a href="/issues">Published issues</a></span> have a persistent identifier and link to <a href="{% gh_issues_url %}" target="_blank">GitHub issues</a>, where maintainers are notified and mitigation is coordinated.
+    </p>
+
+  <h2 class="heading">Contributors</h2>
+  <p>
+    <a href="https://github.com/NixOS/nixpkgs-committers/" target="_blank">Nixpkgs committers</a>
+    can edit suggestions to help the
+    <a href="https://github.com/orgs/nixos/teams/security" target="_blank">NixOS security team</a>
+    with triaging.
+  </p>
+  <p>
+    <a href="https://github.com/orgs/nixos/teams/nixpkgs-maintainers" target="_blank">Nixpkgs maintainers</a>
+    are encouraged to check their <a href="{% url 'webview:notifications:center' %}">notifications</a>.
+  </p>
+
+  <h2 class="heading">Users</h2>
+  <p>
+    If you use NixOS or otherwise rely on software from Nixpkgs, <a href="{% url 'webview:subscriptions:center' %}">subscribe to notifications</a> on published vulnerabilities.
+  </p>
 </article>
 
 {% endblock %}

@@ -24,6 +24,24 @@
   margin: 1em 0;
 }
 
+.small {
+  font-size: 0.75rem;
+}
+
+.tag {
+  border: solid 2px var(--background);
+  border-radius: 0.4em;
+  padding: 0.2rem 0.4rem;
+  outline-width: 2px;
+  word-break: normal;
+  display: inline-block;
+}
+
+.fill-gray {
+  color: var(--background);
+  background-color: var(--gray);
+}
+
 /* Buttons
  *
  * .btn - Base button style to be used on every standard button

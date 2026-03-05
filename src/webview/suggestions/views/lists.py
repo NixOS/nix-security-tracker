@@ -3,41 +3,57 @@ from typing import Any
 
 from django.core.paginator import Paginator
 from django.db.models import Q
+from django.db.models.query import QuerySet
 from django.http import Http404
+from django.views.generic import ListView
 
-from shared.auth import can_publish_github_issue
+from shared.auth import can_edit_suggestion
 from shared.models.linkage import (
     CVEDerivationClusterProposal,
 )
 
-from .base import SuggestionBaseView, get_suggestion_context
+from .base import get_suggestion_context
 
 
-class SuggestionListView(SuggestionBaseView, ABC):
+class SuggestionListView(ListView, ABC):
     """Base list view for suggestions filtered by a specific status."""
 
     template_name = "suggestions/suggestion_list.html"
     paginate_by = 10
-    status_filter = None  # To be defined in concrete classes
+    status_filter: CVEDerivationClusterProposal.Status | None = None
     package_filter: str | None = None  # To be defined in concrete classes
 
-    def get_context_data(self, **kwargs: Any) -> dict[str, Any]:
-        """Get paginated suggestions for the specific status."""
-        context = super().get_context_data(**kwargs)
-
-        # Get suggestions with the specific status
+    def get_queryset(self) -> QuerySet[CVEDerivationClusterProposal]:
+        self.package_filter = self.kwargs.get("package_name")
+        if self.status_filter is None:
+            status_param = self.request.GET.get("status")
+            try:
+                self.status_filter = (
+                    CVEDerivationClusterProposal.Status(status_param)
+                    if status_param
+                    else None
+                )
+            except ValueError:
+                raise Http404
         query_filters = Q()
         if self.status_filter is not None:
             query_filters &= Q(status=self.status_filter)
         if self.package_filter is not None:
             query_filters &= Q(cached__payload__packages__has_key=self.package_filter)
-        suggestions = (
+        return (
             CVEDerivationClusterProposal.objects.select_related(
                 "cached",
             )
+            .prefetch_related("cve__container__references__tags")
             .filter(query_filters)
             .order_by("-updated_at", "-created_at")
         )
+
+    def get_context_data(self, **kwargs: Any) -> dict[str, Any]:
+        """Get paginated suggestions for the specific status."""
+        context = super().get_context_data(**kwargs)
+
+        suggestions = self.object_list
 
         # Pagination first
         paginator = Paginator(suggestions, self.paginate_by)
@@ -46,7 +62,7 @@ class SuggestionListView(SuggestionBaseView, ABC):
 
         # Convert suggestions to SuggestionContext objects for the current page
         suggestion_contexts = []
-        can_edit = can_publish_github_issue(self.request.user)
+        can_edit = can_edit_suggestion(self.request.user)
         # FIXME(@fricklerhandwerk): This is very slow (scales with number of events in the activity log), it should batch all related queries and do the wiring in Python.
         for suggestion in page_obj.object_list:
             suggestion_context = get_suggestion_context(suggestion, can_edit=can_edit)
@@ -71,34 +87,3 @@ class SuggestionListView(SuggestionBaseView, ABC):
         )
 
         return context
-
-
-class UntriagedSuggestionsView(SuggestionListView):
-    status_filter = CVEDerivationClusterProposal.Status.PENDING
-
-
-class AcceptedSuggestionsView(SuggestionListView):
-    status_filter = CVEDerivationClusterProposal.Status.ACCEPTED
-
-
-class RejectedSuggestionsView(SuggestionListView):
-    status_filter = CVEDerivationClusterProposal.Status.REJECTED
-
-
-class PublishedSuggestionsView(SuggestionListView):
-    status_filter = CVEDerivationClusterProposal.Status.PUBLISHED
-
-
-class SuggestionsByPackageView(SuggestionListView):
-    def get_context_data(self, **kwargs: Any) -> dict[str, Any]:
-        self.package_filter = self.kwargs.get("package_name")
-        status_param = self.request.GET.get("status")
-        try:
-            self.status_filter = (
-                CVEDerivationClusterProposal.Status(status_param)
-                if status_param
-                else None
-            )
-        except ValueError:
-            raise Http404
-        return super().get_context_data(**kwargs)

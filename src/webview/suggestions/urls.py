@@ -1,12 +1,12 @@
 from django.urls import path
 
+from shared.models.linkage import (
+    CVEDerivationClusterProposal,
+)
+
 from .views.detail import SuggestionDetailByCveView, SuggestionDetailView
 from .views.lists import (
-    AcceptedSuggestionsView,
-    PublishedSuggestionsView,
-    RejectedSuggestionsView,
-    SuggestionsByPackageView,
-    UntriagedSuggestionsView,
+    SuggestionListView,
 )
 from .views.maintainers import (
     AddMaintainerView,
@@ -30,23 +30,28 @@ urlpatterns = [
     # Lists
     path(
         "untriaged/",
-        UntriagedSuggestionsView.as_view(),
+        SuggestionListView.as_view(
+            status_filter=CVEDerivationClusterProposal.Status.PENDING
+        ),
         name="untriaged_suggestions",
     ),
-    path("accepted/", AcceptedSuggestionsView.as_view(), name="accepted_suggestions"),
+    path(
+        "accepted/",
+        SuggestionListView.as_view(
+            status_filter=CVEDerivationClusterProposal.Status.ACCEPTED
+        ),
+        name="accepted_suggestions",
+    ),
     path(
         "dismissed/",
-        RejectedSuggestionsView.as_view(),
+        SuggestionListView.as_view(
+            status_filter=CVEDerivationClusterProposal.Status.REJECTED
+        ),
         name="dismissed_suggestions",
     ),
     path(
-        "published/",
-        PublishedSuggestionsView.as_view(),
-        name="published_suggestions",
-    ),
-    path(
         "by-package/<path:package_name>",
-        SuggestionsByPackageView.as_view(),
+        SuggestionListView.as_view(),
         name="suggestions_by_package",
     ),
     # Status change operation

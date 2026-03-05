@@ -87,6 +87,7 @@
     </div>
     {% endif %}
 
+    {% block workflow %}
     <nav id="menu-bar">
       <ul class="row gap">
         <li class="row gap-small centered"><i class="icon-bin"></i><a href="{% url 'webview:suggestion:dismissed_suggestions' %}">Dismissed suggestions</a></li>
@@ -95,6 +96,7 @@
         <li class="row gap-small centered"><i class="icon-github"></i><a href="{% url 'webview:issue_list' %}">Published issues</a></li>
       </ul>
     </nav>
+    {% endblock %}
 
     {% block layout %}
       <main id="page-content">

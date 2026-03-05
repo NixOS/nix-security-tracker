@@ -11,12 +11,9 @@ from shared.models.linkage import (
     MaintainersEdit,
 )
 from shared.models.nix_evaluation import NixMaintainer
-from webview.suggestions.context.builders import (
-    get_maintainer_list_context,
-)
 from webview.suggestions.context.types import SuggestionContext
 
-from .base import SuggestionContentEditBaseView, fetch_activity_log
+from .base import SuggestionContentEditBaseView
 
 
 class MaintainerOperationBaseView(SuggestionContentEditBaseView, ABC):
@@ -48,11 +45,10 @@ class MaintainerOperationBaseView(SuggestionContentEditBaseView, ABC):
             )
 
         # Refresh the maintainer list context and activity_log
-        suggestion_context.maintainer_list_context = get_maintainer_list_context(
-            suggestion,
+        suggestion_context.update_maintainer_list_context(
             can_edit=True,  # Prior permission checks enforce this.
         )
-        suggestion_context.activity_log = fetch_activity_log(suggestion.pk)
+        suggestion_context.fetch_activity_log()
 
         # Return response
         if request.headers.get("HX-Request"):
@@ -356,11 +352,10 @@ class AddMaintainerView(SuggestionContentEditBaseView):
 
         # Refresh the maintainer list context and activity_log
 
-        suggestion_context.maintainer_list_context = get_maintainer_list_context(
-            suggestion,
+        suggestion_context.update_maintainer_list_context(
             can_edit=True,  # Prior permission checks enforce this.
         )
-        suggestion_context.activity_log = fetch_activity_log(suggestion.pk)
+        suggestion_context.fetch_activity_log()
 
         # Return response
         if request.headers.get("HX-Request"):

@@ -1,6 +1,7 @@
 {% load viewutils %}
 
-<article id="suggestion-{{ data.suggestion.pk }}" class="rounded-box row centered spread gap" hx-target="this">
+<article id="suggestion-{{ data.suggestion.pk }}" class="rounded-box column gap" hx-target="this">
+  <div class="row centered spread gap">
   <div class="row gap-small centered">
     {% status_icon data.suggestion.status %}
     <h2>
@@ -36,4 +37,11 @@
     <div class="inline-row gap-small baseline"><i class="icon-github"></i><a role="link" href="{{ data.issue_link }}">GitHub issue</a></div>
     {% endif %}
   </div>
+  </div>
+  {% if show_affected_product %}
+    <div class="rounded-box column">
+      <h2 class="heading">Affected products</h2>
+      {% affected_products data.suggestion.cached.payload.affected_products %}
+    </div>
+  {% endif %}
 </article>

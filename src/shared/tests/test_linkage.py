@@ -5,7 +5,7 @@ import pytest
 
 from shared.listeners.automatic_linkage import build_new_links
 from shared.listeners.cache_suggestions import cache_new_suggestions
-from shared.models.cve import Container
+from shared.models.cve import Container, Tag
 from shared.models.linkage import (
     CVEDerivationClusterProposal,
     DerivationClusterProposalLink,
@@ -123,3 +123,23 @@ def test_link_product_or_package_name(
         cache_new_suggestions(link.proposal)
     else:
         assert not match
+
+
+def test_exclusively_hosted_service_creates_rejected_proposal(
+    make_container: Callable[..., Container],
+) -> None:
+    """Containers tagged exclusively-hosted-service must be stored but immediately rejected."""
+    container = make_container()
+    tag, _ = Tag.objects.get_or_create(value="exclusively-hosted-service")
+    container.tags.add(tag)
+
+    result = build_new_links(container)
+
+    assert result is True
+    proposal = CVEDerivationClusterProposal.objects.get(cve=container.cve)
+    assert proposal.status == CVEDerivationClusterProposal.Status.REJECTED
+    assert (
+        proposal.rejection_reason
+        == CVEDerivationClusterProposal.RejectionReason.EXCLUSIVELY_HOSTED_SERVICE
+    )
+    assert proposal.derivations.count() == 0

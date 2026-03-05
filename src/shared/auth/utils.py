@@ -20,9 +20,5 @@ def ismaintainer(user: Any) -> bool:
     ).exists()
 
 
-def can_publish_github_issue(user: Any) -> bool:
-    return (
-        isadmin(user)
-        or iscommitter(user)
-        or (not settings.GH_ISSUES_COMMITTERS_ONLY and ismaintainer(user))
-    )
+def can_edit_suggestion(user: Any) -> bool:
+    return isadmin(user) or iscommitter(user)

@@ -1,0 +1,21 @@
+{% load viewutils %}
+
+<div class="rounded-box">
+  <h2 class="heading dimmed">References</h2>
+  <ul class="column gap">
+  {% for ref in references %}
+    <li class="row baseline gap">
+      <div>
+      {% if ref.name %}
+        <a href="{{ref.url}}" target="_blank">{{ref.name}}</a>
+      {% else %}
+        <a href="{{ref.url}}" target="_blank">{{ref.url}}</a>
+      {% endif %}
+        {% for tag in ref.tags %}
+          <span class="tag fill-gray">{{tag.value}}</span>
+        {% endfor %}
+      </div>
+    </li>
+  {% endfor %}
+  </ul>
+</div>

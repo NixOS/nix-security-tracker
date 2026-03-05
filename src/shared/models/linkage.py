@@ -28,6 +28,12 @@ class CVEDerivationClusterProposal(TimeStampMixin):
         ACCEPTED = "accepted", _("accepted")
         PUBLISHED = "published", _("published")
 
+    class RejectionReason(models.TextChoices):
+        EXCLUSIVELY_HOSTED_SERVICE = (
+            "exclusively_hosted_service",
+            _("exclusively hosted service"),
+        )
+
     cached: "shared.models.cached.CachedSuggestions"
 
     cve = models.ForeignKey(
@@ -50,6 +56,14 @@ class CVEDerivationClusterProposal(TimeStampMixin):
         help_text=_(
             "Optional free text comment for additional notes, context, dismissal reason"
         ),
+    )
+
+    rejection_reason = models.CharField(
+        max_length=126,
+        choices=RejectionReason.choices,
+        null=True,
+        blank=True,
+        help_text=_("Machine-generated reason for automatic rejection"),
     )
 
     @property

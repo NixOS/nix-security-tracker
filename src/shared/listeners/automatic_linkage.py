@@ -105,6 +105,18 @@ def build_new_links(container: Container) -> bool:
         logger.info("Suggestion already exists for '%s', skipping", container.cve)
         return False
 
+    if container.tags.filter(value="exclusively-hosted-service").exists():
+        logger.info(
+            "Container for '%s' is exclusively-hosted-service, rejecting without match.",
+            container.cve,
+        )
+        CVEDerivationClusterProposal.objects.create(
+            cve=container.cve,
+            status=CVEDerivationClusterProposal.Status.REJECTED,
+            rejection_reason=CVEDerivationClusterProposal.RejectionReason.EXCLUSIVELY_HOSTED_SERVICE,
+        )
+        return True
+
     drvs = produce_linkage_candidates(container)
     if not drvs:
         logger.info("No derivations matching '%s', ignoring", container.cve)

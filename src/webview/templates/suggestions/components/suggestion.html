@@ -10,16 +10,12 @@
         {% status_icon data.suggestion.status %}
         {% if data.suggestion.status == "pending" %}
           <div class="bold">Untriaged</div>
-          <div>(<a href="{% url 'webview:suggestion:untriaged_suggestions' %}">browse all</a>)</div>
         {% elif data.suggestion.status == "rejected" %}
           <div class="bold">Dismissed</div>
-          <div>(<a href="{% url 'webview:suggestion:dismissed_suggestions' %}">browse all</a>)</div>
         {% elif data.suggestion.status == "accepted" %}
           <div class="bold">Accepted</div>
-          <div>(<a href="{% url 'webview:suggestion:accepted_suggestions' %}">browse all</a>)</div>
         {% elif data.suggestion.status == "published" %}
           <div class="bold">Published</div>
-          <div>(<a href="{% url 'webview:suggestion:published_suggestions' %}">browse all</a>)</div>
         {% endif %}
       </div>
     {% endif %}
@@ -51,6 +47,10 @@
       <p>{{ data.suggestion.cached.payload.description }}</p>
     </details>
 
+    {% if data.references %}
+      {% include "../../components/cve_references.html" with references=data.references %}
+    {% endif %}
+
     <div class="rounded-box column gap">
       <h2 class="heading dimmed">Affected products</h2>
       {% affected_products data.suggestion.cached.payload.affected_products %}
@@ -80,6 +80,8 @@
         {% endif %}
       {% else %}
         <textarea
+          id="comment-{{ data.suggestion.pk }}"
+          hx-preserve
           class="rounded-box monospace highlight-nonempty"
           name="comment"
           maxlength="1000"
@@ -93,23 +95,23 @@
           {% if data.suggestion.status == "pending" %}
             <button type="submit" name="new_status" value="accepted" class="status-change-button btn btn-green row gap-small centered">
               {% status_icon "accepted" %}
-              Accept suggestion
+              Accept
             </button>
-            <button type="submit" name="new_status" value="rejected" class="status-change-button btn btn-gray row gap-small centered">
+            <button type="submit" name="new_status" value="rejected" class="status-change-button btn btn-red row gap-small centered">
               {% status_icon "rejected" %}
               Dismiss
             </button>
           {% elif data.suggestion.status == "rejected" %}
             <button type="submit" name="new_status" value="accepted" class="status-change-button btn btn-green row gap-small centered">
               {% status_icon "accepted" %}
-              Accept suggestion
+              Accept
             </button>
           {% elif data.suggestion.status == "accepted" %}
             <button type="submit" name="new_status" value="published" class="status-change-button btn btn-green row gap-small centered">
               {% status_icon "published" %}
               Publish issue
             </button>
-            <button type="submit" name="new_status" value="rejected" class="status-change-button btn btn-gray row gap-small centered">
+            <button type="submit" name="new_status" value="rejected" class="status-change-button btn btn-red row gap-small centered">
               {% status_icon "rejected" %}
               Dismiss
             </button>
