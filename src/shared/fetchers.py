@@ -98,8 +98,19 @@ def to_camel_case(name: str) -> str:
 
 def make_metric(data: dict[str, Any]) -> models.Metric:
     ctx: dict[str, Any] = dict()
-    ctx["format"] = "cvssV3_1"
-    raw_cvss = data.get("cvssV3_1", {})
+    supported_versions = ["cvssV4_0", "cvssV3_1", "cvssV3_0"]
+    fmt = data.get("format")
+    if fmt in supported_versions:
+        raw_cvss = data.get(fmt) or {}
+    else:
+        raw_cvss = {}
+        fmt = None
+        for version in supported_versions:
+            if version in data:
+                raw_cvss = data.get(version) or {}
+                fmt = version
+                break
+    ctx["format"] = fmt
     ctx["raw_cvss_json"] = raw_cvss
 
     if raw_cvss:
