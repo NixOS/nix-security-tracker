@@ -132,6 +132,8 @@ def severity_badge(metrics: list[dict]) -> dict:
             return {
                 "vectorString": m["raw_cvss_json"]["vectorString"],
                 "version": m["raw_cvss_json"]["version"],
+                "baseScore": m["raw_cvss_json"].get("baseScore"),
+                "baseSeverity": m["raw_cvss_json"].get("baseSeverity"),
                 "metrics": {
                     # XXX(@fricklerhandwerk): Yes, the *value* description is also indexed by *key*!
                     f"{METRICS_ABBREVIATIONS[k]} ({k})": f"{parsed.get_value_description(k)} ({v})"

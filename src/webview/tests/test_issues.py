@@ -14,6 +14,7 @@ from shared.github import create_gh_issue
 from shared.listeners.cache_suggestions import cache_new_suggestions
 from shared.models.cve import (
     Container,
+    Metric,
 )
 from shared.models.linkage import (
     CVEDerivationClusterProposal,
@@ -177,3 +178,48 @@ def test_maintainer_of_active_package_mentioned_in_issue(
         assert f"@{maintainer_handle}" not in issue_body
     else:
         assert f"@{maintainer_handle}" in issue_body
+
+
+def test_cvss_base_score_in_issue_body(
+    make_container: Callable[..., Container],
+    make_suggestion: Callable[..., CVEDerivationClusterProposal],
+    mocker: MockerFixture,
+) -> None:
+    """Test that the CVSS base score is displayed in the GitHub issue body."""
+    # Create a container with a proper CVSS metric that includes a base score
+    container = make_container()
+    # Update the metric to have a real CVSS vector with base score
+    metric = container.metrics.first()
+    assert metric is not None
+    metric.raw_cvss_json = {
+        "version": "3.1",
+        "vectorString": "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:N/A:N",
+        "baseScore": 7.5,
+        "baseSeverity": "HIGH",
+    }
+    metric.save()
+
+    accepted_suggestion = make_suggestion(
+        container=container, status=CVEDerivationClusterProposal.Status.ACCEPTED
+    )
+    cache_new_suggestions(accepted_suggestion)
+
+    mock_repo = mocker.Mock()
+    mock_issue = mocker.Mock()
+    mock_issue.html_url = "https://fake.url"
+    mock_repo.create_issue.return_value = mock_issue
+    mock_github = mocker.Mock()
+    mock_github.get_repo.return_value = mock_repo
+
+    create_gh_issue(
+        accepted_suggestion.cached,
+        tracker_issue_uri="https://tracker.example.com/issue/1",
+        github=mock_github,
+    )
+
+    mock_repo.create_issue.assert_called_once()
+    issue_body = mock_repo.create_issue.call_args[1]["body"]
+
+    # The base score and severity should be visible in the CVSS summary line
+    assert "7.5" in issue_body
+    assert "HIGH" in issue_body
