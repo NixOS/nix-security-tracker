@@ -223,3 +223,33 @@ def test_cvss_base_score_in_issue_body(
     # The base score and severity should be visible in the CVSS summary line
     assert "7.5" in issue_body
     assert "HIGH" in issue_body
+
+
+def test_cvss_base_score_visible_in_web_ui(
+    make_container: Callable[..., Container],
+    make_suggestion: Callable[..., CVEDerivationClusterProposal],
+    live_server: LiveServer,
+    as_staff: Page,
+) -> None:
+    """Test that the CVSS base score is visible in the web UI on the accepted suggestions page."""
+    container = make_container()
+    metric = container.metrics.first()
+    assert metric is not None
+    metric.raw_cvss_json = {
+        "version": "3.1",
+        "vectorString": "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:N/A:N",
+        "baseScore": 7.5,
+        "baseSeverity": "HIGH",
+    }
+    metric.save()
+
+    accepted_suggestion = make_suggestion(
+        container=container, status=CVEDerivationClusterProposal.Status.ACCEPTED
+    )
+    cache_new_suggestions(accepted_suggestion)
+
+    as_staff.goto(live_server.url + reverse("webview:suggestion:accepted_suggestions"))
+    suggestion = as_staff.locator(f"#suggestion-{accepted_suggestion.cached.pk}")
+
+    # The base score should be visible without expanding the CVSS details
+    expect(suggestion.get_by_text("7.5")).to_be_visible()

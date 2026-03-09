@@ -130,16 +130,17 @@ def severity_badge(metrics: list[dict]) -> dict:
         if "raw_cvss_json" in m and "vectorString" in m.get("raw_cvss_json", {}):
             parsed = CVSS3(m["raw_cvss_json"]["vectorString"])
             return {
-                "vectorString": m["raw_cvss_json"]["vectorString"],
-                "version": m["raw_cvss_json"]["version"],
-                "baseScore": m["raw_cvss_json"].get("baseScore"),
-                "baseSeverity": m["raw_cvss_json"].get("baseSeverity"),
-                "metrics": {
-                    # XXX(@fricklerhandwerk): Yes, the *value* description is also indexed by *key*!
-                    f"{METRICS_ABBREVIATIONS[k]} ({k})": f"{parsed.get_value_description(k)} ({v})"
-                    for k, v in parsed.metrics.items()
-                    if not k.startswith("M")  # Don't display modified metrics
-                },
+                "metric": {
+                    # Pass through all raw CVSS JSON fields (attackVector, scope, etc.)
+                    # so the template can access them directly as metric.attackVector etc.
+                    **m["raw_cvss_json"],
+                    "metrics": {
+                        # XXX(@fricklerhandwerk): Yes, the *value* description is also indexed by *key*!
+                        f"{METRICS_ABBREVIATIONS[k]} ({k})": f"{parsed.get_value_description(k)} ({v})"
+                        for k, v in parsed.metrics.items()
+                        if not k.startswith("M")  # Don't display modified metrics
+                    },
+                }
             }
     return {}
 

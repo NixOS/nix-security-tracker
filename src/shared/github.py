@@ -54,7 +54,8 @@ def create_gh_issue(
             return f"`@{maintainer}`"
 
     def cvss_details() -> str:
-        metric = severity_badge(cached_suggestion.payload["metrics"])
+        badge = severity_badge(cached_suggestion.payload["metrics"])
+        metric = badge.get("metric")
         if metric:
             metrics = "\n".join([f"- {k}: {v}" for k, v in metric["metrics"].items()])
             score = metric.get("baseScore")
