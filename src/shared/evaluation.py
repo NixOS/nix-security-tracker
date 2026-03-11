@@ -145,6 +145,27 @@ def fixup_evaluated_attribute(raw: dict[str, Any]) -> EvaluatedAttribute:
                 new_maintainers.append(maintainer)
         raw["meta"]["maintainers"] = new_maintainers
 
+    if raw.get("meta") is not None:
+        meta = raw["meta"]
+        raw_teams = meta.get("teams") or []
+        if isinstance(raw_teams, list) and raw_teams:
+            if not isinstance(meta.get("maintainers"), list):
+                meta["maintainers"] = []
+            # Collect githubId values already present to avoid duplicates when
+            # a person appears in both meta.maintainers and a team's members.
+            existing_github_ids: set[int] = {
+                m.get("githubId")
+                for m in meta["maintainers"]
+                if m.get("githubId") is not None
+            }
+            for team in raw_teams:
+                for member in (team.get("members") or []):
+                    member_id = member.get("githubId")
+                    if member_id not in existing_github_ids:
+                        meta["maintainers"].append(member)
+                        if member_id is not None:
+                            existing_github_ids.add(member_id)
+
     return EvaluatedAttribute.from_dict(raw)
 
 
