@@ -145,6 +145,11 @@ def fixup_evaluated_attribute(raw: dict[str, Any]) -> EvaluatedAttribute:
                 new_maintainers.append(maintainer)
         raw["meta"]["maintainers"] = new_maintainers
 
+    # Flatten members from meta.teams into meta.maintainers.
+    # Packages can declare maintainers exclusively via meta.teams (e.g. `meta.teams = [ lib.teams.python ]`).
+    # Each team carries a `members` list of individual maintainer objects with the same shape as
+    # meta.maintainers entries. We merge them in here so the rest of the pipeline sees a single
+    # unified list and no team-only package appears as unmaintained.
     if raw.get("meta") is not None:
         meta = raw["meta"]
         raw_teams = meta.get("teams") or []
