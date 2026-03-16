@@ -14,7 +14,6 @@ from shared.github import create_gh_issue
 from shared.listeners.cache_suggestions import cache_new_suggestions
 from shared.models.cve import (
     Container,
-    Metric,
 )
 from shared.models.linkage import (
     CVEDerivationClusterProposal,
@@ -207,7 +206,6 @@ def test_cvss_base_score_visible_in_web_ui(
     as_staff.goto(live_server.url + reverse("webview:suggestion:accepted_suggestions"))
     suggestion = as_staff.locator(f"#suggestion-{accepted_suggestion.cached.pk}")
 
-
     # The base score should be visible without expanding the CVSS details
     expect(suggestion.get_by_text("7.5 HIGH")).to_be_visible()
 
@@ -226,6 +224,7 @@ def test_cvss_base_score_visible_in_web_ui(
         maintainer: dict, github: Github = mock_github
     ) -> str:
         return maintainer["github"]
+
     mocker.patch(
         "webview.suggestions.views.status.create_gh_issue", mock_create_gh_issue
     )
