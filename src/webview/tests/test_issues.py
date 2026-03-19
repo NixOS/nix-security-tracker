@@ -71,6 +71,9 @@ def test_publish_gh_issue_empty_title(
             link = as_staff.get_by_role("link", name="View")
             expect(link).to_be_visible()
         mock.assert_called()
+        
+        # Check publisher name exists in kwargs
+        assert mock.call_args[1]["publisher"].username == "staff"
 
     if no_js:
         error = as_staff.locator("#messages")
@@ -89,6 +92,7 @@ def test_publish_gh_issue_empty_title(
 
     issue_link = suggestion.locator("..").get_by_role("link", name="GitHub issue")
     expect(issue_link).to_be_visible()
+    expect(suggestion.locator("..").filter(has_text="by @staff")).to_be_visible()
     # FIXME(@fricklerhandwerk): Instrument the GitHub mock to produce a controlled link and check for that in the UI.
     # This would assert we're actually displaying the right URL.
     expect(issue_link).not_to_have_attribute("href", "")
@@ -177,3 +181,5 @@ def test_maintainer_of_active_package_mentioned_in_issue(
         assert f"@{maintainer_handle}" not in issue_body
     else:
         assert f"@{maintainer_handle}" in issue_body
+        
+    assert "Published by @staff" in issue_body

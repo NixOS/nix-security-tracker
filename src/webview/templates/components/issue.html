@@ -10,7 +10,7 @@
       {% if github_issue %}
         <a href="{{ github_issue }}" target="_blank" class="permalink">GitHub issue</a>
       {% endif %}
-      published on {{ issue.created }}
+      published {% if issue.publisher %}by <a href="https://github.com/{{ issue.publisher.username }}" target="_blank">@{{ issue.publisher.username }}</a> {% endif %}on {{ issue.created }}
     </div>
   </div>
 

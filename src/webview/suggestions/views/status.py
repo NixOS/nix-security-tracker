@@ -81,7 +81,7 @@ class UpdateSuggestionStatusView(SuggestionBaseView):
             elif new_status == "published":
                 try:
                     with transaction.atomic():
-                        tracker_issue = NixpkgsIssue.create_nixpkgs_issue(suggestion)
+                        tracker_issue = NixpkgsIssue.create_nixpkgs_issue(suggestion, publisher=request.user)
                         tracker_issue_link = request.build_absolute_uri(
                             reverse("webview:issue_detail", args=[tracker_issue.code])
                         )
@@ -89,6 +89,7 @@ class UpdateSuggestionStatusView(SuggestionBaseView):
                             suggestion_context.suggestion.cached,
                             tracker_issue_link,
                             new_comment,
+                            publisher=request.user,
                         ).html_url
                         NixpkgsEvent.objects.create(
                             issue=tracker_issue,

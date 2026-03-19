@@ -28,6 +28,7 @@ def create_gh_issue(
     cached_suggestion: CachedSuggestions,
     tracker_issue_uri: str,
     comment: str | None = None,
+    publisher=None,
     # FIXME(@fricklerhandwerk): [tag:todo-github-connection] Make an application-level "GitHub connection" object instead.
     # Instantiating the connection at definition time makes mocking it away for tests rather cumbersome.
     # Ideally we'd have a generic mock that would abstract away regular book keeping such as app authentication, and tests would override only relevant behavior.
@@ -150,8 +151,9 @@ def create_gh_issue(
             cached_suggestion.payload["pk"],
         )
 
+    publisher_str = f" Published by @{publisher.username}" if publisher else ""
     body = f"""\
-- [{cached_suggestion.payload["cve_id"]}](https://nvd.nist.gov/vuln/detail/{quote(cached_suggestion.payload["cve_id"])})
+- [{cached_suggestion.payload["cve_id"]}](https://nvd.nist.gov/vuln/detail/{quote(cached_suggestion.payload["cve_id"])}){publisher_str}
 - [Nixpkgs security tracker issue]({tracker_issue_uri})
 {maintainers()}
 ## Description

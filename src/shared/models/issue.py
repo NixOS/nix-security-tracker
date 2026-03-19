@@ -4,6 +4,7 @@ from typing import Any
 
 from django.core.exceptions import ValidationError
 from django.db import IntegrityError, models
+from django.conf import settings
 from django.db.models.signals import post_save
 from django.dispatch import receiver
 from django.utils.translation import gettext_lazy as _
@@ -38,6 +39,13 @@ class NixpkgsIssue(models.Model):
     suggestion = models.OneToOneField(
         CVEDerivationClusterProposal, on_delete=models.PROTECT
     )
+    publisher = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="published_issues",
+    )
 
     status = models.CharField(
         max_length=text_length(IssueStatus),
@@ -61,7 +69,7 @@ class NixpkgsIssue(models.Model):
 
     @classmethod
     def create_nixpkgs_issue(
-        cls, suggestion: CVEDerivationClusterProposal
+        cls, suggestion: CVEDerivationClusterProposal, publisher=None
     ) -> "NixpkgsIssue":
         """
         Create a NixpkgsIssue from a suggestion and save it in the database. Note
@@ -75,6 +83,7 @@ class NixpkgsIssue(models.Model):
             # end.
             status=IssueStatus.AFFECTED,
             suggestion=suggestion,
+            publisher=publisher,
         )
         issue.save()
         return issue
