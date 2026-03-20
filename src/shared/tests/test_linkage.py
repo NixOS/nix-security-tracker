@@ -3,8 +3,8 @@ from datetime import timedelta
 
 import pytest
 
-from shared.listeners.automatic_linkage import build_new_links
 from shared.listeners.cache_suggestions import cache_new_suggestions
+from shared.listeners.cve_derivation_matcher import create_derivation_proposal
 from shared.models.cve import Container, Tag
 from shared.models.linkage import (
     CVEDerivationClusterProposal,
@@ -67,7 +67,7 @@ def test_link_only_latest_eval(
         )
 
     container = make_container(package_name="foo", affected_version="<3.2")
-    match = build_new_links(container)
+    match = create_derivation_proposal(container)
     assert match
     suggestion = CVEDerivationClusterProposal.objects.first()
     assert suggestion
@@ -113,7 +113,7 @@ def test_link_product_or_package_name(
     container = make_container(package_name=package_name, product=product)
     drv = make_drv(pname=drv_pname)
 
-    match = build_new_links(container)
+    match = create_derivation_proposal(container)
 
     if expected_flags:
         assert match
@@ -133,7 +133,7 @@ def test_exclusively_hosted_service_creates_rejected_proposal(
     tag, _ = Tag.objects.get_or_create(value="exclusively-hosted-service")
     container.tags.add(tag)
 
-    result = build_new_links(container)
+    result = create_derivation_proposal(container)
 
     assert result is True
     proposal = CVEDerivationClusterProposal.objects.get(cve=container.cve)

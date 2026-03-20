@@ -16,7 +16,7 @@ from shared.models.nix_evaluation import (
 logger = logging.getLogger(__name__)
 
 
-def produce_linkage_candidates(
+def find_linkage_candidates(
     container: Container,
 ) -> dict[NixDerivation, ProvenanceFlags]:
     latest_complete_channels = (
@@ -93,22 +93,20 @@ def produce_linkage_candidates(
     return candidates
 
 
-def build_new_links(container: Container) -> bool:
+def create_derivation_proposal(container: Container) -> bool:
     if container.cve.triaged:
         logger.info(
-            "Container received for '%s', but already triaged, skipping linkage.",
-            container.cve,
+            f"Container received for {container.cve}, but already triaged, skipping linkage.",
         )
         return False
 
     if CVEDerivationClusterProposal.objects.filter(cve=container.cve).exists():
-        logger.info("Suggestion already exists for '%s', skipping", container.cve)
+        logger.info(f"Suggestion already exists for {container.cve}, skipping")
         return False
 
     if container.tags.filter(value="exclusively-hosted-service").exists():
         logger.info(
-            "Container for '%s' is exclusively-hosted-service, rejecting without match.",
-            container.cve,
+            f"Container for {container.cve} is exclusively-hosted-service, rejecting without match.",
         )
         CVEDerivationClusterProposal.objects.create(
             cve=container.cve,
@@ -117,16 +115,14 @@ def build_new_links(container: Container) -> bool:
         )
         return True
 
-    drvs = produce_linkage_candidates(container)
+    drvs = find_linkage_candidates(container)
     if not drvs:
-        logger.info("No derivations matching '%s', ignoring", container.cve)
+        logger.info(f"No derivations matching {container.cve}, ignoring")
         return False
 
     if len(drvs) > settings.MAX_MATCHES:
         logger.warning(
-            "More than '%d' derivations matching '%s', ignoring",
-            settings.MAX_MATCHES,
-            container.cve,
+            f"More than {settings.MAX_MATCHES} derivations matching {container.cve}, ignoring",
         )
         return False
 
@@ -144,14 +140,12 @@ def build_new_links(container: Container) -> bool:
 
     if drvs_throughs:
         logger.info(
-            "Matching suggestion for '%s': %d derivations found.",
-            container.cve,
-            len(drvs_throughs),
+            f"Matching suggestion for {container.cve}: {len(drvs_throughs)} derivations found.",
         )
 
     return True
 
 
 @pgpubsub.post_insert_listener(ContainerChannel)
-def build_new_links_following_new_containers(old: Container, new: Container) -> None:
-    build_new_links(new)
+def match_derivations_on_container_insert(old: Container, new: Container) -> None:
+    create_derivation_proposal(new)
