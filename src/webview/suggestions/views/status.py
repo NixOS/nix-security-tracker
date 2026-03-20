@@ -117,14 +117,14 @@ class UpdateSuggestionStatusView(SuggestionBaseView):
         suggestion_context.fetch_activity_log()
 
         # Refresh packages and maintainers edit status
-        suggestion_context.package_list_context.editable = suggestion.is_editable
+        suggestion_context.package_list_context.frozen = not suggestion.is_editable
 
         maintainers = suggestion_context.maintainer_list_context
-        maintainers.editable = suggestion.is_editable
+        maintainers.frozen = not suggestion.is_editable
         for maintainer_context in (
             maintainers.active + maintainers.ignored + maintainers.additional
         ):
-            maintainer_context.editable = suggestion.is_editable
+            maintainer_context.frozen = not suggestion.is_editable
 
         if self._is_origin_url_a_list(request):
             # We don't display the status in lists (they are "by status" lists already)

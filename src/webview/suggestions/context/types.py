@@ -27,8 +27,9 @@ class Reference:
 class PackageListContext:
     active: dict
     ignored: dict
-    editable: bool
-    # FIXME(@fricklerhandwerk): Arguably the same thing as `editable` if both views and template handle it right.
+    frozen: bool 
+    # True when the suggestion's status no longer allows changes (REJECTED or PUBLISHED).
+    # Distinct from 'can_edit' which reflects whether the current user has permission to make edits.
     can_edit: bool
     suggestion_id: int
     # FIXME(@florentc): Add a state for whether to pre-open the "ignored
@@ -57,8 +58,9 @@ class MaintainerStatus(Enum):
 @dataclass
 class MaintainerContext:
     maintainer: Maintainer
-    editable: bool
-    # FIXME(@fricklerhandwerk): Arguably the same thing as `editable` if both views and template handle it right.
+    frozen: bool
+    # True when the suggestion's status no longer allows changes (REJECTED or PUBLISHED).
+    # Distinct from 'can_edit' which reflects whether the current user has permission to make edits.
     can_edit: bool
     status: MaintainerStatus
     suggestion_id: int
@@ -75,8 +77,9 @@ class MaintainerListContext:
     active: list[MaintainerContext]
     ignored: list[MaintainerContext]
     additional: list[MaintainerContext]
-    editable: bool
-    # FIXME(@fricklerhandwerk): Arguably the same thing as `editable` if both views and template handle it right.
+    frozen: bool
+    # True when the suggestion's status no longer allows changes (REJECTED or PUBLISHED).
+    # Distinct from 'can_edit' which reflects whether the current user has permission to make edits.
     can_edit: bool
     suggestion_id: int
     maintainer_add_context: MaintainerAddContext
@@ -118,7 +121,7 @@ class SuggestionContext:
                 for k, v in self.suggestion.cached.payload["original_packages"].items()
                 if k not in active_packages
             },
-            editable=self.suggestion.is_editable,
+            frozen = not self.suggestion.is_editable,
             can_edit=can_edit,
             suggestion_id=self.suggestion.pk,
         )
@@ -135,12 +138,12 @@ class SuggestionContext:
         categorized_maintainers = self.suggestion.cached.payload[
             "categorized_maintainers"
         ]
-        editable = self.suggestion.is_editable
+        frozen = not self.suggestion.is_editable
 
         active_contexts = [
             MaintainerContext(
                 maintainer=maintainer,
-                editable=editable,
+                frozen=frozen,
                 can_edit=can_edit,
                 status=MaintainerStatus.IGNORABLE,
                 suggestion_id=self.suggestion.pk,
@@ -151,7 +154,7 @@ class SuggestionContext:
         ignored_contexts = [
             MaintainerContext(
                 maintainer=maintainer,
-                editable=editable,
+                frozen=frozen,
                 can_edit=can_edit,
                 status=MaintainerStatus.RESTORABLE,
                 suggestion_id=self.suggestion.pk,
@@ -162,7 +165,7 @@ class SuggestionContext:
         additional_contexts = [
             MaintainerContext(
                 maintainer=maintainer,
-                editable=editable,
+                frozen=frozen,
                 can_edit=can_edit,
                 status=MaintainerStatus.DELETABLE,
                 suggestion_id=self.suggestion.pk,
@@ -174,7 +177,7 @@ class SuggestionContext:
             active=active_contexts,
             ignored=ignored_contexts,
             additional=additional_contexts,
-            editable=editable,
+            frozen=frozen,
             can_edit=can_edit,
             suggestion_id=self.suggestion.pk,
             # FIXME(@fricklerhandwerk): It's really opaque what this is for.
