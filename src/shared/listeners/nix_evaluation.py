@@ -190,13 +190,10 @@ async def evaluation_entrypoint(
             )
             return True
 
-    acquired = False
-    while not acquired:
-        acquired = await sync_to_async(_try_acquire_slot)()
-        if not acquired:
-            # Add in average 30s as a jitter to enable clear winners during the grab for the evaluation slot.
-            jitter = random.randint(1, 60)
-            await asyncio.sleep(avg_eval_time + jitter)
+    while not (await sync_to_async(_try_acquire_slot)()):
+        # Add in average 30s as a jitter to enable clear winners during the grab for the evaluation slot.
+        jitter = random.randint(1, 60)
+        await asyncio.sleep(avg_eval_time + jitter)
     repo = GitRepo(settings.LOCAL_NIXPKGS_CHECKOUT)
     start = time.time()
     try:
