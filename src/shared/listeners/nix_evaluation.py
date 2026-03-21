@@ -140,10 +140,8 @@ async def drain_lines(
             async with asyncio.timeout(timeout) as cm:
                 line = await stream.readline()
                 if line == b"":
-                    # True EOF: the stream is closed.  readline() returns
-                    # b"" (no trailing newline) only at end-of-stream.
-                    # Without this check the loop would spin ~75,000 times
-                    # appending b"" until max_batch_window triggers.
+                    # `readline()` returns `b""` only at end-of-stream:
+                    # https://docs.python.org/3/library/asyncio-stream.html#asyncio.StreamReader.readline
                     eof = True
                     break
                 lines.append(line)
