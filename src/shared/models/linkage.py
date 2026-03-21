@@ -67,8 +67,8 @@ class CVEDerivationClusterProposal(TimeStampMixin):
     )
 
     @property
-    def is_editable(self) -> bool:
-        return self.status in [
+    def is_frozen(self) -> bool:
+        return self.status not in [
             CVEDerivationClusterProposal.Status.PENDING,
             CVEDerivationClusterProposal.Status.ACCEPTED,
         ]

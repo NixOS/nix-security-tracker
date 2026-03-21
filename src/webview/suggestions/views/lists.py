@@ -7,7 +7,7 @@ from django.db.models.query import QuerySet
 from django.http import Http404
 from django.views.generic import ListView
 
-from shared.auth import can_edit_suggestion
+from shared.auth import user_can_edit_suggestion
 from shared.logs.fetchers import fetch_suggestion_events
 from shared.models.linkage import (
     CVEDerivationClusterProposal,
@@ -72,14 +72,14 @@ class SuggestionListView(ListView, ABC):
 
         # Convert suggestions to SuggestionContext objects for the current page
         suggestion_contexts = []
-        can_edit = can_edit_suggestion(self.request.user)
+        user_can_edit = user_can_edit_suggestion(self.request.user)
         is_compact = self.is_compact
         suggestion_ids = [s.pk for s in page_obj.object_list]
         events_by_suggestion = fetch_suggestion_events(suggestion_ids)
         for suggestion in page_obj.object_list:
             suggestion_context = get_suggestion_context(
                 suggestion,
-                can_edit=can_edit,
+                user_can_edit=user_can_edit,
                 is_compact=is_compact,
                 pre_fetched_events=events_by_suggestion[suggestion.pk],
             )

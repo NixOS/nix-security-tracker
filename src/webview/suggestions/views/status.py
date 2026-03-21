@@ -2,7 +2,7 @@ from django.db import transaction
 from django.http import HttpRequest, HttpResponse, HttpResponseForbidden
 from django.urls import reverse
 
-from shared.auth import can_edit_suggestion
+from shared.auth import user_can_edit_suggestion
 from shared.github import create_gh_issue
 from shared.logs.fetchers import fetch_suggestion_events
 from shared.models import (
@@ -30,8 +30,8 @@ class UpdateSuggestionStatusView(SuggestionBaseView):
 
     def post(self, request: HttpRequest, suggestion_id: int) -> HttpResponse:
         """Handle status change requests."""
-        can_edit = can_edit_suggestion(request.user)
-        if not request.user or not can_edit:
+        user_can_edit = user_can_edit_suggestion(request.user)
+        if not request.user or not user_can_edit:
             return HttpResponseForbidden()
 
         # Get form data
@@ -49,7 +49,7 @@ class UpdateSuggestionStatusView(SuggestionBaseView):
         events = fetch_suggestion_events([suggestion.pk])
         suggestion_context = get_suggestion_context(
             suggestion,
-            can_edit=can_edit,
+            user_can_edit=user_can_edit,
             pre_fetched_events=events[suggestion.pk],
             is_compact=is_compact,
         )
@@ -117,14 +117,14 @@ class UpdateSuggestionStatusView(SuggestionBaseView):
         suggestion_context.fetch_activity_log()
 
         # Refresh packages and maintainers edit status
-        suggestion_context.package_list_context.frozen = not suggestion.is_editable
+        suggestion_context.package_list_context.frozen = suggestion.is_frozen
 
         maintainers = suggestion_context.maintainer_list_context
-        maintainers.frozen = not suggestion.is_editable
+        maintainers.frozen = suggestion.is_frozen
         for maintainer_context in (
             maintainers.active + maintainers.ignored + maintainers.additional
         ):
-            maintainer_context.frozen = not suggestion.is_editable
+            maintainer_context.frozen = suggestion.is_frozen
 
         if self._is_origin_url_a_list(request):
             # We don't display the status in lists (they are "by status" lists already)

@@ -5,7 +5,7 @@ from django.shortcuts import get_object_or_404, redirect
 from django.urls import reverse
 from django.views.generic import DetailView, View
 
-from shared.auth import can_edit_suggestion
+from shared.auth import user_can_edit_suggestion
 from shared.logs.fetchers import fetch_suggestion_events
 from shared.models.issue import NixpkgsIssue
 from shared.models.linkage import (
@@ -22,13 +22,13 @@ class SuggestionDetailView(DetailView):
 
     def get_context_data(self, **kwargs: Any) -> dict[str, Any]:
         context = super().get_context_data(**kwargs)
-        can_edit = can_edit_suggestion(self.request.user)
+        user_can_edit = user_can_edit_suggestion(self.request.user)
         events = fetch_suggestion_events([self.object.pk])
         context.update(
             {
                 "suggestion_context": get_suggestion_context(
                     self.object,  # type: ignore
-                    can_edit=can_edit,
+                    user_can_edit=user_can_edit,
                     pre_fetched_events=events[self.object.pk],
                 )
             }
