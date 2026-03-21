@@ -138,7 +138,15 @@ async def drain_lines(
     while not eof:
         try:
             async with asyncio.timeout(timeout) as cm:
-                lines.append(await stream.readline())
+                line = await stream.readline()
+                if line == b"":
+                    # True EOF: the stream is closed.  readline() returns
+                    # b"" (no trailing newline) only at end-of-stream.
+                    # Without this check the loop would spin ~75,000 times
+                    # appending b"" until max_batch_window triggers.
+                    eof = True
+                    break
+                lines.append(line)
                 old_deadline = cm.when()
                 assert old_deadline is not None, (
                     "Timeout context does not have timeout!"
@@ -165,6 +173,10 @@ async def drain_lines(
 
             yield lines
             lines = []
+
+    # Yield any lines accumulated before EOF was detected.
+    if lines:
+        yield lines
 
     assert eof, "Reached the end of `drain_lines` without EOF!"
 
