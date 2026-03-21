@@ -105,7 +105,8 @@ def make_metric(data: dict[str, Any]) -> models.Metric:
     if raw_cvss:
         ctx["scope"] = raw_cvss.get("scope")
         ctx["vector_string"] = raw_cvss.get("vectorString")
-        ctx["base_score"] = float(raw_cvss.get("baseScore"))
+        raw_base_score = raw_cvss.get("baseScore")
+        ctx["base_score"] = float(raw_base_score) if raw_base_score is not None else None
 
         vector_fields = (
             "attack_complexity",
