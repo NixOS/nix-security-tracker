@@ -1,29 +1,21 @@
 import logging
 import re
-import typing
 from typing import Any
 
 from django.core.validators import RegexValidator
 from django.db.models import Prefetch
-
-from shared.logs.fetchers import fetch_suggestion_events
-from webview.suggestions.views.base import get_suggestion_context
-
-if typing.TYPE_CHECKING:
-    # prevent typecheck from failing on some historic type
-    # https://stackoverflow.com/questions/60271481/django-mypy-valuesqueryset-type-hint
-    pass
-
 from django.db.models.manager import BaseManager
 from django.db.models.query import QuerySet
 from django.views.generic import DetailView, ListView, TemplateView
 
+from shared.logs.fetchers import fetch_suggestion_events
 from shared.models import (
     CveRecord,
     EventType,
     NixpkgsEvent,
     NixpkgsIssue,
 )
+from webview.suggestions.views.base import get_suggestion_context
 
 logger = logging.getLogger(__name__)
 

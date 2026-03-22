@@ -33,6 +33,8 @@
  *
  * Usage: Combine .btn with one of the color variants
  * Example: <button class="btn btn-green">Publish</button>
+ *
+ * See next section for how to combine buttons with other widgets
  */
 
 .btn {
@@ -81,15 +83,108 @@
   }
 }
 
+.join.htmx-request,
 .btn.htmx-request {
   outline-style: solid;
   animation: pulse-outline 0.5s ease-in-out infinite;
   pointer-events: none; /* Prevent additional clicks during request */
 }
 
+.join.htmx-request:hover,
 .btn.htmx-request:hover {
   /* Override hover styles during request to maintain consistent animation */
   outline-style: solid;
+}
+
+/* Grouping buttons with other widgets
+ * This will alter the style of the button to play nicely
+ *
+ * .join - Container that combines button and other widgets horizontally
+ * .join-green - Green variant (will behave like standalone button)
+ * .join-gray - Gray variant (will behave like standalone button)
+ * .join-red - Red variant (will behave like standalone button)
+ * .join-item - Item to combine
+ *
+ * Usage: Use join with join-items children which have utility classes you would have used normally
+ * Advice: Use rounded-box-compact on text inputs and such
+ * Example:
+ * <div class="row join join-green">
+ *   <input type="text" name="package_name" class="rounded-box-compact join-item">
+ *   <button type="submit" class="btn btn-green join-item">Subscribe</button>
+ * </div>
+ *
+ */
+
+.join {
+  border: solid 2px white;
+  border-radius: 0.4em;
+  outline-width: 2px;
+  align-items: stretch !important;
+}
+
+.join-green {
+  outline-color: var(--green);
+}
+
+.join-gray {
+  outline-color: var(--gray);
+}
+
+.join-red {
+  outline-color: var(--red);
+}
+
+.join:hover {
+  outline-style: solid;
+}
+
+.join > .btn {
+  border: none;
+}
+
+.join > .btn.htmx-request {
+  animation: none;
+  outline-width: 0;
+}
+
+.join > .btn.htmx-request:hover {
+  outline-width: 0;
+}
+
+.join > .join-item {
+  outline: none;
+  border-radius: 0;
+}
+
+.join > :not(.btn) .join-item:focus {
+  outline: none;
+  border: 1px solid;
+}
+
+.join-green > .join-item:focus {
+  border-color: var(--green);
+}
+
+.join-gray > .join-item:focus {
+  border-color: var(--gray);
+}
+
+.join-red > .join-item:focus {
+  border-color: var(--red);
+}
+
+.join > .join-item:hover {
+  outline-style: none;
+}
+
+.join > .join-item:first-child {
+  border-top-left-radius: 0.4em;
+  border-bottom-left-radius: 0.4em;
+}
+
+.join > .join-item:last-child {
+  border-top-right-radius: 0.4em;
+  border-bottom-right-radius: 0.4em;
 }
 
 /* Tags
@@ -312,7 +407,7 @@
  *
  * .rounded-box - Bordered container with padding and rounded corners.
  *                Includes overflow: auto for locally scrollable content.
- * .rounded-box-compact - Same with small padding (same as buttons) to be used for inline boxes next to buttons for instance.
+ * .rounded-box-compact - Same with small padding (same as buttons) to be used for inline boxes (e.g text inputs) next to buttons for instance.
  */
 
 .rounded-box {

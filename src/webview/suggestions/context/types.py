@@ -39,6 +39,7 @@ class SuggestionStubContext:
     suggestion: CVEDerivationClusterProposal
     issue_link: str | None
     undo_status_target: str | None  # FIXME(@florentc): change to the real enum type
+    undo_rejection_reason: CVEDerivationClusterProposal.RejectionReason | None
     show_affected_product: bool = False
     is_compact: bool = False
 

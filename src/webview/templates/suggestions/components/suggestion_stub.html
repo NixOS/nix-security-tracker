@@ -28,6 +28,7 @@
       {% csrf_token %}
       <input type="hidden" name="undo_status_change" value="true"></input>
       <input type="hidden" name="is_compact" value="{% if data.is_compact %}true{% else %}false{% endif %}">
+      {% if data.undo_rejection_reason %}<input type="hidden" name="rejection_reason" value="{{ data.undo_rejection_reason }}">{% endif %}
       <button class="btn btn-gray row gap-small centered" type="submit" name="new_status" value="{{ data.undo_status_target }}" title="Undo">
         {% status_icon data.undo_status_target %}
         Undo

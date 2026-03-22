@@ -26,6 +26,7 @@ from shared.models import (
     MaintainersEditEvent,  # type: ignore
     PackageEditEvent,  # type: ignore
 )
+from shared.models.linkage import CVEDerivationClusterProposal
 
 
 def _annotate_username(query: EventQuerySet) -> EventQuerySet:
@@ -74,6 +75,11 @@ def fetch_suggestion_events(
                 username=status_event.username,
                 action=status_event.pgh_label,
                 status_value=status_event.status,
+                rejection_reason=CVEDerivationClusterProposal.RejectionReason(
+                    status_event.rejection_reason
+                ).label.__str__()
+                if status_event.rejection_reason is not None
+                else None,
             )
         )
 

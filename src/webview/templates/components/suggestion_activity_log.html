@@ -78,7 +78,7 @@
           {% if "accepted" in log_entry.status_value  %}
             <span>accepted</span>
           {% elif "rejected" in log_entry.status_value %}
-            <span>dismissed</span>
+            <span>dismissed {% if log_entry.rejection_reason %}({{log_entry.rejection_reason}}){% endif %}</span>
           {% elif "pending" in log_entry.status_value %}
             <span>marked as untriaged</span>
           {% elif "published" in log_entry.status_value %}

@@ -143,3 +143,61 @@ def test_exclusively_hosted_service_creates_rejected_proposal(
         == CVEDerivationClusterProposal.RejectionReason.EXCLUSIVELY_HOSTED_SERVICE
     )
     assert proposal.derivations.count() == 0
+
+
+@pytest.mark.xfail(reason="Not implemented")
+def test_hardware_cpe_produces_no_match(
+    make_container: Callable[..., Container],
+    make_drv: Callable[..., NixDerivation],
+) -> None:
+    container = make_container(
+        package_name="some_router",
+        product="some_router",
+        cpes=["cpe:2.3:h:cisco:some_router:1.0:*:*:*:*:*:*:*"],
+    )
+    make_drv(pname="some_router")
+
+    assert not build_new_links(container)
+
+
+def test_application_cpe_produces_match(
+    make_container: Callable[..., Container],
+    make_drv: Callable[..., NixDerivation],
+) -> None:
+    container = make_container(
+        package_name="myapp",
+        product="myapp",
+        cpes=["cpe:2.3:a:vendor:myapp:1.0:*:*:*:*:*:*:*"],
+    )
+    make_drv(pname="myapp")
+
+    assert build_new_links(container)
+
+
+@pytest.mark.xfail(reason="Not implemented")
+def test_mixed_cpe_parts_skips_hardware_only_affected_products(
+    make_container: Callable[..., Container],
+    make_drv: Callable[..., NixDerivation],
+) -> None:
+    # hardware-only affected product — should be skipped
+    hw_container = make_container(
+        cve_id="CVE-2025-0002",
+        package_name="some_router",
+        product="some_router",
+        cpes=["cpe:2.3:h:cisco:some_router:1.0:*:*:*:*:*:*:*"],
+    )
+    # application affected product on a separate CVE — should match
+    app_container = make_container(
+        cve_id="CVE-2025-0003",
+        package_name="myapp",
+        product="myapp",
+        cpes=["cpe:2.3:a:vendor:myapp:1.0:*:*:*:*:*:*:*"],
+    )
+    make_drv(pname="some_router", version="1.0")
+    make_drv(pname="myapp", version="1.0", attribute="myapp")
+
+    assert not build_new_links(hw_container)
+    assert build_new_links(app_container)
+    suggestion = CVEDerivationClusterProposal.objects.get(cve=app_container.cve)
+    assert suggestion.derivations.filter(name__startswith="myapp").exists()
+    assert not suggestion.derivations.filter(name__startswith="some_router").exists()

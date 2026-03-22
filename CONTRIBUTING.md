@@ -16,6 +16,21 @@ Other directories in this repository have additional `README.md` files with more
 # Hacking
 
 The service is implemented in Python using [Django](https://www.djangoproject.com/).
+It is built and deployed with [Nix](https://nix.dev).
+
+To get going, all you need is to [install Nix](https://nix.dev/install-nix).
+
+## Running the service in a development environment
+
+Start a development shell:
+
+```console
+nix-shell
+```
+
+This will provide most of tools necessary to run the service locally.
+
+Set up [`nix-direnv`](https://github.com/nix-community/nix-direnv) on your system and run `direnv allow` to enter the development environment automatically when entering the project directory.
 
 ## Formatting
 
@@ -136,15 +151,9 @@ To configure the GitHub app and the webhook in the GitHub organisation settings:
 
 </details>
 
-## Running the service in a development environment
+## Working with the database
 
-Start a development shell:
-
-```console
-nix-shell
-```
-
-Or set up [`nix-direnv`](https://github.com/nix-community/nix-direnv) on your system and run `direnv allow` to enter the development environment automatically when entering the project directory.
+You will need a local instance of the database to run tests and experiment manually.
 
 ### Set up a local database
 
@@ -166,16 +175,24 @@ Assuming you have a local checkout of this repository at `~/src/nix-security-tra
 }
 ```
 
+To replicate this on a traditional Unix-like system:
+
+- Inspect the [local database configuration](./nix/dev-setup.nix)
+- Read the documentation on the respective module options for the general idea, e.g. [`services.postgresql.ensureDatabases`](https://search.nixos.org/options?query=postgresql.ensureDatabases)
+- Search the linked module source for the option names for implementation details, e.g. [`postgresql.nix`](https://github.com/NixOS/nixpkgs/blob/master/nixos/modules/services/databases/postgresql.nix)
+
 ### Start the service
 
 The service is comprised of the Django server and workers for ingesting CVEs and derivations.
-What needs to be run is defined in the [`Procfile`](../Procfile) managed by [hivemind](https://github.com/DarthSim/hivemind).
+What needs to be run is defined in the [`Procfile`](./Procfile) managed by [hivemind](https://github.com/DarthSim/hivemind).
 
 Run everything with:
 
 ```bash
 hivemind
 ```
+
+<!-- FIXME(@fricklerhandwerk): Add instructions for manually obtaining CVEs and derivations. -->
 
 ### Resetting the database
 

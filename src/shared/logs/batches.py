@@ -29,6 +29,7 @@ class FoldedStatusEvent(FoldedEvent):
     # TODO This should eventually be restricted to the few literal values a
     # suggestion status can have
     status_value: str
+    rejection_reason: str | None
 
 
 class FoldedPackageEvent(FoldedEvent):
@@ -120,6 +121,7 @@ def batch_events(
                         username=event.username,
                         action=event.action,
                         status_value=event.status_value,
+                        rejection_reason=event.rejection_reason,
                     )
                 )
 

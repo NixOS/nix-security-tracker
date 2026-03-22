@@ -42,6 +42,7 @@ class RawStatusEvent(RawEvent):
 
     action: Literal["insert", "update"]
     status_value: str
+    rejection_reason: str | None
 
     def is_canceled_by(self, other: "RawEvent") -> bool:
         """Status events don't cancel each other."""

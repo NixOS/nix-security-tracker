@@ -26,7 +26,10 @@ class NotificationContext:
         self.new_unread_count = new_unread_count
         self.current_page = current_page
         self.suggestion_stub_context = SuggestionStubContext(
-            suggestion=notification.suggestion, issue_link=None, undo_status_target=None
+            suggestion=notification.suggestion,
+            issue_link=None,
+            undo_status_target=None,
+            undo_rejection_reason=None,
         )
         self.matching_subscribed_packages = self._get_matching_subscribed_packages(
             user_profile

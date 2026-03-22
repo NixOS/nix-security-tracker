@@ -62,7 +62,6 @@ rec {
     in
     pkgs.mkShellNoCC {
       env = {
-        REDIS_SOCKET_URL = "unix:///run/redis/redis.sock";
         DATABASE_URL = "postgres://nix-security-tracker@/nix-security-tracker";
         # psql doesn't take DATABASE_URL
         PGDATABASE = "nix-security-tracker";

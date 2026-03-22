@@ -1,0 +1,12 @@
+{% load viewutils %}
+
+<div class="status-change-button row join join-red">
+  <button type="submit" name="new_status" value="rejected" class="btn btn-red row gap-small centered join-item">
+    {% status_icon "rejected" %}
+    Dismiss
+  </button>
+  <select name="rejection_reason" class="rounded-box-compact join-item">
+    <option value="">With comment</option>
+    <option value="not_in_nixpkgs">Not in nixpkgs</option>
+  </select>
+</div>

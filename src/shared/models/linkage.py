@@ -16,7 +16,10 @@ def text_length(choices: type[models.TextChoices]) -> int:
     return max(map(len, choices.values))
 
 
-@pghistory.track(fields=["status"])
+@pghistory.track(
+    fields=["status", "rejection_reason"],
+    model_name="CVEDerivationClusterProposalStatusEvent",
+)
 class CVEDerivationClusterProposal(TimeStampMixin):
     """
     A proposal to link a CVE to a set of derivations.
@@ -32,6 +35,10 @@ class CVEDerivationClusterProposal(TimeStampMixin):
         EXCLUSIVELY_HOSTED_SERVICE = (
             "exclusively_hosted_service",
             _("exclusively hosted service"),
+        )
+        NOT_IN_NIXPKGS = (
+            "not_in_nixpkgs",
+            _("not in Nixpkgs"),
         )
 
     cached: "shared.models.cached.CachedSuggestions"
@@ -58,12 +65,14 @@ class CVEDerivationClusterProposal(TimeStampMixin):
         ),
     )
 
+    # Absence of rejection reason either means the suggestion is not is REJECTED status,
+    # or that the rejection reason is provided in the free form comment section (implying it's non empty)
     rejection_reason = models.CharField(
         max_length=126,
         choices=RejectionReason.choices,
         null=True,
         blank=True,
-        help_text=_("Machine-generated reason for automatic rejection"),
+        help_text=_("Reason for rejection (automatic or manual)"),
     )
 
     @property

@@ -7,13 +7,14 @@
 <article class="rounded-box column gap highlight-target" hx-target="this" id="suggestion-{{ data.suggestion.cached.payload.pk }}">
     <div class="column {% if data.is_compact %}gap-small{% else %}gap{% endif %}">
 
-      {% if data.show_status %}
-        <div class="row gap-small centered">
+      {% if data.show_status or data.suggestion.status == "rejected" and data.suggestion.rejection_reason %}
+        <div id="suggestion-{{ data.suggestion.cached.payload.pk }}-status" class="row gap-small centered">
           {% status_icon data.suggestion.status %}
           {% if data.suggestion.status == "pending" %}
             <div class="bold">Untriaged</div>
           {% elif data.suggestion.status == "rejected" %}
             <div class="bold">Dismissed</div>
+            {% if data.suggestion.rejection_reason%}<div>({{ data.suggestion.get_rejection_reason_display }})</div>{% endif %}
           {% elif data.suggestion.status == "accepted" %}
             <div class="bold">Accepted</div>
           {% elif data.suggestion.status == "published" %}
@@ -101,10 +102,7 @@
       {% if data.is_compact and data.user_can_edit and data.suggestion.status != "published" %}
         <div class="row gap-small centered">
           {% if data.suggestion.status == "pending" or data.suggestion.status == "accepted" %}
-            <button type="submit" name="new_status" value="rejected" class="status-change-button btn btn-red row gap-small centered">
-              {% status_icon "rejected" %}
-              Dismiss
-            </button>
+          {% include "./dismiss_button.html" %}
           {% endif %}
           
           <textarea
@@ -147,16 +145,13 @@
         {% endif %}
 
         {% if data.user_can_edit and data.suggestion.status != "published" %}
-          <div class="row-reverse spread">
+          <div class="row-reverse centered spread">
             {% if data.suggestion.status == "pending" %}
               <button type="submit" name="new_status" value="accepted" class="status-change-button btn btn-green row gap-small centered">
                 {% status_icon "accepted" %}
                 Accept
               </button>
-              <button type="submit" name="new_status" value="rejected" class="status-change-button btn btn-red row gap-small centered">
-                {% status_icon "rejected" %}
-                Dismiss
-              </button>
+              {% include "./dismiss_button.html" %}
             {% elif data.suggestion.status == "rejected" %}
               <button type="submit" name="new_status" value="accepted" class="status-change-button btn btn-green row gap-small centered">
                 {% status_icon "accepted" %}
@@ -167,10 +162,7 @@
                 {% status_icon "published" %}
                 Publish issue
               </button>
-              <button type="submit" name="new_status" value="rejected" class="status-change-button btn btn-red row gap-small centered">
-                {% status_icon "rejected" %}
-                Dismiss
-              </button>
+              {% include "./dismiss_button.html" %}
             {% endif %}
           </div>
         {% endif %}

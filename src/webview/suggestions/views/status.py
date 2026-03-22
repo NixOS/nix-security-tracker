@@ -1,3 +1,5 @@
+import logging
+
 from django.db import transaction
 from django.http import HttpRequest, HttpResponse, HttpResponseForbidden
 from django.urls import reverse
@@ -20,6 +22,8 @@ from .base import (
     get_suggestion_context,
 )
 
+logger = logging.getLogger(__name__)
+
 
 class UpdateSuggestionStatusView(SuggestionBaseView):
     """Handle suggestion status changes (accept/reject/publish)."""
@@ -36,6 +40,7 @@ class UpdateSuggestionStatusView(SuggestionBaseView):
 
         # Get form data
         new_status = request.POST.get("new_status")
+        rejection_reason = request.POST.get("rejection_reason")
         new_comment = request.POST.get("comment", "").strip()
         is_compact = (
             request.POST.get("is_compact") == "true"
@@ -65,19 +70,34 @@ class UpdateSuggestionStatusView(SuggestionBaseView):
 
         # Handle status changes (except publish which needs special handling)
         github_issue_link = None  # Will be used if we publish
-        undo_status_target = (
-            suggestion.status
-        )  # We keep track of the previous status to provide an undo action
+        # We keep track of the previous status to provide an undo action
+        undo_status_target = suggestion.status
+        # We keep track of the previous potential rejection_reason to be able to restore it during an undo
+        undo_rejection_reason = suggestion.rejection_reason
         if new_status == "rejected":
-            # When undoing a status change, there is no comment form input so we don't expect it
-            if not new_comment and not undo_status_change:
+            if not rejection_reason:
+                # Without a rejection reason, we require a comment
+                if not new_comment and not undo_status_change:
+                    return self._handle_error(
+                        request,
+                        suggestion_context,
+                        "You must provide a dismissal comment",
+                    )
+            elif rejection_reason in [
+                CVEDerivationClusterProposal.RejectionReason.EXCLUSIVELY_HOSTED_SERVICE,
+                CVEDerivationClusterProposal.RejectionReason.NOT_IN_NIXPKGS,
+            ]:
+                suggestion.rejection_reason = rejection_reason
+            else:
                 return self._handle_error(
-                    request, suggestion_context, "You must provide a dismissal comment"
+                    request, suggestion_context, "Invalid dismissal reason"
                 )
+
             suggestion.status = CVEDerivationClusterProposal.Status.REJECTED
         else:
             if new_status == "accepted":
                 suggestion.status = CVEDerivationClusterProposal.Status.ACCEPTED
+                suggestion.rejection_reason = None
             elif new_status == "published":
                 try:
                     with transaction.atomic():
@@ -98,6 +118,7 @@ class UpdateSuggestionStatusView(SuggestionBaseView):
                         suggestion.status = (
                             CVEDerivationClusterProposal.Status.PUBLISHED
                         )
+                        suggestion.rejection_reason = None
                         suggestion.save()
                         undo_status_target = None  # We disable the undo button in case we have published. There is no turning back.
                 except Exception:
@@ -105,6 +126,7 @@ class UpdateSuggestionStatusView(SuggestionBaseView):
                         request, suggestion_context, "Unable to publish this suggestion"
                     )
             elif new_status == "pending":
+                suggestion.rejection_reason = None
                 suggestion.status = CVEDerivationClusterProposal.Status.PENDING
 
         # Update comment if provided, unless this is an "undo" status change in which no new comment is expected
@@ -140,6 +162,11 @@ class UpdateSuggestionStatusView(SuggestionBaseView):
                     suggestion,
                     issue_link=github_issue_link,
                     undo_status_target=undo_status_target,
+                    undo_rejection_reason=CVEDerivationClusterProposal.RejectionReason(
+                        undo_rejection_reason
+                    )
+                    if undo_rejection_reason
+                    else None,
                     is_compact=is_compact,
                 )
         elif new_status == "published":

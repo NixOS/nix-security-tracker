@@ -300,7 +300,6 @@ class Version(models.Model):
     less_than = models.CharField(max_length=1024, null=True)
     less_equal = models.CharField(max_length=1024, null=True)
 
-    # TODO(kerstin) This could use regression testing
     def version_constraint_str(self) -> str | None:
         """
         Represent a version constraint in a string, that is going to be displayed to the user.
@@ -318,8 +317,7 @@ class Version(models.Model):
         else:
             return None
 
-    # TODO(kerstin) This could use regression testing
-    def affects(self, version: str) -> str:
+    def affects(self, version: str | None) -> str:
         """
         Determines wether a given version string is affected by this version constraint
         FIXME(kerstin): We currently compare versions by comparing strings, which is really wrong.

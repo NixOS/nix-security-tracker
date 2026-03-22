@@ -17,4 +17,4 @@ By discussing issues with security team members and other maintainers, they can 
 
 ## Contributing
 
-Please see the [**Contributing Guide**](CONTRIBUTING.md) for more information on how to get started. 
+Please see the [**Contributing Guide**](CONTRIBUTING.md) for more information on how to get started.
