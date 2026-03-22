@@ -7,6 +7,7 @@ from django.urls import reverse
 from playwright.sync_api import Page, expect
 from pytest_django.live_server_helper import LiveServer
 
+from shared.models.nix_evaluation import NixDerivation, NixMaintainer
 from webview.models import Notification
 
 from ..notifications.views import NotificationCenterView
@@ -216,3 +217,45 @@ def test_notifications_empty_state(
     expect(badge).to_have_text("0")
 
     assert Notification.objects.count() == 0
+
+
+def test_matching_maintained_packages_displayed(
+    live_server: LiveServer,
+    staff: User,
+    as_staff: Page,
+    make_drv: Callable[..., NixDerivation],
+    make_maintainer_from_user: Callable[..., NixMaintainer],
+    make_package_notification: Callable[..., list[Notification]],
+) -> None:
+    """
+    Check that notifications shows matching packages the user maintains
+    """
+    maintainer = make_maintainer_from_user(staff)
+    drv = make_drv(maintainer=maintainer)
+    db_notification, *_ = make_package_notification(drv)
+
+    as_staff.goto(live_server.url + reverse("webview:notifications:center"))
+    maintained_packages_section = as_staff.locator(
+        f"#notification-{db_notification.pk}-matching-maintained-packages"
+    )
+    expect(maintained_packages_section.get_by_text(drv.attribute)).to_be_visible()
+
+
+def test_matching_subscribed_packages_displayed(
+    live_server: LiveServer,
+    staff: User,
+    as_staff: Page,
+    drv: NixDerivation,
+    make_package_notification: Callable[..., list[Notification]],
+) -> None:
+    """
+    Check that notifications shows matching packages the user has subscribed to
+    """
+    staff.profile.subscribe_to_package(drv.attribute)
+    db_notification, *_ = make_package_notification(drv)
+
+    as_staff.goto(live_server.url + reverse("webview:notifications:center"))
+    maintained_packages_section = as_staff.locator(
+        f"#notification-{db_notification.pk}-matching-subscribed-packages"
+    )
+    expect(maintained_packages_section.get_by_text(drv.attribute)).to_be_visible()

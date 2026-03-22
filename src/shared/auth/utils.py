@@ -20,5 +20,5 @@ def ismaintainer(user: Any) -> bool:
     ).exists()
 
 
-def can_edit_suggestion(user: Any) -> bool:
+def user_can_edit_suggestion(user: Any) -> bool:
     return isadmin(user) or iscommitter(user)

@@ -13,6 +13,7 @@ from shared.listeners.notify_users import create_package_subscription_notificati
 from shared.models.cve import (
     AffectedProduct,
     Container,
+    Cpe,
     CveRecord,
     Description,
     Metric,
@@ -47,6 +48,7 @@ def make_container(db: None) -> Callable[..., Container]:
         package_name: str | None = "foo",
         product: str | None = "bar",
         references: list[tuple[str, str, list[str]]] = [],
+        cpes: list[str] = [],
     ) -> Container:
         org, _created = Organization.objects.get_or_create(
             uuid=1, short_name="test-org"
@@ -64,6 +66,9 @@ def make_container(db: None) -> Callable[..., Container]:
             product=product,
         )
         affected.versions.add(version)
+        for cpe_name in cpes:
+            cpe, _ = Cpe.objects.get_or_create(name=cpe_name)
+            affected.cpes.add(cpe)
 
         container = cve.container.create(provider=org, title=title)
         refs = []
@@ -240,9 +245,11 @@ def make_suggestion(
             drv: ProvenanceFlags.PACKAGE_NAME_MATCH
         },
         status: CVEDerivationClusterProposal.Status = CVEDerivationClusterProposal.Status.PENDING,
+        rejection_reason: CVEDerivationClusterProposal.RejectionReason | None = None,
     ) -> CVEDerivationClusterProposal:
         suggestion = CVEDerivationClusterProposal.objects.create(
             status=status,
+            rejection_reason=rejection_reason,
             cve=container.cve,
         )
 
@@ -359,14 +366,16 @@ def make_maintainer_notification(
 
 @pytest.fixture
 def make_package_notification(
-    make_suggestion: Callable[..., CVEDerivationClusterProposal],
+    make_cached_suggestion: Callable[..., CVEDerivationClusterProposal],
     make_maintainer_from_user: Callable[..., NixMaintainer],
     make_drv: Callable[..., NixDerivation],
 ) -> Callable[..., list[Notification]]:
     def wrapped(
         drv: NixDerivation,
     ) -> list[Notification]:
-        suggestion = make_suggestion(drvs={drv: ProvenanceFlags.PACKAGE_NAME_MATCH})
+        suggestion = make_cached_suggestion(
+            drvs={drv: ProvenanceFlags.PACKAGE_NAME_MATCH}
+        )
         return create_package_subscription_notifications(suggestion)
 
     return wrapped

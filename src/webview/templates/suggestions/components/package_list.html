@@ -8,7 +8,7 @@
     <div id="suggestion-{{data.suggestion_id}}-active-packages" class="column dividers">
       {% for attribute, pdata in data.active.items %}
       <div class="package-{{attribute}} row gap">
-          {% if data.can_edit and data.editable %}
+          {% if data.user_can_edit and not data.frozen %}
             <form
               class="contents"
               method="post"
@@ -46,7 +46,7 @@
       <div class="column dividers">
         {% for attribute, pdata in data.ignored.items %}
           <div class="package-{{attribute}} row gap">
-            {% if data.can_edit and data.editable %}
+            {% if data.user_can_edit and not data.frozen %}
             <form
               class="contents"
               method="post"

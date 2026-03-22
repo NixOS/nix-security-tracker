@@ -4,7 +4,7 @@
       {% if page_number == paginator.ELLIPSIS %}
       {{page_number}}
       {% else %}
-      <a href="{{request.path}}?page={{page_number}}" class="{% if page_number == page_obj.number %}bold{% endif %}">
+      <a href="{{request.path}}?page={{page_number}}{% if is_compact %}&compact{% endif %}" class="{% if page_number == page_obj.number %}bold{% endif %}">
         {{page_number}}
       </a>
       {% endif %}

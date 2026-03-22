@@ -1,20 +1,18 @@
 {% load viewutils %}
 
-<div class="rounded-box">
-  <h2 class="heading dimmed">References</h2>
-  <ul class="column gap">
+<div class="{% if not is_compact %}rounded-box{% endif %}">
+  {% if not is_compact %}<h2 class="heading dimmed">References</h2>{% endif %}
+  <ul class="column {% if is_compact %}gap-small{% else %}gap{% endif %}">
   {% for ref in references %}
-    <li class="row baseline gap">
-      <div>
+    <li class="row baseline gap-small wrap">
       {% if ref.name %}
         <a href="{{ref.url}}" target="_blank">{{ref.name}}</a>
       {% else %}
-        <a href="{{ref.url}}" target="_blank">{{ref.url}}</a>
+        {{ref.url|urlizetrunc:80}}
       {% endif %}
-        {% for tag in ref.tags %}
-          <span class="tag fill-gray">{{tag.value}}</span>
-        {% endfor %}
-      </div>
+      {% for tag in ref.tags %}
+        <span class="tag tag-gray">{{tag.value}}</span>
+      {% endfor %}
     </li>
   {% endfor %}
   </ul>

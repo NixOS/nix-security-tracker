@@ -11,6 +11,7 @@ import aiofiles
 import pgpubsub
 from asgiref.sync import sync_to_async
 from django.conf import settings
+from django.db import transaction
 from django.db.models import Avg
 from django.utils import timezone
 
@@ -138,7 +139,13 @@ async def drain_lines(
     while not eof:
         try:
             async with asyncio.timeout(timeout) as cm:
-                lines.append(await stream.readline())
+                line = await stream.readline()
+                if line == b"":
+                    # `readline()` returns `b""` only at end-of-stream:
+                    # https://docs.python.org/3/library/asyncio-stream.html#asyncio.StreamReader.readline
+                    eof = True
+                    break
+                lines.append(line)
                 old_deadline = cm.when()
                 assert old_deadline is not None, (
                     "Timeout context does not have timeout!"
@@ -166,26 +173,37 @@ async def drain_lines(
             yield lines
             lines = []
 
+    # Yield any lines accumulated before EOF was detected.
+    if lines:
+        yield lines
+
     assert eof, "Reached the end of `drain_lines` without EOF!"
 
 
 async def evaluation_entrypoint(
     avg_eval_time: float, evaluation: NixEvaluation
 ) -> None:
-    while (
-        await NixEvaluation.objects.filter(
-            state=NixEvaluation.EvaluationState.IN_PROGRESS
-        ).acount()
-    ) > settings.MAX_PARALLEL_EVALUATION:
+    # Acquire an evaluation slot atomically: lock all IN_PROGRESS rows
+    # to prevent concurrent workers from racing past the count check.
+    def _try_acquire_slot() -> bool:
+        with transaction.atomic():
+            in_progress = (
+                NixEvaluation.objects.select_for_update()
+                .filter(state=NixEvaluation.EvaluationState.IN_PROGRESS)
+                .count()
+            )
+            if in_progress >= settings.MAX_PARALLEL_EVALUATION:
+                return False
+            NixEvaluation.objects.filter(id=evaluation.pk).update(
+                state=NixEvaluation.EvaluationState.IN_PROGRESS,
+                updated_at=timezone.now(),
+            )
+            return True
+
+    while not (await sync_to_async(_try_acquire_slot)()):
         # Add in average 30s as a jitter to enable clear winners during the grab for the evaluation slot.
         jitter = random.randint(1, 60)
         await asyncio.sleep(avg_eval_time + jitter)
-    # Atomically update the state to prevent anyone going over the
-    # specified concurrency.
-    await NixEvaluation.objects.filter(id=evaluation.pk).aupdate(
-        state=NixEvaluation.EvaluationState.IN_PROGRESS,
-        updated_at=timezone.now(),
-    )
     repo = GitRepo(settings.LOCAL_NIXPKGS_CHECKOUT)
     start = time.time()
     try:

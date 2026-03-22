@@ -14,3 +14,7 @@ We identified three interest groups that the tool is going to address:
 By discussing issues with security team members and other maintainers, they can further help on figuring out which channels and packages are affected and ultimately work on fixes for the issue.
 
 **Nixpkgs users** are able to subscribe and stay updated on ongoing security issues that affect the packages they use.
+
+## Contributing
+
+Please see the [**Contributing Guide**](CONTRIBUTING.md) for more information on how to get started.

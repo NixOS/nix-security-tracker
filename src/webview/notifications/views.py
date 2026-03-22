@@ -8,6 +8,7 @@ from django.urls import reverse
 from django.views.generic import ListView, TemplateView, View
 
 from webview.models import Notification, Profile
+from webview.notifications.context import NotificationContext
 
 
 class NotificationCenterView(LoginRequiredMixin, ListView):
@@ -31,6 +32,18 @@ class NotificationCenterView(LoginRequiredMixin, ListView):
     def get_context_data(self, **kwargs: Any) -> dict[str, Any]:
         context = super().get_context_data(**kwargs)
 
+        # Create NotificationContext instances: it provides additional data such as matching subscribed packages
+        user_profile = self.request.user.profile
+        notification_contexts = [
+            NotificationContext(
+                notification=notification,
+                user_profile=user_profile,
+                current_page=context["page_obj"].number,
+            )
+            for notification in context["notifications"]
+        ]
+
+        context["notification_contexts"] = notification_contexts
         context["adjusted_elided_page_range"] = context[
             "paginator"
         ].get_elided_page_range(context["page_obj"].number)
@@ -48,10 +61,17 @@ class ToggleNotificationReadView(LoginRequiredMixin, TemplateView):
             user=request.user,
         )
         new_unread_count = notification.toggle_read()
+        user_profile = self.request.user.profile
 
         if request.headers.get("HX-Request"):
             return self.render_to_response(
-                {"notification": notification, "new_unread_count": new_unread_count}
+                {
+                    "data": NotificationContext(
+                        notification=notification,
+                        user_profile=user_profile,
+                        new_unread_count=new_unread_count,
+                    )
+                }
             )
         else:
             page = request.POST.get("page", "1")

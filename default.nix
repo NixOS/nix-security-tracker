@@ -62,7 +62,6 @@ rec {
     in
     pkgs.mkShellNoCC {
       env = {
-        REDIS_SOCKET_URL = "unix:///run/redis/redis.sock";
         DATABASE_URL = "postgres://nix-security-tracker@/nix-security-tracker";
         # psql doesn't take DATABASE_URL
         PGDATABASE = "nix-security-tracker";
@@ -94,6 +93,12 @@ rec {
       packages = [
         manage
         package
+        # Explicitly pin git from nixpkgs to ensure the `fetch_all_channels` management command
+        # and the Nix evaluation pipeline (which clones and fetches Nixpkgs commits via shared/git.py)
+        # always use a known-good version. Without this, the shell falls back to the system git,
+        # which may be too old to support required flags (e.g. `git fetch --porcelain` requires git 2.41+)
+        # and can cause silent failures or broken behaviour in development.
+        pkgs.git
         pkgs.nix-eval-jobs
         pkgs.npins
         pkgs.hivemind

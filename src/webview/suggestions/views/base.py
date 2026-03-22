@@ -7,7 +7,9 @@ from django.shortcuts import get_object_or_404, redirect
 from django.urls import resolve
 from django.views.generic import TemplateView
 
-from shared.auth import can_edit_suggestion
+from shared.auth import user_can_edit_suggestion
+from shared.logs.events import RawEventType
+from shared.logs.fetchers import fetch_suggestion_events
 from shared.models.linkage import (
     CVEDerivationClusterProposal,
 )
@@ -20,11 +22,15 @@ def fetch_suggestion(suggestion_id: int) -> CVEDerivationClusterProposal:
 
 def get_suggestion_context(
     suggestion: CVEDerivationClusterProposal,
-    can_edit: bool,
+    user_can_edit: bool,
+    pre_fetched_events: list[RawEventType],
+    is_compact: bool = False,
 ) -> SuggestionContext:
     return SuggestionContext(
         suggestion=suggestion,
-        can_edit=can_edit,
+        user_can_edit=user_can_edit,
+        pre_fetched_events=pre_fetched_events,
+        is_compact=is_compact,
     )
 
 
@@ -98,7 +104,7 @@ class SuggestionContentEditBaseView(SuggestionBaseView, ABC):
         """Raised when access is denied for content editing."""
 
         def __init__(self, response: HttpResponse) -> None:
-            self.error = response
+            self.response = response
 
     # FIXME(@fricklerhandwerk): This conflates access control with database queries and bypasses the standard Django mechanism of overriding the respective view methods.
     # The main problem here is that it results in very inefficient queries, as we can't express fetching related data in one go.
@@ -106,17 +112,20 @@ class SuggestionContentEditBaseView(SuggestionBaseView, ABC):
     def _check_access_rights_and_get_suggestion(
         self, request: HttpRequest, suggestion_id: int
     ) -> tuple[CVEDerivationClusterProposal, SuggestionContext]:
-        can_edit = can_edit_suggestion(self.request.user)
+        user_can_edit = user_can_edit_suggestion(self.request.user)
 
-        if not request.user or not can_edit:
+        if not request.user or not user_can_edit:
             raise self.ForbiddenOperationError(HttpResponseForbidden())
 
         # Get suggestion context
         suggestion = fetch_suggestion(suggestion_id)
-        suggestion_context = get_suggestion_context(suggestion, can_edit=can_edit)
+        events = fetch_suggestion_events([suggestion.pk])
+        suggestion_context = get_suggestion_context(
+            suggestion, user_can_edit=user_can_edit, pre_fetched_events=events[suggestion.pk]
+        )
 
         # Validate that the suggestion status allows package editing
-        if not suggestion.is_editable:
+        if suggestion.is_frozen:
             raise self.ForbiddenOperationError(
                 self._handle_error(
                     request,

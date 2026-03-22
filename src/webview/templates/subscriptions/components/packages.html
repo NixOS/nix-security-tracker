@@ -7,10 +7,12 @@
   {% endif %}
 
   <!-- Add new subscription form -->
-  <form method="post" action="{% url 'webview:subscriptions:add' %}" hx-post="{% url 'webview:subscriptions:add' %}" hx-target="closest .package-subscriptions-container" hx-swap="outerHTML" class="row gap-small centered" hx-indicator="find button">
-    {% csrf_token %}
-    <input type="text" name="package_name" placeholder="Package name" required class="package-input">
-    <button type="submit" class="btn btn-green">Subscribe</button>
+  <form method="post" action="{% url 'webview:subscriptions:add' %}" hx-post="{% url 'webview:subscriptions:add' %}" hx-target="closest .package-subscriptions-container" hx-swap="outerHTML" hx-indicator="find button" class="row">
+    <div class="row join join-green">
+      <input type="text" name="package_name" placeholder="Package name" required class="package-input rounded-box-compact join-item">
+      {% csrf_token %}
+      <button type="submit" class="btn btn-green join-item">Subscribe</button>
+    </div>
   </form>
 
   <!-- Subscriptions list -->

@@ -1,5 +1,4 @@
 import datetime
-import logging
 from collections.abc import ItemsView
 from typing import Any, TypedDict
 from urllib.parse import quote, urlencode
@@ -10,13 +9,13 @@ from django import template
 from django.conf import settings
 from django.template.context import Context
 
-from shared.listeners.cache_suggestions import CachedSuggestion, parse_drv_name
+from shared.listeners.cache_suggestions import CachedSuggestion
 from shared.logs.batches import FoldedEventType
 from shared.models.issue import NixpkgsIssue
 from shared.models.linkage import (
     CVEDerivationClusterProposal,
 )
-from webview.models import Notification
+from webview.notifications.context import NotificationContext
 from webview.suggestions.context.types import (
     MaintainerAddContext,
     MaintainerContext,
@@ -27,8 +26,6 @@ from webview.suggestions.context.types import (
 )
 
 register = template.Library()
-
-logger = logging.getLogger(__name__)
 
 
 @register.filter
@@ -50,20 +47,13 @@ class PackageContext(TypedDict):
 
 class AffectedContext(TypedDict):
     affected: list[CachedSuggestion.AffectedProduct]
+    is_compact: bool
 
 
 class SuggestionActivityLog(TypedDict):
     suggestion: CVEDerivationClusterProposal
     activity_log: list[FoldedEventType]
     oob_update: bool
-
-
-class NotificationContext(TypedDict):
-    notification: Notification
-    current_page: (
-        int | None
-    )  # For no-js compatibility in multi-page notification center
-    new_unread_count: int | None  # For oob update of unread notifications counter
 
 
 class NotificationsBadgeContext(TypedDict):
@@ -79,18 +69,6 @@ class PackageSubscriptionsContext(TypedDict):
 class AutoSubscribeContext(TypedDict):
     auto_subscribe_enabled: bool
     error_message: str | None
-
-
-@register.filter
-def getitem(dictionary: dict, key: str) -> Any | None:
-    return dictionary.get(key)
-
-
-@register.filter
-def getdrvname(drv: dict) -> str:
-    hash = drv["drv_path"].split("-")[0].split("/")[-1]
-    name = drv["drv_name"]
-    return f"{name} {hash[:8]}"
 
 
 @register.inclusion_tag("subscriptions/components/packages.html")
@@ -117,14 +95,10 @@ def auto_subscribe_toggle(
 
 @register.inclusion_tag("notifications/components/notification.html")
 def notification(
-    notification: Notification,
-    current_page: int | None = None,
-    new_unread_count: int | None = None,
-) -> NotificationContext:
+    data: NotificationContext,
+) -> dict:
     return {
-        "notification": notification,
-        "current_page": current_page,
-        "new_unread_count": new_unread_count,
+        "data": data,
     }
 
 
@@ -144,14 +118,17 @@ def severity_badge(metrics: list[dict]) -> dict:
         if "raw_cvss_json" in m and "vectorString" in m.get("raw_cvss_json", {}):
             parsed = CVSS3(m["raw_cvss_json"]["vectorString"])
             return {
-                "vectorString": m["raw_cvss_json"]["vectorString"],
-                "version": m["raw_cvss_json"]["version"],
-                "metrics": {
-                    # XXX(@fricklerhandwerk): Yes, the *value* description is also indexed by *key*!
-                    f"{METRICS_ABBREVIATIONS[k]} ({k})": f"{parsed.get_value_description(k)} ({v})"
-                    for k, v in parsed.metrics.items()
-                    if not k.startswith("M")  # Don't display modified metrics
-                },
+                "metric": {
+                    # Pass through all raw CVSS JSON fields (attackVector, scope, etc.)
+                    # so the template can access them directly as metric.attackVector etc.
+                    **m["raw_cvss_json"],
+                    "metrics": {
+                        # XXX(@fricklerhandwerk): Yes, the *value* description is also indexed by *key*!
+                        f"{METRICS_ABBREVIATIONS[k]} ({k})": f"{parsed.get_value_description(k)} ({v})"
+                        for k, v in parsed.metrics.items()
+                        if not k.startswith("M")  # Don't display modified metrics
+                    },
+                }
             }
     return {}
 
@@ -161,12 +138,6 @@ def iso(date: datetime.datetime) -> str:
     if isinstance(date, str):
         date = datetime.datetime.fromisoformat(date)
     return date.replace(microsecond=0).isoformat()
-
-
-@register.filter
-def versioned_package_name(package_entry: dict[str, Any]) -> str:
-    _, version = parse_drv_name(package_entry["name"])
-    return f"pkgs.{package_entry['attribute']} {version}"
 
 
 @register.inclusion_tag("components/issue.html", takes_context=True)
@@ -196,8 +167,12 @@ def nixpkgs_package(attribute_name: str, pdata: Package) -> PackageContext:
 @register.inclusion_tag("components/affected_products.html")
 def affected_products(
     affected: list[CachedSuggestion.AffectedProduct],
+    is_compact: bool = False,
 ) -> AffectedContext:
-    return {"affected": affected}
+    return {
+        "affected": affected,
+        "is_compact": is_compact,
+    }
 
 
 @register.inclusion_tag("components/suggestion_activity_log.html")
@@ -237,16 +212,12 @@ def suggestion(
     }
 
 
-@register.inclusion_tag(
-    "suggestions/components/suggestion_stub.html", takes_context=True
-)
+@register.inclusion_tag("suggestions/components/suggestion_stub.html")
 def suggestion_stub(
-    context: Context,
     data: SuggestionStubContext,
 ) -> dict:
     return {
         "data": data,
-        "user": context["user"],
     }
 
 
@@ -301,3 +272,17 @@ def gh_issues_url() -> str:
     labels = " ".join(f"label:{label!r}" for label in settings.GH_ISSUES_LABELS)
     query = f"is:issue state:open {labels}".strip()
     return f"{base}?{urlencode({'q': query})}"
+
+
+@register.simple_tag(takes_context=True)
+def toggle_param(context: Context, param_name: str, param_value: str = "") -> str:
+    """Toggle a query parameter while preserving others."""
+    request = context["request"]
+    params = request.GET.copy()
+
+    if param_name in params:
+        del params[param_name]
+    else:
+        params[param_name] = param_value
+
+    return f"?{params.urlencode()}"

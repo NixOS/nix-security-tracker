@@ -52,7 +52,7 @@
 
 
       <!-- Add maintainer section (only if editable) -->
-      {% if data.editable and data.can_edit %}
+      {% if not data.frozen and data.user_can_edit %}
       {% maintainer_add data.maintainer_add_context %}
       {% endif %}
     </div>

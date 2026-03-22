@@ -189,7 +189,6 @@ class Metric(models.Model):
     scope = models.CharField(
         max_length=text_length(Scopes), choices=Scopes.choices, null=True, default=None
     )
-    # FIXME: add integrity on between 0.0 and 10.0
     base_score = models.FloatField(null=True, default=None)
     vector_string = models.CharField(max_length=128, null=True, default=None)
 
@@ -242,6 +241,14 @@ class Metric(models.Model):
         default=None,
     )
 
+    class Meta:  # type: ignore[override]
+        constraints = [
+            models.CheckConstraint(
+                check=Q(base_score__gte=0.0, base_score__lte=10.0),
+                name="metric_base_score_range",
+            )
+        ]
+
 
 class Event(models.Model):
     """Class representing an event related to a CVE record."""
@@ -293,7 +300,6 @@ class Version(models.Model):
     less_than = models.CharField(max_length=1024, null=True)
     less_equal = models.CharField(max_length=1024, null=True)
 
-    # TODO(kerstin) This could use regression testing
     def version_constraint_str(self) -> str | None:
         """
         Represent a version constraint in a string, that is going to be displayed to the user.
@@ -311,8 +317,7 @@ class Version(models.Model):
         else:
             return None
 
-    # TODO(kerstin) This could use regression testing
-    def affects(self, version: str) -> str:
+    def affects(self, version: str | None) -> str:
         """
         Determines wether a given version string is affected by this version constraint
         FIXME(kerstin): We currently compare versions by comparing strings, which is really wrong.

@@ -82,6 +82,17 @@
 
   {% endif %}
 
+  <div class="inline-row gap centered justify-right">
+    <div class="inline-row centered gap-small"><i class="icon-eye"></i>View:</div>
+    {% if is_compact %}
+      <div class="bold">Compact</div>
+      <a href="{% toggle_param 'compact' %}">Detailed</a>
+    {% else %}
+      <a href="{% toggle_param 'compact' %}">Compact</a>
+      <div class="bold">Detailed</div>
+    {% endif %}
+  </div>
+
   <div class="column gap">
     {% for s in suggestions %}
       {% suggestion s %}

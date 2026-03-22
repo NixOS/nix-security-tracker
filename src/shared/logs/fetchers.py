@@ -26,6 +26,7 @@ from shared.models import (
     MaintainersEditEvent,  # type: ignore
     PackageEditEvent,  # type: ignore
 )
+from shared.models.linkage import CVEDerivationClusterProposal
 
 
 def _annotate_username(query: EventQuerySet) -> EventQuerySet:
@@ -52,67 +53,66 @@ def _annotate_username(query: EventQuerySet) -> EventQuerySet:
     )
 
 
-# TODO In the future we may add other fetchers, for instance fetch all events
-# of a given user (for personal dashboard or admin panel) or all events
-# globally (for admin)
-def fetch_suggestion_events(suggestion_id: int) -> list[RawEventType]:
-    """Fetch all raw events for a suggestion and return them sorted by timestamp."""
-    all_events: list[RawEventType] = []
+def fetch_suggestion_events(
+    suggestion_ids: list[int],
+) -> dict[int, list[RawEventType]]:
+    """Fetch all raw events for multiple suggestions in three batched queries."""
+    result: dict[int, list[RawEventType]] = {sid: [] for sid in suggestion_ids}
 
-    # Fetch status events
+    if not suggestion_ids:
+        return result
+
     status_qs = _annotate_username(
-        CVEDerivationClusterProposalStatusEvent.objects.select_related(
-            "pgh_context",
-        )
+        CVEDerivationClusterProposalStatusEvent.objects.select_related("pgh_context")
         .exclude(pgh_label="insert")
-        .filter(pgh_obj_id=suggestion_id)
+        .filter(pgh_obj_id__in=suggestion_ids)
     )
-
     for status_event in status_qs.iterator():
-        all_events.append(
+        result[status_event.pgh_obj_id].append(
             RawStatusEvent(
                 suggestion_id=status_event.pgh_obj_id,
                 timestamp=status_event.pgh_created_at,
                 username=status_event.username,
                 action=status_event.pgh_label,
                 status_value=status_event.status,
+                rejection_reason=CVEDerivationClusterProposal.RejectionReason(
+                    status_event.rejection_reason
+                ).label.__str__()
+                if status_event.rejection_reason is not None
+                else None,
             )
         )
 
-    # Fetch package events
-    package_edit_qs = _annotate_username(
-        PackageEditEvent.objects.select_related(
-            "pgh_context",
-        ).filter(suggestion_id=suggestion_id)
+    package_qs = _annotate_username(
+        PackageEditEvent.objects.select_related("pgh_context").filter(
+            suggestion_id__in=suggestion_ids
+        )
     )
-
-    for package_edit_event in package_edit_qs.iterator():
-        all_events.append(
+    for pkg_event in package_qs.iterator():
+        result[pkg_event.suggestion_id].append(
             RawPackageEvent(
-                suggestion_id=package_edit_event.suggestion_id,
-                timestamp=package_edit_event.pgh_created_at,
-                username=package_edit_event.username,
-                action=package_edit_event.pgh_label,
-                package_attribute=package_edit_event.package_attribute,
+                suggestion_id=pkg_event.suggestion_id,
+                timestamp=pkg_event.pgh_created_at,
+                username=pkg_event.username,
+                action=pkg_event.pgh_label,
+                package_attribute=pkg_event.package_attribute,
             )
         )
 
-    # Fetch maintainer events
     maintainer_qs = _annotate_username(
         MaintainersEditEvent.objects.select_related("pgh_context", "maintainer").filter(
-            suggestion_id=suggestion_id
+            suggestion_id__in=suggestion_ids
         )
     )
-
-    for maintainer_event in maintainer_qs.iterator():
-        all_events.append(
+    for m_event in maintainer_qs.iterator():
+        result[m_event.suggestion_id].append(
             RawMaintainerEvent(
-                suggestion_id=maintainer_event.suggestion_id,
-                timestamp=maintainer_event.pgh_created_at,
-                username=maintainer_event.username,
-                action=maintainer_event.pgh_label,
-                maintainer=cast(Maintainer, model_to_dict(maintainer_event.maintainer)),
+                suggestion_id=m_event.suggestion_id,
+                timestamp=m_event.pgh_created_at,
+                username=m_event.username,
+                action=m_event.pgh_label,
+                maintainer=cast(Maintainer, model_to_dict(m_event.maintainer)),
             )
         )
 
-    return all_events
+    return result

@@ -7,7 +7,7 @@
       <div>
         {{ package_name }}
       </div>
-      <ul class="w-12">
+      <ul class="{% if is_compact %}row gap-small wrap{% else %}w-12{% endif %}">
         {% for status, vc_str in ap.version_constraints %}
           <li>
             <span

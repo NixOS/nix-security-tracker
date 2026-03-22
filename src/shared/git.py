@@ -1,5 +1,6 @@
 import asyncio
 import itertools
+import logging
 import os.path
 import pathlib
 from collections.abc import AsyncGenerator
@@ -8,6 +9,8 @@ from dataclasses import dataclass
 from typing import IO, Any
 
 from django.conf import settings
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass
@@ -157,7 +160,7 @@ class GitRepo:
                 rc = await process.wait()
                 locking_problem = "shallow" in stderr.decode("utf8")
                 if rc != 0 and not locking_problem:
-                    print(stderr)
+                    logger.error("git fetch stderr: %s", stderr.decode("utf8"))
                     raise RepositoryError(
                         f"failed to fetch {object_sha1} while running `git fetch --depth=1 {repo_clone_url} {object_sha1}`"
                     )

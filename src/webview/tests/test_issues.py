@@ -138,9 +138,9 @@ def test_maintainer_of_active_package_mentioned_in_issue(
     mock_github = mocker.Mock()
     mock_github.get_repo.return_value = mock_repo
 
-    # NOTE(@florentc): We can't mock get_gh with patch because it is evaluated
+    # FIXME(@florentc): We can't mock get_gh with patch because it is evaluated
     # in module (as a default param) so we mock the entire create_gh_issue to
-    # which we pass our mock github object
+    # which we pass our mock github object [ref:todo-github-connection]
     def mock_create_gh_issue(*args: Any, **kwargs: Any) -> GithubIssue:
         return create_gh_issue(*args, github=mock_github, **kwargs)
 
@@ -177,3 +177,70 @@ def test_maintainer_of_active_package_mentioned_in_issue(
         assert f"@{maintainer_handle}" not in issue_body
     else:
         assert f"@{maintainer_handle}" in issue_body
+
+
+def test_cvss_base_score_visible_in_web_ui(
+    make_container: Callable[..., Container],
+    make_cached_suggestion: Callable[..., CVEDerivationClusterProposal],
+    mocker: MockerFixture,
+    live_server: LiveServer,
+    as_staff: Page,
+    no_js: bool,
+) -> None:
+    """Test that the CVSS base score is visible in the web UI on the accepted suggestions page."""
+    container = make_container()
+    metric = container.metrics.first()
+    assert metric is not None
+    metric.raw_cvss_json = {
+        "version": "3.1",
+        "vectorString": "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:N/A:N",
+        "baseScore": 7.5,
+        "baseSeverity": "HIGH",
+    }
+    metric.save()
+
+    accepted_suggestion = make_cached_suggestion(
+        container=container, status=CVEDerivationClusterProposal.Status.ACCEPTED
+    )
+
+    as_staff.goto(live_server.url + reverse("webview:suggestion:accepted_suggestions"))
+    suggestion = as_staff.locator(f"#suggestion-{accepted_suggestion.cached.pk}")
+
+    # The base score should be visible without expanding the CVSS details
+    expect(suggestion.get_by_text("7.5 HIGH")).to_be_visible()
+
+    mock_repo = mocker.Mock()
+    mock_issue = mocker.Mock()
+    mock_issue.html_url = "https://fake.url"
+    mock_repo.create_issue.return_value = mock_issue
+    mock_github = mocker.Mock()
+    mock_github.get_repo.return_value = mock_repo
+
+    # FIXME(@fricklerhandwerk): [ref:todo-github-connection]
+    def mock_create_gh_issue(*args: Any, **kwargs: Any) -> GithubIssue:
+        return create_gh_issue(*args, github=mock_github, **kwargs)
+
+    def mock_get_maintainer_username(
+        maintainer: dict, github: Github = mock_github
+    ) -> str:
+        return maintainer["github"]
+
+    mocker.patch(
+        "webview.suggestions.views.status.create_gh_issue", mock_create_gh_issue
+    )
+    mocker.patch("shared.github.get_maintainer_username", mock_get_maintainer_username)
+
+    publish = suggestion.get_by_role("button", name="Publish issue")
+    publish.click()
+    if no_js:
+        as_staff.goto(live_server.url + reverse("webview:issue_list"))
+    else:
+        link = suggestion.get_by_role("link", name="View")
+        link.click()
+    expect(suggestion).to_be_visible()
+
+    mock_repo.create_issue.assert_called_once()
+    issue_body = mock_repo.create_issue.call_args[1]["body"]
+
+    # The base score and severity should be visible in the CVSS summary line
+    assert "7.5 HIGH" in issue_body

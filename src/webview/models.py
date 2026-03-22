@@ -132,6 +132,18 @@ class Profile(models.Model):
 
         return count
 
+    def subscribe_to_package(self, package: str) -> None:
+        """Add a package to the subscribed packages."""
+        if package not in self.package_subscriptions:
+            self.package_subscriptions.append(package)
+            self.package_subscriptions.sort()
+            self.save(update_fields=["package_subscriptions"])
+
+    def unsubscribe_from_package(self, package: str) -> None:
+        """Remove a package from the subscribed packages."""
+        self.package_subscriptions.remove(package)
+        self.save(update_fields=["package_subscriptions"])
+
 
 @receiver(post_save, sender=User)
 def create_profile(

@@ -1,6 +1,7 @@
 {
   config,
   pkgs,
+  lib,
   ...
 }:
 let
@@ -42,6 +43,16 @@ in
     # make the routes on this interface a dependency for network-online.target
     linkConfig.RequiredForOnline = "routable";
   };
+
+  users.users.root =
+    let
+      keys = with lib; mapAttrs (n: _: ./keys/${n}) (builtins.readDir ./keys);
+    in
+    {
+      openssh.authorizedKeys.keyFiles = with keys; [
+        florentc
+      ];
+    };
 
   nixpkgs.overlays = sectracker.overlays;
   services = {

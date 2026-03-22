@@ -36,3 +36,7 @@ We suggest you [optimise the nix store](https://wiki.nixos.org/wiki/Storage_opti
 optimisation.
 
 If you're using ext4, read this [Nix issue](https://github.com/NixOS/nix/issues/1522) as you'll need to enable support for `large_dir`in your filesystem for optimisation to work.
+
+## Further Documentation
+
+- [Design Documents](./design/): Detailed design specifications for individual feature.

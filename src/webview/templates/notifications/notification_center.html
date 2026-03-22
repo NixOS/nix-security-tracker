@@ -37,9 +37,9 @@
   {% endif %}
 
   <div class="contents">
-    {% if notifications %}
-      {% for notification in notifications %}
-        {% notification notification page_obj.number %}
+    {% if notification_contexts %}
+      {% for notification_context in notification_contexts %}
+        {% notification data=notification_context %}
       {% endfor %}
     {% else %}
       <p>You don't have any notifications yet.</p>

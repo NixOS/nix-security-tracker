@@ -247,16 +247,6 @@ if "GLITCHTIP_DSN" in env:
         traces_sample_rate=0,
     )
 
-## Channel setup
-CHANNEL_LAYERS = {
-    "default": {
-        "BACKEND": "channels_redis.core.RedisChannelLayer",
-        "CONFIG": {
-            "hosts": list(filter(None, [env.get("REDIS_UNIX_SOCKET")])),
-        },
-    },
-}
-
 ## Logging settings
 LOGGING = {
     "version": 1,

@@ -63,9 +63,7 @@ class AddSubscriptionView(LoginRequiredMixin, TemplateView):
             )
 
         # Add subscription
-        profile.package_subscriptions.append(package_name)
-        profile.package_subscriptions.sort()
-        profile.save(update_fields=["package_subscriptions"])
+        profile.subscribe_to_package(package_name)
 
         # Handle HTMX vs standard request
         if request.headers.get("HX-Request"):
@@ -113,8 +111,7 @@ class RemoveSubscriptionView(LoginRequiredMixin, TemplateView):
             )
 
         # Remove subscription
-        profile.package_subscriptions.remove(package_name)
-        profile.save(update_fields=["package_subscriptions"])
+        profile.unsubscribe_from_package(package_name)
 
         # Handle HTMX vs standard request
         if request.headers.get("HX-Request"):

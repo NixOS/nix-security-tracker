@@ -4,64 +4,87 @@
   {% suggestion_stub data.suggestion_stub_context %}
 {% else %}
 
-  <article class="rounded-box column gap highlight-target" hx-target="this" id="suggestion-{{ data.suggestion.cached.payload.pk }}">
-    {% if data.show_status %}
-      <div class="row gap-small centered">
-        {% status_icon data.suggestion.status %}
-        {% if data.suggestion.status == "pending" %}
-          <div class="bold">Untriaged</div>
-        {% elif data.suggestion.status == "rejected" %}
-          <div class="bold">Dismissed</div>
-        {% elif data.suggestion.status == "accepted" %}
-          <div class="bold">Accepted</div>
-        {% elif data.suggestion.status == "published" %}
-          <div class="bold">Published</div>
-        {% endif %}
+<article class="rounded-box column gap highlight-target" hx-target="this" id="suggestion-{{ data.suggestion.cached.payload.pk }}">
+    <div class="column {% if data.is_compact %}gap-small{% else %}gap{% endif %}">
+
+      {% if data.show_status or data.suggestion.status == "rejected" and data.suggestion.rejection_reason %}
+        <div id="suggestion-{{ data.suggestion.cached.payload.pk }}-status" class="row gap-small centered">
+          {% status_icon data.suggestion.status %}
+          {% if data.suggestion.status == "pending" %}
+            <div class="bold">Untriaged</div>
+          {% elif data.suggestion.status == "rejected" %}
+            <div class="bold">Dismissed</div>
+            {% if data.suggestion.rejection_reason%}<div>({{ data.suggestion.get_rejection_reason_display }})</div>{% endif %}
+          {% elif data.suggestion.status == "accepted" %}
+            <div class="bold">Accepted</div>
+          {% elif data.suggestion.status == "published" %}
+            <div class="bold">Published</div>
+          {% endif %}
+        </div>
+      {% endif %}
+
+
+      <div class="row spread gap wrap">
+        <div class="row gap wrap">
+          <a href="{% url 'webview:suggestion:detail' suggestion_id=data.suggestion.pk %}">Permalink</a>
+          <a href="https://nvd.nist.gov/vuln/detail/{{ data.suggestion.cached.payload.cve_id | urlencode }}">
+            {{ data.suggestion.cached.payload.cve_id }}
+          </a>
+          {% if data.suggestion.cached.payload.metrics %}
+            {% severity_badge data.suggestion.cached.payload.metrics %}
+          {% endif %}
+        </div>
+        <div class="row gap">
+          {% suggestion_activity_log data.suggestion data.activity_log %}
+        </div>
       </div>
-    {% endif %}
 
+      {% if data.is_compact %}
+      <h1 class="heading">
+          {% if data.suggestion.cached.payload.title %}
+            {{ data.suggestion.cached.payload.title }}
+          {% else %}
+            {{ data.suggestion.cached.payload.description|truncatewords:10 }}
+          {% endif %}
+      </h1>
+      {% else %}
+      <details>
+        <summary class="heading">
+          {% if data.suggestion.cached.payload.title %}
+            {{ data.suggestion.cached.payload.title }}
+          {% else %}
+            {{ data.suggestion.cached.payload.description|truncatewords:10 }}
+          {% endif %}
+        </summary>
+        <p>{{ data.suggestion.cached.payload.description }}</p>
+      </details>
+      {% endif %}
 
-    <div class="row spread gap wrap">
-      <div class="row gap wrap">
-        <a href="{% url 'webview:suggestion:detail' suggestion_id=data.suggestion.pk %}">Permalink</a>
-        <a href="https://nvd.nist.gov/vuln/detail/{{ data.suggestion.cached.payload.cve_id | urlencode }}">
-          {{ data.suggestion.cached.payload.cve_id }}
-        </a>
-        {% if data.suggestion.cached.payload.metrics %}
-          {% severity_badge data.suggestion.cached.payload.metrics %}
-        {% endif %}
-      </div>
-      <div class="row gap">
-        {% suggestion_activity_log data.suggestion data.activity_log %}
-      </div>
+      {% if data.references %}
+        {% include "../../components/cve_references.html" with references=data.references is_compact=data.is_compact %}
+        {% if data.is_compact %}<hr class="divider"></hr>{% endif %}
+      {% endif %}
+
+      {% if data.is_compact %}
+        {% affected_products data.suggestion.cached.payload.affected_products is_compact=True %}
+      {% else %}
+        <div class="rounded-box column gap">
+          <h2 class="heading dimmed">Affected products</h2>
+          {% affected_products data.suggestion.cached.payload.affected_products %}
+        </div>
+      {% endif %}
+
+      {% if not data.is_compact %}
+
+        <div class="rounded-box column gap">
+          {% package_list data.package_list_context %}
+        </div>
+
+        {% maintainer_list data.maintainer_list_context %}
+
+      {% endif %}
+
     </div>
-
-    <details>
-      <summary class="heading">
-        {% if data.suggestion.cached.payload.title %}
-          {{ data.suggestion.cached.payload.title }}
-        {% else %}
-          {{ data.suggestion.cached.payload.description|truncatewords:10 }}
-        {% endif %}
-      </summary>
-      <p>{{ data.suggestion.cached.payload.description }}</p>
-    </details>
-
-    {% if data.references %}
-      {% include "../../components/cve_references.html" with references=data.references %}
-    {% endif %}
-
-    <div class="rounded-box column gap">
-      <h2 class="heading dimmed">Affected products</h2>
-      {% affected_products data.suggestion.cached.payload.affected_products %}
-    </div>
-
-    <div class="rounded-box column gap">
-      {% package_list data.package_list_context %}
-    </div>
-
-    {% maintainer_list data.maintainer_list_context %}
-
 
     <form
       class="contents"
@@ -74,49 +97,75 @@
       autocomplete="off"
     >
       {% csrf_token %}
-      {% if not data.can_edit or data.suggestion.status == "published" %}
-        {% if data.suggestion.comment %}
-          <pre class="rounded-box monospace highlight-nonempty">{{ data.suggestion.comment|default:"" }}</pre>
-        {% endif %}
-      {% else %}
-        <textarea
-          id="comment-{{ data.suggestion.pk }}"
-          hx-preserve
-          class="rounded-box monospace highlight-nonempty"
-          name="comment"
-          maxlength="1000"
-          placeholder="Free comment: context, additional info, dismissal reason, etc."
-          rows="3"
-        >{{ data.suggestion.comment|default:"" }}</textarea>
-      {% endif %}
-
-      {% if data.can_edit and data.suggestion.status != "published" %}
-        <div class="row-reverse spread">
-          {% if data.suggestion.status == "pending" %}
-            <button type="submit" name="new_status" value="accepted" class="status-change-button btn btn-green row gap-small centered">
-              {% status_icon "accepted" %}
-              Accept
-            </button>
-            <button type="submit" name="new_status" value="rejected" class="status-change-button btn btn-red row gap-small centered">
-              {% status_icon "rejected" %}
-              Dismiss
-            </button>
-          {% elif data.suggestion.status == "rejected" %}
+      <input type="hidden" name="is_compact" value="{% if data.is_compact %}true{% else %}false{% endif %}">
+      
+      {% if data.is_compact and data.user_can_edit and data.suggestion.status != "published" %}
+        <div class="row gap-small centered">
+          {% if data.suggestion.status == "pending" or data.suggestion.status == "accepted" %}
+          {% include "./dismiss_button.html" %}
+          {% endif %}
+          
+          <textarea
+            id="comment-{{ data.suggestion.pk }}"
+            hx-preserve
+            class="rounded-box-compact monospace highlight-nonempty flex-grow full-width"
+            name="comment"
+            maxlength="1000"
+            placeholder="Comment..."
+            rows="1"
+          >{{ data.suggestion.comment|default:"" }}</textarea>
+          
+          {% if data.suggestion.status == "pending" or data.suggestion.status == "rejected" %}
             <button type="submit" name="new_status" value="accepted" class="status-change-button btn btn-green row gap-small centered">
               {% status_icon "accepted" %}
               Accept
             </button>
           {% elif data.suggestion.status == "accepted" %}
-            <button type="submit" name="new_status" value="published" class="status-change-button btn btn-green row gap-small centered">
+            <button type="submit" name="new_status" value="published" class="status-change-button btn btn-green row gap-small centered no-line-breaks">
               {% status_icon "published" %}
               Publish issue
             </button>
-            <button type="submit" name="new_status" value="rejected" class="status-change-button btn btn-red row gap-small centered">
-              {% status_icon "rejected" %}
-              Dismiss
-            </button>
           {% endif %}
         </div>
+      {% else %}
+        {% if not data.user_can_edit or data.suggestion.status == "published" %}
+          {% if data.suggestion.comment %}
+            <pre class="rounded-box monospace highlight-nonempty">{{ data.suggestion.comment|default:"" }}</pre>
+          {% endif %}
+        {% else %}
+          <textarea
+            id="comment-{{ data.suggestion.pk }}"
+            hx-preserve
+            class="rounded-box monospace highlight-nonempty"
+            name="comment"
+            maxlength="1000"
+            placeholder="Free comment: context, additional info, dismissal reason, etc."
+            rows="3"
+          >{{ data.suggestion.comment|default:"" }}</textarea>
+        {% endif %}
+
+        {% if data.user_can_edit and data.suggestion.status != "published" %}
+          <div class="row-reverse centered spread">
+            {% if data.suggestion.status == "pending" %}
+              <button type="submit" name="new_status" value="accepted" class="status-change-button btn btn-green row gap-small centered">
+                {% status_icon "accepted" %}
+                Accept
+              </button>
+              {% include "./dismiss_button.html" %}
+            {% elif data.suggestion.status == "rejected" %}
+              <button type="submit" name="new_status" value="accepted" class="status-change-button btn btn-green row gap-small centered">
+                {% status_icon "accepted" %}
+                Accept
+              </button>
+            {% elif data.suggestion.status == "accepted" %}
+              <button type="submit" name="new_status" value="published" class="status-change-button btn btn-green row gap-small centered">
+                {% status_icon "published" %}
+                Publish issue
+              </button>
+              {% include "./dismiss_button.html" %}
+            {% endif %}
+          </div>
+        {% endif %}
       {% endif %}
     </form>
 

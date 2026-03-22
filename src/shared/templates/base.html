@@ -16,9 +16,6 @@
     <link rel="stylesheet" type="text/css" href="/static/page-layout.css" />
     <link rel="stylesheet" type="text/css" href="/static/cvss-tags.css" />
     <link rel="stylesheet" type="text/css" href="/static/icons/style.css" />
-
-    <!-- TODO Remove that eventually: it's only used for css in affected_list -->
-    {% block extra_head %}{% endblock extra_head %}
   </head>
 
   <body>
@@ -90,8 +87,8 @@
     {% block workflow %}
     <nav id="menu-bar">
       <ul class="row gap">
-        <li class="row gap-small centered"><i class="icon-bin"></i><a href="{% url 'webview:suggestion:dismissed_suggestions' %}">Dismissed suggestions</a></li>
-        <li class="row gap-small centered"><i class="icon-inbox"></i><a href="{% url 'webview:suggestion:untriaged_suggestions' %}">Untriaged suggestions</a></li>
+        <li class="row gap-small centered"><i class="icon-bin"></i><a href="{% url 'webview:suggestion:dismissed_suggestions' %}?compact">Dismissed suggestions</a></li>
+        <li class="row gap-small centered"><i class="icon-inbox"></i><a href="{% url 'webview:suggestion:untriaged_suggestions' %}?compact">Untriaged suggestions</a></li>
         <li class="row gap-small centered"><i class="icon-draft"></i><a href="{% url 'webview:suggestion:accepted_suggestions' %}">Accepted suggestions</a></li>
         <li class="row gap-small centered"><i class="icon-github"></i><a href="{% url 'webview:issue_list' %}">Published issues</a></li>
       </ul>
@@ -105,7 +102,7 @@
     {% endblock layout %}
 
     {% if is_paginated %}
-      {% include "components/pagination.html" %}
+      {% include "components/pagination.html" with is_compact=is_compact %}
     {% endif %}
 
     <footer>

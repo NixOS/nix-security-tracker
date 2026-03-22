@@ -7,7 +7,8 @@ from django.db.models.query import QuerySet
 from django.http import Http404
 from django.views.generic import ListView
 
-from shared.auth import can_edit_suggestion
+from shared.auth import user_can_edit_suggestion
+from shared.logs.fetchers import fetch_suggestion_events
 from shared.models.linkage import (
     CVEDerivationClusterProposal,
 )
@@ -22,6 +23,15 @@ class SuggestionListView(ListView, ABC):
     paginate_by = 10
     status_filter: CVEDerivationClusterProposal.Status | None = None
     package_filter: str | None = None  # To be defined in concrete classes
+
+    @property
+    def is_compact(self) -> bool:
+        """Whether to show compact suggestions in the list"""
+        compact_param = self.request.GET.get("compact")
+        if compact_param is not None:
+            return compact_param.lower() not in ("false", "0", "no", "off")
+        else:
+            return False
 
     def get_queryset(self) -> QuerySet[CVEDerivationClusterProposal]:
         self.package_filter = self.kwargs.get("package_name")
@@ -62,10 +72,17 @@ class SuggestionListView(ListView, ABC):
 
         # Convert suggestions to SuggestionContext objects for the current page
         suggestion_contexts = []
-        can_edit = can_edit_suggestion(self.request.user)
-        # FIXME(@fricklerhandwerk): This is very slow (scales with number of events in the activity log), it should batch all related queries and do the wiring in Python.
+        user_can_edit = user_can_edit_suggestion(self.request.user)
+        is_compact = self.is_compact
+        suggestion_ids = [s.pk for s in page_obj.object_list]
+        events_by_suggestion = fetch_suggestion_events(suggestion_ids)
         for suggestion in page_obj.object_list:
-            suggestion_context = get_suggestion_context(suggestion, can_edit=can_edit)
+            suggestion_context = get_suggestion_context(
+                suggestion,
+                user_can_edit=user_can_edit,
+                is_compact=is_compact,
+                pre_fetched_events=events_by_suggestion[suggestion.pk],
+            )
             suggestion_context.show_status = (
                 self.status_filter
                 is None  # We don't show status in lists already filtered by status
@@ -78,6 +95,7 @@ class SuggestionListView(ListView, ABC):
                 "page_obj": page_obj,
                 "status_filter": self.status_filter,
                 "package_filter": self.package_filter,
+                "is_compact": self.is_compact,
                 "adjusted_elided_page_range": paginator.get_elided_page_range(
                     page_obj.number
                 ),

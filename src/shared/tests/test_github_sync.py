@@ -300,11 +300,11 @@ class GithubSyncTests(TestCase):
         action_removed = {"action": "removed"}
         common_payload_security = {
             "team": {"id": gh_state.security_team.id},
-            "member": {"id": self.security_users[0].account.uid},
+            "member": {"id": int(self.security_users[0].account.uid)},
         }
         common_payload_committer = {
             "team": {"id": gh_state.committers_team.id},
-            "member": {"id": self.committer_users[0].account.uid},
+            "member": {"id": int(self.committer_users[0].account.uid)},
         }
         payload_security_added = {**action_added, **common_payload_security}
         payload_committer_added = {**action_added, **common_payload_committer}
@@ -339,3 +339,45 @@ class GithubSyncTests(TestCase):
 
         self.assertFalse(isadmin(self.committer_users[0].user))
         self.assertFalse(iscommitter(self.committer_users[0].user))
+
+    def test_webhook_missing_user(self) -> None:
+        # Avoid caching state issues by properly mocking gh_state
+        gh_state = GithubState(github=MockGithub())  # type: ignore
+        apps.get_app_config("shared").github_state = gh_state  # type: ignore
+
+        payload = {
+            "action": "added",
+            "team": {"id": gh_state.security_team.id},
+            "member": {"id": 9999999},  # Unknown user
+        }
+
+        # Expect DoestNotExist since user is not in database
+        with self.assertRaises(User.DoesNotExist):
+            handle_webhook(event="membership", payload=payload)
+
+    def test_webhook_wrong_provider(self) -> None:
+        # Avoid caching state issues by properly mocking gh_state
+        gh_state = GithubState(github=MockGithub())  # type: ignore
+        apps.get_app_config("shared").github_state = gh_state  # type: ignore
+
+        # Create a malicious Google account using the same UID as an intended victim
+        victim_github_uid = 88888
+
+        malicious_user = User.objects.create_user(username="malicious-google-user")
+        SocialAccount.objects.create(
+            user=malicious_user, provider="google", uid=str(victim_github_uid)
+        )
+
+        payload = {
+            "action": "added",
+            "team": {"id": gh_state.security_team.id},
+            "member": {"id": victim_github_uid},
+        }
+
+        # The webhook shouldn't mistakenly assign permissions to the Google user
+        # Instead, it should throw DoesNotExist since the GitHub user is missing
+        with self.assertRaises(User.DoesNotExist):
+            handle_webhook(event="membership", payload=payload)
+
+        # Ensure the malicious user did not receive permissions
+        self.assertFalse(isadmin(malicious_user))
