@@ -93,3 +93,134 @@ def test_ignore_restore_package(
     expect(active_packages.get_by_text("package1")).to_be_visible()
     expect(active_packages.get_by_text("package2")).to_be_visible()
     expect(ignored_packages).not_to_be_visible()
+
+
+def test_ignore_multiple_packages(
+    live_server: LiveServer,
+    as_staff: Page,
+    make_cached_suggestion: Callable[..., CVEDerivationClusterProposal],
+    make_drv: Callable[..., NixDerivation],
+) -> None:
+    """Ignoring packages one by one keeps all of them in the ignored section."""
+    drv1 = make_drv(pname="alpha")
+    drv2 = make_drv(pname="bravo")
+    drv3 = make_drv(pname="charlie")
+    suggestion = make_cached_suggestion(
+        drvs={
+            drv1: ProvenanceFlags.PACKAGE_NAME_MATCH,
+            drv2: ProvenanceFlags.PACKAGE_NAME_MATCH,
+            drv3: ProvenanceFlags.PACKAGE_NAME_MATCH,
+        },
+    )
+
+    as_staff.goto(
+        live_server.url
+        + reverse("webview:suggestion:detail", kwargs={"suggestion_id": suggestion.pk})
+    )
+
+    active = as_staff.locator(f"#suggestion-{suggestion.pk}-active-packages")
+    ignored = as_staff.locator(f"#suggestion-{suggestion.pk}-ignored-packages")
+    container = as_staff.locator(f"#suggestion-{suggestion.pk}")
+
+    # Ignore alpha
+    active.locator(".package-alpha").get_by_role("button", name="Ignore").click()
+    container.get_by_text(re.compile("Ignored packages")).click()
+    expect(ignored.get_by_text("alpha")).to_be_visible()
+    expect(active.get_by_text("bravo")).to_be_visible()
+    expect(active.get_by_text("charlie")).to_be_visible()
+
+    # Ignore bravo
+    active.locator(".package-bravo").get_by_role("button", name="Ignore").click()
+    ignored.click()
+    expect(ignored.get_by_text("alpha")).to_be_visible()
+    expect(ignored.get_by_text("bravo")).to_be_visible()
+    expect(active.get_by_text("charlie")).to_be_visible()
+
+    # Only charlie remains active
+    expect(active.get_by_text("alpha")).not_to_be_visible()
+    expect(active.get_by_text("bravo")).not_to_be_visible()
+
+
+def test_restore_one_of_multiple_ignored_packages(
+    live_server: LiveServer,
+    as_staff: Page,
+    make_cached_suggestion: Callable[..., CVEDerivationClusterProposal],
+    make_drv: Callable[..., NixDerivation],
+) -> None:
+    """Restoring one ignored package does not affect other ignored packages."""
+    drv1 = make_drv(pname="alpha")
+    drv2 = make_drv(pname="bravo")
+    drv3 = make_drv(pname="charlie")
+    suggestion = make_cached_suggestion(
+        drvs={
+            drv1: ProvenanceFlags.PACKAGE_NAME_MATCH,
+            drv2: ProvenanceFlags.PACKAGE_NAME_MATCH,
+            drv3: ProvenanceFlags.PACKAGE_NAME_MATCH,
+        },
+    )
+
+    as_staff.goto(
+        live_server.url
+        + reverse("webview:suggestion:detail", kwargs={"suggestion_id": suggestion.pk})
+    )
+
+    active = as_staff.locator(f"#suggestion-{suggestion.pk}-active-packages")
+    ignored = as_staff.locator(f"#suggestion-{suggestion.pk}-ignored-packages")
+    container = as_staff.locator(f"#suggestion-{suggestion.pk}")
+
+    # Ignore both alpha and bravo
+    active.locator(".package-alpha").get_by_role("button", name="Ignore").click()
+    container.get_by_text(re.compile("Ignored packages")).click()
+    active.locator(".package-bravo").get_by_role("button", name="Ignore").click()
+
+    # Restore only alpha
+    ignored.click()
+    ignored.locator(".package-alpha").get_by_role("button", name="Restore").click()
+
+    ignored.click()
+    expect(active.get_by_text("alpha")).to_be_visible()
+    expect(active.get_by_text("charlie")).to_be_visible()
+    expect(ignored.get_by_text("bravo")).to_be_visible()
+    expect(active.get_by_text("bravo")).not_to_be_visible()
+
+
+def test_ignored_packages_persist_across_page_load(
+    live_server: LiveServer,
+    as_staff: Page,
+    make_cached_suggestion: Callable[..., CVEDerivationClusterProposal],
+    make_drv: Callable[..., NixDerivation],
+) -> None:
+    """Ignored packages remain ignored after navigating away and back."""
+    drv1 = make_drv(pname="alpha")
+    drv2 = make_drv(pname="bravo")
+    suggestion = make_cached_suggestion(
+        drvs={
+            drv1: ProvenanceFlags.PACKAGE_NAME_MATCH,
+            drv2: ProvenanceFlags.PACKAGE_NAME_MATCH,
+        },
+    )
+
+    detail_url = live_server.url + reverse(
+        "webview:suggestion:detail", kwargs={"suggestion_id": suggestion.pk}
+    )
+    as_staff.goto(detail_url)
+
+    active = as_staff.locator(f"#suggestion-{suggestion.pk}-active-packages")
+
+    # Ignore bravo
+    active.locator(".package-bravo").get_by_role("button", name="Ignore").click()
+
+    # Navigate away and back
+    as_staff.goto(detail_url)
+
+    active = as_staff.locator(f"#suggestion-{suggestion.pk}-active-packages")
+    ignored = as_staff.locator(f"#suggestion-{suggestion.pk}-ignored-packages")
+
+    expect(active.get_by_text("alpha")).to_be_visible()
+    expect(active.get_by_text("bravo")).not_to_be_visible()
+
+    # Open ignored section and verify bravo is there
+    as_staff.locator(f"#suggestion-{suggestion.pk}").get_by_text(
+        re.compile("Ignored packages")
+    ).click()
+    expect(ignored.get_by_text("bravo")).to_be_visible()

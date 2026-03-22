@@ -226,9 +226,7 @@ def cache_new_suggestions(suggestion: CVEDerivationClusterProposal) -> None:
         title=relevant_piece["title"],
         description=relevant_piece["descriptions__value"],
         affected_products=affected_products,
-        # FIXME(@fricklerhandwerk): It's probably because I don't understand the code involved too well, but it seems wrong that we don't keep the original packages here.
-        # If it must be that way, document why.
-        original_packages=packages,
+        original_packages=original_packages,
         packages=packages,
         metrics=[to_dict(m) for m in prefetched_metrics],
         categorized_maintainers=categorize_maintainers(packages, maintainer_overlays),
