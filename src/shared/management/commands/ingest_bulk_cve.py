@@ -41,7 +41,7 @@ class Command(BaseCommand):
             help="Ignore the local data cache content and download the CVEs zip again.",
         )
 
-    def _download_gh_bundle(self, data_cache_dir: str) -> GitRelease:
+    def _get_release(self) -> GitRelease:
         # Initialize a GitHub connection
         g = get_gh()
 
@@ -50,9 +50,10 @@ class Command(BaseCommand):
 
         # Fetch the latest daily release
         release = repo.get_latest_release()
-
         logger.info(f"Fetched latest release: {release.title}")
+        return release
 
+    def _download_gh_bundle(self, data_cache_dir: str, release: GitRelease) -> None:
         # Get the bulk cve list asset
         bundle = release.assets[0]
 
@@ -87,8 +88,6 @@ class Command(BaseCommand):
 
                 z_arc.extractall(path=data_cache_dir)
 
-        return release
-
     def _set_cve_data_cache_dir(self) -> tuple[str, str]:
         data_cache_dir = settings.CVE_CACHE_DIR
 
@@ -99,14 +98,18 @@ class Command(BaseCommand):
 
     def handle(self, *args: str, **kwargs: Any) -> None:  # pyright: ignore reportUnusedVariable
         data_cache_dir, cve_data_cache_dir = self._set_cve_data_cache_dir()
+        release = self._get_release()
+        try:
+            v_date = date.fromisoformat(release.tag_name.split("_")[1])
+        except (IndexError, ValueError) as e:
+            raise CommandError(f"Invalid tag_name format: {release.tag_name!r}\n{e}")
 
         # delete if force-download
         if kwargs["force_download"] and path.exists(cve_data_cache_dir):
             shutil.rmtree(cve_data_cache_dir)
 
         if not path.exists(cve_data_cache_dir):
-            # Doing a self assignment trick to keep pyright happy ...
-            self.release = self._download_gh_bundle(data_cache_dir)
+            self._download_gh_bundle(data_cache_dir, release)
 
         # Traverse the tree and import cves if they already exist
         # Return the list in lexicographical order
@@ -123,12 +126,7 @@ class Command(BaseCommand):
                     make_cve(json.load(fc), triaged=False)
                     print(".", end="")
 
-        if not path.exists(cve_data_cache_dir):
-            # Record the ingestion
-            v_date = self.release.tag_name.split("_")[1]
-
             logger.info(f"Saving the ingestion valid up to {v_date}")
-
             CveIngestion.objects.create(
                 valid_to=date.fromisoformat(v_date), delta=False
             )
