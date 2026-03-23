@@ -116,7 +116,7 @@ class SuggestionContext:
                 for k, v in self.suggestion.cached.payload["original_packages"].items()
                 if k not in active_packages
             },
-            frozen = self.suggestion.is_frozen,
+            frozen=self.suggestion.is_frozen,
             user_can_edit=user_can_edit,
             suggestion_id=self.suggestion.pk,
         )
