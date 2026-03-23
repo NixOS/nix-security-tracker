@@ -22,6 +22,7 @@ def test_maintainer_addition_creates_activity_log_entry(
     committer: User,
     make_maintainer_from_user: Callable[..., NixMaintainer],
     cached_suggestion: CVEDerivationClusterProposal,
+    no_js: bool,
     frozen_time: FakeDatetime,
 ) -> None:
     """Test that adding a maintainer creates an activity log entry"""
@@ -59,7 +60,8 @@ def test_maintainer_addition_creates_activity_log_entry(
     activity_log = suggestion.locator(
         f"#suggestion-activity-log-{cached_suggestion.pk}"
     )
-    activity_log.click()
+    if no_js:
+        activity_log.click()
     # activity_log.get_by_text(staff.username)
 
     entry = (

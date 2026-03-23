@@ -128,5 +128,26 @@
       </p>
     </footer>
     <script src="/static/htmx.min.js"></script>
+    <script>
+      // Preserve the open/closed state of <details> elements across htmx swaps.
+      // Without this, sections with ignored items collapse every time an item is ignored or restored.
+      // Workaround as proposed in:
+      // https://github.com/bigskysoftware/htmx/issues/2195#issuecomment-2311061249
+      // https://gist.github.com/Odas0R/7a49d2c3b8c4d8aceadf800a8a60937d
+      (function () {
+        var openDetails = [];
+        document.addEventListener("htmx:beforeSwap", function (event) {
+          var target = event.detail.target;
+          openDetails = Array.from(target.querySelectorAll("details[open][id]"))
+            .map(function (el) { return el.id; });
+        });
+        document.addEventListener("htmx:afterSwap", function () {
+          openDetails.forEach(function (id) {
+            var el = document.getElementById(id);
+            if (el) el.setAttribute("open", "");
+          });
+        });
+      })();
+    </script>
   </body>
 </html>

@@ -147,6 +147,7 @@ def test_ignore_restore_package(
     make_maintainer_from_user: Callable[..., NixMaintainer],
     staff: User,
     committer: User,
+    no_js: bool,
     ignore_maintainer: bool,
 ) -> None:
     """Test ignoring and restoring a package"""
@@ -182,10 +183,10 @@ def test_ignore_restore_package(
     )
     ignore_package1_button.click()
     ignored_packages_section = as_staff.locator(f"#suggestion-{suggestion.pk}")
-    ignore_package = ignored_packages_section.get_by_text(
+    ignored_packages = ignored_packages_section.get_by_text(
         re.compile("Ignored packages"),
     )
-    ignore_package.click()
+    ignored_packages.click()
 
     expect(maintainers_list).to_have_count(1)
 

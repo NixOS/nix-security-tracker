@@ -100,6 +100,7 @@ def test_ignore_multiple_packages(
     as_staff: Page,
     make_cached_suggestion: Callable[..., CVEDerivationClusterProposal],
     make_drv: Callable[..., NixDerivation],
+    no_js: bool,
 ) -> None:
     """Ignoring packages one by one keeps all of them in the ignored section."""
     drv1 = make_drv(pname="alpha")
@@ -132,7 +133,8 @@ def test_ignore_multiple_packages(
     # Ignore bravo
     active.locator(".package-bravo").get_by_role("button", name="Ignore").click()
     expect(active.get_by_text("bravo")).not_to_be_visible()
-    container.get_by_text("Ignored packages").click()
+    if no_js:
+        container.get_by_text("Ignored packages").click()
     expect(ignored.get_by_text("alpha")).to_be_visible()
     expect(ignored.get_by_text("bravo")).to_be_visible()
     expect(active.get_by_text("charlie")).to_be_visible()
@@ -147,6 +149,7 @@ def test_restore_one_of_multiple_ignored_packages(
     as_staff: Page,
     make_cached_suggestion: Callable[..., CVEDerivationClusterProposal],
     make_drv: Callable[..., NixDerivation],
+    no_js: bool,
 ) -> None:
     """Restoring one ignored package does not affect other ignored packages."""
     drv1 = make_drv(pname="alpha")
@@ -176,14 +179,15 @@ def test_restore_one_of_multiple_ignored_packages(
     expect(active.get_by_text("bravo")).not_to_be_visible()
 
     # Restore only alpha
-    ignored.click()
+    if no_js:
+        ignored.click()
     ignored.locator(".package-alpha").get_by_role("button", name="Restore").click()
     expect(ignored.get_by_text("alpha")).not_to_be_visible()
 
     expect(active.get_by_text("alpha")).to_be_visible()
     expect(active.get_by_text("charlie")).to_be_visible()
-    # Expand the ignored packages section before asserting since it will close due to re-render
-    container.get_by_text("Ignored packages").click()
+    if no_js:
+        container.get_by_text("Ignored packages").click()
     expect(ignored.get_by_text("bravo")).to_be_visible()
     expect(active.get_by_text("bravo")).not_to_be_visible()
 
