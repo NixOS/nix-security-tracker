@@ -26,13 +26,12 @@ from shared.models import NixDerivation, NixEvaluation
 
 logger = logging.getLogger(__name__)
 
+# When terminated  by signal, `asyncio.create_subprocess_exec()` returns the negative signal number on Unix.
+# https://docs.python.org/3/library/asyncio-subprocess.html#asyncio.subprocess.Process.returncode
 CRASH_SIGNALS = (
     -signal.SIGSEGV,
     -signal.SIGABRT,
 )
-# asyncio.create_subprocess_exec returns negative signal numbers on Unix
-# (e.g. -11 for SIGSEGV, -6 for SIGABRT). The 128+signal convention only
-# applies when a shell wraps the process, which is not the case here.
 
 
 async def perform_evaluation(
