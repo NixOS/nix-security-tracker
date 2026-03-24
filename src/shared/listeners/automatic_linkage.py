@@ -2,11 +2,21 @@ import logging
 
 import pgpubsub
 from django.conf import settings
-from django.db.models import Case, F, IntegerField, Q, Value, When, Window
+from django.db.models import (
+    Case,
+    Exists,
+    F,
+    IntegerField,
+    OuterRef,
+    Q,
+    Value,
+    When,
+    Window,
+)
 from django.db.models.functions import RowNumber
 
 from shared.channels import ContainerChannel
-from shared.models.cve import Container
+from shared.models.cve import Container, Cpe
 from shared.models.linkage import CVEDerivationClusterProposal, ProvenanceFlags
 from shared.models.nix_evaluation import (
     NixDerivation,
@@ -33,13 +43,23 @@ def produce_linkage_candidates(
         .filter(row_num=1)
     )
 
+    # FIXME(@fricklerhandwerk): se a proper parsing library such as https://github.com/nilp0inter/cpe to work on structured data.
+    # That particular one looks like the best candidate, but appears unmaintained (or could just be very stable); needs thorough review before adopting it.
+    has_any_cpe = Exists(Cpe.objects.filter(affectedproduct=OuterRef("pk")))
+    has_non_hardware_cpe = Exists(
+        Cpe.objects.filter(affectedproduct=OuterRef("pk")).exclude(
+            name__istartswith="cpe:2.3:h:"
+        )
+    )
+    filtered_affected = container.affected.exclude(has_any_cpe & ~has_non_hardware_cpe)
+
     package_names = (
-        container.affected.exclude(package_name__isnull=True)
+        filtered_affected.exclude(package_name__isnull=True)
         .values_list("package_name", flat=True)
         .distinct()
     )
     products = (
-        container.affected.exclude(product__isnull=True)
+        filtered_affected.exclude(product__isnull=True)
         .values_list("product", flat=True)
         .distinct()
     )

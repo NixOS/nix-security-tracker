@@ -8,7 +8,6 @@ from django.db.models.signals import post_save
 from django.dispatch import receiver
 from django.utils.translation import gettext_lazy as _
 
-from shared.models.cve import text_length
 from shared.models.linkage import CVEDerivationClusterProposal
 from shared.models.nix_evaluation import TimeStampMixin
 
@@ -40,7 +39,7 @@ class NixpkgsIssue(models.Model):
     )
 
     status = models.CharField(
-        max_length=text_length(IssueStatus),
+        max_length=126,
         choices=IssueStatus.choices,
         default=IssueStatus.UNKNOWN,
     )

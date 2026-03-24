@@ -1,6 +1,6 @@
 from dataclasses import dataclass
 
-from webview.models import Notification, Profile
+from webview.models import Notification, Profile, SuggestionNotification
 from webview.suggestions.context.types import SuggestionStubContext
 
 
@@ -11,9 +11,9 @@ class NotificationContext:
         int | None
     )  # For no-js compatibility in multi-page notification center
     notification: Notification
-    suggestion_stub_context: SuggestionStubContext
-    matching_subscribed_packages: dict
-    matching_maintained_packages: dict
+    suggestion_stub_context: SuggestionStubContext | None = None
+    matching_subscribed_packages: dict | None = None
+    matching_maintained_packages: dict | None = None
 
     def __init__(
         self,
@@ -25,18 +25,19 @@ class NotificationContext:
         self.notification = notification
         self.new_unread_count = new_unread_count
         self.current_page = current_page
-        self.suggestion_stub_context = SuggestionStubContext(
-            suggestion=notification.suggestion,
-            issue_link=None,
-            undo_status_target=None,
-            undo_rejection_reason=None,
-        )
-        self.matching_subscribed_packages = self._get_matching_subscribed_packages(
-            user_profile
-        )
-        self.matching_maintained_packages = self._get_matching_maintained_packages(
-            user_profile
-        )
+        if isinstance(notification, SuggestionNotification):
+            self.suggestion_stub_context = SuggestionStubContext(
+                suggestion=notification.suggestion,
+                issue_link=None,
+                undo_status_target=None,
+                undo_rejection_reason=None,
+            )
+            self.matching_subscribed_packages = self._get_matching_subscribed_packages(
+                user_profile
+            )
+            self.matching_maintained_packages = self._get_matching_maintained_packages(
+                user_profile
+            )
 
     def _get_matching_subscribed_packages(self, user_profile: Profile) -> dict:
         # FIXME(@florentc): Since notifications cannot be automatically deleted

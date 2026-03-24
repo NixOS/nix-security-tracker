@@ -3,6 +3,7 @@ import json
 import logging
 import pathlib
 import random
+import signal
 import tempfile
 import time
 from collections.abc import AsyncGenerator
@@ -25,8 +26,12 @@ from shared.models import NixDerivation, NixEvaluation
 
 logger = logging.getLogger(__name__)
 
-SIGSEGV = 137
-SIGABRT = 134
+# When terminated  by signal, `asyncio.create_subprocess_exec()` returns the negative signal number on Unix.
+# https://docs.python.org/3/library/asyncio-subprocess.html#asyncio.subprocess.Process.returncode
+CRASH_SIGNALS = (
+    -signal.SIGSEGV,
+    -signal.SIGABRT,
+)
 
 
 async def perform_evaluation(
@@ -228,6 +233,50 @@ async def evaluation_entrypoint(
                 try:
                     assert eval_process.stdout is not None, (
                         "Expected a valid `stdout` pipe for the asynchronous evaluation process"
+                assert eval_process.stdout is not None, (
+                    "Expected a valid `stdout` pipe for the asynchronous evaluation process"
+                )
+
+                # The idea here is that we want to match as close as possible
+                # our evaluation speed. So, we read as much lines as possible
+                # and then insert them During the insertion time, more lines
+                # may come in our internal buffer. On the next read, we will
+                # drain them again.
+                # Adding an item in the database takes around 1s max.
+                # So we don't want to wait more than one second for all the lines we can get.
+                count = 0
+                async for lines in drain_lines(eval_process.stdout):
+                    await realtime_batch_process_attributes(
+                        evaluation, [line.decode("utf8") for line in lines]
+                    )
+                    count += len(lines)
+                # Wait for `nix-eval-jobs` to exit, at this point,
+                # It should be fairly quick because EOF has been reached.
+                rc = await eval_process.wait()
+                elapsed = time.time() - start
+                if rc in CRASH_SIGNALS:
+                    raise RuntimeError("`nix-eval-jobs` crashed!")
+                elif rc != 0:
+                    logger.error(
+                        "`nix-eval-jobs` failed to evaluate (non-zero exit status), check the evaluation logs"
+                    )
+                    await NixEvaluation.objects.filter(id=evaluation.pk).aupdate(
+                        state=NixEvaluation.EvaluationState.FAILED,
+                        elapsed=elapsed,
+                        updated_at=timezone.now(),
+                    )
+                else:
+                    logger.info(
+                        "Processed %d attributes from %s in %f seconds",
+                        count,
+                        evaluation,
+                        elapsed,
+                    )
+                    await NixEvaluation.objects.filter(id=evaluation.pk).aupdate(
+                        state=NixEvaluation.EvaluationState.COMPLETED,
+                        elapsed=elapsed,
+                        failure_reason=None,
+                        updated_at=timezone.now(),
                     )
 
                     # The idea here is that we want to match as close as possible
