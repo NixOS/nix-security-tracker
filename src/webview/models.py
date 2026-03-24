@@ -109,6 +109,21 @@ class Profile(models.Model):
 
         return notification
 
+    def create_text_notification(
+        self, title: str, message: str = ""
+    ) -> TextNotification:
+        """Create a notification and update the user's unread counter."""
+        notification = TextNotification.objects.create(
+            user=self.user,
+            title=title,
+            message=message,
+        )
+
+        self.unread_notifications_count += 1
+        self.save(update_fields=["unread_notifications_count"])
+
+        return notification
+
     def mark_all_read_for_user(self) -> int:
         """Mark all notifications as read for a user and reset counter. Returns count of notifications marked."""
         unread = Notification.objects.filter(user=self.user, is_read=False)

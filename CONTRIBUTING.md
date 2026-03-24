@@ -13,6 +13,15 @@ It contains general contribution information, and lists resources to help you ge
 
 Other directories in this repository have additional `README.md` files with more specific information relevant to their sibling files.
 
+Service definitions are in [`nix/configuration.nix`](nix/configuration.nix).
+
+Application logic lives in the [`src/`](src/) directory.
+From here, it follows standard Django patterns:
+
+- [`src/project/`](src/project/): global project configuration
+- [`src/shared/`](src/shared/): [application](https://docs.djangoproject.com/en/6.0/ref/applications/) with data models and business logic
+- [`src/webview/`](src/webview/): application for the web frontend
+
 # Hacking
 
 The service is implemented in Python using [Django](https://www.djangoproject.com/).
@@ -41,6 +50,41 @@ Run the formatter manually with:
 ```console
 nix-shell --run format
 ```
+
+## Contribution culture
+
+A pull request asks maintainers to accept responsibility for a decision.
+Help them understand what they're agreeing to.
+
+To minimise turnaround time for getting your contribution merged:
+
+- Make exactly one change in each pull request.
+
+  Don't lump together unrelated changes.
+  Otherwise, easy parts that could be merged on their own get blocked by the harder ones that need multiple iterations to get right.
+
+- Use the commit message title to describe the change such that its merit can be evaluated.
+  - Good: `fix: race condition during ingestion`
+  - Bad: `fix: add with transaction.atomic() in ingestion.py`
+
+- If the change is not trivial, explain _why_ the change is made in the pull request description and commit message.
+
+  Also describe consequences of the change if they aren't obvious.
+
+  Empty pull request descriptions and commit messages are fine if rationale and impact are evident from the title.
+
+- Strive to keep the diff small.
+
+  Larger changes typically mean that you made too many changes at once.
+  Exceptions are mechanical changes that can be checked at a glance or reproduced by running a command.
+
+- Don't rewrite history, address review comments in new commits.
+
+  The pull request should still amount to a small change and can be squash-merged.
+
+- Always add tests when changing behavior or fixing bugs.
+
+- Run `nix-shell --run format` before pushing.
 
 ## Tagged comments
 
