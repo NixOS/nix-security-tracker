@@ -3,6 +3,7 @@ import json
 import logging
 import pathlib
 import random
+import signal
 import tempfile
 import time
 from collections.abc import AsyncGenerator
@@ -25,8 +26,12 @@ from shared.models import NixDerivation, NixEvaluation
 
 logger = logging.getLogger(__name__)
 
-SIGSEGV = 137
-SIGABRT = 134
+# When terminated  by signal, `asyncio.create_subprocess_exec()` returns the negative signal number on Unix.
+# https://docs.python.org/3/library/asyncio-subprocess.html#asyncio.subprocess.Process.returncode
+CRASH_SIGNALS = (
+    -signal.SIGSEGV,
+    -signal.SIGABRT,
+)
 
 
 async def perform_evaluation(
@@ -246,7 +251,7 @@ async def evaluation_entrypoint(
                 # It should be fairly quick because EOF has been reached.
                 rc = await eval_process.wait()
                 elapsed = time.time() - start
-                if rc in (SIGSEGV, SIGABRT):
+                if rc in CRASH_SIGNALS:
                     raise RuntimeError("`nix-eval-jobs` crashed!")
                 elif rc != 0:
                     logger.error(

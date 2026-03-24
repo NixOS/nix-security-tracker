@@ -11,7 +11,7 @@
       "submodules": false,
       "revision": "fcdea223397448d35d9b31f798479227e80183f6",
       "url": "https://github.com/ryantm/agenix/archive/fcdea223397448d35d9b31f798479227e80183f6.tar.gz",
-      "hash": "1d4m7hsq727q7ndjqmgyl8vkbkqjwps962ygmv2mcc5dbqzgn963"
+      "hash": "sha256-wyT7Pl6tMFbFrs8Lk/TlEs81N6L+VSybPfiIgzU8lbQ="
     },
     "gitignore": {
       "type": "Git",
@@ -24,7 +24,7 @@
       "submodules": false,
       "revision": "cb5e3fdca1de58ccbc3ef53de65bd372b48f567c",
       "url": "https://github.com/hercules-ci/gitignore/archive/cb5e3fdca1de58ccbc3ef53de65bd372b48f567c.tar.gz",
-      "hash": "1vjjcjx5z0lci8psn3xkcb5rqrpxknkw6w0q38bk8cadwr6whs2y"
+      "hash": "sha256-XmjITeZNMTQXGhhww6ed/Wacy2KzD6svioyCX7pkUu4="
     },
     "htmx": {
       "type": "GitRelease",
@@ -39,7 +39,7 @@
       "version": "v2.0.8",
       "revision": "cf6609d4546f366d7931d984072ecf5071bf334f",
       "url": null,
-      "hash": "0n2flf02xz883x05g6da0an1h5j00msvmb1i5za98i1i97fmfw44"
+      "hash": "sha256-hHBX3UkxRJTULzGsunUFQBYYrAKqmVdAHwj9LoCjTlg="
     },
     "infra": {
       "type": "Git",
@@ -52,13 +52,13 @@
       "submodules": false,
       "revision": "03c2c0d024ec64a069d9766556ad7590b426edac",
       "url": "https://github.com/nixos/infra/archive/03c2c0d024ec64a069d9766556ad7590b426edac.tar.gz",
-      "hash": "134yzdh5s3pbj11fclg2b41anj13sd8v6ivcjbj91wibcw8ii2nz"
+      "hash": "sha256-34oYEWcr8pDkkmxHs1HTI0irAlniUeZCkOsOXWD7now="
     },
     "nixpkgs": {
       "type": "Channel",
       "name": "nixpkgs-unstable",
       "url": "https://releases.nixos.org/nixpkgs/nixpkgs-26.05pre938561.eb8d947de7b0/nixexprs.tar.xz",
-      "hash": "1b8lji9phpjyr8pg5qx66jwagqvwn6kdgdxzdvyg5vc8f7cyx4gi"
+      "hash": "sha256-8ZHu2XGI7fL8br+316axfOOnuDSm4/Iuyl5eeFOUFK0="
     },
     "pre-commit-hooks": {
       "type": "Git",
@@ -71,8 +71,8 @@
       "submodules": false,
       "revision": "a8ca480175326551d6c4121498316261cbb5b260",
       "url": "https://github.com/cachix/pre-commit-hooks.nix/archive/a8ca480175326551d6c4121498316261cbb5b260.tar.gz",
-      "hash": "1f5y06l6a8nwzb8hprq8c4ya98n28diw6szaz4s510czcw13d28n"
+      "hash": "sha256-Fok2AmefgVA0+eprw2NDwqKkPGEI5wvR+twiZagBvrg="
     }
   },
-  "version": 5
+  "version": 7
 }

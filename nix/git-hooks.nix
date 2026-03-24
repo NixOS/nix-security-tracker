@@ -61,18 +61,12 @@
       prettier = {
         enable = true;
       };
-    }
-    // {
+
       lychee = {
         enable = true;
         name = "lychee";
         entry = "${pkgs.lib.getExe pkgs.lychee} --offline --no-progress";
         files = "\\.md$";
-        inherit excludes;
-        stages = [
-          "manual"
-          "pre-commit"
-        ];
       };
     };
 }

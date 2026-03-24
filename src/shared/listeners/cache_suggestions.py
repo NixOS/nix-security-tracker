@@ -239,33 +239,13 @@ def cache_new_suggestions_following_new_container(
 
 def is_version_affected(version_statuses: list[str]) -> Version.Status:
     """
-    Basically just sums list of version constraints statuses.
-    When in doubt, we:
-    - Choose Affected over Unknown
-    - Choose Unknown over Unaffected
-    - Choose Affected over Unaffected
+    Returns the highest priority status from the list of version constraints.
+    Priority: Affected > Unknown > Unaffected.
     """
-    result = Version.Status.UNKNOWN
-    for status in version_statuses:
-        if status == result:
-            pass
-        elif (
-            status == Version.Status.AFFECTED and result == Version.Status.UNKNOWN
-        ) or (status == Version.Status.UNKNOWN and result == Version.Status.AFFECTED):
-            result = Version.Status.AFFECTED
-        elif (
-            status == Version.Status.UNKNOWN and result == Version.Status.UNAFFECTED
-        ) or (status == Version.Status.UNAFFECTED and result == Version.Status.UNKNOWN):
-            result = Version.Status.UNKNOWN
-        elif (
-            status == Version.Status.AFFECTED and result == Version.Status.UNAFFECTED
-        ) or (
-            status == Version.Status.UNAFFECTED and result == Version.Status.AFFECTED
-        ):
-            result = Version.Status.AFFECTED
-        else:
-            assert False, f"Unreachable code: {status} {result}"
-    return result
+    return max(
+        (Version.Status(status) for status in version_statuses),
+        default=Version.Status.UNKNOWN,
+    )
 
 
 def get_src_position(derivation: NixDerivation) -> str | None:

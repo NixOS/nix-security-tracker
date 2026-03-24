@@ -121,7 +121,9 @@ class SuggestionContentEditBaseView(SuggestionBaseView, ABC):
         suggestion = fetch_suggestion(suggestion_id)
         events = fetch_suggestion_events([suggestion.pk])
         suggestion_context = get_suggestion_context(
-            suggestion, user_can_edit=user_can_edit, pre_fetched_events=events[suggestion.pk]
+            suggestion,
+            user_can_edit=user_can_edit,
+            pre_fetched_events=events[suggestion.pk],
         )
 
         # Validate that the suggestion status allows package editing

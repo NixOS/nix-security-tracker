@@ -1,3 +1,5 @@
+import functools
+
 from django.contrib.postgres.indexes import BTreeIndex, GinIndex
 from django.contrib.postgres.search import SearchVectorField
 from django.core.validators import RegexValidator
@@ -5,10 +7,6 @@ from django.db import models
 from django.db.models import Index, Q
 from django.utils.translation import gettext_lazy as _
 from pgtrigger import UpdateSearchVector
-
-
-def text_length(choices: type[models.TextChoices]) -> int:
-    return max(map(len, choices.values))
 
 
 class Organization(models.Model):
@@ -31,7 +29,7 @@ class CveRecord(models.Model):
     container: models.QuerySet["Container"]
 
     state = models.CharField(
-        max_length=text_length(RecordState),
+        max_length=126,
         choices=RecordState.choices,
         default=RecordState.PUBLISHED,
     )
@@ -187,55 +185,55 @@ class Metric(models.Model):
     raw_cvss_json = models.JSONField()
 
     scope = models.CharField(
-        max_length=text_length(Scopes), choices=Scopes.choices, null=True, default=None
+        max_length=126, choices=Scopes.choices, null=True, default=None
     )
     base_score = models.FloatField(null=True, default=None)
     vector_string = models.CharField(max_length=128, null=True, default=None)
 
     attack_vector = models.CharField(
-        max_length=text_length(AttackVectors),
+        max_length=126,
         choices=AttackVectors.choices,
         null=True,
         default=None,
     )
     base_severity = models.CharField(
-        max_length=text_length(Severity),
+        max_length=126,
         choices=Severity.choices,
         null=True,
         default=None,
     )
     integrity_impact = models.CharField(
-        max_length=text_length(Severity),
+        max_length=126,
         choices=Severity.choices,
         null=True,
         default=None,
     )
     user_interaction = models.CharField(
-        max_length=text_length(Severity),
+        max_length=126,
         choices=Severity.choices,
         null=True,
         default=None,
     )
     attack_complexity = models.CharField(
-        max_length=text_length(Severity),
+        max_length=126,
         choices=Severity.choices,
         null=True,
         default=None,
     )
     availability_impact = models.CharField(
-        max_length=text_length(Severity),
+        max_length=126,
         choices=Severity.choices,
         null=True,
         default=None,
     )
     privileges_required = models.CharField(
-        max_length=text_length(Severity),
+        max_length=126,
         choices=Severity.choices,
         null=True,
         default=None,
     )
     confidentiality_impact = models.CharField(
-        max_length=text_length(Severity),
+        max_length=126,
         choices=Severity.choices,
         null=True,
         default=None,
@@ -272,9 +270,7 @@ class Credit(models.Model):
         SPONSOR = "sponsor", _("sponsor")
         OTHER = "other", _("other")
 
-    _type = models.CharField(
-        max_length=text_length(Type), choices=Type.choices, default=Type.FINDER
-    )
+    _type = models.CharField(max_length=126, choices=Type.choices, default=Type.FINDER)
     user = models.ForeignKey(
         Organization, null=True, default=None, on_delete=models.SET_NULL
     )
@@ -287,13 +283,27 @@ class Platform(models.Model):
 
 # TODO Maybe change this to VersionConstraint one day?
 class Version(models.Model):
+    @functools.total_ordering
     class Status(models.TextChoices):
         AFFECTED = "affected", _("affected")
         UNAFFECTED = "unaffected", _("unaffected")
         UNKNOWN = "unknown", _("unknown")
 
+        @property
+        def _rank(self) -> int:
+            return {
+                self.UNAFFECTED: 0,
+                self.UNKNOWN: 1,
+                self.AFFECTED: 2,
+            }[self]
+
+        def __lt__(self, other: object) -> bool:
+            if not isinstance(other, Version.Status):
+                return NotImplemented
+            return self._rank < other._rank
+
     status = models.CharField(
-        max_length=text_length(Status), choices=Status.choices, default=Status.UNKNOWN
+        max_length=126, choices=Status.choices, default=Status.UNKNOWN
     )
     version_type = models.CharField(max_length=128, null=True)
     version = models.CharField(max_length=1024, null=True)
@@ -394,7 +404,7 @@ class AffectedProduct(models.Model):
     platforms = models.ManyToManyField(Platform)
     repo = models.CharField(max_length=2048, null=True, default=None)
     default_status = models.CharField(
-        max_length=text_length(Status), choices=Status.choices, default=Status.UNKNOWN
+        max_length=126, choices=Status.choices, default=Status.UNKNOWN
     )
     versions = models.ManyToManyField(Version)
     cpes = models.ManyToManyField(Cpe)

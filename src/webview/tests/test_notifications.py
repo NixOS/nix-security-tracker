@@ -259,3 +259,18 @@ def test_matching_subscribed_packages_displayed(
         f"#notification-{db_notification.pk}-matching-subscribed-packages"
     )
     expect(maintained_packages_section.get_by_text(drv.attribute)).to_be_visible()
+
+
+def test_text_notification_displayed(
+    live_server: LiveServer,
+    staff: User,
+    as_staff: Page,
+) -> None:
+    """
+    Check that text notifications are displayed in the notification center
+    """
+    db_notification = staff.profile.create_text_notification("Foo", "Bar")
+    as_staff.goto(live_server.url + reverse("webview:notifications:center"))
+    notification = as_staff.locator(f"#notification-{db_notification.pk}")
+    expect(notification.get_by_text("Foo")).to_be_visible()
+    expect(notification.get_by_text("Bar")).to_be_visible()
