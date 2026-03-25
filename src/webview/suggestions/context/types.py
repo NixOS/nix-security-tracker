@@ -1,7 +1,6 @@
 from dataclasses import dataclass
 from enum import Enum
-from typing import Any
-
+from shared.models import Tag
 from shared.logs.batches import batch_events
 from shared.logs.events import (
     Maintainer,  # FIXME(@florent): This is to import it from that module
@@ -18,7 +17,7 @@ from shared.models.linkage import CVEDerivationClusterProposal
 class Reference:
     url: str
     name: str
-    tags: list[Any]
+    tags: set[Tag]
 
 
 # Packages
@@ -197,15 +196,11 @@ class SuggestionContext:
                     refs_by_url[url] = Reference(
                         url=url,
                         name=ref.name,
-                        tags=list(ref.tags.all()),
+                        tags=set(ref.tags.all()),
                     )
                 else:
                     existing_ref = refs_by_url[url]
-                    existing_tag_values = {tag.value for tag in existing_ref.tags}
-                    for tag in ref.tags.all():
-                        if tag.value not in existing_tag_values:
-                            existing_ref.tags.append(tag)
-                            existing_tag_values.add(tag.value)
+                    existing_ref.tags.update(ref.tags.all())
                     
                     if not existing_ref.name and ref.name:
                         existing_ref.name = ref.name
