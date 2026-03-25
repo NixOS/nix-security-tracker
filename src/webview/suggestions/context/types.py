@@ -1,5 +1,6 @@
 from dataclasses import dataclass
 from enum import Enum
+from typing import Any
 
 from shared.logs.batches import batch_events
 from shared.logs.events import (
@@ -17,7 +18,7 @@ from shared.models.linkage import CVEDerivationClusterProposal
 class Reference:
     url: str
     name: str
-    tags: list[str]
+    tags: list[Any]
 
 
 # Packages
@@ -188,17 +189,27 @@ class SuggestionContext:
         )
 
     def update_references(self) -> None:
-        refs: list[Reference] = []
+        refs_by_url = {}
         for container in self.suggestion.cve.container.all():
             for ref in container.references.all():
-                refs.append(
-                    Reference(
-                        url=ref.url,
+                url = ref.url
+                if url not in refs_by_url:
+                    refs_by_url[url] = Reference(
+                        url=url,
                         name=ref.name,
-                        tags=[tag for tag in ref.tags.all()],
+                        tags=list(ref.tags.all()),
                     )
-                )
-        self.references = refs
+                else:
+                    existing_ref = refs_by_url[url]
+                    existing_tag_values = {tag.value for tag in existing_ref.tags}
+                    for tag in ref.tags.all():
+                        if tag.value not in existing_tag_values:
+                            existing_ref.tags.append(tag)
+                            existing_tag_values.add(tag.value)
+                    
+                    if not existing_ref.name and ref.name:
+                        existing_ref.name = ref.name
+        self.references = list(refs_by_url.values())
 
     def fetch_activity_log(self) -> None:
         events = fetch_suggestion_events([self.suggestion.pk])
