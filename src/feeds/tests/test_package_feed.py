@@ -98,7 +98,7 @@ def test_feed_excludes_suggestion_with_ignored_package(
     PackageOverlay.objects.create(
         suggestion=cached_suggestion,
         package_attribute=drv.attribute,
-        overlay_type=PackageOverlay.Type.IGNORED,
+        type=PackageOverlay.Type.IGNORED,
     )
 
     response = client.get(

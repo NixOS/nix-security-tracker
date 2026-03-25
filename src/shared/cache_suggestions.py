@@ -132,7 +132,7 @@ def apply_package_overlays(
     to_skip = {
         edit.package_attribute
         for edit in edits
-        if edit.overlay_type == PackageOverlay.Type.IGNORED
+        if edit.type == PackageOverlay.Type.IGNORED
     }
 
     return {attr: data for attr, data in packages.items() if attr not in to_skip}
@@ -436,12 +436,12 @@ def maintainers_list(
     to_skip_or_seen: set[int] = {
         m.maintainer.github_id
         for m in edits
-        if m.overlay_type == MaintainerOverlay.Type.IGNORED
+        if m.type == MaintainerOverlay.Type.IGNORED
     }
     to_add: list[CachedSuggestion.Maintainer] = [
         CachedSuggestion.Maintainer.model_validate(to_dict(m.maintainer))
         for m in edits
-        if m.overlay_type == MaintainerOverlay.Type.ADDITIONAL
+        if m.type == MaintainerOverlay.Type.ADDITIONAL
     ]
 
     maintainers: list[CachedSuggestion.Maintainer] = list()
@@ -527,9 +527,9 @@ def categorize_maintainers(
     additional_maintainers = []
 
     for overlay in maintainer_overlays:
-        if overlay.overlay_type == MaintainerOverlay.Type.IGNORED:
+        if overlay.type == MaintainerOverlay.Type.IGNORED:
             ignored_github_ids.add(overlay.maintainer.github_id)
-        elif overlay.overlay_type == MaintainerOverlay.Type.ADDITIONAL:
+        elif overlay.type == MaintainerOverlay.Type.ADDITIONAL:
             additional_maintainers.append(
                 CachedSuggestion.Maintainer.model_validate(to_dict(overlay.maintainer))
             )

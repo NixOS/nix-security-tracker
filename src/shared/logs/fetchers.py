@@ -182,7 +182,7 @@ def fetch_status_events_for_package(package_name: str) -> list[RawEventType]:
         # We deem it to be more beneficial like this than the other way round.
         .exclude(
             package_overlays__package_attribute=package_name,
-            package_overlays__overlay_type=PackageOverlay.Type.IGNORED,
+            package_overlays__type=PackageOverlay.Type.IGNORED,
         )
         .distinct()
         .values_list("pk", flat=True)

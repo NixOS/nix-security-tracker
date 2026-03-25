@@ -18,6 +18,21 @@ from shared.models.nix_evaluation import NixDerivation, NixMaintainer, TimeStamp
 from shared.models.package import Package
 
 
+class Overlay(models.Model):
+    """
+    This is the base model for all Overlay models should inherit from this.
+    """
+
+    class Type(models.TextChoices):
+        ADDITIONAL = "additional", _("additional")
+        IGNORED = "ignored", _("ignored")
+
+    type = models.CharField(max_length=126, choices=Type.choices)
+
+    class Meta:
+        abstract = True
+
+
 class SuggestionStatus(models.TextChoices):
     PENDING = "pending", _("pending")
     REJECTED = "rejected", _("rejected")
@@ -170,16 +185,16 @@ class CVEDerivationClusterProposal(TimeStampMixin):
     def ignore_package(self, package: str) -> None:
         edit, created = self.package_overlays.get_or_create(
             package_attribute=package,
-            defaults={"overlay_type": PackageOverlay.Type.IGNORED},
+            defaults={"type": PackageOverlay.Type.IGNORED},
         )
-        if not created and edit.overlay_type != PackageOverlay.Type.IGNORED:
-            edit.overlay_type = PackageOverlay.Type.IGNORED
+        if not created and edit.type != PackageOverlay.Type.IGNORED:
+            edit.type = PackageOverlay.Type.IGNORED
             edit.save()
 
     def restore_package(self, package: str) -> None:
         self.package_overlays.filter(
             package_attribute=package,
-            overlay_type=PackageOverlay.Type.IGNORED,
+            type=PackageOverlay.Type.IGNORED,
         ).delete()
 
     def ignore_reference(self, reference_url: str) -> None:
@@ -355,16 +370,11 @@ class CVEDerivationClusterProposal(TimeStampMixin):
     pghistory.ManualEvent("maintainer.restore"),
     pghistory.ManualEvent("maintainer.ignore"),
 )
-class MaintainerOverlay(models.Model):
+class MaintainerOverlay(Overlay):
     """
     An element in the overlay set of maintainers of a suggestion.
     """
 
-    class Type(models.TextChoices):
-        ADDITIONAL = "additional", _("additional")
-        IGNORED = "ignored", _("ignored")
-
-    overlay_type = models.CharField(max_length=126, choices=Type.choices)
     maintainer = models.ForeignKey(NixMaintainer, on_delete=models.PROTECT)
     suggestion = models.ForeignKey(
         CVEDerivationClusterProposal,
@@ -372,7 +382,7 @@ class MaintainerOverlay(models.Model):
         on_delete=models.CASCADE,
     )
 
-    class Meta:  # type: ignore[override]
+    class Meta(Overlay.Meta):
         constraints = [
             # Ensures that a maintainer can only be added or removed once per
             # suggestion.
@@ -387,16 +397,11 @@ class MaintainerOverlay(models.Model):
     pghistory.ManualEvent("package.restore"),
     pghistory.ManualEvent("package.ignore"),
 )
-class PackageOverlay(models.Model):
+class PackageOverlay(Overlay):
     """
     An element in the overlay set of packages of a suggestion.
     """
 
-    class Type(models.TextChoices):
-        IGNORED = "ignored", _("ignored")
-        # ADDITIONAL reserved for future use if needed
-
-    overlay_type = models.CharField(max_length=126, choices=Type.choices)
     package_attribute = models.CharField(max_length=255)
     suggestion = models.ForeignKey(
         CVEDerivationClusterProposal,
@@ -404,7 +409,7 @@ class PackageOverlay(models.Model):
         on_delete=models.CASCADE,
     )
 
-    class Meta:
+    class Meta(Overlay.Meta):
         constraints = [
             models.UniqueConstraint(
                 fields=["suggestion", "package_attribute"],
@@ -417,17 +422,12 @@ class PackageOverlay(models.Model):
     pghistory.ManualEvent("reference.restore"),
     pghistory.ManualEvent("reference.ignore"),
 )
-class ReferenceUrlOverlay(models.Model):
+class ReferenceUrlOverlay(Overlay):
     """
     A single manual overlay of the list of references of a suggestion.
     These overlays are per url, so one overlay may apply to several references which share the same URL.
     """
 
-    class Type(models.TextChoices):
-        IGNORED = "ignored", _("ignored")
-        # ADDITIONAL reserved for future use if needed
-
-    type = models.CharField(max_length=126, choices=Type.choices)
     reference_url = models.URLField(max_length=2048, blank=True)
     deduplicated_name = models.CharField(
         max_length=512, blank=True
@@ -438,7 +438,7 @@ class ReferenceUrlOverlay(models.Model):
         on_delete=models.CASCADE,
     )
 
-    class Meta:  # type: ignore[override]
+    class Meta(Overlay.Meta):
         constraints = [
             # Ensures that a reference can only be added or removed once per
             # suggestion.
@@ -483,7 +483,7 @@ def track_maintainer_overlay_save(
     if created:
         label = (
             "maintainer.add"
-            if instance.overlay_type == MaintainerOverlay.Type.ADDITIONAL
+            if instance.type == MaintainerOverlay.Type.ADDITIONAL
             else "maintainer.ignore"
         )
         pghistory.create_event(
@@ -498,7 +498,7 @@ def track_maintainer_overlay_delete(
 ) -> None:
     label = (
         "maintainer.delete"
-        if instance.overlay_type == MaintainerOverlay.Type.ADDITIONAL
+        if instance.type == MaintainerOverlay.Type.ADDITIONAL
         else "maintainer.restore"
     )
     pghistory.create_event(
