@@ -16,8 +16,8 @@ from shared.models.cached import CachedSuggestions
 from shared.models.cve import AffectedProduct, Metric, Reference, Version
 from shared.models.linkage import (
     CVEDerivationClusterProposal,
-    MaintainersEdit,
-    PackageEdit,
+    MaintainerOverlay,
+    PackageOverlay,
     ReferenceOverlay,
 )
 from shared.models.nix_evaluation import get_major_channel
@@ -112,8 +112,8 @@ class CachedSuggestion(BaseModel):
     categorized_references: CategorizedReferences
 
 
-def apply_package_edits(
-    packages: dict, edits: list[PackageEdit]
+def apply_package_overlays(
+    packages: dict, edits: list[PackageOverlay]
 ) -> dict[str, CachedSuggestion.Package]:
     """
     Returns the packages dict with user-supplied package edits applied.
@@ -122,7 +122,7 @@ def apply_package_edits(
     to_skip = {
         edit.package_attribute
         for edit in edits
-        if edit.edit_type == PackageEdit.EditType.REMOVE
+        if edit.edit_type == MaintainerOverlay.Type.REMOVE
     }
 
     return {attr: data for attr, data in packages.items() if attr not in to_skip}
@@ -214,11 +214,11 @@ def cache_new_suggestions(suggestion: CVEDerivationClusterProposal) -> None:
 
     prefetched_metrics = Metric.objects.filter(container__cve=suggestion.cve)
     original_packages = channel_structure(all_versions, derivations)
-    maintainers_edits = list(
-        suggestion.maintainers_edits.select_related("maintainer").all()
+    maintainer_overlays = list(
+        suggestion.maintainer_overlays.select_related("maintainer").all()
     )
-    package_edits = list(suggestion.package_edits.all())
-    packages = apply_package_edits(original_packages, package_edits)
+    package_overlays = list(suggestion.package_overlays.all())
+    packages = apply_package_overlays(original_packages, package_overlays)
 
     only_relevant_data = CachedSuggestion(
         pk=suggestion.pk,
@@ -231,7 +231,7 @@ def cache_new_suggestions(suggestion: CVEDerivationClusterProposal) -> None:
         original_packages=packages,
         packages=packages,
         metrics=[to_dict(m) for m in prefetched_metrics],
-        categorized_maintainers=categorize_maintainers(packages, maintainers_edits),
+        categorized_maintainers=categorize_maintainers(packages, maintainer_overlays),
         categorized_references=categorize_references(
             suggestion.references, list(suggestion.reference_overlays.all())
         ),
@@ -397,7 +397,7 @@ def parse_drv_name(name: str) -> tuple[str, str]:
 
 
 def maintainers_list(
-    packages: dict, edits: list[MaintainersEdit]
+    packages: dict, edits: list[MaintainerOverlay]
 ) -> list[CachedSuggestion.Maintainer]:
     """
     Returns a deduplicated list (by GitHub ID) of all the maintainers, as dicts,
@@ -411,12 +411,12 @@ def maintainers_list(
     to_skip_or_seen: set[int] = {
         m.maintainer.github_id
         for m in edits
-        if m.edit_type == MaintainersEdit.EditType.REMOVE
+        if m.edit_type == MaintainerOverlay.Type.REMOVE
     }
     to_add: list[CachedSuggestion.Maintainer] = [
         CachedSuggestion.Maintainer.model_validate(to_dict(m.maintainer))
         for m in edits
-        if m.edit_type == MaintainersEdit.EditType.ADD
+        if m.edit_type == MaintainerOverlay.Type.ADD
     ]
 
     maintainers: list[CachedSuggestion.Maintainer] = list()
@@ -473,7 +473,7 @@ def categorize_references(
 
 def categorize_maintainers(
     packages: dict[str, CachedSuggestion.Package],
-    maintainers_edits: list[MaintainersEdit],
+    maintainer_overlays: list[MaintainerOverlay],
 ) -> CachedSuggestion.CategorizedMaintainers:
     """
     Categorize maintainers associated to the packages of a suggestion.
@@ -490,10 +490,10 @@ def categorize_maintainers(
     removed_github_ids = set()
     added_maintainers = []
 
-    for edit in maintainers_edits:
-        if edit.edit_type == MaintainersEdit.EditType.REMOVE:
+    for edit in maintainer_overlays:
+        if edit.edit_type == MaintainerOverlay.Type.REMOVE:
             removed_github_ids.add(edit.maintainer.github_id)
-        elif edit.edit_type == MaintainersEdit.EditType.ADD:
+        elif edit.edit_type == MaintainerOverlay.Type.ADD:
             added_maintainers.append(
                 CachedSuggestion.Maintainer.model_validate(to_dict(edit.maintainer))
             )

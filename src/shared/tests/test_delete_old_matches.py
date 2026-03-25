@@ -11,8 +11,8 @@ from shared.models.cve import Container, CveRecord
 from shared.models.linkage import (
     CVEDerivationClusterProposal,
     DerivationClusterProposalLink,
-    MaintainersEdit,
-    PackageEdit,
+    MaintainerOverlay,
+    PackageOverlay,
     ProvenanceFlags,
 )
 from shared.models.nix_evaluation import NixDerivation
@@ -159,7 +159,7 @@ def test_package_and_maintainer_edits_are_cleaned_up(
     make_suggestion: Callable[..., CVEDerivationClusterProposal],
     make_maintainer: Callable[..., object],  # NixMaintainer
 ) -> None:
-    """PackageEdit and MaintainersEdit rows are removed alongside the proposal."""
+    """PackageOverlay and MaintainerOverlay rows are removed alongside the proposal."""
     from shared.models.nix_evaluation import NixMaintainer
 
     container = make_container()
@@ -169,24 +169,24 @@ def test_package_and_maintainer_edits_are_cleaned_up(
     suggestion = make_suggestion(container=container)
 
     maintainer: NixMaintainer = make_maintainer()  # type: ignore[assignment]
-    MaintainersEdit.objects.create(
-        edit_type=MaintainersEdit.EditType.ADD,
+    MaintainerOverlay.objects.create(
+        edit_type=MaintainerOverlay.Type.ADD,
         maintainer=maintainer,
         suggestion=suggestion,
     )
-    PackageEdit.objects.create(
-        edit_type=PackageEdit.EditType.REMOVE,
+    PackageOverlay.objects.create(
+        edit_type=PackageOverlay.Type.REMOVE,
         package_attribute="foo",
         suggestion=suggestion,
     )
 
-    assert MaintainersEdit.objects.count() == 1
-    assert PackageEdit.objects.count() == 1
+    assert MaintainerOverlay.objects.count() == 1
+    assert PackageOverlay.objects.count() == 1
 
     call_command("delete_old_matches", stdout=StringIO())
 
-    assert MaintainersEdit.objects.count() == 0
-    assert PackageEdit.objects.count() == 0
+    assert MaintainerOverlay.objects.count() == 0
+    assert PackageOverlay.objects.count() == 0
 
 
 @pytest.mark.django_db

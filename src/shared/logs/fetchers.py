@@ -25,8 +25,8 @@ from shared.logs.events import (
 )
 from shared.models import (
     CVEDerivationClusterProposalStatusEvent,  # type: ignore
-    MaintainersEditEvent,  # type: ignore
-    PackageEditEvent,  # type: ignore
+    MaintainerOverlayEvent,  # type: ignore
+    PackageOverlayEvent,  # type: ignore
     ReferenceOverlayEvent,  # type: ignore
 )
 from shared.models.linkage import CVEDerivationClusterProposal
@@ -87,7 +87,7 @@ def fetch_suggestion_events(
         )
 
     package_qs = _annotate_username(
-        PackageEditEvent.objects.select_related("pgh_context").filter(
+        PackageOverlayEvent.objects.select_related("pgh_context").filter(
             suggestion_id__in=suggestion_ids
         )
     )
@@ -103,9 +103,9 @@ def fetch_suggestion_events(
         )
 
     maintainer_qs = _annotate_username(
-        MaintainersEditEvent.objects.select_related("pgh_context", "maintainer").filter(
-            suggestion_id__in=suggestion_ids
-        )
+        MaintainerOverlayEvent.objects.select_related(
+            "pgh_context", "maintainer"
+        ).filter(suggestion_id__in=suggestion_ids)
     )
     for m_event in maintainer_qs.iterator():
         result[m_event.suggestion_id].append(

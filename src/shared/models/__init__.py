@@ -4,16 +4,16 @@ from .issue import *
 from .linkage import (
     CVEDerivationClusterProposal,
     DerivationClusterProposalLink,
-    MaintainersEdit,
-    PackageEdit,
+    MaintainerOverlay,
+    PackageOverlay,
     ProvenanceFlags,
 )
 from .nix_evaluation import *
 
 __all__ = [
     "CVEDerivationClusterProposal",
-    "MaintainersEdit",
-    "PackageEdit",
+    "MaintainerOverlay",
+    "PackageOverlay",
     "ProvenanceFlags",
     "DerivationClusterProposalLink",
 ]
