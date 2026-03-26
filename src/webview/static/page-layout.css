@@ -6,7 +6,7 @@
  */
 
 #header-bar {
-  background-color: black;
+  background-color: var(--nixos-blue);
   padding: 0.5em;
   color: white;
 }
@@ -60,7 +60,7 @@ footer {
   flex-direction: column;
   align-items: center;
   gap: 1em;
-  background-color: black;
+  background-color: var(--nixos-blue);
   color: white;
   padding: 2em;
 }

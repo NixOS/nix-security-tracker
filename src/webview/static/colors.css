@@ -12,4 +12,6 @@
   --light-green: #dbfcdb;
   --light-yellow: #fcfaba;
   --light-gray: #eee;
+  /* Source: https://github.com/NixOS/branding/blob/main/package-sets/top-level/nixos-branding/nixos-color-palette/colors.toml#L92 */
+  --nixos-blue: #15213a;
 }
