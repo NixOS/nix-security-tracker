@@ -301,8 +301,8 @@ def make_user(
     django_user_model: type[User],
 ) -> Callable[..., User]:
     def wrapped(
-        is_staff: bool = True,
-        is_committer: bool = True,
+        is_staff: bool = False,
+        is_committer: bool = False,
         username: str = "testuser",
         provider: str = GitHubProvider.id,
         uid: str = "123",
@@ -330,8 +330,6 @@ def make_user(
 
 @pytest.fixture
 def user(make_user: Callable[..., User]) -> User:
-    # FIXME(@fricklerhandwerk): Currently tests assume users to be staff.
-    # For less confusing naming, rework the tests to be specific about privileges, let `user` here have none.
     return make_user()
 
 
