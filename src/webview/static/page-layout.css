@@ -20,6 +20,11 @@
   text-decoration: none;
 }
 
+#site-logo {
+  width: 40px;
+  height: 40px;
+}
+
 #testing-disclaimer {
   width: 100%;
   padding: 0.5em;

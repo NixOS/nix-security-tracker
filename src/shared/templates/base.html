@@ -24,7 +24,14 @@
 
     <header class="row gap spread centered wrap" id="header-bar">
       <h1>
-        <a href="{% url 'webview:home' %}">Nixpkgs security tracker</a>
+        <a class="row gap-small centered" href="{% url 'webview:home' %}">
+          <img id="site-logo"
+               alt=""
+               aria-hidden="true"
+               height="40"
+               width="40"
+               src="{% static 'nixos-logomark-white-flat-none.svg' %}" />
+        Nixpkgs security tracker</a>
       </h1>
       <div class="row gap centered">
         {% if user.is_staff %}<!-- TODO settings? -->{% endif %}
