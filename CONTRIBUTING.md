@@ -204,7 +204,7 @@ manage listen -v3 --recover
 Ingest some CVEs:
 
 ```console
-manage ingest_bulk_cve --subset 500
+manage ingest_bulk_cve --from 2024-01-01 --to 2024-01-31
 ```
 
 This should produce untriaged matches.

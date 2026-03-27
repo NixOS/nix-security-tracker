@@ -27,13 +27,20 @@ class Command(BaseCommand):
 
     def add_arguments(self, parser: argparse.ArgumentParser) -> None:
         parser.add_argument(
-            "-s",
-            "--subset",
-            nargs="?",
-            type=int,
-            help="Integer value representing the last N subset of total entries. "
-            + " Useful to generate a small dataset for development.",
-            default=0,
+            "-f",
+            "--from",
+            dest="from_date",
+            type=date.fromisoformat,
+            help="Start date (including) for CVE ingestion (YYYY-MM-DD).",
+            default=date.min,
+        )
+        parser.add_argument(
+            "-t",
+            "--to",
+            dest="to_date",
+            type=date.fromisoformat,
+            help="End date (including) for CVE ingestion (YYYY-MM-DD).",
+            default=date.today(),
         )
         parser.add_argument(
             "--force-download",
@@ -115,16 +122,54 @@ class Command(BaseCommand):
         # Return the list in lexicographical order
         cve_list = sorted(glob(f"{cve_data_cache_dir}/*/*/*.json"), key=path.basename)
 
+        from_date: date = kwargs["from_date"]
+        to_date: date = kwargs["to_date"]
+
+        if from_date > to_date:
+            raise CommandError(
+                f"Invalid date range: --from ({from_date}) is after --to ({to_date})"
+            )
+
         # Open a single transaction for the db
         with transaction.atomic():
-            if kwargs["subset"] > 0:
-                cve_list = cve_list[-kwargs["subset"] :]
-            logger.info(f"{len(cve_list)} CVEs to ingest.")
-
+            count = 0
             for j_cve in cve_list:
-                with open(j_cve) as fc:
-                    make_cve(json.load(fc), triaged=False)
-                    print(".", end="")
+                name = path.basename(j_cve)
+                # Fast-path: Skip files based on year in filename (CVE-YYYY-XXXX.json)
+                try:
+                    cve_year = int(name.split("-")[1])
+                    if cve_year < from_date.year or cve_year > to_date.year:
+                        continue
+                except IndexError as e:
+                    self.stderr.write(
+                        f"Could not split year field from CVE ID '{name}': {e}"  # noqa
+                    )
+                except ValueError as e:
+                    self.stderr.write(
+                        f"Could not parse year from '{name}': {e}"  # noqa
+                    )
 
+                # Precise-path: Check metadata dateUpdated/datePublished
+                with open(j_cve) as fc:
+                    try:
+                        cve_json = json.load(fc)
+                        metadata = cve_json.get("cveMetadata", {})
+                        cve_date_str = metadata.get("dateUpdated") or metadata.get(
+                            "datePublished"
+                        )
+                        if cve_date_str:
+                            # Handle potential milliseconds/Z/offsets (ISO 8601)
+                            cve_date = date.fromisoformat(cve_date_str.split("T")[0])
+                            if not (from_date <= cve_date <= to_date):
+                                continue
+
+                        make_cve(cve_json, triaged=False)
+                        count += 1
+                        print(".", end="", flush=True)
+                    except (json.JSONDecodeError, ValueError, KeyError):
+                        pass
+
+            print()  # Final newline after progress dots
+            logger.info(f"{count} CVEs ingested.")
             logger.info(f"Saving the ingestion valid up to {v_date}")
             CveIngestion.objects.create(valid_to=v_date, delta=False)
