@@ -28,10 +28,9 @@ class IssueStatus(models.TextChoices):
     WONTFIX = "W", _("wontfix")
 
 
-class NixpkgsIssue(models.Model):
+class NixpkgsIssue(TimeStampMixin):
     """The Nixpkgs version of a cve."""
 
-    created = models.DateField(auto_now_add=True)
     code = models.CharField(max_length=len("NIXPKGS-YYYY-") + 19, unique=True)
 
     suggestion = models.OneToOneField(
@@ -87,12 +86,12 @@ def generate_code(
         for attempt in range(1, 11):
             number = (
                 sender.objects.filter(
-                    created__year=instance.created.year,
+                    created_at__year=instance.created_at.year,
                 ).count()
                 + attempt
             )
             instance.code = (
-                f"NIXPKGS-{str(instance.created.year)}-{str(number).zfill(4)}"
+                f"NIXPKGS-{str(instance.created_at.year)}-{str(number).zfill(4)}"
             )
             try:
                 instance.save()

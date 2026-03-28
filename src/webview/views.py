@@ -90,7 +90,7 @@ class NixpkgsIssueListView(ListView):
                     ),
                 ),
             )
-            .order_by("-created")
+            .order_by("-created_at")
         )
         return issues
 
