@@ -57,7 +57,7 @@ rec {
   shell =
     let
       manage = pkgs.writeScriptBin "manage" ''
-        exec ${pkgs.python3}/bin/python ${toString ./src/manage.py} $@
+        exec "${pkgs.python3}/bin/python" "${toString ./src/manage.py}" "$@"
       '';
       # Run this for a quick start.
       # Login and publishing issues requires setting up credentials properly.
@@ -65,8 +65,8 @@ rec {
         name = "dummy-credentials";
         runtimeInputs = [ pkgs.python3 ];
         text = ''
-          dir=${toString ./.credentials}
-          mkdir "$dir"
+          dir="${toString ./.credentials}"
+          mkdir -p "$dir"
           cd "$dir"
           set -o noclobber
           python3 -c 'import secrets; print(secrets.token_hex(100))' > SECRET_KEY
