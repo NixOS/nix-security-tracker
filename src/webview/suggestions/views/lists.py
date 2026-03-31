@@ -45,7 +45,7 @@ class SuggestionListView(ListView, ABC):
                 )
             except ValueError:
                 raise Http404
-        query_filters = Q()
+        query_filters = Q(cached__isnull=False)
         if self.status_filter is not None:
             query_filters &= Q(status=self.status_filter)
         if self.package_filter is not None:
