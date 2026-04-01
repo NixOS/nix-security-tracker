@@ -130,7 +130,7 @@ def apply_package_overlays(
     to_skip = {
         edit.package_attribute
         for edit in edits
-        if edit.edit_type == PackageOverlay.Type.REMOVE
+        if edit.edit_type == PackageOverlay.Type.IGNORED
     }
 
     return {attr: data for attr, data in packages.items() if attr not in to_skip}
@@ -420,12 +420,12 @@ def maintainers_list(
     to_skip_or_seen: set[int] = {
         m.maintainer.github_id
         for m in edits
-        if m.edit_type == MaintainerOverlay.Type.REMOVE
+        if m.edit_type == MaintainerOverlay.Type.IGNORED
     }
     to_add: list[CachedSuggestion.Maintainer] = [
         CachedSuggestion.Maintainer.model_validate(to_dict(m.maintainer))
         for m in edits
-        if m.edit_type == MaintainerOverlay.Type.ADD
+        if m.edit_type == MaintainerOverlay.Type.ADDITIONAL
     ]
 
     maintainers: list[CachedSuggestion.Maintainer] = list()
@@ -496,15 +496,15 @@ def categorize_maintainers(
     original_maintainers = list(original_maintainers_dict.values())
 
     # Process edits to categorize maintainers
-    removed_github_ids = set()
+    ignored_github_ids = set()
     added_maintainers = []
 
-    for edit in maintainer_overlays:
-        if edit.edit_type == MaintainerOverlay.Type.REMOVE:
-            removed_github_ids.add(edit.maintainer.github_id)
-        elif edit.edit_type == MaintainerOverlay.Type.ADD:
+    for overlay in maintainer_overlays:
+        if overlay.edit_type == MaintainerOverlay.Type.IGNORED:
+            ignored_github_ids.add(overlay.maintainer.github_id)
+        elif overlay.edit_type == MaintainerOverlay.Type.ADDITIONAL:
             added_maintainers.append(
-                CachedSuggestion.Maintainer.model_validate(to_dict(edit.maintainer))
+                CachedSuggestion.Maintainer.model_validate(to_dict(overlay.maintainer))
             )
 
     # Categorize original maintainers into active and ignored
@@ -512,7 +512,7 @@ def categorize_maintainers(
     ignored_maintainers = []
 
     for maintainer in original_maintainers:
-        if maintainer.github_id in removed_github_ids:
+        if maintainer.github_id in ignored_github_ids:
             ignored_maintainers.append(maintainer)
         else:
             active_maintainers.append(maintainer)

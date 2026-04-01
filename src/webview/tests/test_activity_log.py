@@ -1,8 +1,7 @@
-from collections.abc import Callable, Generator
+from collections.abc import Callable
 from contextlib import AbstractContextManager
 from datetime import timedelta
 
-import freezegun
 import pytest
 from django.conf import settings
 from django.contrib.auth.models import User
@@ -47,6 +46,61 @@ def test_maintainer_addition_creates_activity_log_entry(
     expect(entry).to_be_visible()
 
 
+def test_maintainer_deleted_after_addition_creation_activity_log_entry(
+    live_server: LiveServer,
+    as_staff: Page,
+    staff: User,
+    committer: User,
+    make_maintainer_from_user: Callable[..., NixMaintainer],
+    cached_suggestion: CVEDerivationClusterProposal,
+    frozen_time: FakeDatetime,
+) -> None:
+    """Test that adding a maintainer creates an activity log entry"""
+    maintainer = make_maintainer_from_user(committer)
+    as_staff.goto(live_server.url + reverse("webview:suggestion:untriaged_suggestions"))
+    suggestion = as_staff.locator(f"#suggestion-{cached_suggestion.pk}")
+    maintainers_list = suggestion.locator(f"#maintainers-list-{cached_suggestion.pk}")
+    maintainers_list.get_by_placeholder("GitHub username").fill(maintainer.github)
+    add = maintainers_list.get_by_role("button", name="Add")
+    add.click()
+    new_maintainer = maintainers_list.get_by_text(maintainer.github)
+    expect(new_maintainer).to_be_visible()
+    # Check the action appears in the activity log
+    activity_log = suggestion.locator(
+        f"#suggestion-activity-log-{cached_suggestion.pk}"
+    )
+    activity_log.click()
+    activity_log.get_by_text(staff.username)
+    entry = (
+        activity_log.filter(has_text=staff.username)
+        .filter(has_text="added maintainer")
+        .filter(has_text=maintainer.github)
+    )
+    expect(entry).to_be_visible()
+
+    # let freeze the time for a bit long after the debounce time
+    # so that we delete event does not get folded to properly test
+    frozen_time.tick(
+        delta=timedelta(seconds=settings.DEBOUNCE_ACTIVITY_LOG_SECONDS * 2)
+    )
+
+    delete = maintainers_list.get_by_role("button", name="Delete")
+    delete.click()
+
+    activity_log = suggestion.locator(
+        f"#suggestion-activity-log-{cached_suggestion.pk}"
+    )
+    activity_log.click()
+    # activity_log.get_by_text(staff.username)
+
+    entry = (
+        activity_log.filter(has_text=staff.username)
+        .filter(has_text="deleted maintainer")
+        .filter(has_text=maintainer.github)
+    )
+    expect(entry).to_be_visible()
+
+
 def test_ignore_maintainer_creates_activity_log_entry(
     live_server: LiveServer,
     as_staff: Page,
@@ -74,16 +128,10 @@ def test_ignore_maintainer_creates_activity_log_entry(
     activity_log.click()
     entry = (
         activity_log.filter(has_text=staff.username)
-        .filter(has_text="removed maintainer")
+        .filter(has_text="ignored maintainer")
         .filter(has_text=maintainer_name)
     )
     expect(entry).to_be_visible()
-
-
-@pytest.fixture()
-def frozen_time() -> Generator:
-    with freezegun.freeze_time("2026-01-13") as ft:
-        yield ft
 
 
 @pytest.mark.parametrize(
@@ -134,12 +182,12 @@ def test_restore_maintainer_cancels_event_in_activity_log(
         activity_log.click()
         removed_maintainer = (
             activity_log.filter(has_text=staff.username)
-            .filter(has_text="removed maintainer")
+            .filter(has_text="ignored maintainer")
             .filter(has_text=maintainer_name)
         )
         added_maintainer = (
             activity_log.filter(has_text=staff.username)
-            .filter(has_text="added maintainer")
+            .filter(has_text="restored maintainer")
             .filter(has_text=maintainer_name)
         )
         expect(removed_maintainer).to_be_visible()

@@ -25,12 +25,13 @@
       {% for log_entry in activity_log %}
         <li class="row gap-small baseline">
           <strong>@{{ log_entry.username }}</strong>
+          {# TODO(@adekoder) Refactor: the text value should come from the activity log context to aviod hardcoding #}
           {% if "package." in log_entry.action %}
             {# Package update entries #}
-            {% if ".add" in log_entry.action %}
-              added
+            {% if ".restore" in log_entry.action %}
+              restored
             {% else %}
-              removed
+              ignored
             {% endif %}
             {% if log_entry.package_names|length == 1 %}
               package <strong>{{ log_entry.package_names.0 }}</strong>
@@ -42,6 +43,7 @@
                 </ul>
               </details>
             {% endif %}
+            {# TODO(@adekoder) Refactor: the text value should come from the activity log context to aviod hardcoding #}
           {% elif "reference." in log_entry.action %}
             {# Reference update entries #}
             {% if ".restore" in log_entry.action %}
@@ -63,12 +65,17 @@
                 </ul>
               </details>
             {% endif %}
-          {% elif "maintainers." in log_entry.action %}
+            {# TODO(@adekoder) Refactor: the text value should come from the activity log context to aviod hardcoding #}
+          {% elif "maintainer." in log_entry.action %}
             {# Maintainers edit entry #}
             {% if ".add" in log_entry.action %}
               added
+            {% elif ".ignore" in log_entry.action %}
+              ignored
+            {% elif ".delete" in log_entry.action %}
+              deleted
             {% else %}
-              removed
+              restored
             {% endif %}
             {% if log_entry.maintainers|length == 1 %}
               maintainer <strong>@{{ log_entry.maintainers.0.github }}</strong>

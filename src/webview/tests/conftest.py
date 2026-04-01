@@ -4,6 +4,7 @@ from contextlib import AbstractContextManager, contextmanager
 from typing import Any
 from unittest.mock import _patch, patch
 
+import freezegun
 import pytest
 from allauth.account.utils import get_login_redirect_url
 from allauth.socialaccount.providers.github.provider import GitHubProvider
@@ -78,3 +79,9 @@ def logged_in_as(
             yield page
 
     return wrapped
+
+
+@pytest.fixture()
+def frozen_time() -> Generator:
+    with freezegun.freeze_time("2026-01-13") as ft:
+        yield ft

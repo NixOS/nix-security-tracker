@@ -52,7 +52,7 @@ class RawStatusEvent(RawEvent):
 class RawPackageEvent(RawEvent):
     """Raw package change event."""
 
-    action: Literal["package.add", "package.remove"]
+    action: Literal["package.restore", "package.ignore"]
     package_attribute: str
 
     def is_canceled_by(self, other: "RawEvent") -> bool:
@@ -64,7 +64,7 @@ class RawPackageEvent(RawEvent):
             return self.package_attribute == other.package_attribute and {
                 self.action,
                 other.action,
-            } == {"package.add", "package.remove"}
+            } == {"package.restore", "package.ignore"}
 
         return False
 
@@ -80,7 +80,9 @@ class Maintainer(TypedDict):
 class RawMaintainerEvent(RawEvent):
     """Raw maintainer change event."""
 
-    action: Literal["maintainers.add", "maintainers.remove"]
+    action: Literal[
+        "maintainer.add", "maintainer.delete", "maintainer.ignore", "maintainer.restore"
+    ]
     maintainer: Maintainer
 
     def is_canceled_by(
@@ -92,13 +94,24 @@ class RawMaintainerEvent(RawEvent):
             return False
 
         if isinstance(other, RawMaintainerEvent):
-            return self.maintainer["github_id"] == other.maintainer["github_id"] and {
-                self.action,
-                other.action,
-            } == {
-                "maintainers.add",
-                "maintainers.remove",
-            }
+            return self.maintainer["github_id"] == other.maintainer["github_id"] and (
+                {
+                    self.action,
+                    other.action,
+                }
+                == {
+                    "maintainer.add",
+                    "maintainer.delete",
+                }
+                or {
+                    self.action,
+                    other.action,
+                }
+                == {
+                    "maintainer.ignore",
+                    "maintainer.restore",
+                }
+            )
 
         return False
 
