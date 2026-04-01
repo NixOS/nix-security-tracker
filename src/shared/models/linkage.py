@@ -102,22 +102,24 @@ class CVEDerivationClusterProposal(TimeStampMixin):
     def ignore_package(self, package: str) -> None:
         edit, created = self.package_overlays.get_or_create(
             package_attribute=package,
-            defaults={"edit_type": PackageOverlay.Type.REMOVE},
+            defaults={"edit_type": PackageOverlay.Type.IGNORED},
         )
-        if not created and edit.edit_type != PackageOverlay.Type.REMOVE:
-            edit.edit_type = PackageOverlay.Type.REMOVE
+        if not created and edit.edit_type != PackageOverlay.Type.IGNORED:
+            edit.edit_type = PackageOverlay.Type.IGNORED
             edit.save()
 
     def restore_package(self, package: str) -> None:
         self.package_overlays.filter(
             package_attribute=package,
-            edit_type=PackageOverlay.Type.REMOVE,
+            edit_type=PackageOverlay.Type.IGNORED,
         ).delete()
 
 
 @pghistory.track(
-    pghistory.ManualEvent("maintainers.add"),
-    pghistory.ManualEvent("maintainers.remove"),
+    pghistory.ManualEvent("maintainer.add"),
+    pghistory.ManualEvent("maintainer.delete"),
+    pghistory.ManualEvent("maintainer.restore"),
+    pghistory.ManualEvent("maintainer.ignore"),
 )
 class MaintainerOverlay(models.Model):
     """
@@ -125,10 +127,10 @@ class MaintainerOverlay(models.Model):
     """
 
     class Type(models.TextChoices):
-        ADD = "add", _("add")
-        REMOVE = "remove", _("remove")
+        ADDITIONAL = "additional", _("additional")
+        IGNORED = "ignored", _("ignored")
 
-    # FIXME (@adekoder): To rename this field from edit_type to overlay_type
+    # FIXME (@adekoder): To rename this field from edit_type to type
     edit_type = models.CharField(max_length=126, choices=Type.choices)
     maintainer = models.ForeignKey(NixMaintainer, on_delete=models.CASCADE)
     suggestion = models.ForeignKey(
@@ -149,8 +151,8 @@ class MaintainerOverlay(models.Model):
 
 
 @pghistory.track(
-    pghistory.ManualEvent("package.add"),
-    pghistory.ManualEvent("package.remove"),
+    pghistory.ManualEvent("package.restore"),
+    pghistory.ManualEvent("package.ignore"),
 )
 class PackageOverlay(models.Model):
     """
@@ -158,8 +160,8 @@ class PackageOverlay(models.Model):
     """
 
     class Type(models.TextChoices):
-        REMOVE = "remove", _("remove")
-        # ADD reserved for future use if needed
+        IGNORED = "ignored", _("ignored")
+        # ADDITIONAL reserved for future use if needed
 
     # FIXME (@adekoder): To rename this field from edit_type to overlay_type
     edit_type = models.CharField(max_length=126, choices=Type.choices)
@@ -219,10 +221,9 @@ def track_package_overlay_save(
     **kwargs: Any,
 ) -> None:
     if created:
-        # TODO Adapt when PackageOverlay supports more than REMOVE
         pghistory.create_event(
             obj=instance,
-            label="package.remove",
+            label="package.ignore",
         )
 
 
@@ -230,10 +231,9 @@ def track_package_overlay_save(
 def track_package_overlay_delete(
     sender: type[PackageOverlay], instance: PackageOverlay, **kwargs: Any
 ) -> None:
-    # TODO Adapt when PackageOverlay supports more than REMOVE
     pghistory.create_event(
         obj=instance,
-        label="package.add",
+        label="package.restore",
     )
 
 
@@ -246,9 +246,9 @@ def track_maintainer_overlay_save(
 ) -> None:
     if created:
         label = (
-            "maintainers.add"
-            if instance.edit_type == MaintainerOverlay.Type.ADD
-            else "maintainers.remove"
+            "maintainer.add"
+            if instance.edit_type == MaintainerOverlay.Type.ADDITIONAL
+            else "maintainer.ignore"
         )
         pghistory.create_event(
             obj=instance,
@@ -261,9 +261,9 @@ def track_maintainer_overlay_delete(
     sender: type[MaintainerOverlay], instance: MaintainerOverlay, **kwargs: Any
 ) -> None:
     label = (
-        "maintainers.remove"
-        if instance.edit_type == MaintainerOverlay.Type.ADD
-        else "maintainers.add"
+        "maintainer.delete"
+        if instance.edit_type == MaintainerOverlay.Type.ADDITIONAL
+        else "maintainer.restore"
     )
     pghistory.create_event(
         obj=instance,
