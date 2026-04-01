@@ -103,20 +103,26 @@ class NixpkgsIssueListView(ListView):
         # Fetch activity logs
         suggestion_ids = [issue.suggestion_id for issue in context["object_list"]]
         events_by_suggestion = fetch_suggestion_events(suggestion_ids)
+        
+        issue_contexts = []
         for issue in context["object_list"]:
-            # FIXME(@fricklerhandwerk): We're assigning an object field that doesn't exist.
-            # The horrible thing is that it still works, because somewhere in the template processing it does the equivalent of `object.__dict__` and there the key shows up again.
             # FIXME(@fricklerhandwerk): That call runs queries as a side effect, but the data should be prefetched.
-            issue.suggestion_context = get_suggestion_context(
+            suggestion_context = get_suggestion_context(
                 issue.suggestion,
                 user_can_edit=False,
                 pre_fetched_events=events_by_suggestion[issue.suggestion_id],
             )
 
-            issue.suggestion_context.show_status = False
+            suggestion_context.show_status = False
             github_issue_opened = issue.events.first()
-            issue.github_issue = (
+            github_issue = (
                 github_issue_opened.url if github_issue_opened else None
             )
+            issue_contexts.append({
+                "issue": issue,
+                "suggestion_context": suggestion_context,
+                "github_issue": github_issue,
+            })
+        context["issue_contexts"] = issue_contexts
 
         return context

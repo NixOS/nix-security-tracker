@@ -12,8 +12,8 @@
   </div>
 
   <div class="column gap">
-    {% for object in object_list %}
-      {% issue object object.suggestion_context github_issue=object.github_issue show_permalink=True %}
+    {% for item in issue_contexts %}
+      {% issue item.issue item.suggestion_context github_issue=item.github_issue show_permalink=True %}
     {% endfor %}
   </div>
 {% endblock content %}
