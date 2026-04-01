@@ -12,7 +12,7 @@ The tool serves three audiences:
 
 ## Contributing
 
-Please see the [**Contributing Guide**](CONTRIBUTING.md) for more information on how to get started.
+Please see the [contributing guide](CONTRIBUTING.md) for more information on how to get started.
 
 ## History
 
