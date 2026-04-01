@@ -37,6 +37,16 @@ optimisation.
 
 If you're using ext4, read this [Nix issue](https://github.com/NixOS/nix/issues/1522) as you'll need to enable support for `large_dir`in your filesystem for optimisation to work.
 
+## Architectural patterns
+
+**Asynchronous messages in database**: The system uses PostgreSQL's built-in `NOTIFY`/`LISTEN` via [`django-pgpubsub`](https://github.com/agiliq/django-pubsub)
+Simpler infrastructure, but workers need a persistent database connection.
+
+**Denormalized cache**: `CachedSuggestions` stores pre-computed JSON per proposal so list/detail pages avoid expensive multi-table joins on every request.
+Ideally we will eventually get rid of the cache, but it requires incremental rework of the data model and queries to make access fast enough.
+
+**Activity log**: Issue status changes and metadata edits are tracked automatically via [`django-pghistory`](https://github.com/AmbitionEng/django-pghistory).
+
 ## Further documentation
 
 - [Design Documents](./design/): Detailed design specifications for individual feature.
