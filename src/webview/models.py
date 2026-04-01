@@ -3,7 +3,7 @@ from typing import Any
 from django.contrib.auth.models import User
 from django.contrib.postgres import fields
 from django.db import models, transaction
-from django.db.models.signals import post_save
+from django.db.models.signals import post_delete, post_save
 from django.dispatch import receiver
 from model_utils.managers import InheritanceManager
 
@@ -59,9 +59,7 @@ class TextNotification(Notification):
 class SuggestionNotification(Notification):
     suggestion = models.ForeignKey(
         CVEDerivationClusterProposal,
-        # XXX(@fricklerhandwerk): It's unlikely we'll delete suggestions any time soon.
-        # But when we do, we don't want to mess up the notification counter. [ref:count-notifications]
-        on_delete=models.PROTECT,
+        on_delete=models.CASCADE,
     )
 
     @property
@@ -166,3 +164,15 @@ def create_profile(
 ) -> None:
     if created:
         Profile.objects.create(user=instance)
+
+
+@receiver(post_delete, sender=Notification)
+def decrement_notification_counter(
+    sender: type[Notification], instance: Notification, **kwargs: Any
+) -> None:
+    if not instance.is_read:
+        profile = instance.user.profile
+        profile.unread_notifications_count = max(
+            0, profile.unread_notifications_count - 1
+        )
+        profile.save(update_fields=["unread_notifications_count"])

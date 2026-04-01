@@ -2,6 +2,10 @@ name: Deployments
 on:
   push:
     branches: [main, production]
+
+permissions:
+  contents: read
+
 jobs:
   deploy-environment:
     concurrency:
@@ -19,6 +23,8 @@ jobs:
             branch: production
     steps:
       - uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6.0.1
+        with:
+          persist-credentials: false
       - uses: cachix/install-nix-action@4e002c8ec80594ecd40e759629461e26c8abed15 # v31.9.0
       - uses: webfactory/ssh-agent@a6f90b1f127823b31d4d4a8d96047790581349bd # v0.9.1
         with:

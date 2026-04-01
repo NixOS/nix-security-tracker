@@ -9,7 +9,9 @@ from shared.logs.events import (
     RawEventType,
     RawMaintainerEvent,
     RawPackageEvent,
+    RawReferenceEvent,
     RawStatusEvent,
+    Reference,
     sort_events_chronologically,
 )
 
@@ -46,7 +48,19 @@ class FoldedMaintainerEvent(FoldedEvent):
     maintainers: list[Maintainer]  # Always a list, even for single maintainers
 
 
-FoldedEventType = FoldedStatusEvent | FoldedPackageEvent | FoldedMaintainerEvent
+class FoldedReferenceEvent(FoldedEvent):
+    """A folded maintainer event that can represent single or bulk operations."""
+
+    action: Literal["reference.restore", "reference.ignore"]
+    references: list[Reference]  # Always a list, even for single references
+
+
+FoldedEventType = (
+    FoldedStatusEvent
+    | FoldedPackageEvent
+    | FoldedMaintainerEvent
+    | FoldedReferenceEvent
+)
 
 
 def batch_events(
@@ -82,6 +96,28 @@ def batch_events(
                     username=event.username,
                     action=event.action,
                     package_names=[event.package_attribute],
+                )
+
+        if isinstance(event, RawReferenceEvent):
+            if (
+                isinstance(accumulator, FoldedReferenceEvent)
+                and event.action == accumulator.action
+                and event.username == accumulator.username
+                and event.suggestion_id == accumulator.suggestion_id
+            ):
+                # Continue accumulating packages
+                accumulator.references.append(event.reference)
+                accumulator.timestamp = event.timestamp
+            else:
+                # End current accumulator, start new one
+                if accumulator:
+                    folded_events.append(accumulator)
+                accumulator = FoldedReferenceEvent(
+                    suggestion_id=event.suggestion_id,
+                    timestamp=event.timestamp,
+                    username=event.username,
+                    action=event.action,
+                    references=[event.reference],
                 )
 
         elif isinstance(event, RawMaintainerEvent):

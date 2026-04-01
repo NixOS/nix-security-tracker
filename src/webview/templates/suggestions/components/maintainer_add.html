@@ -1,38 +1,27 @@
 {% load viewutils %}
 
 <div class="maintainer-add-container row centered gap-small">
-  <form
-    class="contents"
-    method="post"
-    action="{% url 'webview:suggestion:add_maintainer' data.suggestion_id%}"
-    hx-boost="true"
-    hx-target="#suggestion-{{ data.suggestion_id }}"
-    hx-swap="outerHTML show:none"
-    hx-push-url="false"
-    hx-indicator="find .join"
-    autocomplete="off"
-  >
+  <form class="contents"
+        method="post"
+        action="{% url 'webview:suggestion:add_maintainer' data.suggestion_id %}"
+        hx-boost="true"
+        hx-target="#suggestion-{{ data.suggestion_id }}"
+        hx-swap="outerHTML show:none"
+        hx-push-url="false"
+        hx-indicator="find .join"
+        autocomplete="off">
     <div class="row join join-green">
-        <input
-          type="text"
-          name="new_maintainer_github_handle"
-          placeholder="GitHub username"
-          autocomplete="off"
-          class="rounded-box-compact join-item"
-        />
-        {% csrf_token %}
-        <button
-          type="submit"
-          class="btn btn-green row gap-small centered join-item"
-        >
-          <i class="icon-user-plus"></i>
-          Add
-        </button>
+      <input type="text"
+             name="new_maintainer_github_handle"
+             placeholder="GitHub username"
+             autocomplete="off"
+             class="rounded-box-compact join-item" />
+      {% csrf_token %}
+      <button type="submit" class="btn btn-green row gap-small centered join-item">
+        <i class="icon-user-plus"></i>
+        Add
+      </button>
     </div>
   </form>
-  {% if data.error_message %}
-  <div class="error-inline">
-    {{ data.error_message }}
-  </div>
-  {% endif %}
+  {% if data.error_message %}<div class="error-inline">{{ data.error_message }}</div>{% endif %}
 </div>

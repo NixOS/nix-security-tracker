@@ -8,7 +8,7 @@ from shared.github import fetch_user_info
 from shared.listeners.cache_suggestions import to_dict
 from shared.models.linkage import (
     CVEDerivationClusterProposal,
-    MaintainersEdit,
+    MaintainerOverlay,
 )
 from shared.models.nix_evaluation import NixMaintainer
 from webview.suggestions.context.types import SuggestionContext
@@ -97,8 +97,9 @@ class IgnoreMaintainerView(MaintainerOperationBaseView):
             return "Maintainer not found in original maintainers"
 
         # Check if already ignored (has a REMOVE edit)
-        existing_edit = suggestion.maintainers_edits.filter(
-            maintainer__github_id=github_id, edit_type=MaintainersEdit.EditType.REMOVE
+        existing_edit = suggestion.maintainer_overlays.filter(
+            maintainer__github_id=github_id,
+            edit_type=MaintainerOverlay.Type.REMOVE,
         ).first()
 
         if existing_edit:
@@ -114,12 +115,12 @@ class IgnoreMaintainerView(MaintainerOperationBaseView):
             maintainer = NixMaintainer.objects.get(github_id=github_id)
 
             # Create the maintainer edit
-            edit, created = suggestion.maintainers_edits.get_or_create(
+            edit, created = suggestion.maintainer_overlays.get_or_create(
                 maintainer=maintainer,
-                defaults={"edit_type": MaintainersEdit.EditType.REMOVE},
+                defaults={"edit_type": MaintainerOverlay.Type.REMOVE},
             )
-            if not created and edit.edit_type != MaintainersEdit.EditType.REMOVE:
-                edit.edit_type = MaintainersEdit.EditType.REMOVE
+            if not created and edit.edit_type != MaintainerOverlay.Type.REMOVE:
+                edit.edit_type = MaintainerOverlay.Type.REMOVE
                 edit.save()
 
             # Update the cached categorized maintainers
@@ -161,8 +162,9 @@ class RestoreMaintainerView(MaintainerOperationBaseView):
             return "Maintainer not found in ignored maintainers"
 
         # Check if there's a REMOVE edit to restore (there should be one)
-        existing_edit = suggestion.maintainers_edits.filter(
-            maintainer__github_id=github_id, edit_type=MaintainersEdit.EditType.REMOVE
+        existing_edit = suggestion.maintainer_overlays.filter(
+            maintainer__github_id=github_id,
+            edit_type=MaintainerOverlay.Type.REMOVE,
         ).first()
 
         if not existing_edit:
@@ -175,9 +177,9 @@ class RestoreMaintainerView(MaintainerOperationBaseView):
     ) -> None:
         with transaction.atomic():
             # Remove the REMOVE edit to restore the maintainer
-            edit_to_remove = suggestion.maintainers_edits.get(
+            edit_to_remove = suggestion.maintainer_overlays.get(
                 maintainer__github_id=github_id,
-                edit_type=MaintainersEdit.EditType.REMOVE,
+                edit_type=MaintainerOverlay.Type.REMOVE,
             )
             edit_to_remove.delete()
             maintainer = edit_to_remove.maintainer
@@ -220,8 +222,8 @@ class DeleteMaintainerView(MaintainerOperationBaseView):
             return "Only manually added maintainers can be deleted"
 
         # Check if there's an ADD edit to remove (there should be one)
-        existing_edit = suggestion.maintainers_edits.filter(
-            maintainer__github_id=github_id, edit_type=MaintainersEdit.EditType.ADD
+        existing_edit = suggestion.maintainer_overlays.filter(
+            maintainer__github_id=github_id, edit_type=MaintainerOverlay.Type.ADD
         ).first()
 
         if not existing_edit:
@@ -234,9 +236,9 @@ class DeleteMaintainerView(MaintainerOperationBaseView):
     ) -> None:
         with transaction.atomic():
             # Remove the ADD edit to delete the maintainer
-            edit_to_remove = suggestion.maintainers_edits.get(
+            edit_to_remove = suggestion.maintainer_overlays.get(
                 maintainer__github_id=github_id,
-                edit_type=MaintainersEdit.EditType.ADD,
+                edit_type=MaintainerOverlay.Type.ADD,
             )
             edit_to_remove.delete()
 
@@ -328,12 +330,12 @@ class AddMaintainerView(SuggestionContentEditBaseView):
         # Perform the operation
         with transaction.atomic():
             # Add the maintainer edit
-            edit, created = suggestion.maintainers_edits.get_or_create(
+            edit, created = suggestion.maintainer_overlays.get_or_create(
                 maintainer=maintainer,
-                defaults={"edit_type": MaintainersEdit.EditType.ADD},
+                defaults={"edit_type": MaintainerOverlay.Type.ADD},
             )
-            if not created and edit.edit_type != MaintainersEdit.EditType.ADD:
-                edit.edit_type = MaintainersEdit.EditType.ADD
+            if not created and edit.edit_type != MaintainerOverlay.Type.ADD:
+                edit.edit_type = MaintainerOverlay.Type.ADD
                 edit.save()
 
             # Update the cached categorized maintainers

@@ -4,7 +4,9 @@
 <!DOCTYPE html>
 <html lang="en">
   <head>
-    <title>{% block title %}Nixpkgs Security Tracker{% endblock %}</title>
+    <title>
+      {% block title %}Nixpkgs security tracker{% endblock %}
+    </title>
     <meta http-equiv="Content-Type" content="text/html; charset=UTF-8" />
     <meta http-equiv="X-UA-Compatible" content="IE=edge" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
@@ -22,43 +24,30 @@
 
     <header class="row gap spread centered wrap" id="header-bar">
       <h1>
-        <a href="{% url 'webview:home' %}">
-          Nixpkgs Security Tracker
-        </a>
+        <a href="{% url 'webview:home' %}">Nixpkgs security tracker</a>
       </h1>
       <div class="row gap centered">
-        {% if user.is_staff %}
-        <!-- TODO settings? -->
-        {% endif %}
+        {% if user.is_staff %}<!-- TODO settings? -->{% endif %}
 
         {% block auth %}
 
-        {% if user.is_authenticated %}
-          {% get_social_accounts user as accounts %}
-          {% if accounts and "github" in accounts %}
-            <a href="https://github.com/{{ accounts.github.0.extra_data.login }}"
-               target="_blank">
-               {{ user.username }}
-            </a>
+          {% if user.is_authenticated %}
+            {% get_social_accounts user as accounts %}
+            {% if accounts and "github" in accounts %}
+              <a href="https://github.com/{{ accounts.github.0.extra_data.login }}"
+                 target="_blank">{{ user.username }}</a>
+            {% else %}
+              <span>{{ user.username }}</span>
+            {% endif %}
+            <a href="{% url 'webview:subscriptions:center' %}"
+               id="subscriptions-navbar-icon"></a>
+            {% notifications_badge user.profile.unread_notifications_count %}
+            <a href="{% url 'account_logout' %}">Logout</a>
+
           {% else %}
-            <span>{{user.username}}</span>
+
+            <a href="{% provider_login_url 'github' next=request.get_full_path %}">Login with GitHub</a>
           {% endif %}
-          <a
-            href="{% url 'webview:subscriptions:center' %}"
-            id="subscriptions-navbar-icon"
-          >
-          </a>
-          {% notifications_badge user.profile.unread_notifications_count %}
-          <a href="{% url 'account_logout' %}">
-            Logout
-          </a>
-
-        {% else %}
-
-          <a href="{% provider_login_url 'github' next=request.get_full_path %}">
-            Login with GitHub
-          </a>
-        {% endif %}
         {% endblock %}
       </div>
     </header>
@@ -77,27 +66,38 @@
 
     <!-- Show Django messages, mostly for non-JS fallback -->
     {% if messages %}
-    <div id="messages" class="column gap">
-      {% for message in messages %}
-      <div class="{% if message.level == DEFAULT_MESSAGE_LEVELS.ERROR %}error-block{% else %}rounded-box{% endif %}">{{ message }}</div>
-      {% endfor %}
-    </div>
+      <div id="messages" class="column gap">
+        {% for message in messages %}
+          <div class="{% if message.level == DEFAULT_MESSAGE_LEVELS.ERROR %}error-block{% else %}rounded-box{% endif %}">
+            {{ message }}
+          </div>
+        {% endfor %}
+      </div>
     {% endif %}
 
     {% block workflow %}
-    <nav id="menu-bar">
-      <ul class="row gap">
-        <li class="row gap-small centered"><i class="icon-bin"></i><a href="{% url 'webview:suggestion:dismissed_suggestions' %}?compact">Dismissed suggestions</a></li>
-        <li class="row gap-small centered"><i class="icon-inbox"></i><a href="{% url 'webview:suggestion:untriaged_suggestions' %}?compact">Untriaged suggestions</a></li>
-        <li class="row gap-small centered"><i class="icon-draft"></i><a href="{% url 'webview:suggestion:accepted_suggestions' %}">Accepted suggestions</a></li>
-        <li class="row gap-small centered"><i class="icon-github"></i><a href="{% url 'webview:issue_list' %}">Published issues</a></li>
-      </ul>
-    </nav>
+      <nav id="menu-bar">
+        <ul class="row gap">
+          <li class="row gap-small centered">
+            <i class="icon-bin"></i><a href="{% url 'webview:suggestion:dismissed_suggestions' %}?compact">Dismissed suggestions</a>
+          </li>
+          <li class="row gap-small centered">
+            <i class="icon-inbox"></i><a href="{% url 'webview:suggestion:untriaged_suggestions' %}?compact">Untriaged suggestions</a>
+          </li>
+          <li class="row gap-small centered">
+            <i class="icon-draft"></i><a href="{% url 'webview:suggestion:accepted_suggestions' %}">Accepted suggestions</a>
+          </li>
+          <li class="row gap-small centered">
+            <i class="icon-github"></i><a href="{% url 'webview:issue_list' %}">Published issues</a>
+          </li>
+        </ul>
+      </nav>
     {% endblock %}
 
     {% block layout %}
       <main id="page-content">
-        {% block content %}{% endblock content %}
+        {% block content %}
+        {% endblock content %}
       </main>
     {% endblock layout %}
 
@@ -107,17 +107,14 @@
 
     <footer>
       <p>
-        <a href="https://github.com/NixOS/nix-security-tracker">Nixpkgs Security Tracker</a> is part of a project funded by the
-        <a href="https://sovereigntechfund.de/en/">Sovereign Tech Fund</a>.
+        Nixpkgs security tracker is part of <a href="https://nixos.org/community/teams/security/">NixOS security infrastructure</a>.
       </p>
       <p>
-        Running revision
+        <a href="https://github.com/NixOS/nix-security-tracker">Source code</a>, running revision
         {% if production %}
-          <a href="https://github.com/NixOS/nix-security-tracker/commit/{{ git_revision }}">
-            {{ git_revision|slice:":20" }}
-          </a>
+          <a href="https://github.com/NixOS/nix-security-tracker/commit/{{ git_revision }}">{{ git_revision | slice:":8" }}</a>
         {% else %}
-           {{ git_revision }} (development)
+          {{ git_revision | slice:":8" }} (development)
         {% endif %}
       </p>
     </footer>

@@ -3,17 +3,17 @@
 
 {% block content %}
 
-<h1 class="page-title row gap-small centered">{% status_icon "published" %}Published issues</h1>
+  <h1 class="page-title row gap-small centered">{% status_icon "published" %}Published issues</h1>
 
-<div class="prose">
-  <p>
-  All published security issues are <a href="{% gh_issues_url %}" target="_blank">tracked and resolved on GitHub</a>.
-  </p>
-</div>
+  <div class="prose">
+    <p>
+      All published security issues are <a href="{% gh_issues_url %}" target="_blank">tracked and resolved on GitHub</a>.
+    </p>
+  </div>
 
-<div class="column gap">
+  <div class="column gap">
     {% for object in object_list %}
       {% issue object object.suggestion_context github_issue=object.github_issue show_permalink=True %}
     {% endfor %}
-</div>
+  </div>
 {% endblock content %}

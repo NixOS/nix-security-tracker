@@ -2,6 +2,7 @@ import logging
 
 import pgpubsub
 from django.conf import settings
+from django.db import models
 from django.db.models import (
     Case,
     Exists,
@@ -28,6 +29,7 @@ logger = logging.getLogger(__name__)
 
 def produce_linkage_candidates(
     container: Container,
+    filtered_affected: models.QuerySet,
 ) -> dict[NixDerivation, ProvenanceFlags]:
     latest_complete_channels = (
         NixEvaluation.objects.filter(
@@ -42,16 +44,6 @@ def produce_linkage_candidates(
         )
         .filter(row_num=1)
     )
-
-    # FIXME(@fricklerhandwerk): se a proper parsing library such as https://github.com/nilp0inter/cpe to work on structured data.
-    # That particular one looks like the best candidate, but appears unmaintained (or could just be very stable); needs thorough review before adopting it.
-    has_any_cpe = Exists(Cpe.objects.filter(affectedproduct=OuterRef("pk")))
-    has_non_hardware_cpe = Exists(
-        Cpe.objects.filter(affectedproduct=OuterRef("pk")).exclude(
-            name__istartswith="cpe:2.3:h:"
-        )
-    )
-    filtered_affected = container.affected.exclude(has_any_cpe & ~has_non_hardware_cpe)
 
     package_names = (
         filtered_affected.exclude(package_name__isnull=True)
@@ -137,7 +129,30 @@ def build_new_links(container: Container) -> bool:
         )
         return True
 
-    drvs = produce_linkage_candidates(container)
+    # FIXME(@fricklerhandwerk): This only works because we're validating syntax on ingestion.
+    # Use a proper parsing library such as https://github.com/nilp0inter/cpe to work on structured data.
+    # That particular one looks like the best candidate, but appears unmaintained (or could just be very stable); needs thorough review before adopting it.
+    has_any_cpe = Exists(Cpe.objects.filter(affectedproduct=OuterRef("pk")))
+    has_non_hardware_cpe = Exists(
+        Cpe.objects.filter(affectedproduct=OuterRef("pk")).exclude(
+            name__istartswith="cpe:2.3:h:"
+        )
+    )
+    filtered_affected = container.affected.exclude(has_any_cpe & ~has_non_hardware_cpe)
+
+    if container.affected.exists() and not filtered_affected.exists():
+        logger.info(
+            "Container for '%s' has only hardware CPEs, rejecting without match.",
+            container.cve,
+        )
+        CVEDerivationClusterProposal.objects.create(
+            cve=container.cve,
+            status=CVEDerivationClusterProposal.Status.REJECTED,
+            rejection_reason=CVEDerivationClusterProposal.RejectionReason.HARDWARE_ONLY_CPE,
+        )
+        return True
+
+    drvs = produce_linkage_candidates(container, filtered_affected)
     if not drvs:
         logger.info("No derivations matching '%s', ignoring", container.cve)
         return False

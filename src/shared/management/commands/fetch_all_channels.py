@@ -119,7 +119,6 @@ class Command(BaseCommand):
 
         repo = GitRepo(
             settings.LOCAL_NIXPKGS_CHECKOUT,
-            stdout=sys.stdout.fileno(),
             stderr=sys.stderr.fileno(),
         )
         parallel_fetches = []
@@ -127,4 +126,5 @@ class Command(BaseCommand):
             parallel_fetches.append(repo.update_from_ref(channel.head_sha1_commit))
 
         results = asyncio.run(wait_for_parallel_fetches(parallel_fetches))
+        # FIXME(@fricklerhandwerk): Fold that into `branch_info`, so there's only one output.
         print("Parallel fetches results", results)

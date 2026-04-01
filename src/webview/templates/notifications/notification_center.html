@@ -3,49 +3,47 @@
 
 {% block content %}
 
-<h1 class="page-title">Notifications</h1>
+  <h1 class="page-title">Notifications</h1>
 
-<div class="column gap">
+  <div class="column gap">
 
-  {% if notifications %}
-    <div class="row-reverse gap-small">
-      <form method="post" action="{% url 'webview:notifications:mark_all_read' %}" hx-indicator="find button">
-        {% csrf_token %}
-        <!-- Preserve current page in no-js mode -->
-        <input type="hidden" name="page" value="{{ page_obj.number }}">
-        <button
-          type="submit"
-          hx-post="{% url 'webview:notifications:mark_all_read' %}"
-          hx-swap="none"
-          class="btn btn-gray">
-          Mark all as read
-        </button>
-      </form>
-      <form method="post" action="{% url 'webview:notifications:remove_all_read' %}" hx-indicator="find button">
-        {% csrf_token %}
-        <!-- Preserve current page in no-js mode -->
-        <input type="hidden" name="page" value="{{ page_obj.number }}">
-        <button
-          type="submit"
-          hx-post="{% url 'webview:notifications:remove_all_read' %}"
-          hx-swap="none"
-          class="btn btn-red">
-          Remove read notifications
-        </button>
-      </form>
-    </div>
-  {% endif %}
-
-  <div class="contents">
-    {% if notification_contexts %}
-      {% for notification_context in notification_contexts %}
-        {% notification data=notification_context %}
-      {% endfor %}
-    {% else %}
-      <p>You don't have any notifications yet.</p>
+    {% if notifications %}
+      <div class="row-reverse gap-small">
+        <form method="post"
+              action="{% url 'webview:notifications:mark_all_read' %}"
+              hx-indicator="find button">
+          {% csrf_token %}
+          <!-- Preserve current page in no-js mode -->
+          <input type="hidden" name="page" value="{{ page_obj.number }}">
+          <button type="submit"
+                  hx-post="{% url 'webview:notifications:mark_all_read' %}"
+                  hx-swap="none"
+                  class="btn btn-gray">Mark all as read</button>
+        </form>
+        <form method="post"
+              action="{% url 'webview:notifications:remove_all_read' %}"
+              hx-indicator="find button">
+          {% csrf_token %}
+          <!-- Preserve current page in no-js mode -->
+          <input type="hidden" name="page" value="{{ page_obj.number }}">
+          <button type="submit"
+                  hx-post="{% url 'webview:notifications:remove_all_read' %}"
+                  hx-swap="none"
+                  class="btn btn-red">Remove read notifications</button>
+        </form>
+      </div>
     {% endif %}
-  </div>
 
-</div>
+    <div class="contents">
+      {% if notification_contexts %}
+        {% for notification_context in notification_contexts %}
+          {% notification data=notification_context %}
+        {% endfor %}
+      {% else %}
+        <p>You don't have any notifications yet.</p>
+      {% endif %}
+    </div>
+
+  </div>
 
 {% endblock content %}

@@ -156,7 +156,14 @@ def test_hardware_cpe_produces_no_match(
     )
     make_drv(pname="some_router")
 
-    assert not build_new_links(container)
+    assert build_new_links(container) is True
+    proposal = CVEDerivationClusterProposal.objects.get(cve=container.cve)
+    assert proposal.status == CVEDerivationClusterProposal.Status.REJECTED
+    assert (
+        proposal.rejection_reason
+        == CVEDerivationClusterProposal.RejectionReason.HARDWARE_ONLY_CPE
+    )
+    assert proposal.derivations.count() == 0
 
 
 def test_application_cpe_produces_match(
@@ -194,7 +201,10 @@ def test_mixed_cpe_parts_skips_hardware_only_affected_products(
     make_drv(pname="some_router", version="1.0")
     make_drv(pname="myapp", version="1.0", attribute="myapp")
 
-    assert not build_new_links(hw_container)
+    build_new_links(hw_container)
+    assert not CVEDerivationClusterProposal.objects.get(
+        cve=hw_container.cve
+    ).derivations.exists()
     assert build_new_links(app_container)
     suggestion = CVEDerivationClusterProposal.objects.get(cve=app_container.cve)
     assert suggestion.derivations.filter(name__startswith="myapp").exists()

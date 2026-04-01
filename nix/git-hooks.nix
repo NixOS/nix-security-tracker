@@ -1,26 +1,23 @@
 { lib, pkgs, ... }:
-{
+rec {
   src = ../.;
   default_stages = [
     "manual"
     "pre-push"
   ];
+  excludes = [
+    "\\.min.css$"
+    "npins"
+    "migrations"
+    "grafana-dashboard.json"
+  ];
   hooks =
     let
-      # XXX(@fricklerhandwerk): these need to be tacked onto the `pre-commit` configuration file,
-      # which seems to ignore per-tool configuration
-      excludes = [
-        "\\.min.css$"
-        "\\.html$"
-        "npins"
-        "migrations"
-        "grafana-dashboard.json"
-      ];
       # XXX(@fricklerhandwerk): due to implementation details of pre-commit.nix this is
       # required for running in CI when building the hooks as a derivation
       stages = [ "manual" ];
     in
-    lib.mapAttrs (_: v: v // { inherit excludes stages; }) {
+    lib.mapAttrs (_: v: v // { inherit stages; }) {
       # Nix setup
       nixfmt-rfc-style.enable = true;
       statix = {
@@ -57,16 +54,93 @@
           entry = lib.mkForce (builtins.toString wrappedPyright);
         };
 
-      # Global setup
       prettier = {
         enable = true;
+        excludes = [ "\\.html$" ];
       };
+
+      djlint =
+        let
+          djlint-config =
+            with builtins;
+            toFile "djlint.json" (toJSON {
+              indent = 2;
+              preserve_blank_lines = true;
+              # FIXME(@fricklerhandwerk): Put all user-visible text on separate lines and enable this.
+              # preserve_leading_space = true;
+            });
+        in
+        {
+          enable = true;
+          name = "djlint";
+          entry = "${with pkgs; lib.getExe djlint} --reformat --quiet --configuration=${djlint-config}";
+          files = "\\.html$";
+        };
 
       lychee = {
         enable = true;
         name = "lychee";
         entry = "${pkgs.lib.getExe pkgs.lychee} --offline --no-progress";
         files = "\\.md$";
+        excludes = [ "\\.html$" ];
       };
+
+      vale =
+        let
+          sentence-case = pkgs.writeText "SentenceCase.yml" ''
+            extends: capitalization
+            message: "Should be in sentence case: '%s'"
+            level: error
+            scope: heading
+            # $title, $sentence, $lower, $upper, or a pattern.
+            match: $sentence
+            exceptions:
+              - Nix
+              - Nixpkgs
+              - CPE
+              - CPEs
+              - CVE
+              - CVEs
+              - Sentry
+              - Hetzner
+              - Hetzner Cloud
+              - Terraform
+              - OpenTofu
+              - SSH
+          '';
+
+          terms = pkgs.writeText "Terms.yml" ''
+            extends: existence
+            message: "Use 'Nixpkgs security tracker' instead of '%s'"
+            level: error
+            nonword: true
+            raw:
+              - 'Nixpkgs Security Tracker'
+          '';
+
+          styles-dir = pkgs.runCommand "vale-styles" { } ''
+            mkdir -p $out/default
+            mkdir -p $out/config/vocabularies # This must exist for Vale to run.
+            cp ${terms} $out/default/Terms.yml
+            cp ${sentence-case} $out/default/SentenceCase.yml
+          '';
+
+          vale-config = pkgs.writeText "vale.ini" ''
+            StylesPath = ${styles-dir}
+            MinAlertLevel = suggestion
+
+            [*.md]
+            BasedOnStyles = default
+
+            [*.html]
+            BasedOnStyles = default
+          '';
+        in
+        {
+          enable = true;
+          name = "vale";
+          entry = "${pkgs.lib.getExe pkgs.vale} --config=${vale-config}";
+          files = "\\.(md|html)$";
+        };
     };
 }

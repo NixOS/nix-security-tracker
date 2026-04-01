@@ -492,4 +492,7 @@ if user_settings_file is not None:
 
 # Settings side-effect, must be after the loading of ALL settings, including user ones.
 
+SESSION_COOKIE_SECURE = not DEBUG  # noqa: F405 # pyright: ignore [reportUndefinedVariable]
+CSRF_COOKIE_SECURE = not DEBUG  # noqa: F405 # pyright: ignore [reportUndefinedVariable]
+
 Path(EVALUATION_LOGS_DIRECTORY).mkdir(exist_ok=True)

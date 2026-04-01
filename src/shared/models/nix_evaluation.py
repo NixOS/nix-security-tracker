@@ -59,7 +59,9 @@ class NixSourceProvenance(models.Model):
     qualifier = models.CharField(max_length=255)
     source = models.BooleanField()
 
-    # TODO: define binary as !source
+    @property
+    def binary(self) -> bool:
+        return not self.source
 
 
 class NixPlatform(models.Model):

@@ -103,7 +103,39 @@ class RawMaintainerEvent(RawEvent):
         return False
 
 
-RawEventType = RawStatusEvent | RawPackageEvent | RawMaintainerEvent
+# NOTE(@florentc): A true reference has tags but this is just to keep track in the user displayed activity log
+class Reference(TypedDict):
+    id: int
+    url: str
+    name: str
+
+
+class RawReferenceEvent(RawEvent):
+    """Raw reference change event."""
+
+    action: Literal["reference.ignore", "reference.restore"]
+    reference: Reference
+
+    def is_canceled_by(
+        self,
+        other: "RawEvent",
+    ) -> bool:
+        if not self.precedes_close_related_event(other):
+            return False
+
+        if isinstance(other, RawReferenceEvent):
+            return self.reference["id"] == other.reference["id"] and {
+                self.action,
+                other.action,
+            } == {
+                "reference.restore",
+                "reference.ignore",
+            }
+
+        return False
+
+
+RawEventType = RawStatusEvent | RawPackageEvent | RawMaintainerEvent | RawReferenceEvent
 
 
 def sort_events_chronologically(events: list[RawEventType]) -> list[RawEventType]:

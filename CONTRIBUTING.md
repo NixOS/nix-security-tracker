@@ -1,4 +1,4 @@
-# Contributing Guide
+# Contributing guide
 
 This document is for anyone wanting to contribute to the implementation of the security tracker.
 
@@ -39,7 +39,15 @@ nix-shell
 
 This will provide most of tools necessary to run the service locally.
 
-Set up [`nix-direnv`](https://github.com/nix-community/nix-direnv) on your system and run `direnv allow` to enter the development environment automatically when entering the project directory.
+> [!NOTE]
+> If you want to start the development environment automatically when entering the project directory, set up [`nix-direnv`](https://github.com/nix-community/nix-direnv) on your system.
+> Add your `.envrc` to `.git/info/exclude`.
+
+List all available [management commands](https://docs.djangoproject.com/en/6.0/ref/django-admin/):
+
+```console
+manage help
+```
 
 ## Formatting
 
@@ -63,6 +71,13 @@ To minimise turnaround time for getting your contribution merged:
   Don't lump together unrelated changes.
   Otherwise, easy parts that could be merged on their own get blocked by the harder ones that need multiple iterations to get right.
 
+- Always add tests when changing behavior or fixing bugs.
+
+  Ideally, start by adding tests.
+
+  Even contributions that consist entirely of new tests annotated with `@pytest.mark.xfail(reason="Not implemented")` are welcome!
+  This is a good way of formalising requirements to be implemented in the future.
+
 - Use the commit message title to describe the change such that its merit can be evaluated.
   - Good: `fix: race condition during ingestion`
   - Bad: `fix: add with transaction.atomic() in ingestion.py`
@@ -80,11 +95,12 @@ To minimise turnaround time for getting your contribution merged:
 
 - Don't rewrite history, address review comments in new commits.
 
-  The pull request should still amount to a small change and can be squash-merged.
+  The pull request should still amount to a small change, and commits can be squashed before merging.
 
-- Always add tests when changing behavior or fixing bugs.
+- Run `nix-shell --run format` and `nix-build -A tests` before pushing.
 
-- Run `nix-shell --run format` before pushing.
+If you want to accept fixups by maintainers, [make your fork writeable](https://docs.github.com/en/pull-requests/collaborating-with-pull-requests/working-with-forks/allowing-changes-to-a-pull-request-branch-created-from-a-fork#enabling-repository-maintainer-permissions-on-existing-pull-requests).
+This allows for last-minute changes or resolving merge conflicts without your involvement.
 
 ## Tagged comments
 
@@ -118,9 +134,104 @@ We use these tagged comments inspired by and loosely following [PEP 450](https:/
 Always add your GitHub handle in parentheses -- `(@<author>)` -- so it's clear who had an opinion and may still have one during review.
 Code may move around, so [`git blame`](https://git-scm.com/docs/git-blame) won't be useful to track comment authorship.
 
+## Working with the database
+
+You will need a local instance of the database to run tests and experiment manually.
+
+### Set up a local database
+
+Currently only [PostgreSQL](https://www.postgresql.org/) is supported as a database.
+Assuming you have a local checkout of this repository at `~/src/nix-security-tracker`, in your NixOS configuration, add the following entry to `imports` and rebuild your system:
+
+```nix
+{ ... }:
+{
+  imports = [
+    (import ~/src/nix-security-tracker { }).dev-setup
+  ];
+
+  nix-security-tracker-dev-environment = {
+    enable = true;
+    # The user you run the backend application as, so that you can access the local database
+    user = "myuser";
+  };
+}
+```
+
+To replicate this on a traditional Unix-like system:
+
+- Inspect the [local database configuration](./nix/dev-setup.nix)
+- Read the documentation on the respective module options for the general idea, e.g. [`services.postgresql.ensureDatabases`](https://search.nixos.org/options?query=postgresql.ensureDatabases)
+- Search the linked module source for the option names for implementation details, e.g. [`postgresql.nix`](https://github.com/NixOS/nixpkgs/blob/master/nixos/modules/services/databases/postgresql.nix)
+
+### Start the service
+
+> ![NOTE]
+> For a quick start, create dummy credentials:
+>
+> ```console
+> dummy-credentials
+> ```
+>
+> Logging in and publishing issues requires [setting up credentials](#setting-up-credentials).
+
+Run the server:
+
+```console
+manage runserver
+```
+
+### Ingest Nixpkgs metadata
+
+Fetch the tips of all [channel branches](https://nix.dev/concepts/faq#channel-branches):
+
+```console
+manage fetch_all_channels
+```
+
+Select a ``head_sha1_commit` from the output and run evaluation on that:
+
+```console
+manage run_evaluation <commit>
+```
+
+### Start matching listeners and ingest CVEs for matching
+
+Matching CVEs against Nixpkgs metadata is triggered by `pgpubsub` notifications internally as CVEs are ingested.
+To test this dataflow locally, start the listeners:
+
+```console
+manage listen -v3 --recover
+```
+
+Ingest some CVEs:
+
+```console
+manage ingest_bulk_cve --from 2024-01-01 --to 2024-01-31
+```
+
+This should produce untriaged matches.
+
+### Resetting the database
+
+In order to start over you need SSH [access to the staging environment](./infra/README.md#adding-ssh-keys).
+Tools for the following are available in the development shell.
+Delete the database and recreate it, then restore it from a dump, and (just in case the dump is behind the code) run migrations:
+
+```bash
+dropdb nix-security-tracker
+ssh root@tracker-staging.security.nixos.org "sudo -u postgres pg_dump --create nix-security-tracker | zstd" | zstdcat | pv | psql
+manage migrate
+```
+
 ## Setting up credentials
 
-The service connects to GitHub on startup, in order to manage permissions according to GitHub team membership in the configured organisation.
+The service connects to GitHub for certain operations:
+
+- Managing permissions according to GitHub team membership in the configured organisation
+- Publishing vulnerabilities as GitHub issues
+
+This requires setting up GitHub credentials.
 
 <details><summary>Create a Django secret key</summary>
 
@@ -195,61 +306,6 @@ To configure the GitHub app and the webhook in the GitHub organisation settings:
 
 </details>
 
-## Working with the database
-
-You will need a local instance of the database to run tests and experiment manually.
-
-### Set up a local database
-
-Currently only [PostgreSQL](https://www.postgresql.org/) is supported as a database.
-Assuming you have a local checkout of this repository at `~/src/nix-security-tracker`, in your NixOS configuration, add the following entry to `imports` and rebuild your system:
-
-```nix
-{ ... }:
-{
-  imports = [
-    (import ~/src/nix-security-tracker { }).dev-setup
-  ];
-
-  nix-security-tracker-dev-environment = {
-    enable = true;
-    # The user you run the backend application as, so that you can access the local database
-    user = "myuser";
-  };
-}
-```
-
-To replicate this on a traditional Unix-like system:
-
-- Inspect the [local database configuration](./nix/dev-setup.nix)
-- Read the documentation on the respective module options for the general idea, e.g. [`services.postgresql.ensureDatabases`](https://search.nixos.org/options?query=postgresql.ensureDatabases)
-- Search the linked module source for the option names for implementation details, e.g. [`postgresql.nix`](https://github.com/NixOS/nixpkgs/blob/master/nixos/modules/services/databases/postgresql.nix)
-
-### Start the service
-
-The service is comprised of the Django server and workers for ingesting CVEs and derivations.
-What needs to be run is defined in the [`Procfile`](./Procfile) managed by [hivemind](https://github.com/DarthSim/hivemind).
-
-Run everything with:
-
-```bash
-hivemind
-```
-
-<!-- FIXME(@fricklerhandwerk): Add instructions for manually obtaining CVEs and derivations. -->
-
-### Resetting the database
-
-In order to start over you need SSH [access to the staging environment](./infra/README.md#adding-ssh-keys).
-Tools for the following are available in the development shell.
-Delete the database and recreate it, then restore it from a dump, and (just in case the dump is behind the code) run migrations:
-
-```bash
-dropdb nix-security-tracker
-ssh root@tracker-staging.security.nixos.org "sudo -u postgres pg_dump --create nix-security-tracker | zstd" | zstdcat | pv | psql
-manage migrate
-```
-
 ## Running the service in a container
 
 On NixOS, you can run the service in a [`systemd-nspawn` container](https://search.nixos.org/options?show=containers) to preview a deployment.
@@ -319,20 +375,7 @@ We use the following pattern:
 > [!WARNING]
 > If you create a new listener module but forget to add its import to [`src/shared/listeners/__init__.py`](src/shared/listeners/__init__.py), your listener will fail to run silently!
 
-## Manual ingestion
-
-### CVEs
-
-Add 100 CVE entries to the database:
-
-```console
-manage ingest_bulk_cve --subset 100
-```
-
-This will take a few minutes on an average machine.
-Not passing `--subset N` will take about an hour and produce ~500 MB of data.
-
-### Caching suggestions
+## Re-caching suggestions
 
 Suggestion contents are displayed from a cache to avoid latency from complex database queries.
 
@@ -374,7 +417,7 @@ The CSS is organized into multiple CSS files, in `src/webview/static`, that are 
 
 Icons rely on a custom icomoon webfont and class definitions to be used with the `<i>` tag. Consult [src/webview/static/icons/README.md] for details.
 
-## Adding New Styles
+## Adding new styles
 
 Adding new styles should be a last resort:
 

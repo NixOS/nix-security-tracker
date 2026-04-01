@@ -110,7 +110,10 @@ class SuggestionContentEditBaseView(SuggestionBaseView, ABC):
     # The main problem here is that it results in very inefficient queries, as we can't express fetching related data in one go.
     # A minor problem for now is obscured and coarse-grained access control, but there's no user story at the moment for which it's in the way.
     def _check_access_rights_and_get_suggestion(
-        self, request: HttpRequest, suggestion_id: int
+        self,
+        request: HttpRequest,
+        suggestion_id: int,
+        is_compact: bool = False,
     ) -> tuple[CVEDerivationClusterProposal, SuggestionContext]:
         user_can_edit = user_can_edit_suggestion(self.request.user)
 
@@ -124,6 +127,7 @@ class SuggestionContentEditBaseView(SuggestionBaseView, ABC):
             suggestion,
             user_can_edit=user_can_edit,
             pre_fetched_events=events[suggestion.pk],
+            is_compact=is_compact,
         )
 
         # Validate that the suggestion status allows package editing

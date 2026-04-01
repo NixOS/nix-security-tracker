@@ -197,9 +197,10 @@
  */
 
 .tag {
-  border-radius: 1000px;
-  padding: 0em 0.4em;
+  border-radius: 1rem;
+  padding: 0.15rem 0.5rem;
   word-break: normal;
+  font-size: 0.8rem;
 }
 
 .tag-gray {

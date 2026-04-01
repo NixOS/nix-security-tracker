@@ -3,13 +3,9 @@
 <article class="rounded-box column gap" id="issue-{{ issue.code }}">
 
   <div class="row gap spread">
-    <div class="uppercase bold">
-      {{ issue.code }}
-    </div>
+    <div class="uppercase bold">{{ issue.code }}</div>
     <div>
-      {% if github_issue %}
-        <a href="{{ github_issue }}" target="_blank" class="permalink">GitHub issue</a>
-      {% endif %}
+      {% if github_issue %}<a href="{{ github_issue }}" target="_blank" class="permalink">GitHub issue</a>{% endif %}
       published on {{ issue.created }}
     </div>
   </div>

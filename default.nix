@@ -51,14 +51,33 @@ rec {
       paths = [
         deploy
         pkgs.npins
+        pkgs.zizmor
       ];
     };
 
   shell =
     let
       manage = pkgs.writeScriptBin "manage" ''
-        exec ${pkgs.python3}/bin/python ${toString ./src/manage.py} $@
+        exec "${pkgs.python3}/bin/python" "${toString ./src/manage.py}" "$@"
       '';
+      # Run this for a quick start.
+      # Login and publishing issues requires setting up credentials properly.
+      dummy-credentials = pkgs.writeShellApplication {
+        name = "dummy-credentials";
+        runtimeInputs = [ pkgs.python3 ];
+        text = ''
+          dir="${toString ./.credentials}"
+          mkdir -p "$dir"
+          cd "$dir"
+          set -o noclobber
+          python3 -c 'import secrets; print(secrets.token_hex(100))' > SECRET_KEY
+          echo bar > GH_CLIENT_ID
+          echo baz > GH_SECRET
+          echo qux > GH_WEBHOOK_SECRET
+          echo 123 > GH_APP_INSTALLATION_ID
+          echo foo > GH_APP_PRIVATE_KEY
+        '';
+      };
     in
     pkgs.mkShellNoCC {
       env = {
@@ -91,6 +110,7 @@ rec {
       };
 
       packages = [
+        dummy-credentials
         manage
         package
         # Explicitly pin git from nixpkgs to ensure the `fetch_all_channels` management command
@@ -101,7 +121,6 @@ rec {
         pkgs.git
         pkgs.nix-eval-jobs
         pkgs.npins
-        pkgs.hivemind
         pkgs.pv
         (import sources.agenix { inherit pkgs; }).agenix
         format

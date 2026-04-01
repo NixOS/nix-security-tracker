@@ -1,0 +1,36 @@
+{% load viewutils %}
+
+<div class="row gap centered">
+  {% if not data.frozen and data.user_can_edit %}
+    <form class="contents"
+          method="post"
+          action="{% if data.status.value == 'active' %}{% url 'webview:suggestion:ignore_reference' data.suggestion_id data.reference.id %}{% elif data.status.value == 'ignored' %}{% url 'webview:suggestion:restore_reference' data.suggestion_id data.reference.id %}{% endif %}"
+          hx-boost="true"
+          hx-target="#suggestion-{{ data.suggestion_id }}"
+          hx-swap="outerHTML show:none"
+          hx-push-url="false"
+          hx-indicator="find button"
+          autocomplete="off">
+      {% csrf_token %}
+      <input type="hidden"
+             name="is_compact"
+             value="{% if data.is_compact %}true{% else %}false{% endif %}">
+      <button type="submit"
+              class="btn {% if data.status.value == 'active' %}btn-gray{% else %}btn-green{% endif %} row gap-small centered">
+        {% if data.status.value == 'active' %}
+          <i class="icon-chain-broken"></i>Ignore
+        {% elif data.status.value == 'ignored' %}
+          <i class="icon-chain"></i>Restore
+        {% endif %}
+      </button>
+    </form>
+  {% endif %}
+  <div class="row baseline gap-small wrap">
+    {% if data.reference.name %}
+      <a href="{{ data.reference.url }}" target="_blank">{{ data.reference.name }}</a>
+    {% else %}
+      {{ data.reference.url|urlizetrunc:80 }}
+    {% endif %}
+    {% for tag in data.reference.tags %}<span class="tag tag-gray">{{ tag }}</span>{% endfor %}
+  </div>
+</div>

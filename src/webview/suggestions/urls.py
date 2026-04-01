@@ -3,6 +3,10 @@ from django.urls import path
 from shared.models.linkage import (
     CVEDerivationClusterProposal,
 )
+from webview.suggestions.views.references import (
+    IgnoreReferenceView,
+    RestoreReferenceView,
+)
 
 from .views.detail import SuggestionDetailByCveView, SuggestionDetailView
 from .views.lists import (
@@ -70,6 +74,17 @@ urlpatterns = [
         "by-id/<int:suggestion_id>/package/restore/<path:package_attr>/",
         RestorePackageView.as_view(),
         name="restore_package",
+    ),
+    # Reference operations
+    path(
+        "by-id/<int:suggestion_id>/reference/ignore/<int:reference_id>/",
+        IgnoreReferenceView.as_view(),
+        name="ignore_reference",
+    ),
+    path(
+        "by-id/<int:suggestion_id>/reference/restore/<int:reference_id>/",
+        RestoreReferenceView.as_view(),
+        name="restore_reference",
     ),
     # Maintainers operations
     path(

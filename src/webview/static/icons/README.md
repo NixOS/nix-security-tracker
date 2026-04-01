@@ -37,3 +37,5 @@ The icons we use are:
 - "search"
 - "user-plus"
 - "user-minus"
+- "chain"
+- "chain-broken"

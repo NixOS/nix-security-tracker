@@ -5,7 +5,7 @@ from django.http import HttpRequest, HttpResponse
 
 from shared.listeners.cache_suggestions import (
     CachedSuggestion,
-    apply_package_edits,
+    apply_package_overlays,
     categorize_maintainers,
 )
 from shared.models.linkage import (
@@ -40,9 +40,9 @@ class PackageOperationBaseView(SuggestionContentEditBaseView, ABC):
         try:
             with transaction.atomic():
                 self._perform_operation(suggestion, package_attr)
-                suggestion.cached.payload["packages"] = apply_package_edits(
+                suggestion.cached.payload["packages"] = apply_package_overlays(
                     suggestion.cached.payload["original_packages"],
-                    suggestion.package_edits.all(),
+                    suggestion.package_overlays.all(),
                 )
                 suggestion.cached.payload["categorized_maintainers"] = (
                     categorize_maintainers(
@@ -50,7 +50,7 @@ class PackageOperationBaseView(SuggestionContentEditBaseView, ABC):
                             k: CachedSuggestion.Package.model_validate(v)
                             for k, v in suggestion.cached.payload["packages"].items()
                         },
-                        suggestion.maintainers_edits.all(),
+                        suggestion.maintainer_overlays.all(),
                     ).model_dump()
                 )
                 suggestion.cached.save()
@@ -101,7 +101,7 @@ class IgnorePackageView(PackageOperationBaseView):
     def _perform_operation(
         self, suggestion: CVEDerivationClusterProposal, package_attr: str
     ) -> None:
-        """Create or update PackageEdit to ignore the package."""
+        """Create or update PackageOverlay to ignore the package."""
         suggestion.ignore_package(package_attr)
 
     def _get_operation_name(self) -> str:
@@ -114,7 +114,7 @@ class RestorePackageView(PackageOperationBaseView):
     def _perform_operation(
         self, suggestion: CVEDerivationClusterProposal, package_attr: str
     ) -> None:
-        """Remove PackageEdit entries to restore the package."""
+        """Remove PackageOverlay entries to restore the package."""
         suggestion.restore_package(package_attr)
 
     def _get_operation_name(self) -> str:

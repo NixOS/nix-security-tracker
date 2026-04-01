@@ -76,13 +76,12 @@ def make_container(db: None) -> Callable[..., Container]:
             tag_objs: dict[str, Tag] = {}
             for tag in tags:
                 tag_objs[tag], _ = Tag.objects.get_or_create(value=tag)
-            refs.append(
-                Reference.objects.create(
-                    url=link,
-                    name=text,
-                    tags=tag_objs.values(),
-                )
+            ref = Reference.objects.create(
+                url=link,
+                name=text,
             )
+            ref.tags.set(tag_objs.values())
+            refs.append(ref)
         container.references.set(refs)
         container.affected.add(affected)
         if description is not None:
@@ -301,8 +300,8 @@ def make_user(
     django_user_model: type[User],
 ) -> Callable[..., User]:
     def wrapped(
-        is_staff: bool = True,
-        is_committer: bool = True,
+        is_staff: bool = False,
+        is_committer: bool = False,
         username: str = "testuser",
         provider: str = GitHubProvider.id,
         uid: str = "123",
@@ -330,8 +329,6 @@ def make_user(
 
 @pytest.fixture
 def user(make_user: Callable[..., User]) -> User:
-    # FIXME(@fricklerhandwerk): Currently tests assume users to be staff.
-    # For less confusing naming, rework the tests to be specific about privileges, let `user` here have none.
     return make_user()
 
 

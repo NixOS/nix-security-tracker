@@ -2,13 +2,13 @@
 {% load viewutils %}
 
 {% block title %}
-{{ issue }}
+  {{ issue }}
 {% endblock title %}
 
 {% block content %}
 
-<h1 class="page-title">Details of issue {{ object.code }}</h1>
+  <h1 class="page-title">Details of issue {{ object.code }}</h1>
 
-{% issue object suggestion_context github_issue %}
+  {% issue object suggestion_context github_issue %}
 
 {% endblock content %}

@@ -112,6 +112,35 @@ def create_gh_issue(
 {"\n".join(packages)}
 </details>"""
 
+    def references() -> str:
+        """
+        Format active references from the cached suggestion for inclusion in GitHub issue.
+        """
+        references = cached_suggestion.payload.get("categorized_references", {})
+        active_refs = references.get("active", [])
+
+        if not active_refs:
+            return ""
+
+        ref_lines = []
+        for ref in active_refs:
+            # Format each reference with name and URL
+            if ref.get("name") and ref["name"].strip():
+                ref_lines.append(f"- [{ref['name']}]({ref['url']})")
+            else:
+                ref_lines.append(f"- {ref['url']}")
+
+            # Add tags if present
+            if ref.get("tags"):
+                tags_str = ", ".join(f"`{tag}`" for tag in ref["tags"])
+                ref_lines[-1] += f" ({tags_str})"
+
+        return f"""
+
+## References
+
+{"\n".join(ref_lines)}"""
+
     def additional_comment() -> str:
         if comment:
             # Find the maximum number of consecutive backticks in the comment
@@ -165,6 +194,7 @@ def create_gh_issue(
 ## Description
 
 {cached_suggestion.payload["description"]}
+{references()}
 {cvss_details()}
 {affected_nix_packages()}{additional_comment()}"""
 

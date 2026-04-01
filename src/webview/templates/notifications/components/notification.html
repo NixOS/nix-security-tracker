@@ -1,11 +1,13 @@
 {% load viewutils %}
 {% if data.new_unread_count is not None %}
-{% notifications_badge count=data.new_unread_count oob_update=True %}
+  {% notifications_badge count=data.new_unread_count oob_update=True %}
 {% endif %}
-<article class="rounded-box column gap {% if not data.notification.is_read %}highlight{% endif %}" id="notification-{{ data.notification.id }}">
+<article class="rounded-box column gap {% if not data.notification.is_read %}highlight{% endif %}"
+         id="notification-{{ data.notification.id }}">
   <header class="row gap spread">
     <h3 class="heading">{{ data.notification.title }}</h3>
-    <time datetime="{{ data.notification.created_at|date }}" class="notification-date">{{ data.notification.created_at|date:"M d, Y H:i" }}</time>
+    <time datetime="{{ data.notification.created_at|date }}"
+          class="notification-date">{{ data.notification.created_at|date:"M d, Y H:i" }}</time>
   </header>
   {% if data.notification.message %}
     {{ data.notification.message|linebreaks }}
@@ -16,49 +18,60 @@
       {% affected_products data.notification.suggestion.cached.payload.affected_products %}
     </div>
     {% if data.matching_subscribed_packages %}
-      <div class="rounded-box column" id="notification-{{ data.notification.id }}-matching-subscribed-packages">
+      <div class="rounded-box column"
+           id="notification-{{ data.notification.id }}-matching-subscribed-packages">
         <h2 class="heading dimmed">Matching packages you follow</h2>
         <div class="column dividers">
           {% for attribute, pdata in data.matching_subscribed_packages.items %}
-          {% nixpkgs_package attribute pdata%}
+            {% nixpkgs_package attribute pdata %}
           {% endfor %}
         </div>
       </div>
     {% endif %}
     {% if data.matching_maintained_packages %}
-      <div class="rounded-box column" id="notification-{{ data.notification.id }}-matching-maintained-packages">
+      <div class="rounded-box column"
+           id="notification-{{ data.notification.id }}-matching-maintained-packages">
         <h2 class="heading dimmed">Matching packages you maintain</h2>
         <div class="column dividers">
           {% for attribute, pdata in data.matching_maintained_packages.items %}
-          {% nixpkgs_package attribute pdata%}
+            {% nixpkgs_package attribute pdata %}
           {% endfor %}
         </div>
       </div>
     {% endif %}
     {% if not data.matching_maintained_packages and not data.matching_subscribed_packages %}
-    <details class="rounded-box {% if not data.notification.is_read %}hl-red{% endif %} prose">
+      <details class="rounded-box {% if not data.notification.is_read %}hl-red{% endif %} prose">
         <summary class="bold">This notification is obsolete and can be deleted</summary>
         <p>
           The suggestion was initially matched to packages you either follow or maintain.
           These packages were later set as irrelevant, or you unsubscribed.
         </p>
-        <p>You may remove this notification directly or double check <a href="{% url 'webview:suggestion:detail' suggestion_id=data.notification.suggestion.pk %}#suggestion-{{ data.notification.suggestion.pk }}-ignored-packages">ignored packages of that suggestion</a>.</p>
+        <p>
+          You may remove this notification directly or double check <a href="{% url 'webview:suggestion:detail' suggestion_id=data.notification.suggestion.pk %}#suggestion-{{ data.notification.suggestion.pk }}-ignored-packages">ignored packages of that suggestion</a>.
+        </p>
       </details>
     {% endif %}
   {% endif %}
-  <form method="post" action="{% url 'webview:notifications:toggle_read' data.notification.id %}" class="row-reverse" hx-indicator="find button">
+  <form method="post"
+        action="{% url 'webview:notifications:toggle_read' data.notification.id %}"
+        class="row-reverse"
+        hx-indicator="find button">
     {% csrf_token %}
     {% if data.current_page %}
       <!-- Preserve current page if we're in a paginated view in no-js mode -->
       <input type="hidden" name="page" value="{{ data.current_page }}">
     {% endif %}
-    <button
-      type="submit"
-      hx-post="{% url 'webview:notifications:toggle_read' data.notification.id %}"
-      hx-swap="outerHTML"
-      hx-target="#notification-{{ data.notification.id }}"
-      class="btn {%if not data.notification.is_read %}btn-green{% else %}btn-gray{% endif %}">
-      Mark {%if not data.notification.is_read %}read{% else %}unread{% endif %}
+    <button type="submit"
+            hx-post="{% url 'webview:notifications:toggle_read' data.notification.id %}"
+            hx-swap="outerHTML"
+            hx-target="#notification-{{ data.notification.id }}"
+            class="btn {% if not data.notification.is_read %}btn-green{% else %}btn-gray{% endif %}">
+      Mark
+      {% if not data.notification.is_read %}
+        read
+      {% else %}
+        unread
+      {% endif %}
     </button>
   </form>
 </article>

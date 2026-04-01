@@ -2,131 +2,143 @@
 {% load viewutils %}
 
 {% if activity_log %}
-<details class="column align-end"
-         id="suggestion-activity-log-{{suggestion.id}}"
-         {% if oob_update %}hx-swap-oob="true"{% endif %}
-         data-relative=true
->
-  <summary>
-    <span class="details-closed">
-      {% with last_entry=activity_log|last %}
-        <span class="activity-log-timestamp">
-          updated {{ last_entry.timestamp|naturaltime }}
-        </span>
-        by&nbsp;<strong>@{{ last_entry.username }}</strong>
-      {% endwith %}
-    </span>
-    <strong class="details-open">Activity log</strong>
-  </summary>
-  <ul class="column align-end">
-    <li>
-      Created <span class="automatic-suggestion-text">automatic suggestion</span>
-      <span class="activity-log-entry-timestamp"
-            data-timestamp-relative="{{ suggestion.created_at|naturaltime }}"
-            data-timestamp-iso="{{ suggestion.created_at|iso }}"
-      >
-        {{ suggestion.created_at|naturaltime }}
+  <details class="column align-end"
+           id="suggestion-activity-log-{{ suggestion.id }}"
+           {% if oob_update %}hx-swap-oob="true"{% endif %}
+           data-relative="true">
+    <summary>
+      <span class="details-closed">
+        {% with last_entry=activity_log|last %}
+          <span class="activity-log-timestamp">updated {{ last_entry.timestamp|naturaltime }}</span>
+          by&nbsp;<strong>@{{ last_entry.username }}</strong>
+        {% endwith %}
       </span>
-    </li>
-    {% for log_entry in activity_log %}
-      <li class="row gap-small baseline">
-        <strong>@{{ log_entry.username }}</strong>
-        {% if "package." in log_entry.action %}
-        {# Package update entries #}
-          {% if ".add" in log_entry.action %}
-            added
-          {% else %}
-            removed
-          {% endif %}
-          {% if log_entry.package_names|length == 1 %}
-            package <strong>{{ log_entry.package_names.0 }}</strong>
-          {% else %}
-            <details>
-              <summary>
-                {{ log_entry.package_names|length }} packages
-              </summary>
-              <ul>
-                {% for packagename in log_entry.package_names %}
-                  <li>{{ packagename }}</li>
-                {% endfor %}
-              </ul>
-            </details>
-          {% endif %}
-        {% elif "maintainers." in log_entry.action %}
-        {# Maintainers edit entry #}
-        {% if ".add" in log_entry.action %}
-          added
-        {% else %}
-          removed
-        {% endif %}
-        {% if log_entry.maintainers|length == 1 %}
-          maintainer <strong>@{{ log_entry.maintainers.0.github }}</strong>
-        {% else %}
-          <details>
-            <summary>
-              {{ log_entry.maintainers|length }} maintainers
-            </summary>
-            <ul>
-              {% for maintainer in log_entry.maintainers %}
-                <li>@{{ maintainer.github }}</li>
-              {% endfor %}
-            </ul>
-          </details>
-        {% endif %}
-        {% else %}
-        {# Status update entries #}
-          {% if "accepted" in log_entry.status_value  %}
-            <span>accepted</span>
-          {% elif "rejected" in log_entry.status_value %}
-            <span>dismissed {% if log_entry.rejection_reason %}({{log_entry.rejection_reason}}){% endif %}</span>
-          {% elif "pending" in log_entry.status_value %}
-            <span>marked as untriaged</span>
-          {% elif "published" in log_entry.status_value %}
-            <span>published on GitHub</span>
-          {% else %}
-            {{ log_entry.action }}
-          {% endif %}
-        {% endif %}
+      <strong class="details-open">Activity log</strong>
+    </summary>
+    <ul class="column align-end">
+      <li>
+        Created <span class="automatic-suggestion-text">automatic suggestion</span>
         <span class="activity-log-entry-timestamp"
-              data-timestamp-relative="{{ log_entry.timestamp|naturaltime }}"
-              data-timestamp-iso="{{ log_entry.timestamp|iso }}"
-        >
-          {{ log_entry.timestamp|naturaltime }}
-        </span>
-        {# Icon #}
-        {% if "package." in log_entry.action %}
-          {% if ".add" in log_entry.action %}
-            <i class="icon-folder-plus"></i>
-          {% else %}
-            <i class="icon-folder-minus"></i>
-          {% endif %}
-        {% elif "maintainers." in log_entry.action %}
-          {% if ".add" in log_entry.action %}
-            <i class="icon-user-plus"></i>
-          {% else %}
-            <i class="icon-user-minus"></i>
-          {% endif %}
-        {% else %}
-          {% if "accepted" in log_entry.status_value  %}
-            <i class="icon-draft"></i>
-          {% elif "rejected" in log_entry.status_value %}
-            <i class="icon-bin"></i>
-          {% elif "pending" in log_entry.status_value %}
-            <i class="icon-inbox"></i>
-          {% elif "published" in log_entry.status_value %}
-            <i class="icon-github"></i>
-          {% else %}
-            {{ log_entry.action }}
-          {% endif %}
-        {% endif %}
+              data-timestamp-relative="{{ suggestion.created_at|naturaltime }}"
+              data-timestamp-iso="{{ suggestion.created_at|iso }}">{{ suggestion.created_at|naturaltime }}</span>
       </li>
-    {% endfor %}
-  </ul>
-  <script>
+      {% for log_entry in activity_log %}
+        <li class="row gap-small baseline">
+          <strong>@{{ log_entry.username }}</strong>
+          {% if "package." in log_entry.action %}
+            {# Package update entries #}
+            {% if ".add" in log_entry.action %}
+              added
+            {% else %}
+              removed
+            {% endif %}
+            {% if log_entry.package_names|length == 1 %}
+              package <strong>{{ log_entry.package_names.0 }}</strong>
+            {% else %}
+              <details>
+                <summary>{{ log_entry.package_names|length }} packages</summary>
+                <ul>
+                  {% for packagename in log_entry.package_names %}<li>{{ packagename }}</li>{% endfor %}
+                </ul>
+              </details>
+            {% endif %}
+          {% elif "reference." in log_entry.action %}
+            {# Reference update entries #}
+            {% if ".restore" in log_entry.action %}
+              restored
+            {% else %}
+              ignored
+            {% endif %}
+            {% if log_entry.references|length == 1 %}
+              reference <a href="{{ log_entry.references.0.url }}">{{ log_entry.references.0.name | default:log_entry.references.0.url | truncatechars:10 }}</a>
+            {% else %}
+              <details>
+                <summary>{{ log_entry.references|length }} references</summary>
+                <ul>
+                  {% for reference in log_entry.references %}
+                    <li>
+                      <a href="{{ reference.url }}">{{ reference.name | default:reference.url | truncatechars:40 }}</a>
+                    </li>
+                  {% endfor %}
+                </ul>
+              </details>
+            {% endif %}
+          {% elif "maintainers." in log_entry.action %}
+            {# Maintainers edit entry #}
+            {% if ".add" in log_entry.action %}
+              added
+            {% else %}
+              removed
+            {% endif %}
+            {% if log_entry.maintainers|length == 1 %}
+              maintainer <strong>@{{ log_entry.maintainers.0.github }}</strong>
+            {% else %}
+              <details>
+                <summary>{{ log_entry.maintainers|length }} maintainers</summary>
+                <ul>
+                  {% for maintainer in log_entry.maintainers %}<li>@{{ maintainer.github }}</li>{% endfor %}
+                </ul>
+              </details>
+            {% endif %}
+          {% else %}
+            {# Status update entries #}
+            {% if "accepted" in log_entry.status_value %}
+              <span>accepted</span>
+            {% elif "rejected" in log_entry.status_value %}
+              <span>dismissed
+                {% if log_entry.rejection_reason %}({{ log_entry.rejection_reason }}){% endif %}
+              </span>
+            {% elif "pending" in log_entry.status_value %}
+              <span>marked as untriaged</span>
+            {% elif "published" in log_entry.status_value %}
+              <span>published on GitHub</span>
+            {% else %}
+              {{ log_entry.action }}
+            {% endif %}
+          {% endif %}
+          <span class="activity-log-entry-timestamp"
+                data-timestamp-relative="{{ log_entry.timestamp|naturaltime }}"
+                data-timestamp-iso="{{ log_entry.timestamp|iso }}">{{ log_entry.timestamp|naturaltime }}</span>
+          {# Icon #}
+          {% if "package." in log_entry.action %}
+            {% if ".add" in log_entry.action %}
+              <i class="icon-folder-plus"></i>
+            {% else %}
+              <i class="icon-folder-minus"></i>
+            {% endif %}
+          {% elif "reference." in log_entry.action %}
+            {% if ".add" in log_entry.action %}
+              <i class="icon-chain"></i>
+            {% else %}
+              <i class="icon-chain-broken"></i>
+            {% endif %}
+          {% elif "maintainers." in log_entry.action %}
+            {% if ".add" in log_entry.action %}
+              <i class="icon-user-plus"></i>
+            {% else %}
+              <i class="icon-user-minus"></i>
+            {% endif %}
+          {% else %}
+            {% if "accepted" in log_entry.status_value %}
+              <i class="icon-draft"></i>
+            {% elif "rejected" in log_entry.status_value %}
+              <i class="icon-bin"></i>
+            {% elif "pending" in log_entry.status_value %}
+              <i class="icon-inbox"></i>
+            {% elif "published" in log_entry.status_value %}
+              <i class="icon-github"></i>
+            {% else %}
+              {{ log_entry.action }}
+            {% endif %}
+          {% endif %}
+        </li>
+      {% endfor %}
+    </ul>
+    <script>
     {% comment %}
       NOTE(alejandrosame): This section will be called several times, but I'd rather keep
         this logic contained in this file until the project settles on a frontend framework.
-    {% endcomment %}
+{% endcomment %}
 
     var log = document.querySelector('#suggestion-activity-log-{{suggestion.id}}');
 
@@ -151,18 +163,13 @@
         changeTimestampPresentation('#suggestion-activity-log-{{suggestion.id}}');
       };
     });
-  </script>
-</details>
+    </script>
+  </details>
 {% else %}
-<span class="activity-log timestamp"
-      data-timestamp-relative="created {{ suggestion.created_at|naturaltime }}"
-      data-timestamp-iso="created {{ suggestion.created_at|iso }}"
-      onclick="if (event.target.textContent === event.target.dataset.timestampRelative){
-        event.target.textContent = event.target.dataset.timestampIso;
-      } else {
-        event.target.textContent = event.target.dataset.timestampRelative;
-      }"
->
-  created {{ suggestion.created_at|naturaltime }}
-</span>
-{% endif%}
+  <span class="activity-log timestamp"
+        data-timestamp-relative="created {{ suggestion.created_at|naturaltime }}"
+        data-timestamp-iso="created {{ suggestion.created_at|iso }}"
+        onclick="if (event.target.textContent === event.target.dataset.timestampRelative){ event.target.textContent = event.target.dataset.timestampIso; } else { event.target.textContent = event.target.dataset.timestampRelative; }">
+    created {{ suggestion.created_at|naturaltime }}
+  </span>
+{% endif %}

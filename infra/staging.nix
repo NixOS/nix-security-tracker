@@ -89,6 +89,10 @@ in
         local all all trust
       '';
     };
+    postgresqlBackup = {
+      enable = true;
+      databases = [ "nix-security-tracker" ];
+    };
   };
   security.acme.acceptTerms = true;
   security.acme.defaults.email = "infra@nixos.org";

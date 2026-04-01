@@ -1,0 +1,32 @@
+{% load viewutils %}
+
+<div id="suggestion-{{ data.suggestion_id }}-references"
+     class="{% if not data.is_compact %}rounded-box{% endif %}">
+  {% if not data.is_compact %}<h2 class="heading dimmed">References</h2>{% endif %}
+
+  <div class="column gap{% if data.is_compact %}-small{% endif %}">
+    {% if data.active %}
+      <ul id="suggestion-{{ data.suggestion_id }}-active-references"
+          class="column gap-small">
+        {% for reference_context in data.active %}
+          <li>{% reference reference_context %}</li>
+        {% endfor %}
+      </ul>
+    {% endif %}
+
+    {% if data.ignored %}
+      <details class="column gap-small">
+        <summary class="{% if not data.is_compact %}heading{% else %}bold{% endif %} dimmed">
+          Ignored references ({{ data.ignored|length }})
+        </summary>
+        <ul id="suggestion-{{ data.suggestion_id }}-ignored-references"
+            class="column gap-small">
+          {% for reference_context in data.ignored %}
+            <li class="maintainer-container">{% reference reference_context %}</li>
+          {% endfor %}
+        </ul>
+      </details>
+    {% endif %}
+  </div>
+
+</div>

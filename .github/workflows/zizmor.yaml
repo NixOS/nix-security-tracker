@@ -1,0 +1,45 @@
+name: GitHub Actions Security Analysis with zizmor 🌈
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - ".github/**"
+      - npins/sources.json
+  pull_request:
+    paths:
+      - ".github/**"
+      - npins/sources.json
+
+permissions: {}
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  zizmor:
+    name: Run zizmor against GitHub Action workflows
+    runs-on: ubuntu-latest
+    permissions:
+      security-events: write # Needed to be able to push the zizmor results to CodeQL
+    steps:
+      - name: Clone repository
+        uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6.0.1
+        with:
+          persist-credentials: false
+
+      - uses: cachix/install-nix-action@4e002c8ec80594ecd40e759629461e26c8abed15 # v31.9.0
+
+      - name: Run zizmor 🌈
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          nix-build -A ci
+          result/bin/zizmor --format sarif --pedantic . > results.sarif
+
+      - name: Upload SARIF file
+        uses: github/codeql-action/upload-sarif@c10b8064de6f491fea524254123dbe5e09572f13 # v4.35.1
+        with:
+          sarif_file: results.sarif
+          category: zizmor

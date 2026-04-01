@@ -2,6 +2,7 @@ name: "CodeQL"
 
 on:
   pull_request:
+  merge_group:
   push:
     branches: main
   workflow_dispatch:
@@ -9,14 +10,17 @@ on:
 permissions:
   actions: read
   contents: read
-  security-events: write
 
 jobs:
   codeql:
     runs-on: ubuntu-latest
+    permissions:
+      security-events: write # Needed to report back the findins of CodeQL
     steps:
       - name: Checkout repository
         uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6.0.1
+        with:
+          persist-credentials: false
       - uses: cachix/install-nix-action@4e002c8ec80594ecd40e759629461e26c8abed15 # v31.9.0
       - name: Initialize CodeQL
         uses: github/codeql-action/init@cdefb33c0f6224e58673d9004f47f7cb3e328b89 # v4.31.10

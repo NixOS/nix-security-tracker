@@ -13,11 +13,12 @@ from pydantic import BaseModel, field_serializer
 from shared.channels import CVEDerivationClusterProposalCacheChannel
 from shared.models import NixDerivation, NixMaintainer
 from shared.models.cached import CachedSuggestions
-from shared.models.cve import AffectedProduct, Metric, Version
+from shared.models.cve import AffectedProduct, Metric, Reference, Version
 from shared.models.linkage import (
     CVEDerivationClusterProposal,
-    MaintainersEdit,
-    PackageEdit,
+    MaintainerOverlay,
+    PackageOverlay,
+    ReferenceOverlay,
 )
 from shared.models.nix_evaluation import get_major_channel
 
@@ -60,10 +61,17 @@ class CachedSuggestion(BaseModel):
         src_position: str | None
         sub_branches: dict[str, "CachedSuggestion.PackageOnBranch"]
 
+    class Maintainer(BaseModel):
+        name: str | None = None
+        email: str | None = None
+        github: str
+        matrix: str | None = None
+        github_id: int
+
     class Package(BaseModel):
         channels: dict[str, "CachedSuggestion.PackageOnPrimaryChannel"] = {}
         derivation_ids: list[int] = []
-        maintainers: list[dict] = []
+        maintainers: list["CachedSuggestion.Maintainer"] = []
         description: str | None = None
 
     pk: int
@@ -76,20 +84,36 @@ class CachedSuggestion(BaseModel):
     # XXX(@fricklerhandwerk): These are converted with `to_dict()` naively, we're not doing anything interesting to them here.
     metrics: list[dict]
 
-    # FIXME(@florentc): improve typing here
-    # Using lists of actual NixMaintainer model would be great
-    # Alternatively use a typed dict like the Maintainer defined in shared.logs.events
     class CategorizedMaintainers(BaseModel):
-        original: list[dict]  # Maintainers of original packages
-        active: list[dict]  # Non ignored original maintainers
-        ignored: list[dict]  # Ignored original maintainers
-        added: list[dict]  # Additional maintainers (not part of original maintainers)
+        original: list[
+            "CachedSuggestion.Maintainer"
+        ]  # Maintainers of original packages
+        active: list["CachedSuggestion.Maintainer"]  # Non ignored original maintainers
+        ignored: list["CachedSuggestion.Maintainer"]  # Ignored original maintainers
+        added: list[
+            "CachedSuggestion.Maintainer"
+        ]  # Additional maintainers (not part of original maintainers)
+
+    class CategorizedReferences(BaseModel):
+        # FIXME(@florentc): Having to redefine a pydantic model instead of
+        # using the Django model is annoying. We should find a better solution
+        # for this and the rest in CachedSuggestion (e.g. packages, maintainers).
+        class Reference(BaseModel):
+            id: int
+            url: str
+            name: str
+            tags: list[str]
+
+        original: list[Reference]  # References initially present at suggestion creation
+        active: list[Reference]  # Non ignored references
+        ignored: list[Reference]  # Ignored references
 
     categorized_maintainers: CategorizedMaintainers
+    categorized_references: CategorizedReferences
 
 
-def apply_package_edits(
-    packages: dict, edits: list[PackageEdit]
+def apply_package_overlays(
+    packages: dict, edits: list[PackageOverlay]
 ) -> dict[str, CachedSuggestion.Package]:
     """
     Returns the packages dict with user-supplied package edits applied.
@@ -98,7 +122,7 @@ def apply_package_edits(
     to_skip = {
         edit.package_attribute
         for edit in edits
-        if edit.edit_type == PackageEdit.EditType.REMOVE
+        if edit.edit_type == MaintainerOverlay.Type.REMOVE
     }
 
     return {attr: data for attr, data in packages.items() if attr not in to_skip}
@@ -190,11 +214,11 @@ def cache_new_suggestions(suggestion: CVEDerivationClusterProposal) -> None:
 
     prefetched_metrics = Metric.objects.filter(container__cve=suggestion.cve)
     original_packages = channel_structure(all_versions, derivations)
-    maintainers_edits = list(
-        suggestion.maintainers_edits.select_related("maintainer").all()
+    maintainer_overlays = list(
+        suggestion.maintainer_overlays.select_related("maintainer").all()
     )
-    package_edits = list(suggestion.package_edits.all())
-    packages = apply_package_edits(original_packages, package_edits)
+    package_overlays = list(suggestion.package_overlays.all())
+    packages = apply_package_overlays(original_packages, package_overlays)
 
     only_relevant_data = CachedSuggestion(
         pk=suggestion.pk,
@@ -207,7 +231,10 @@ def cache_new_suggestions(suggestion: CVEDerivationClusterProposal) -> None:
         original_packages=packages,
         packages=packages,
         metrics=[to_dict(m) for m in prefetched_metrics],
-        categorized_maintainers=categorize_maintainers(packages, maintainers_edits),
+        categorized_maintainers=categorize_maintainers(packages, maintainer_overlays),
+        categorized_references=categorize_references(
+            suggestion.references, list(suggestion.reference_overlays.all())
+        ),
     )
 
     _, created = CachedSuggestions.objects.update_or_create(
@@ -274,7 +301,7 @@ def channel_structure(
     version_constraints: list[Version], derivations: list[NixDerivation]
 ) -> dict[str, CachedSuggestion.Package]:
     """
-    For a list of derivations and a list of version constraints that all belong to the same package, massage the data so that in can rendered easily in the suggestions view
+    For a list of derivations and a list of version constraints that all belong to the same package, massage the data so that it can be rendered easily in the suggestions view
     """
     packages = dict()
     for derivation in derivations:
@@ -288,7 +315,8 @@ def channel_structure(
                         attribute_path
                     ].description = derivation.metadata.description
                 packages[attribute_path].maintainers = [
-                    to_dict(m) for m in derivation.metadata.prefetched_maintainers
+                    CachedSuggestion.Maintainer.model_validate(to_dict(m))
+                    for m in derivation.metadata.prefetched_maintainers
                 ]
         packages[attribute_path].derivation_ids.append(derivation.pk)
         # Get the branch from which that derivation originates
@@ -297,7 +325,7 @@ def channel_structure(
         major_channel = get_major_channel(branch_name)
         # FIXME This quietly drops unfamiliar branch names
         if major_channel:
-            # XXX(@fricklerhandwerk): Here we assign package information to channel names in iteration order, which in the query we have established to be olders-first by evaluation time.
+            # XXX(@fricklerhandwerk): Here we assign package information to channel names in iteration order, which in the query we have established to be oldest-first by evaluation time.
             channels = packages[attribute_path].channels
             if major_channel not in channels:
                 channels[major_channel] = CachedSuggestion.PackageOnPrimaryChannel(
@@ -368,7 +396,9 @@ def parse_drv_name(name: str) -> tuple[str, str]:
         return name, ""
 
 
-def maintainers_list(packages: dict, edits: list[MaintainersEdit]) -> list[dict]:
+def maintainers_list(
+    packages: dict, edits: list[MaintainerOverlay]
+) -> list[CachedSuggestion.Maintainer]:
     """
     Returns a deduplicated list (by GitHub ID) of all the maintainers, as dicts,
     of all the affected packages linked to this suggestion, modified by
@@ -381,37 +411,78 @@ def maintainers_list(packages: dict, edits: list[MaintainersEdit]) -> list[dict]
     to_skip_or_seen: set[int] = {
         m.maintainer.github_id
         for m in edits
-        if m.edit_type == MaintainersEdit.EditType.REMOVE
+        if m.edit_type == MaintainerOverlay.Type.REMOVE
     }
-    to_add: list[dict] = [
-        to_dict(m.maintainer)
+    to_add: list[CachedSuggestion.Maintainer] = [
+        CachedSuggestion.Maintainer.model_validate(to_dict(m.maintainer))
         for m in edits
-        if m.edit_type == MaintainersEdit.EditType.ADD
+        if m.edit_type == MaintainerOverlay.Type.ADD
     ]
 
-    maintainers: list[dict] = list()
+    maintainers: list[CachedSuggestion.Maintainer] = list()
     all_maintainers = [m for pkg in packages.values() for m in pkg["maintainers"]]
 
     for m in itertools.chain(all_maintainers, to_add):
-        if m["github_id"] not in to_skip_or_seen:
-            to_skip_or_seen.add(m["github_id"])
+        if m.github_id not in to_skip_or_seen:
+            to_skip_or_seen.add(m.github_id)
             maintainers.append(m)
 
     return maintainers
 
 
+def categorize_references(
+    references: list[Reference],
+    reference_overlay: list[ReferenceOverlay],
+) -> CachedSuggestion.CategorizedReferences:
+    """
+    Categorize references associated to a suggestion.
+    Assumes the references list has no duplicates.
+    """
+
+    original_references = [
+        CachedSuggestion.CategorizedReferences.Reference(
+            id=ref.id,
+            url=ref.url,
+            name=ref.name,
+            tags=[
+                tag.value for tag in ref.tags.all()
+            ],  # Assuming tags is a many-to-many field
+        )
+        for ref in references
+    ]
+
+    ignored_reference_ids = {
+        edit.reference.id
+        for edit in reference_overlay
+        if edit.type == ReferenceOverlay.Type.IGNORED
+    }
+
+    active_references = [
+        ref for ref in original_references if ref.id not in ignored_reference_ids
+    ]
+    ignored_references = [
+        ref for ref in original_references if ref.id in ignored_reference_ids
+    ]
+
+    return CachedSuggestion.CategorizedReferences(
+        original=original_references,
+        active=active_references,
+        ignored=ignored_references,
+    )
+
+
 def categorize_maintainers(
     packages: dict[str, CachedSuggestion.Package],
-    maintainers_edits: list[MaintainersEdit],
+    maintainer_overlays: list[MaintainerOverlay],
 ) -> CachedSuggestion.CategorizedMaintainers:
     """
     Categorize maintainers associated to the packages of a suggestion.
     """
     # Collect all original maintainers from packages (deduplicated by github_id)
-    original_maintainers_dict: dict[int, dict] = {}
+    original_maintainers_dict: dict[int, CachedSuggestion.Maintainer] = {}
     for package in packages.values():
         for maintainer in package.maintainers:
-            original_maintainers_dict[maintainer["github_id"]] = maintainer
+            original_maintainers_dict[maintainer.github_id] = maintainer
 
     original_maintainers = list(original_maintainers_dict.values())
 
@@ -419,21 +490,23 @@ def categorize_maintainers(
     removed_github_ids = set()
     added_maintainers = []
 
-    for edit in maintainers_edits:
-        if edit.edit_type == MaintainersEdit.EditType.REMOVE:
+    for edit in maintainer_overlays:
+        if edit.edit_type == MaintainerOverlay.Type.REMOVE:
             removed_github_ids.add(edit.maintainer.github_id)
-        elif edit.edit_type == MaintainersEdit.EditType.ADD:
-            added_maintainers.append(to_dict(edit.maintainer))
+        elif edit.edit_type == MaintainerOverlay.Type.ADD:
+            added_maintainers.append(
+                CachedSuggestion.Maintainer.model_validate(to_dict(edit.maintainer))
+            )
 
     # Categorize original maintainers into active and ignored
     active_maintainers = []
     ignored_maintainers = []
 
-    for maintainer_dict in original_maintainers:
-        if maintainer_dict["github_id"] in removed_github_ids:
-            ignored_maintainers.append(maintainer_dict)
+    for maintainer in original_maintainers:
+        if maintainer.github_id in removed_github_ids:
+            ignored_maintainers.append(maintainer)
         else:
-            active_maintainers.append(maintainer_dict)
+            active_maintainers.append(maintainer)
 
     return CachedSuggestion.CategorizedMaintainers(
         original=original_maintainers,

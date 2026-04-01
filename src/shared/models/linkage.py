@@ -8,7 +8,7 @@ from django.dispatch import receiver
 from django.utils.translation import gettext_lazy as _
 
 import shared.models.cached
-from shared.models.cve import CveRecord
+from shared.models.cve import CveRecord, Reference
 from shared.models.nix_evaluation import NixDerivation, NixMaintainer, TimeStampMixin
 
 
@@ -35,6 +35,10 @@ class CVEDerivationClusterProposal(TimeStampMixin):
         NOT_IN_NIXPKGS = (
             "not_in_nixpkgs",
             _("not in Nixpkgs"),
+        )
+        HARDWARE_ONLY_CPE = (
+            "hardware_only_cpe",
+            _("hardware only"),
         )
 
     cached: "shared.models.cached.CachedSuggestions"
@@ -78,19 +82,24 @@ class CVEDerivationClusterProposal(TimeStampMixin):
             CVEDerivationClusterProposal.Status.ACCEPTED,
         ]
 
+    @property
+    def references(self) -> list[Reference]:
+        """Get all unique references from all containers of the CVE attached to this suggestion."""
+        return list(Reference.objects.filter(container__cve=self.cve).distinct())
+
     def ignore_package(self, package: str) -> None:
-        edit, created = self.package_edits.get_or_create(
+        edit, created = self.package_overlays.get_or_create(
             package_attribute=package,
-            defaults={"edit_type": PackageEdit.EditType.REMOVE},
+            defaults={"edit_type": PackageOverlay.Type.REMOVE},
         )
-        if not created and edit.edit_type != PackageEdit.EditType.REMOVE:
-            edit.edit_type = PackageEdit.EditType.REMOVE
+        if not created and edit.edit_type != PackageOverlay.Type.REMOVE:
+            edit.edit_type = PackageOverlay.Type.REMOVE
             edit.save()
 
     def restore_package(self, package: str) -> None:
-        self.package_edits.filter(
+        self.package_overlays.filter(
             package_attribute=package,
-            edit_type=PackageEdit.EditType.REMOVE,
+            edit_type=PackageOverlay.Type.REMOVE,
         ).delete()
 
 
@@ -98,20 +107,21 @@ class CVEDerivationClusterProposal(TimeStampMixin):
     pghistory.ManualEvent("maintainers.add"),
     pghistory.ManualEvent("maintainers.remove"),
 )
-class MaintainersEdit(models.Model):
+class MaintainerOverlay(models.Model):
     """
-    A single manual edit of the list of maintainers of a suggestion.
+    An element in the overlay set of maintainers of a suggestion.
     """
 
-    class EditType(models.TextChoices):
+    class Type(models.TextChoices):
         ADD = "add", _("add")
         REMOVE = "remove", _("remove")
 
-    edit_type = models.CharField(max_length=126, choices=EditType.choices)
+    # FIXME (@adekoder): To rename this field from edit_type to overlay_type
+    edit_type = models.CharField(max_length=126, choices=Type.choices)
     maintainer = models.ForeignKey(NixMaintainer, on_delete=models.CASCADE)
     suggestion = models.ForeignKey(
         CVEDerivationClusterProposal,
-        related_name="maintainers_edits",
+        related_name="maintainer_overlays",
         on_delete=models.CASCADE,
     )
 
@@ -121,7 +131,7 @@ class MaintainersEdit(models.Model):
             # suggestion.
             models.UniqueConstraint(
                 fields=["suggestion", "maintainer"],
-                name="unique_maintainer_edit_per_suggestion",
+                name="unique_maintainer_overlay_per_suggestion",
             )
         ]
 
@@ -130,20 +140,21 @@ class MaintainersEdit(models.Model):
     pghistory.ManualEvent("package.add"),
     pghistory.ManualEvent("package.remove"),
 )
-class PackageEdit(models.Model):
+class PackageOverlay(models.Model):
     """
-    A single manual edit of the list of packages of a suggestion.
+    An element in the overlay set of packages of a suggestion.
     """
 
-    class EditType(models.TextChoices):
+    class Type(models.TextChoices):
         REMOVE = "remove", _("remove")
         # ADD reserved for future use if needed
 
-    edit_type = models.CharField(max_length=126, choices=EditType.choices)
+    # FIXME (@adekoder): To rename this field from edit_type to overlay_type
+    edit_type = models.CharField(max_length=126, choices=Type.choices)
     package_attribute = models.CharField(max_length=255)
     suggestion = models.ForeignKey(
         CVEDerivationClusterProposal,
-        related_name="package_edits",
+        related_name="package_overlays",
         on_delete=models.CASCADE,
     )
 
@@ -151,48 +162,80 @@ class PackageEdit(models.Model):
         constraints = [
             models.UniqueConstraint(
                 fields=["suggestion", "package_attribute"],
-                name="unique_package_edit_per_suggestion",
+                name="unique_package_overlay_per_suggestion",
             )
         ]
 
 
-@receiver(post_save, sender=PackageEdit)
-def track_package_edit_save(
-    sender: type[PackageEdit],
-    instance: PackageEdit,
+@pghistory.track(
+    pghistory.ManualEvent("reference.restore"),
+    pghistory.ManualEvent("reference.ignore"),
+)
+class ReferenceOverlay(models.Model):
+    """
+    A single manual overlay of the list of references of a suggestion.
+    """
+
+    class Type(models.TextChoices):
+        IGNORED = "ignored", _("ignored")
+        # ADDITIONAL reserved for future use if needed
+
+    type = models.CharField(max_length=126, choices=Type.choices)
+    reference = models.ForeignKey(Reference, on_delete=models.CASCADE)
+    suggestion = models.ForeignKey(
+        CVEDerivationClusterProposal,
+        related_name="reference_overlays",
+        on_delete=models.CASCADE,
+    )
+
+    class Meta:  # type: ignore[override]
+        constraints = [
+            # Ensures that a reference can only be added or removed once per
+            # suggestion.
+            models.UniqueConstraint(
+                fields=["suggestion", "reference"],
+                name="unique_reference_overlay_per_suggestion",
+            )
+        ]
+
+
+@receiver(post_save, sender=PackageOverlay)
+def track_package_overlay_save(
+    sender: type[PackageOverlay],
+    instance: PackageOverlay,
     created: bool,
     **kwargs: Any,
 ) -> None:
     if created:
-        # TODO Adapt when PackageEdit supports more than REMOVE
+        # TODO Adapt when PackageOverlay supports more than REMOVE
         pghistory.create_event(
             obj=instance,
             label="package.remove",
         )
 
 
-@receiver(post_delete, sender=PackageEdit)
-def track_package_edit_delete(
-    sender: type[PackageEdit], instance: PackageEdit, **kwargs: Any
+@receiver(post_delete, sender=PackageOverlay)
+def track_package_overlay_delete(
+    sender: type[PackageOverlay], instance: PackageOverlay, **kwargs: Any
 ) -> None:
-    # TODO Adapt when PackageEdit supports more than REMOVE
+    # TODO Adapt when PackageOverlay supports more than REMOVE
     pghistory.create_event(
         obj=instance,
         label="package.add",
     )
 
 
-@receiver(post_save, sender=MaintainersEdit)
-def track_maintainers_edit_save(
-    sender: type[MaintainersEdit],
-    instance: MaintainersEdit,
+@receiver(post_save, sender=MaintainerOverlay)
+def track_maintainer_overlay_save(
+    sender: type[MaintainerOverlay],
+    instance: MaintainerOverlay,
     created: bool,
     **kwargs: Any,
 ) -> None:
     if created:
         label = (
             "maintainers.add"
-            if instance.edit_type == MaintainersEdit.EditType.ADD
+            if instance.edit_type == MaintainerOverlay.Type.ADD
             else "maintainers.remove"
         )
         pghistory.create_event(
@@ -201,19 +244,57 @@ def track_maintainers_edit_save(
         )
 
 
-@receiver(post_delete, sender=MaintainersEdit)
-def track_maintainers_edit_delete(
-    sender: type[MaintainersEdit], instance: MaintainersEdit, **kwargs: Any
+@receiver(post_delete, sender=MaintainerOverlay)
+def track_maintainer_overlay_delete(
+    sender: type[MaintainerOverlay], instance: MaintainerOverlay, **kwargs: Any
 ) -> None:
     label = (
         "maintainers.remove"
-        if instance.edit_type == MaintainersEdit.EditType.ADD
+        if instance.edit_type == MaintainerOverlay.Type.ADD
         else "maintainers.add"
     )
     pghistory.create_event(
         obj=instance,
         label=label,
     )
+
+
+@receiver(post_save, sender=ReferenceOverlay)
+def track_reference_overlay_save(
+    sender: type[ReferenceOverlay],
+    instance: ReferenceOverlay,
+    created: bool,
+    **kwargs: Any,
+) -> None:
+    if created:
+        if instance.type == ReferenceOverlay.Type.IGNORED:
+            pghistory.create_event(
+                obj=instance,
+                label="reference.ignore",
+            )
+        # TODO(@florentc): Adapt when ReferenceOverlay supports more than IGNORED
+        # if instance.type == ReferenceOverlay.Type.ADDITIONAL:
+        #     pghistory.create_event(
+        #         obj=instance,
+        #         label="reference.additional",
+        #     )
+
+
+@receiver(post_delete, sender=ReferenceOverlay)
+def track_reference_overlay_delete(
+    sender: type[ReferenceOverlay], instance: ReferenceOverlay, **kwargs: Any
+) -> None:
+    if instance.type == ReferenceOverlay.Type.IGNORED:
+        pghistory.create_event(
+            obj=instance,
+            label="reference.restore",
+        )
+    # TODO(@florentc): Adapt when ReferenceOverlay supports more than IGNORED
+    # if instance.type == ReferenceOverlay.Type.ADDITIONAL:
+    #     pghistory.create_event(
+    #         obj=instance,
+    #         label="reference.delete",
+    #     )
 
 
 class ProvenanceFlags(IntFlag, boundary=STRICT):

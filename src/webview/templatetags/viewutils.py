@@ -21,6 +21,8 @@ from webview.suggestions.context.types import (
     MaintainerContext,
     MaintainerListContext,
     PackageListContext,
+    ReferenceContext,
+    ReferenceListContext,
     SuggestionContext,
     SuggestionStubContext,
 )
@@ -232,6 +234,24 @@ def package_list(
     return {
         "data": data,
         "user": context["user"],
+    }
+
+
+@register.inclusion_tag("suggestions/components/reference.html")
+def reference(
+    data: ReferenceContext,
+) -> dict:
+    return {
+        "data": data,
+    }
+
+
+@register.inclusion_tag("suggestions/components/reference_list.html")
+def reference_list(
+    data: ReferenceListContext,
+) -> dict:
+    return {
+        "data": data,
     }
 
 

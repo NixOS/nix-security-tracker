@@ -1,7 +1,8 @@
 from dataclasses import dataclass
 from enum import Enum
 
-from shared.logs.batches import batch_events
+from shared.listeners.cache_suggestions import CachedSuggestion
+from shared.logs.batches import FoldedEventType, batch_events
 from shared.logs.events import (
     Maintainer,  # FIXME(@florent): This is to import it from that module
     RawEventType,
@@ -9,16 +10,6 @@ from shared.logs.events import (
 )
 from shared.logs.fetchers import fetch_suggestion_events
 from shared.models.linkage import CVEDerivationClusterProposal
-
-# CVEs
-
-
-@dataclass
-class Reference:
-    url: str
-    name: str
-    tags: list[str]
-
 
 # Packages
 
@@ -80,10 +71,52 @@ class MaintainerListContext:
     maintainer_add_context: MaintainerAddContext
 
 
+# References
+
+
+class ReferenceStatus(Enum):
+    ACTIVE = "active"
+    IGNORED = "ignored"
+
+
+@dataclass
+class ReferenceContext:
+    # FIXME(@florentc): It'd be better to use the real `Reference` model but we
+    # can't use it directly in cached suggestions (pydantic model). Cached
+    # suggestions are the source of info to build these contexts.
+    reference: CachedSuggestion.CategorizedReferences.Reference
+    status: ReferenceStatus
+    frozen: bool
+    is_compact: bool
+    user_can_edit: bool
+    suggestion_id: int
+
+
+@dataclass
+class ReferenceListContext:
+    active: list[ReferenceContext]
+    ignored: list[ReferenceContext]
+    frozen: bool
+    user_can_edit: bool
+    suggestion_id: int
+    is_compact: bool
+
+
 # Suggestions
 
 
 class SuggestionContext:
+    show_status: bool
+    can_edit: bool
+    is_compact: bool
+    suggestion: CVEDerivationClusterProposal
+    suggestion_stub_context: SuggestionStubContext | None
+    package_list_context: PackageListContext
+    maintainer_list_context: MaintainerListContext
+    reference_list_context: ReferenceListContext
+    activity_log: list[FoldedEventType]
+    error_message: str | None
+
     def __init__(
         self,
         suggestion: CVEDerivationClusterProposal,
@@ -98,7 +131,9 @@ class SuggestionContext:
         self.suggestion_stub_context: SuggestionStubContext | None = None
         self.update_package_list_context(user_can_edit=user_can_edit)
         self.update_maintainer_list_context(user_can_edit=user_can_edit)
-        self.update_references()
+        self.update_reference_list_context(
+            user_can_edit=user_can_edit, is_compact=is_compact
+        )
         self.activity_log = batch_events(
             remove_canceling_events(pre_fetched_events, sort=True)
         )
@@ -187,18 +222,48 @@ class SuggestionContext:
             ),
         )
 
-    def update_references(self) -> None:
-        refs: list[Reference] = []
-        for container in self.suggestion.cve.container.all():
-            for ref in container.references.all():
-                refs.append(
-                    Reference(
-                        url=ref.url,
-                        name=ref.name,
-                        tags=[tag for tag in ref.tags.all()],
-                    )
-                )
-        self.references = refs
+    def update_reference_list_context(
+        self,
+        user_can_edit: bool,
+        is_compact: bool,
+    ) -> None:
+        categorized_references = self.suggestion.cached.payload[
+            "categorized_references"
+        ]
+        frozen = self.suggestion.is_frozen
+
+        active_contexts = [
+            ReferenceContext(
+                reference=reference,
+                status=ReferenceStatus.ACTIVE,
+                frozen=frozen,
+                user_can_edit=user_can_edit,
+                suggestion_id=self.suggestion.pk,
+                is_compact=is_compact,
+            )
+            for reference in categorized_references["active"]
+        ]
+
+        ignored_contexts = [
+            ReferenceContext(
+                reference=reference,
+                status=ReferenceStatus.IGNORED,
+                frozen=frozen,
+                user_can_edit=user_can_edit,
+                suggestion_id=self.suggestion.pk,
+                is_compact=is_compact,
+            )
+            for reference in categorized_references["ignored"]
+        ]
+
+        self.reference_list_context = ReferenceListContext(
+            active=active_contexts,
+            ignored=ignored_contexts,
+            frozen=frozen,
+            user_can_edit=user_can_edit,
+            suggestion_id=self.suggestion.pk,
+            is_compact=self.is_compact,
+        )
 
     def fetch_activity_log(self) -> None:
         events = fetch_suggestion_events([self.suggestion.pk])

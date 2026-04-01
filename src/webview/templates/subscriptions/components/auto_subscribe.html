@@ -1,11 +1,17 @@
 {% load viewutils %}
 
 <div class="auto-subscribe-toggler toggler {% if auto_subscribe_enabled %}toggler-on{% else %}toggler-off{% endif %}">
-  <div class="grow">{% if auto_subscribe_enabled %}You will automatically receive notifications about packages you maintain.{% else %}By default, you won't receive notifications for the packages you maintain.{% endif %}</div>
-  <form method="post" 
-        action="{% url 'webview:subscriptions:toggle_auto_subscribe' %}" 
-        hx-post="{% url 'webview:subscriptions:toggle_auto_subscribe' %}" 
-        hx-target="closest .auto-subscribe-toggler" 
+  <div class="grow">
+    {% if auto_subscribe_enabled %}
+      You will automatically receive notifications about packages you maintain.
+    {% else %}
+      By default, you won't receive notifications for the packages you maintain.
+    {% endif %}
+  </div>
+  <form method="post"
+        action="{% url 'webview:subscriptions:toggle_auto_subscribe' %}"
+        hx-post="{% url 'webview:subscriptions:toggle_auto_subscribe' %}"
+        hx-target="closest .auto-subscribe-toggler"
         hx-swap="outerHTML"
         hx-indicator="find button">
     {% csrf_token %}
