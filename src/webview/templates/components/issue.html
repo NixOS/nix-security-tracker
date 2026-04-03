@@ -1,15 +1,15 @@
 {% load viewutils %}
 
-<article class="rounded-box column gap" id="issue-{{ issue.code }}">
+<article class="rounded-box column gap" id="issue-{{ data.issue.code }}">
 
   <div class="row gap spread">
-    <div class="uppercase bold">{{ issue.code }}</div>
+    <div class="uppercase bold">{{ data.issue.code }}</div>
     <div>
-      {% if github_issue %}<a href="{{ github_issue }}" target="_blank" class="permalink">GitHub issue</a>{% endif %}
-      published on {{ issue.created }}
+      {% if data.github_issue %}<a href="{{ data.github_issue }}" target="_blank" class="permalink">GitHub issue</a>{% endif %}
+      published on {{ data.issue.created }}
     </div>
   </div>
 
-  {% suggestion suggestion_context %}
+  {% suggestion data.suggestion_context %}
 
 </article>

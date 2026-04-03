@@ -16,6 +16,7 @@ from shared.models import (
     NixpkgsIssue,
 )
 from webview.suggestions.views.base import get_suggestion_context
+from webview.suggestions.context.types import IssueContext
 
 logger = logging.getLogger(__name__)
 
@@ -54,18 +55,20 @@ class NixpkgsIssueView(DetailView):
 
         # Fetch suggestion_context
         events = fetch_suggestion_events([issue.suggestion_id])
-        context["suggestion_context"] = get_suggestion_context(
+        suggestion_context = get_suggestion_context(
             issue.suggestion,
             user_can_edit=False,
             pre_fetched_events=events[issue.suggestion_id],
         )
-        context["suggestion_context"].show_status = False
+        suggestion_context.show_status = False
         github_issue_opened = NixpkgsEvent.objects.filter(
             issue=issue,
             event_type=EventType.ISSUE | EventType.OPENED,
         ).first()
-        context["github_issue"] = (
-            github_issue_opened.url if github_issue_opened else None
+        context["issue_context"] = IssueContext(
+            issue=issue,
+            suggestion_context=suggestion_context,
+            github_issue=github_issue_opened.url if github_issue_opened else None
         )
 
         return context
@@ -118,11 +121,11 @@ class NixpkgsIssueListView(ListView):
             github_issue = (
                 github_issue_opened.url if github_issue_opened else None
             )
-            issue_contexts.append({
-                "issue": issue,
-                "suggestion_context": suggestion_context,
-                "github_issue": github_issue,
-            })
+            issue_contexts.append(IssueContext(
+                issue=issue,
+                suggestion_context=suggestion_context,
+                github_issue=github_issue,
+            ))
         context["issue_contexts"] = issue_contexts
 
         return context

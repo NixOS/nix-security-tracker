@@ -10,6 +10,7 @@ from shared.logs.events import (
 )
 from shared.logs.fetchers import fetch_suggestion_events
 from shared.models.linkage import CVEDerivationClusterProposal
+from shared.models.issue import NixpkgsIssue
 
 # Packages
 
@@ -270,3 +271,12 @@ class SuggestionContext:
         self.activity_log = batch_events(
             remove_canceling_events(events[self.suggestion.pk], sort=True)
         )
+
+# Issues 
+
+
+@dataclass
+class IssueContext:
+    issue: NixpkgsIssue
+    suggestion_context: SuggestionContext
+    github_issue: str | None

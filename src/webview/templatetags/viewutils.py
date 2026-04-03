@@ -25,6 +25,7 @@ from webview.suggestions.context.types import (
     ReferenceListContext,
     SuggestionContext,
     SuggestionStubContext,
+    IssueContext,
 )
 
 register = template.Library()
@@ -145,16 +146,12 @@ def iso(date: datetime.datetime) -> str:
 @register.inclusion_tag("components/issue.html", takes_context=True)
 def issue(
     context: Context,
-    issue: NixpkgsIssue,
-    suggestion_context: SuggestionContext,
-    github_issue: str | None,
+    data: IssueContext,
     show_permalink: bool = False,
 ) -> dict:
     return {
-        "issue": issue,
+        "data": data,
         "show_permalink": show_permalink,
-        "suggestion_context": suggestion_context,
-        "github_issue": github_issue,
         "page_obj": context.get("page_obj", None),
         "status_filter": "published",  # Needed in context for the suggestion component
         "user": context["user"],
