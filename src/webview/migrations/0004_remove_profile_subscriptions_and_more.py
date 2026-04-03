@@ -5,19 +5,24 @@ from django.db import migrations, models
 
 
 class Migration(migrations.Migration):
-
     dependencies = [
-        ('webview', '0003_profile_unread_notifications_count'),
+        ("webview", "0003_profile_unread_notifications_count"),
     ]
 
     operations = [
         migrations.RemoveField(
-            model_name='profile',
-            name='subscriptions',
+            model_name="profile",
+            name="subscriptions",
         ),
         migrations.AddField(
-            model_name='profile',
-            name='package_subscriptions',
-            field=django.contrib.postgres.fields.ArrayField(base_field=models.CharField(max_length=255), blank=True, default=list, help_text="Package attribute names this user has subscribed to (e.g., 'firefox', 'chromium')", size=None),
+            model_name="profile",
+            name="package_subscriptions",
+            field=django.contrib.postgres.fields.ArrayField(
+                base_field=models.CharField(max_length=255),
+                blank=True,
+                default=list,
+                help_text="Package attribute names this user has subscribed to (e.g., 'firefox', 'chromium')",
+                size=None,
+            ),
         ),
     ]

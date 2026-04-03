@@ -11,7 +11,6 @@ from django.template.context import Context
 
 from shared.listeners.cache_suggestions import CachedSuggestion
 from shared.logs.batches import FoldedEventType
-from shared.models.issue import NixpkgsIssue
 from shared.models.linkage import (
     CVEDerivationClusterProposal,
 )
@@ -25,8 +24,8 @@ from webview.suggestions.context.types import (
     ReferenceListContext,
     SuggestionContext,
     SuggestionStubContext,
-    IssueContext,
 )
+from webview.views import IssueContext
 
 register = template.Library()
 
@@ -151,7 +150,6 @@ def issue(
 ) -> dict:
     return {
         "data": data,
-        "show_permalink": show_permalink,
         "page_obj": context.get("page_obj", None),
         "status_filter": "published",  # Needed in context for the suggestion component
         "user": context["user"],

@@ -1,5 +1,6 @@
 import logging
 import re
+from dataclasses import dataclass
 from typing import Any
 
 from django.core.validators import RegexValidator
@@ -15,14 +16,22 @@ from shared.models import (
     NixpkgsEvent,
     NixpkgsIssue,
 )
+from webview.suggestions.context.types import SuggestionContext
 from webview.suggestions.views.base import get_suggestion_context
-from webview.suggestions.context.types import IssueContext
 
 logger = logging.getLogger(__name__)
 
 
 class HomeView(TemplateView):
     template_name = "home_view.html"
+
+
+@dataclass
+class IssueContext:
+    issue: NixpkgsIssue
+    suggestion_context: SuggestionContext
+    github_issue: str | None
+    show_permalink: bool = False
 
 
 class NixpkgsIssueView(DetailView):
@@ -68,7 +77,7 @@ class NixpkgsIssueView(DetailView):
         context["issue_context"] = IssueContext(
             issue=issue,
             suggestion_context=suggestion_context,
-            github_issue=github_issue_opened.url if github_issue_opened else None
+            github_issue=github_issue_opened.url if github_issue_opened else None,
         )
 
         return context
@@ -106,7 +115,7 @@ class NixpkgsIssueListView(ListView):
         # Fetch activity logs
         suggestion_ids = [issue.suggestion_id for issue in context["object_list"]]
         events_by_suggestion = fetch_suggestion_events(suggestion_ids)
-        
+
         issue_contexts = []
         for issue in context["object_list"]:
             # FIXME(@fricklerhandwerk): That call runs queries as a side effect, but the data should be prefetched.
@@ -118,14 +127,15 @@ class NixpkgsIssueListView(ListView):
 
             suggestion_context.show_status = False
             github_issue_opened = issue.events.first()
-            github_issue = (
-                github_issue_opened.url if github_issue_opened else None
+            github_issue = github_issue_opened.url if github_issue_opened else None
+            issue_contexts.append(
+                IssueContext(
+                    issue=issue,
+                    suggestion_context=suggestion_context,
+                    github_issue=github_issue,
+                    show_permalink=True,
+                )
             )
-            issue_contexts.append(IssueContext(
-                issue=issue,
-                suggestion_context=suggestion_context,
-                github_issue=github_issue,
-            ))
         context["issue_contexts"] = issue_contexts
 
         return context

@@ -5,20 +5,28 @@ from django.db import migrations, models
 
 
 class Migration(migrations.Migration):
-
     dependencies = [
-        ('webview', '0004_remove_profile_subscriptions_and_more'),
+        ("webview", "0004_remove_profile_subscriptions_and_more"),
     ]
 
     operations = [
         migrations.AddField(
-            model_name='profile',
-            name='auto_subscribe_to_maintained_packages',
-            field=models.BooleanField(default=True, help_text='Automatically subscribe to notifications for packages this user maintains'),
+            model_name="profile",
+            name="auto_subscribe_to_maintained_packages",
+            field=models.BooleanField(
+                default=True,
+                help_text="Automatically subscribe to notifications for packages this user maintains",
+            ),
         ),
         migrations.AlterField(
-            model_name='profile',
-            name='package_subscriptions',
-            field=django.contrib.postgres.fields.ArrayField(base_field=models.CharField(max_length=255), blank=True, default=list, help_text="Package attribute names this user has subscribed to manually (e.g., 'firefox', 'chromium')", size=None),
+            model_name="profile",
+            name="package_subscriptions",
+            field=django.contrib.postgres.fields.ArrayField(
+                base_field=models.CharField(max_length=255),
+                blank=True,
+                default=list,
+                help_text="Package attribute names this user has subscribed to manually (e.g., 'firefox', 'chromium')",
+                size=None,
+            ),
         ),
     ]

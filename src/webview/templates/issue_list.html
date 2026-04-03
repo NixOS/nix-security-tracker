@@ -12,8 +12,8 @@
   </div>
 
   <div class="column gap">
-    {% for data in issue_contexts %}
-      {% issue data show_permalink=True %}
+    {% for issue_context in issue_contexts %}
+      {% issue issue_context %}
     {% endfor %}
   </div>
 {% endblock content %}

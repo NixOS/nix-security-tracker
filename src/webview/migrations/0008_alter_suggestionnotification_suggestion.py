@@ -5,16 +5,18 @@ from django.db import migrations, models
 
 
 class Migration(migrations.Migration):
-
     dependencies = [
-        ('shared', '0073_alter_affectedproduct_default_status_and_more'),
-        ('webview', '0007_remove_notification_message_and_more'),
+        ("shared", "0073_alter_affectedproduct_default_status_and_more"),
+        ("webview", "0007_remove_notification_message_and_more"),
     ]
 
     operations = [
         migrations.AlterField(
-            model_name='suggestionnotification',
-            name='suggestion',
-            field=models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, to='shared.cvederivationclusterproposal'),
+            model_name="suggestionnotification",
+            name="suggestion",
+            field=models.ForeignKey(
+                on_delete=django.db.models.deletion.CASCADE,
+                to="shared.cvederivationclusterproposal",
+            ),
         ),
     ]

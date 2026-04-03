@@ -4,15 +4,14 @@ from django.db import migrations, models
 
 
 class Migration(migrations.Migration):
-
     dependencies = [
-        ('webview', '0002_notification'),
+        ("webview", "0002_notification"),
     ]
 
     operations = [
         migrations.AddField(
-            model_name='profile',
-            name='unread_notifications_count',
+            model_name="profile",
+            name="unread_notifications_count",
             field=models.PositiveIntegerField(default=0),
         ),
     ]

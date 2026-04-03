@@ -18,8 +18,8 @@ def migrate_notifications_to_text(apps, schema_editor):
 
 
 def reverse_migration(apps, schema_editor):
-    Notification = apps.get_model('webview', 'Notification')
-    TextNotification = apps.get_model('webview', 'TextNotification')
+    Notification = apps.get_model("webview", "Notification")
+    TextNotification = apps.get_model("webview", "TextNotification")
 
     for text_notif in TextNotification.objects.all():
         Notification.objects.filter(pk=text_notif.pk).update(
@@ -30,39 +30,49 @@ def reverse_migration(apps, schema_editor):
 
 class Migration(migrations.Migration):
     dependencies = [
-        ('webview', '0006_suggestionnotification'),
+        ("webview", "0006_suggestionnotification"),
     ]
 
     operations = [
         migrations.RenameField(
-            model_name='notification',
-            old_name='title',
-            new_name='_title',
+            model_name="notification",
+            old_name="title",
+            new_name="_title",
         ),
         migrations.RenameField(
-            model_name='notification',
-            old_name='message',
-            new_name='_message',
+            model_name="notification",
+            old_name="message",
+            new_name="_message",
         ),
         migrations.CreateModel(
-            name='TextNotification',
+            name="TextNotification",
             fields=[
-                ('notification_ptr', models.OneToOneField(auto_created=True, on_delete=django.db.models.deletion.CASCADE, parent_link=True, primary_key=True, serialize=False, to='webview.notification')),
-                ('title', models.CharField(max_length=255)),
-                ('message', models.TextField()),
+                (
+                    "notification_ptr",
+                    models.OneToOneField(
+                        auto_created=True,
+                        on_delete=django.db.models.deletion.CASCADE,
+                        parent_link=True,
+                        primary_key=True,
+                        serialize=False,
+                        to="webview.notification",
+                    ),
+                ),
+                ("title", models.CharField(max_length=255)),
+                ("message", models.TextField()),
             ],
             options={
-                'abstract': False,
+                "abstract": False,
             },
-            bases=('webview.notification',),
+            bases=("webview.notification",),
         ),
         migrations.RunPython(migrate_notifications_to_text, reverse_migration),
         migrations.RemoveField(
-            model_name='notification',
-            name='_title',
+            model_name="notification",
+            name="_title",
         ),
         migrations.RemoveField(
-            model_name='notification',
-            name='_message',
+            model_name="notification",
+            name="_message",
         ),
     ]
