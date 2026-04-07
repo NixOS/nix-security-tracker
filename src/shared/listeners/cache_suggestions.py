@@ -497,13 +497,13 @@ def categorize_maintainers(
 
     # Process edits to categorize maintainers
     ignored_github_ids = set()
-    added_maintainers = []
+    additional_maintainers = []
 
     for overlay in maintainer_overlays:
         if overlay.edit_type == MaintainerOverlay.Type.IGNORED:
             ignored_github_ids.add(overlay.maintainer.github_id)
         elif overlay.edit_type == MaintainerOverlay.Type.ADDITIONAL:
-            added_maintainers.append(
+            additional_maintainers.append(
                 CachedSuggestion.Maintainer.model_validate(to_dict(overlay.maintainer))
             )
 
@@ -521,5 +521,5 @@ def categorize_maintainers(
         original=original_maintainers,
         active=active_maintainers,
         ignored=ignored_maintainers,
-        added=added_maintainers,
+        added=additional_maintainers,
     )
