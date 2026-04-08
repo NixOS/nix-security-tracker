@@ -10,7 +10,7 @@ let
     documentation.enable = lib.mkDefault false;
 
     virtualisation = {
-      memorySize = 2048;
+      memorySize = 4096;
       cores = 2;
     };
   };
