@@ -122,6 +122,7 @@ class UpdateSuggestionStatusView(SuggestionBaseView):
                         suggestion.save()
                         undo_status_target = None  # We disable the undo button in case we have published. There is no turning back.
                 except Exception:
+                    logger.exception("Failed to publish suggestion %d", suggestion_id)
                     return self._handle_error(
                         request, suggestion_context, "Unable to publish this suggestion"
                     )

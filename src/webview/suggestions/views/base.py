@@ -16,8 +16,11 @@ from shared.models.linkage import (
 from webview.suggestions.context.types import SuggestionContext
 
 
+# FIXME(@fricklerhandwerk): Dismantle this and use `get_object()` or `get_queryset()` where appropriate.
 def fetch_suggestion(suggestion_id: int) -> CVEDerivationClusterProposal:
-    return get_object_or_404(CVEDerivationClusterProposal, id=suggestion_id)
+    suggestion = get_object_or_404(CVEDerivationClusterProposal, id=suggestion_id)
+    suggestion.ensure_fresh_cache()
+    return suggestion
 
 
 def get_suggestion_context(

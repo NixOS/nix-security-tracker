@@ -98,7 +98,7 @@ def batch_events(
                     package_names=[event.package_attribute],
                 )
 
-        if isinstance(event, RawReferenceEvent):
+        elif isinstance(event, RawReferenceEvent):
             if (
                 isinstance(accumulator, FoldedReferenceEvent)
                 and event.action == accumulator.action

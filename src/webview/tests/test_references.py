@@ -163,6 +163,7 @@ def test_only_active_references_displayed_in_published_issue(
     references = as_staff.locator(f"#suggestion-{suggestion.pk}-references")
     reference1 = references.get_by_role("listitem").filter(has_text="Foo")
     reference1.get_by_role("button", name="Ignore").click()
+    expect(reference1).not_to_be_visible()
     suggestion_component = as_staff.locator(f"#suggestion-{suggestion.pk}")
     publish = suggestion_component.get_by_role("button", name="Publish issue")
 

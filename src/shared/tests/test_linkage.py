@@ -80,6 +80,26 @@ def test_link_only_latest_eval(
     cache_new_suggestions(suggestion)
 
 
+def test_link_only_major_channels(
+    make_container: Callable[..., Container],
+    make_channel: Callable[..., NixChannel],
+    make_evaluation: Callable[..., NixEvaluation],
+    make_drv: Callable[..., NixDerivation],
+) -> None:
+    """
+    Derivations on channels outside MAJOR_CHANNELS must not produce matches.
+    Otherwise we'd be notifying people who aren't maintainers any more.
+    """
+    old_release = "24.05"
+    assert old_release not in MAJOR_CHANNELS
+    old_channel = make_channel(release=old_release)
+    old_eval = make_evaluation(channel=old_channel)
+    make_drv(pname="foo", evaluation=old_eval)
+
+    container = make_container(package_name="foo")
+    assert not build_new_links(container)
+
+
 @pytest.mark.parametrize(
     "package_name,product,drv_pname,expected_flags",
     [

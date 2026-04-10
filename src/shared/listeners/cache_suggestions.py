@@ -25,6 +25,14 @@ from shared.models.nix_evaluation import get_major_channel
 logger = logging.getLogger(__name__)
 
 
+# ============================================================================
+# ⚠️ IMPORTANT: CACHE SCHEMA VERSIONING
+#
+# When modifying this schema, you MUST bump
+# CachedSuggestions.CURRENT_SCHEMA_VERSION.
+#
+# Otherwise cached data may become inconsistent.
+# ============================================================================
 class CachedSuggestion(BaseModel):
     class AffectedProduct(BaseModel):
         version_constraints: set[tuple[str, str]] = set()
@@ -122,7 +130,7 @@ def apply_package_overlays(
     to_skip = {
         edit.package_attribute
         for edit in edits
-        if edit.edit_type == MaintainerOverlay.Type.REMOVE
+        if edit.edit_type == PackageOverlay.Type.REMOVE
     }
 
     return {attr: data for attr, data in packages.items() if attr not in to_skip}
@@ -226,9 +234,7 @@ def cache_new_suggestions(suggestion: CVEDerivationClusterProposal) -> None:
         title=relevant_piece["title"],
         description=relevant_piece["descriptions__value"],
         affected_products=affected_products,
-        # FIXME(@fricklerhandwerk): It's probably because I don't understand the code involved too well, but it seems wrong that we don't keep the original packages here.
-        # If it must be that way, document why.
-        original_packages=packages,
+        original_packages=original_packages,
         packages=packages,
         metrics=[to_dict(m) for m in prefetched_metrics],
         categorized_maintainers=categorize_maintainers(packages, maintainer_overlays),
@@ -239,7 +245,10 @@ def cache_new_suggestions(suggestion: CVEDerivationClusterProposal) -> None:
 
     _, created = CachedSuggestions.objects.update_or_create(
         proposal_id=suggestion.pk,
-        defaults={"payload": only_relevant_data.model_dump(mode="json")},
+        defaults={
+            "payload": only_relevant_data.model_dump(mode="json"),
+            "schema_version": CachedSuggestions.CURRENT_SCHEMA_VERSION,
+        },
     )
 
     if created:

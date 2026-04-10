@@ -9,6 +9,7 @@ from django.views.generic import ListView
 
 from shared.auth import user_can_edit_suggestion
 from shared.logs.fetchers import fetch_suggestion_events
+from shared.models.cached import CachedSuggestions
 from shared.models.linkage import (
     CVEDerivationClusterProposal,
 )
@@ -45,7 +46,10 @@ class SuggestionListView(ListView, ABC):
                 )
             except ValueError:
                 raise Http404
-        query_filters = Q(cached__isnull=False)
+        query_filters = Q(
+            cached__isnull=False,
+            cached__schema_version=CachedSuggestions.CURRENT_SCHEMA_VERSION,
+        )
         if self.status_filter is not None:
             query_filters &= Q(status=self.status_filter)
         if self.package_filter is not None:

@@ -87,6 +87,18 @@ class CVEDerivationClusterProposal(TimeStampMixin):
         """Get all unique references from all containers of the CVE attached to this suggestion."""
         return list(Reference.objects.filter(container__cve=self.cve).distinct())
 
+    @property
+    def is_cache_stale(self) -> bool:
+        return not getattr(self, "cached", None) or self.cached.is_stale
+
+    def ensure_fresh_cache(self) -> None:
+        """Regenerate stale or missing cache for this suggestion."""
+        if self.is_cache_stale:
+            from shared.listeners.cache_suggestions import cache_new_suggestions
+
+            cache_new_suggestions(self)
+            self.refresh_from_db()
+
     def ignore_package(self, package: str) -> None:
         edit, created = self.package_overlays.get_or_create(
             package_attribute=package,

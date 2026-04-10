@@ -70,3 +70,16 @@ def test_caching_newest_package(
     )
 
     assert package["major_version"] == "2.0"
+
+
+def test_cache_stale_check(
+    suggestion: CVEDerivationClusterProposal,
+) -> None:
+    cache_new_suggestions(suggestion)
+    cached = CachedSuggestions.objects.get(proposal=suggestion)
+    assert cached.schema_version == CachedSuggestions.CURRENT_SCHEMA_VERSION
+    assert cached.is_stale is False
+
+    cached.schema_version = CachedSuggestions.CURRENT_SCHEMA_VERSION - 1  # type: ignore
+    cached.save()
+    assert cached.is_stale is True

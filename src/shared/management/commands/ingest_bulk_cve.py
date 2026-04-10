@@ -144,30 +144,29 @@ class Command(BaseCommand):
                     self.stderr.write(
                         f"Could not split year field from CVE ID '{name}': {e}"  # noqa
                     )
+                    continue
                 except ValueError as e:
                     self.stderr.write(
                         f"Could not parse year from '{name}': {e}"  # noqa
                     )
+                    continue
 
                 # Precise-path: Check metadata dateUpdated/datePublished
                 with open(j_cve) as fc:
-                    try:
-                        cve_json = json.load(fc)
-                        metadata = cve_json.get("cveMetadata", {})
-                        cve_date_str = metadata.get("dateUpdated") or metadata.get(
-                            "datePublished"
-                        )
-                        if cve_date_str:
-                            # Handle potential milliseconds/Z/offsets (ISO 8601)
-                            cve_date = date.fromisoformat(cve_date_str.split("T")[0])
-                            if not (from_date <= cve_date <= to_date):
-                                continue
+                    cve_json = json.load(fc)
+                    metadata = cve_json.get("cveMetadata", {})
+                    cve_date_str = metadata.get("dateUpdated") or metadata.get(
+                        "datePublished"
+                    )
+                    if cve_date_str:
+                        # Handle potential milliseconds/Z/offsets (ISO 8601)
+                        cve_date = date.fromisoformat(cve_date_str.split("T")[0])
+                        if not (from_date <= cve_date <= to_date):
+                            continue
 
-                        make_cve(cve_json, triaged=False)
-                        count += 1
-                        print(".", end="", flush=True)
-                    except (json.JSONDecodeError, ValueError, KeyError):
-                        pass
+                    make_cve(cve_json, triaged=False)
+                    count += 1
+                    print(".", end="", flush=True)
 
             print()  # Final newline after progress dots
             logger.info(f"{count} CVEs ingested.")

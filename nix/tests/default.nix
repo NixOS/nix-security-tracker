@@ -12,6 +12,7 @@ let
     virtualisation = {
       memorySize = 2048;
       cores = 2;
+      diskSize = 4096;
     };
   };
   channels = with builtins; toFile "channels.json" (toJSON (import ./channels.nix));
