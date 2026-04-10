@@ -51,6 +51,7 @@ in
     {
       openssh.authorizedKeys.keyFiles = with keys; [
         florentc
+        adekoder
       ];
     };
 
