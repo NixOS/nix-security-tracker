@@ -185,6 +185,7 @@ in
         LOCAL_NIXPKGS_CHECKOUT = mkDefault "/var/lib/nix-security-tracker/nixpkgs-repo";
         CVE_CACHE_DIR = mkDefault "/var/lib/nix-security-tracker/cve-cache";
         ACCOUNT_DEFAULT_HTTP_PROTOCOL = mkDefault (with cfg; if production then "https" else "http");
+        BASE_URL = mkDefault (with cfg; "http${optionalString production "s"}://${domain}");
       };
 
       nginx.enable = true;

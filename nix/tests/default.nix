@@ -74,6 +74,7 @@ pkgs.testers.runNixOSTest {
           GH_COMMITTERS_TEAM = "dummy-committers";
           GH_SECURITY_TEAM = "dummy-security";
           GH_ISSUES_LABELS = [ "label with spaces" ];
+          BASE_URL = "https://example.org";
         };
         env = {
           inherit (cfg.package.passthru) PLAYWRIGHT_BROWSERS_PATH;

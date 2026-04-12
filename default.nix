@@ -98,6 +98,7 @@ rec {
           GH_SECURITY_TEAM = "sectracker-testing-security";
           GH_COMMITTERS_TEAM = "sectracker-testing-committers";
           STATIC_ROOT = "${toString ./src/static}";
+          BASE_URL = "http://localhost:8000";
           REVISION =
             let
               git = builtins.fetchGit {

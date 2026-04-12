@@ -5,12 +5,10 @@ from django.http import HttpRequest, HttpResponse, HttpResponseForbidden
 from django.urls import reverse
 
 from shared.auth import user_can_edit_suggestion
-from shared.github import create_gh_issue
 from shared.logs.fetchers import fetch_suggestion_events
 from shared.models import (
     NixpkgsIssue,
 )
-from shared.models.issue import EventType, NixpkgsEvent
 from shared.models.linkage import (
     CVEDerivationClusterProposal,
 )
@@ -102,19 +100,7 @@ class UpdateSuggestionStatusView(SuggestionBaseView):
                 try:
                     with transaction.atomic():
                         tracker_issue = NixpkgsIssue.create_nixpkgs_issue(suggestion)
-                        tracker_issue_link = request.build_absolute_uri(
-                            reverse("webview:issue_detail", args=[tracker_issue.code])
-                        )
-                        github_issue_link = create_gh_issue(
-                            suggestion_context.suggestion.cached,
-                            tracker_issue_link,
-                            new_comment,
-                        ).html_url
-                        NixpkgsEvent.objects.create(
-                            issue=tracker_issue,
-                            event_type=EventType.ISSUE | EventType.OPENED,
-                            url=github_issue_link,
-                        )
+                        tracker_issue.publish(new_comment)
                         suggestion.status = (
                             CVEDerivationClusterProposal.Status.PUBLISHED
                         )

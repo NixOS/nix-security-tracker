@@ -190,9 +190,7 @@ def test_only_active_references_displayed_in_published_issue(
     ) -> str:
         return maintainer["github"]
 
-    mocker.patch(
-        "webview.suggestions.views.status.create_gh_issue", mock_create_gh_issue
-    )
+    mocker.patch("shared.github.create_gh_issue", mock_create_gh_issue)
     mocker.patch("shared.github.get_maintainer_username", mock_get_maintainer_username)
 
     # Publish the issue

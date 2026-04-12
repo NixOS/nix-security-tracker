@@ -65,14 +65,18 @@ class MockGithubIssue:
 
 class MockGithubRepo:
     def __init__(self, name: str, expected_issue_title: str) -> None:
+        self.name = name
         self.expected_issue_title = expected_issue_title
+        self.created_issues: list[dict[str, Any]] = []
 
     def create_issue(self, title: str, body: str, labels: list[str]) -> MockGithubIssue:
         # FIXME(@fricklerhandwerk): We shouldn't do assertions here, but it's too much to tear apart now. [ref:todo-github-connection]
         # XXX(@fricklerhandwerk): This unfortunately does part of the testing for [ref:test-github-create_issue-title] and [ref:test-github-create_issue-description].
-        assert title == self.expected_issue_title, (
-            f"Expected issue title '{self.expected_issue_title}', got '{title}'"
-        )
+        if self.expected_issue_title:
+            assert title == self.expected_issue_title, (
+                f"Expected issue title '{self.expected_issue_title}', got '{title}'"
+            )
+        self.created_issues.append({"title": title, "body": body, "labels": labels})
         return MockGithubIssue()
 
 
@@ -88,6 +92,7 @@ class MockGithub:
         # FIXME(@fricklerhandwerk): This shouldn't exist. Instead the mock behavior should be defined in each test. [ref:todo-github-connection]
         # This is only a cheap hack to prevent tearing everything apart just to fix a bug.
         self.expected_issue_title = expected_issue_title
+        self.repos: dict[str, MockGithubRepo] = {}
 
     def get_user_by_id(self, user_id: int) -> MockGithubUser:
         return MockGithubUser(id_value=str(user_id))
@@ -100,7 +105,11 @@ class MockGithub:
         )
 
     def get_repo(self, name: str) -> MockGithubRepo:
-        return MockGithubRepo(name=name, expected_issue_title=self.expected_issue_title)
+        if name not in self.repos:
+            self.repos[name] = MockGithubRepo(
+                name=name, expected_issue_title=self.expected_issue_title
+            )
+        return self.repos[name]
 
 
 def create_users_with_sociallogin(

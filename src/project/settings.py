@@ -158,6 +158,11 @@ class Settings(BaseSettings):
             # on the environment.
             default=[],
         )
+        BASE_URL: HttpUrl = Field(
+            description="""
+            The base URL of the tracker instance, used to construct backlinks for GitHub issues.
+            """,
+        )
         MAX_MATCHES: int = Field(
             description="""
             CVEs matching more than this number of derivations are ignored.

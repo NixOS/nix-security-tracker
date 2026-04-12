@@ -60,7 +60,7 @@ def test_publish_gh_issue_empty_title(
 
     # FIXME(@fricklerhandwerk): Mock Github's `create_issue()` here, not our own procedure! [ref:todo-github-connection]
     # Then we can test in-context that the right arguments have been passed, using `mock.assert_called_with()`.
-    with patch("webview.suggestions.views.status.create_gh_issue") as mock:
+    with patch("shared.github.create_gh_issue") as mock:
         mock.side_effect = lambda *args, **kwargs: create_gh_issue(
             *args,
             github=MockGithub(expected_issue_title=expected_issue_title),  # type: ignore
@@ -153,9 +153,7 @@ def test_maintainer_of_active_package_mentioned_in_issue(
     ) -> str:
         return maintainer["github"]
 
-    mocker.patch(
-        "webview.suggestions.views.status.create_gh_issue", mock_create_gh_issue
-    )
+    mocker.patch("shared.github.create_gh_issue", mock_create_gh_issue)
     mocker.patch("shared.github.get_maintainer_username", mock_get_maintainer_username)
 
     # Publish the issue
@@ -225,9 +223,7 @@ def test_cvss_base_score_visible_in_web_ui(
     ) -> str:
         return maintainer["github"]
 
-    mocker.patch(
-        "webview.suggestions.views.status.create_gh_issue", mock_create_gh_issue
-    )
+    mocker.patch("shared.github.create_gh_issue", mock_create_gh_issue)
     mocker.patch("shared.github.get_maintainer_username", mock_get_maintainer_username)
 
     publish = suggestion.get_by_role("button", name="Publish issue")
