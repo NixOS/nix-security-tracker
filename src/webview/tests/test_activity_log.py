@@ -22,6 +22,7 @@ def test_maintainer_addition_creates_activity_log_entry(
     committer: User,
     make_maintainer_from_user: Callable[..., NixMaintainer],
     cached_suggestion: CVEDerivationClusterProposal,
+    frozen_time: FakeDatetime,
 ) -> None:
     """Test that adding a maintainer creates an activity log entry"""
     maintainer = make_maintainer_from_user(committer)
@@ -42,6 +43,28 @@ def test_maintainer_addition_creates_activity_log_entry(
     entry = (
         activity_log.filter(has_text=staff.username)
         .filter(has_text="added maintainer")
+        .filter(has_text=maintainer.github)
+    )
+    expect(entry).to_be_visible()
+
+    # let freeze the time for a bit long after the debounce time
+    # so that we delete event does not get folded to properly test
+    frozen_time.tick(
+        delta=timedelta(seconds=settings.DEBOUNCE_ACTIVITY_LOG_SECONDS * 2)
+    )
+
+    delete = maintainers_list.get_by_role("button", name="Delete")
+    delete.click()
+
+    activity_log = suggestion.locator(
+        f"#suggestion-activity-log-{cached_suggestion.pk}"
+    )
+    activity_log.click()
+    # activity_log.get_by_text(staff.username)
+
+    entry = (
+        activity_log.filter(has_text=staff.username)
+        .filter(has_text="deleted maintainer")
         .filter(has_text=maintainer.github)
     )
     expect(entry).to_be_visible()
@@ -74,7 +97,7 @@ def test_ignore_maintainer_creates_activity_log_entry(
     activity_log.click()
     entry = (
         activity_log.filter(has_text=staff.username)
-        .filter(has_text="removed maintainer")
+        .filter(has_text="ignored maintainer")
         .filter(has_text=maintainer_name)
     )
     expect(entry).to_be_visible()
@@ -134,12 +157,12 @@ def test_restore_maintainer_cancels_event_in_activity_log(
         activity_log.click()
         removed_maintainer = (
             activity_log.filter(has_text=staff.username)
-            .filter(has_text="removed maintainer")
+            .filter(has_text="ignored maintainer")
             .filter(has_text=maintainer_name)
         )
         added_maintainer = (
             activity_log.filter(has_text=staff.username)
-            .filter(has_text="added maintainer")
+            .filter(has_text="restored maintainer")
             .filter(has_text=maintainer_name)
         )
         expect(removed_maintainer).to_be_visible()

@@ -37,14 +37,16 @@ class FoldedStatusEvent(FoldedEvent):
 class FoldedPackageEvent(FoldedEvent):
     """A folded package event that can represent single or bulk operations."""
 
-    action: Literal["package.add", "package.remove"]
+    action: Literal["package.restore", "package.ignore"]
     package_names: list[str]  # Always a list, even for single packages
 
 
 class FoldedMaintainerEvent(FoldedEvent):
     """A folded maintainer event that can represent single or bulk operations."""
 
-    action: Literal["maintainers.add", "maintainers.remove"]
+    action: Literal[
+        "maintainer.add", "maintainer.ignore", "maintainer.restore", "maintainer.delete"
+    ]
     maintainers: list[Maintainer]  # Always a list, even for single maintainers
 
 

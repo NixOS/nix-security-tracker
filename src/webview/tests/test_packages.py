@@ -180,9 +180,10 @@ def test_restore_one_of_multiple_ignored_packages(
     ignored.locator(".package-alpha").get_by_role("button", name="Restore").click()
     expect(ignored.get_by_text("alpha")).not_to_be_visible()
 
-    ignored.click()
     expect(active.get_by_text("alpha")).to_be_visible()
     expect(active.get_by_text("charlie")).to_be_visible()
+    # Expand the ignored packages section before asserting since it will close due to re-render
+    container.get_by_text("Ignored packages").click()
     expect(ignored.get_by_text("bravo")).to_be_visible()
     expect(active.get_by_text("bravo")).not_to_be_visible()
 
