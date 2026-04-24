@@ -131,7 +131,7 @@ class MaintainerOverlay(models.Model):
         IGNORED = "ignored", _("ignored")
 
     overlay_type = models.CharField(max_length=126, choices=Type.choices)
-    maintainer = models.ForeignKey(NixMaintainer, on_delete=models.CASCADE)
+    maintainer = models.ForeignKey(NixMaintainer, on_delete=models.PROTECT)
     suggestion = models.ForeignKey(
         CVEDerivationClusterProposal,
         related_name="maintainer_overlays",
@@ -322,7 +322,7 @@ class DerivationClusterProposalLink(models.Model):
 
     proposal = models.ForeignKey(CVEDerivationClusterProposal, on_delete=models.CASCADE)
 
-    derivation = models.ForeignKey(NixDerivation, on_delete=models.CASCADE)
+    derivation = models.ForeignKey(NixDerivation, on_delete=models.PROTECT)
 
     # TODO: how to design the integrity here?
     # we probably want to add a fancy check here.
