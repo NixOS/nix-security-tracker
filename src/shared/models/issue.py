@@ -77,6 +77,30 @@ class NixpkgsIssue(TimeStampMixin):
         issue.save()
         return issue
 
+    def publish(self, new_comment: str | None = None) -> None:
+        """
+        Create a corresponding GitHub issue for this NixpkgsIssue and log the event.
+        """
+        from django.conf import settings
+        from django.urls import reverse
+
+        from shared.github import create_gh_issue
+
+        tracker_issue_path = reverse("webview:issue_detail", args=[self.code])
+        tracker_issue_link = f"{settings.BASE_URL}{tracker_issue_path}"
+
+        github_issue_link = create_gh_issue(
+            self.suggestion.cached,
+            tracker_issue_link,
+            new_comment,
+        ).html_url
+
+        NixpkgsEvent.objects.create(
+            issue=self,
+            event_type=EventType.ISSUE | EventType.OPENED,
+            url=github_issue_link,
+        )
+
 
 @receiver(post_save, sender=NixpkgsIssue)
 def generate_code(

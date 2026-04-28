@@ -104,6 +104,33 @@ def test_ignore_restore_references(
     expect(ignored_references).not_to_be_visible()
 
 
+def test_references_are_deduplicated(
+    live_server: LiveServer,
+    as_staff: Page,
+    make_cached_suggestion: Callable[..., CVEDerivationClusterProposal],
+    make_container: Callable[..., Container],
+) -> None:
+    """Test references are displayed deduplicated per url"""
+    container = make_container(
+        references=[
+            ("Foo", "https://foo.fake", ["tag1", "tag2"]),
+            ("Foo", "https://foo.fake", ["tag2", "tag3"]),
+            ("", "https://bar.fake", ["tag2", "tag3"]),
+        ]
+    )
+    suggestion = make_cached_suggestion(container=container)
+    as_staff.goto(live_server.url + reverse("webview:suggestion:untriaged_suggestions"))
+
+    references = as_staff.locator(f"#suggestion-{suggestion.pk}-references")
+    foo_references = references.get_by_text("Foo")
+    expect(foo_references).to_have_count(1)
+
+    foo_reference = references.get_by_role("listitem").filter(has_text="Foo")
+    expect(foo_reference.get_by_text("tag1")).to_be_visible()
+    expect(foo_reference.get_by_text("tag2")).to_be_visible()
+    expect(foo_reference.get_by_text("tag3")).to_be_visible()
+
+
 def test_ignore_reference_displayed_in_activity_log(
     live_server: LiveServer,
     as_staff: Page,
@@ -190,9 +217,7 @@ def test_only_active_references_displayed_in_published_issue(
     ) -> str:
         return maintainer["github"]
 
-    mocker.patch(
-        "webview.suggestions.views.status.create_gh_issue", mock_create_gh_issue
-    )
+    mocker.patch("shared.github.create_gh_issue", mock_create_gh_issue)
     mocker.patch("shared.github.get_maintainer_username", mock_get_maintainer_username)
 
     # Publish the issue

@@ -102,16 +102,16 @@ class CVEDerivationClusterProposal(TimeStampMixin):
     def ignore_package(self, package: str) -> None:
         edit, created = self.package_overlays.get_or_create(
             package_attribute=package,
-            defaults={"edit_type": PackageOverlay.Type.IGNORED},
+            defaults={"overlay_type": PackageOverlay.Type.IGNORED},
         )
-        if not created and edit.edit_type != PackageOverlay.Type.IGNORED:
-            edit.edit_type = PackageOverlay.Type.IGNORED
+        if not created and edit.overlay_type != PackageOverlay.Type.IGNORED:
+            edit.overlay_type = PackageOverlay.Type.IGNORED
             edit.save()
 
     def restore_package(self, package: str) -> None:
         self.package_overlays.filter(
             package_attribute=package,
-            edit_type=PackageOverlay.Type.IGNORED,
+            overlay_type=PackageOverlay.Type.IGNORED,
         ).delete()
 
 
@@ -130,9 +130,8 @@ class MaintainerOverlay(models.Model):
         ADDITIONAL = "additional", _("additional")
         IGNORED = "ignored", _("ignored")
 
-    # FIXME (@adekoder): To rename this field from edit_type to type
-    edit_type = models.CharField(max_length=126, choices=Type.choices)
-    maintainer = models.ForeignKey(NixMaintainer, on_delete=models.CASCADE)
+    overlay_type = models.CharField(max_length=126, choices=Type.choices)
+    maintainer = models.ForeignKey(NixMaintainer, on_delete=models.PROTECT)
     suggestion = models.ForeignKey(
         CVEDerivationClusterProposal,
         related_name="maintainer_overlays",
@@ -163,8 +162,7 @@ class PackageOverlay(models.Model):
         IGNORED = "ignored", _("ignored")
         # ADDITIONAL reserved for future use if needed
 
-    # FIXME (@adekoder): To rename this field from edit_type to overlay_type
-    edit_type = models.CharField(max_length=126, choices=Type.choices)
+    overlay_type = models.CharField(max_length=126, choices=Type.choices)
     package_attribute = models.CharField(max_length=255)
     suggestion = models.ForeignKey(
         CVEDerivationClusterProposal,
@@ -185,9 +183,10 @@ class PackageOverlay(models.Model):
     pghistory.ManualEvent("reference.restore"),
     pghistory.ManualEvent("reference.ignore"),
 )
-class ReferenceOverlay(models.Model):
+class ReferenceUrlOverlay(models.Model):
     """
     A single manual overlay of the list of references of a suggestion.
+    These overlays are per url, so one overlay may apply to several references which share the same URL.
     """
 
     class Type(models.TextChoices):
@@ -195,10 +194,13 @@ class ReferenceOverlay(models.Model):
         # ADDITIONAL reserved for future use if needed
 
     type = models.CharField(max_length=126, choices=Type.choices)
-    reference = models.ForeignKey(Reference, on_delete=models.CASCADE)
+    reference_url = models.URLField(max_length=2048, blank=True)
+    deduplicated_name = models.CharField(
+        max_length=512, blank=True
+    )  # Used as a base for the activity log events
     suggestion = models.ForeignKey(
         CVEDerivationClusterProposal,
-        related_name="reference_overlays",
+        related_name="reference_url_overlays",
         on_delete=models.CASCADE,
     )
 
@@ -207,8 +209,8 @@ class ReferenceOverlay(models.Model):
             # Ensures that a reference can only be added or removed once per
             # suggestion.
             models.UniqueConstraint(
-                fields=["suggestion", "reference"],
-                name="unique_reference_overlay_per_suggestion",
+                fields=["suggestion", "reference_url"],
+                name="unique_reference_url_overlay_per_suggestion",
             )
         ]
 
@@ -247,7 +249,7 @@ def track_maintainer_overlay_save(
     if created:
         label = (
             "maintainer.add"
-            if instance.edit_type == MaintainerOverlay.Type.ADDITIONAL
+            if instance.overlay_type == MaintainerOverlay.Type.ADDITIONAL
             else "maintainer.ignore"
         )
         pghistory.create_event(
@@ -262,7 +264,7 @@ def track_maintainer_overlay_delete(
 ) -> None:
     label = (
         "maintainer.delete"
-        if instance.edit_type == MaintainerOverlay.Type.ADDITIONAL
+        if instance.overlay_type == MaintainerOverlay.Type.ADDITIONAL
         else "maintainer.restore"
     )
     pghistory.create_event(
@@ -271,42 +273,30 @@ def track_maintainer_overlay_delete(
     )
 
 
-@receiver(post_save, sender=ReferenceOverlay)
+@receiver(post_save, sender=ReferenceUrlOverlay)
 def track_reference_overlay_save(
-    sender: type[ReferenceOverlay],
-    instance: ReferenceOverlay,
+    sender: type[ReferenceUrlOverlay],
+    instance: ReferenceUrlOverlay,
     created: bool,
     **kwargs: Any,
 ) -> None:
     if created:
-        if instance.type == ReferenceOverlay.Type.IGNORED:
+        if instance.type == ReferenceUrlOverlay.Type.IGNORED:
             pghistory.create_event(
                 obj=instance,
                 label="reference.ignore",
             )
-        # TODO(@florentc): Adapt when ReferenceOverlay supports more than IGNORED
-        # if instance.type == ReferenceOverlay.Type.ADDITIONAL:
-        #     pghistory.create_event(
-        #         obj=instance,
-        #         label="reference.additional",
-        #     )
 
 
-@receiver(post_delete, sender=ReferenceOverlay)
+@receiver(post_delete, sender=ReferenceUrlOverlay)
 def track_reference_overlay_delete(
-    sender: type[ReferenceOverlay], instance: ReferenceOverlay, **kwargs: Any
+    sender: type[ReferenceUrlOverlay], instance: ReferenceUrlOverlay, **kwargs: Any
 ) -> None:
-    if instance.type == ReferenceOverlay.Type.IGNORED:
+    if instance.type == ReferenceUrlOverlay.Type.IGNORED:
         pghistory.create_event(
             obj=instance,
             label="reference.restore",
         )
-    # TODO(@florentc): Adapt when ReferenceOverlay supports more than IGNORED
-    # if instance.type == ReferenceOverlay.Type.ADDITIONAL:
-    #     pghistory.create_event(
-    #         obj=instance,
-    #         label="reference.delete",
-    #     )
 
 
 class ProvenanceFlags(IntFlag, boundary=STRICT):
@@ -332,7 +322,7 @@ class DerivationClusterProposalLink(models.Model):
 
     proposal = models.ForeignKey(CVEDerivationClusterProposal, on_delete=models.CASCADE)
 
-    derivation = models.ForeignKey(NixDerivation, on_delete=models.CASCADE)
+    derivation = models.ForeignKey(NixDerivation, on_delete=models.PROTECT)
 
     # TODO: how to design the integrity here?
     # we probably want to add a fancy check here.

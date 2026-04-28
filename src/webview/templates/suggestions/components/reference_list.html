@@ -22,7 +22,7 @@
         <ul id="suggestion-{{ data.suggestion_id }}-ignored-references"
             class="column gap-small">
           {% for reference_context in data.ignored %}
-            <li class="maintainer-container">{% reference reference_context %}</li>
+            <li>{% reference reference_context %}</li>
           {% endfor %}
         </ul>
       </details>

@@ -9,24 +9,30 @@
     <summary>
       <span class="details-closed">
         {% with last_entry=activity_log|last %}
-          <span class="activity-log-timestamp">updated {{ last_entry.timestamp|naturaltime }}</span>
-          by&nbsp;<strong>@{{ last_entry.username }}</strong>
+          <span class="activity-log-timestamp">
+            {% if last_entry.action == "create" %}
+              created
+            {% else %}
+              updated
+            {% endif %}
+          {{ last_entry.timestamp|naturaltime }}</span>
+          {% if last_entry.username %}by&nbsp;<strong>@{{ last_entry.username }}</strong>{% endif %}
         {% endwith %}
       </span>
       <strong class="details-open">Activity log</strong>
     </summary>
     <ul class="column align-end">
-      <li>
-        Created <span class="automatic-suggestion-text">automatic suggestion</span>
-        <span class="activity-log-entry-timestamp"
-              data-timestamp-relative="{{ suggestion.created_at|naturaltime }}"
-              data-timestamp-iso="{{ suggestion.created_at|iso }}">{{ suggestion.created_at|naturaltime }}</span>
-      </li>
       {% for log_entry in activity_log %}
         <li class="row gap-small baseline">
-          <strong>@{{ log_entry.username }}</strong>
+          {% if log_entry.username %}<strong>@{{ log_entry.username }}</strong>{% endif %}
           {# TODO(@adekoder) Refactor: the text value should come from the activity log context to aviod hardcoding #}
-          {% if "package." in log_entry.action %}
+          {% if log_entry.action == "create" %}
+            {% if log_entry.rejection_reason %}
+              Created & dismissed ({{ log_entry.rejection_reason }}) suggestion
+            {% else %}
+              Created suggestion
+            {% endif %}
+          {% elif "package." in log_entry.action %}
             {# Package update entries #}
             {% if ".restore" in log_entry.action %}
               restored
@@ -124,6 +130,13 @@
               <i class="icon-user-plus"></i>
             {% else %}
               <i class="icon-user-minus"></i>
+            {% endif %}
+          {% elif log_entry.action == "create" %}
+            {# For create, we display the "untriaged" icon by default, and the "dismissed" one in case of automatically rejected at creation #}
+            {% if log_entry.rejection_reason %}
+              <i class="icon-bin"></i>
+            {% else %}
+              <i class="icon-inbox"></i>
             {% endif %}
           {% else %}
             {% if "accepted" in log_entry.status_value %}

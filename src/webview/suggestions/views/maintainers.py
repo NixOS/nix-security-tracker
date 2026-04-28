@@ -99,7 +99,7 @@ class IgnoreMaintainerView(MaintainerOperationBaseView):
         # Check if already ignored (has a IGNORED overlay)
         existing_edit = suggestion.maintainer_overlays.filter(
             maintainer__github_id=github_id,
-            edit_type=MaintainerOverlay.Type.IGNORED,
+            overlay_type=MaintainerOverlay.Type.IGNORED,
         ).first()
 
         if existing_edit:
@@ -117,10 +117,10 @@ class IgnoreMaintainerView(MaintainerOperationBaseView):
             # Create the maintainer edit
             edit, created = suggestion.maintainer_overlays.get_or_create(
                 maintainer=maintainer,
-                defaults={"edit_type": MaintainerOverlay.Type.IGNORED},
+                defaults={"overlay_type": MaintainerOverlay.Type.IGNORED},
             )
-            if not created and edit.edit_type != MaintainerOverlay.Type.IGNORED:
-                edit.edit_type = MaintainerOverlay.Type.IGNORED
+            if not created and edit.overlay_type != MaintainerOverlay.Type.IGNORED:
+                edit.overlay_type = MaintainerOverlay.Type.IGNORED
                 edit.save()
 
             # Update the cached categorized maintainers
@@ -164,7 +164,7 @@ class RestoreMaintainerView(MaintainerOperationBaseView):
         # Check if there's a REMOVE edit to restore (there should be one)
         existing_edit = suggestion.maintainer_overlays.filter(
             maintainer__github_id=github_id,
-            edit_type=MaintainerOverlay.Type.IGNORED,
+            overlay_type=MaintainerOverlay.Type.IGNORED,
         ).first()
 
         if not existing_edit:
@@ -179,7 +179,7 @@ class RestoreMaintainerView(MaintainerOperationBaseView):
             # Remove the IGNORED overlay to restore the maintainer
             edit_to_remove = suggestion.maintainer_overlays.get(
                 maintainer__github_id=github_id,
-                edit_type=MaintainerOverlay.Type.IGNORED,
+                overlay_type=MaintainerOverlay.Type.IGNORED,
             )
             edit_to_remove.delete()
             maintainer = edit_to_remove.maintainer
@@ -223,7 +223,8 @@ class DeleteMaintainerView(MaintainerOperationBaseView):
 
         # Check if there's an ADD edit to remove (there should be one)
         existing_edit = suggestion.maintainer_overlays.filter(
-            maintainer__github_id=github_id, edit_type=MaintainerOverlay.Type.ADDITIONAL
+            maintainer__github_id=github_id,
+            overlay_type=MaintainerOverlay.Type.ADDITIONAL,
         ).first()
 
         if not existing_edit:
@@ -238,7 +239,7 @@ class DeleteMaintainerView(MaintainerOperationBaseView):
             # Remove the ADD edit to delete the maintainer
             edit_to_remove = suggestion.maintainer_overlays.get(
                 maintainer__github_id=github_id,
-                edit_type=MaintainerOverlay.Type.ADDITIONAL,
+                overlay_type=MaintainerOverlay.Type.ADDITIONAL,
             )
             edit_to_remove.delete()
 
@@ -332,10 +333,10 @@ class AddMaintainerView(SuggestionContentEditBaseView):
             # Add the maintainer edit
             edit, created = suggestion.maintainer_overlays.get_or_create(
                 maintainer=maintainer,
-                defaults={"edit_type": MaintainerOverlay.Type.ADDITIONAL},
+                defaults={"overlay_type": MaintainerOverlay.Type.ADDITIONAL},
             )
-            if not created and edit.edit_type != MaintainerOverlay.Type.ADDITIONAL:
-                edit.edit_type = MaintainerOverlay.Type.ADDITIONAL
+            if not created and edit.overlay_type != MaintainerOverlay.Type.ADDITIONAL:
+                edit.overlay_type = MaintainerOverlay.Type.ADDITIONAL
                 edit.save()
 
             # Update the cached categorized maintainers

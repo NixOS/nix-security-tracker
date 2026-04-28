@@ -116,7 +116,7 @@ def create_gh_issue(
         """
         Format active references from the cached suggestion for inclusion in GitHub issue.
         """
-        references = cached_suggestion.payload.get("categorized_references", {})
+        references = cached_suggestion.payload.get("categorized_url_references", {})
         active_refs = references.get("active", [])
 
         if not active_refs:

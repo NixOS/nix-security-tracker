@@ -168,7 +168,7 @@ def test_restore_maintainer_cancels_event_in_activity_log(
         expect(removed_maintainer).to_be_visible()
         expect(added_maintainer).to_be_visible()
     else:
-        expect(activity_log).to_have_count(0)
+        expect(activity_log).to_have_count(1)  # 1 being the creation event
 
 
 def test_multiple_maintainer_edits_are_batched_in_activity_log(
@@ -274,3 +274,25 @@ def test_maintainer_edits_by_different_users_not_batched(
             .filter(has_text=maintainer2.github)
         )
         expect(added_maintainer2).to_be_visible()
+
+
+def test_automatic_rejection_reason_displayed(
+    live_server: LiveServer,
+    as_staff: Page,
+    make_cached_suggestion: Callable[..., CVEDerivationClusterProposal],
+) -> None:
+    """Test that automatically dismissed suggestion at creation show the event and reason in their activity log"""
+    db_cached_suggestion = make_cached_suggestion(
+        status=CVEDerivationClusterProposal.Status.REJECTED,
+        rejection_reason=CVEDerivationClusterProposal.RejectionReason.EXCLUSIVELY_HOSTED_SERVICE,
+    )
+    as_staff.goto(live_server.url + reverse("webview:suggestion:dismissed_suggestions"))
+    suggestion = as_staff.locator(f"#suggestion-{db_cached_suggestion.pk}")
+    activity_log = suggestion.locator(
+        f"#suggestion-activity-log-{db_cached_suggestion.pk}"
+    )
+    activity_log.click()
+    entry = activity_log.filter(has_text="Created & dismissed").filter(
+        has_text=CVEDerivationClusterProposal.RejectionReason.EXCLUSIVELY_HOSTED_SERVICE.label.__str__()
+    )
+    expect(entry).to_be_visible()

@@ -204,7 +204,7 @@ class NixEvaluation(TimeStampMixin):
 
     # Parent channel of that evaluation.
     channel = models.ForeignKey(
-        NixChannel, related_name="evaluations", on_delete=models.CASCADE
+        NixChannel, related_name="evaluations", on_delete=models.PROTECT
     )
     # Commit SHA1 on which the evaluation was done precisely.
     commit_sha1 = models.CharField(max_length=255)
@@ -247,7 +247,7 @@ class NixDerivation(models.Model):
     )
     system = models.CharField(max_length=255)
     parent_evaluation = models.ForeignKey(
-        NixEvaluation, related_name="derivations", on_delete=models.CASCADE
+        NixEvaluation, related_name="derivations", on_delete=models.PROTECT
     )
 
     search_vector = SearchVectorField(null=True)

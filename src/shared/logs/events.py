@@ -11,7 +11,9 @@ class RawEvent(BaseModel, ABC):
 
     suggestion_id: int
     timestamp: datetime
-    username: str
+    # TODO(@florentc): there is no username for non-user initiated events.
+    # Maybe we'll want to have different types for user generated events and other events in the future.
+    username: str | None
 
     @abstractmethod
     def is_canceled_by(
@@ -35,6 +37,18 @@ class RawEvent(BaseModel, ABC):
             and (other.timestamp - self.timestamp).total_seconds()
             <= settings.DEBOUNCE_ACTIVITY_LOG_SECONDS
         )
+
+
+class RawCreationEvent(RawEvent):
+    """Raw suggestion creation event, with optional dismissal reason in case of auto-dismissal."""
+
+    username: str | None = None
+    action: Literal["create"] = "create"
+    rejection_reason: str | None
+
+    def is_canceled_by(self, other: "RawEvent") -> bool:
+        """Creation events are not cancellable"""
+        return False
 
 
 class RawStatusEvent(RawEvent):
@@ -116,9 +130,8 @@ class RawMaintainerEvent(RawEvent):
         return False
 
 
-# NOTE(@florentc): A true reference has tags but this is just to keep track in the user displayed activity log
+# NOTE(@florentc): A true deduplicated reference has tags but this is just to keep track in the user displayed activity log
 class Reference(TypedDict):
-    id: int
     url: str
     name: str
 
@@ -137,7 +150,7 @@ class RawReferenceEvent(RawEvent):
             return False
 
         if isinstance(other, RawReferenceEvent):
-            return self.reference["id"] == other.reference["id"] and {
+            return self.reference["url"] == other.reference["url"] and {
                 self.action,
                 other.action,
             } == {
@@ -148,7 +161,13 @@ class RawReferenceEvent(RawEvent):
         return False
 
 
-RawEventType = RawStatusEvent | RawPackageEvent | RawMaintainerEvent | RawReferenceEvent
+RawEventType = (
+    RawCreationEvent
+    | RawStatusEvent
+    | RawPackageEvent
+    | RawMaintainerEvent
+    | RawReferenceEvent
+)
 
 
 def sort_events_chronologically(events: list[RawEventType]) -> list[RawEventType]:

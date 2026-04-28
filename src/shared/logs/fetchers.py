@@ -16,6 +16,7 @@ from pghistory.models import EventQuerySet
 
 from shared.logs.events import (
     Maintainer,
+    RawCreationEvent,
     RawEventType,
     RawMaintainerEvent,
     RawPackageEvent,
@@ -27,7 +28,7 @@ from shared.models import (
     CVEDerivationClusterProposalStatusEvent,  # type: ignore
     MaintainerOverlayEvent,  # type: ignore
     PackageOverlayEvent,  # type: ignore
-    ReferenceOverlayEvent,  # type: ignore
+    ReferenceUrlOverlayEvent,  # type: ignore
 )
 from shared.models.linkage import CVEDerivationClusterProposal
 
@@ -64,6 +65,24 @@ def fetch_suggestion_events(
 
     if not suggestion_ids:
         return result
+
+    creation_qs = _annotate_username(
+        CVEDerivationClusterProposalStatusEvent.objects.select_related(
+            "pgh_context"
+        ).filter(pgh_label="insert", pgh_obj_id__in=suggestion_ids)
+    )
+    for creation_event in creation_qs.iterator():
+        result[creation_event.pgh_obj_id].append(
+            RawCreationEvent(
+                suggestion_id=creation_event.pgh_obj_id,
+                timestamp=creation_event.pgh_created_at,
+                rejection_reason=CVEDerivationClusterProposal.RejectionReason(
+                    creation_event.rejection_reason
+                ).label.__str__()
+                if creation_event.rejection_reason is not None
+                else None,
+            )
+        )
 
     status_qs = _annotate_username(
         CVEDerivationClusterProposalStatusEvent.objects.select_related("pgh_context")
@@ -119,7 +138,7 @@ def fetch_suggestion_events(
         )
 
     reference_qs = _annotate_username(
-        ReferenceOverlayEvent.objects.select_related("pgh_context", "reference").filter(
+        ReferenceUrlOverlayEvent.objects.select_related("pgh_context").filter(
             suggestion_id__in=suggestion_ids
         )
     )
@@ -131,9 +150,8 @@ def fetch_suggestion_events(
                 username=m_event.username,
                 action=m_event.pgh_label,
                 reference=Reference(
-                    id=m_event.reference.id,
-                    url=m_event.reference.url,
-                    name=m_event.reference.name,
+                    url=m_event.reference_url,
+                    name=m_event.deduplicated_name,
                 ),
             )
         )

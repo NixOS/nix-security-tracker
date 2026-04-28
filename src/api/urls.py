@@ -1,7 +1,7 @@
 from django.urls import include, path
 from rest_framework import routers
 
-from shared.views import NixpkgsIssueViewSet
+from api.views import NixpkgsIssueViewSet
 
 v1_router = routers.DefaultRouter()
 v1_router.register(r"issues", NixpkgsIssueViewSet)

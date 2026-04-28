@@ -1,5 +1,6 @@
 import secrets
 from collections.abc import Callable
+from datetime import timedelta
 from typing import ParamSpec
 
 import pytest
@@ -7,6 +8,7 @@ from allauth.socialaccount.models import SocialAccount
 from allauth.socialaccount.providers.github.provider import GitHubProvider
 from django.conf import settings
 from django.contrib.auth.models import Group, User
+from django.utils import timezone
 
 from shared.listeners.cache_suggestions import cache_new_suggestions
 from shared.listeners.notify_users import create_package_subscription_notifications
@@ -136,12 +138,21 @@ def make_evaluation(
     def wrapped(
         channel: NixChannel = channel,
         state: NixEvaluation.EvaluationState = NixEvaluation.EvaluationState.COMPLETED,
+        age: timedelta = timedelta(0),
     ) -> NixEvaluation:
-        return NixEvaluation.objects.create(
+        evaluation = NixEvaluation.objects.create(
             channel=channel,
             commit_sha1=secrets.token_hex(16),
             state=state,
         )
+
+        if age > timedelta(0):
+            NixEvaluation.objects.filter(pk=evaluation.pk).update(
+                updated_at=timezone.now() - age
+            )
+            evaluation.refresh_from_db()
+
+        return evaluation
 
     return wrapped
 
@@ -235,7 +246,8 @@ def drv(
 
 @pytest.fixture
 def make_suggestion(
-    cve: Container, drv: NixDerivation
+    cve: Container,
+    drv: NixDerivation,
 ) -> Callable[..., CVEDerivationClusterProposal]:
     def wrapped(
         # FIXME(@fricklerhandwerk): This should be a whole CVE
@@ -245,12 +257,19 @@ def make_suggestion(
         },
         status: CVEDerivationClusterProposal.Status = CVEDerivationClusterProposal.Status.PENDING,
         rejection_reason: CVEDerivationClusterProposal.RejectionReason | None = None,
+        age: timedelta = timedelta(0),
     ) -> CVEDerivationClusterProposal:
         suggestion = CVEDerivationClusterProposal.objects.create(
             status=status,
             rejection_reason=rejection_reason,
             cve=container.cve,
         )
+
+        if age > timedelta(0):
+            CVEDerivationClusterProposal.objects.filter(pk=suggestion.pk).update(
+                created_at=timezone.now() - age
+            )
+            suggestion.refresh_from_db()
 
         for drv, provenance in drvs.items():
             DerivationClusterProposalLink.objects.create(

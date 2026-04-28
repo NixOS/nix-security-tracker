@@ -289,7 +289,7 @@ def maintainer_add(
 @register.simple_tag
 def gh_issues_url() -> str:
     base = f"https://github.com/{settings.GH_ORGANIZATION}/{settings.GH_ISSUES_REPO}/issues"
-    labels = " ".join(f"label:{label!r}" for label in settings.GH_ISSUES_LABELS)
+    labels = " ".join(f'label:"{label}"' for label in settings.GH_ISSUES_LABELS)
     query = f"is:issue state:open {labels}".strip()
     return f"{base}?{urlencode({'q': query})}"
 

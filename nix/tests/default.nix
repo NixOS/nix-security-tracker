@@ -74,6 +74,7 @@ pkgs.testers.runNixOSTest {
           GH_COMMITTERS_TEAM = "dummy-committers";
           GH_SECURITY_TEAM = "dummy-security";
           GH_ISSUES_LABELS = [ "label with spaces" ];
+          BASE_URL = "https://example.org";
         };
         env = {
           inherit (cfg.package.passthru) PLAYWRIGHT_BROWSERS_PATH;
@@ -161,7 +162,8 @@ pkgs.testers.runNixOSTest {
             Importing fixtures from one module in another doesn't work in one invocation of `pytest`.
             This is because `conftest.py` files are discovered from the provided module names and registered globally.
           */
-        }server.succeed("wst-manage test -- --pyargs webview -v | tee /dev/ttyS0")
+        }server.succeed("wst-manage test -- --pyargs api -v | tee /dev/ttyS0")
+        server.succeed("wst-manage test -- --pyargs webview -v | tee /dev/ttyS0")
 
       with subtest("Check that stylesheet is served"):
         machine.succeed("curl --fail -H 'Host: example.org' http://localhost/static/reset.css")

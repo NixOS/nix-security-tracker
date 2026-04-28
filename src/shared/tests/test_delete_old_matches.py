@@ -170,12 +170,12 @@ def test_package_and_maintainer_edits_are_cleaned_up(
 
     maintainer: NixMaintainer = make_maintainer()  # type: ignore[assignment]
     MaintainerOverlay.objects.create(
-        edit_type=MaintainerOverlay.Type.ADDITIONAL,
+        overlay_type=MaintainerOverlay.Type.ADDITIONAL,
         maintainer=maintainer,
         suggestion=suggestion,
     )
     PackageOverlay.objects.create(
-        edit_type=PackageOverlay.Type.IGNORED,
+        overlay_type=PackageOverlay.Type.IGNORED,
         package_attribute="foo",
         suggestion=suggestion,
     )

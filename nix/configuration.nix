@@ -86,7 +86,7 @@ let
 in
 {
   options.services.nix-security-tracker = {
-    enable = mkEnableOption "web security tracker for Nixpkgs and similar monorepo";
+    enable = mkEnableOption "web security tracker for Nixpkgs and similar monorepos";
 
     package = mkPackageOption pkgs "nix-security-tracker" { };
     production = mkOption {
@@ -185,6 +185,7 @@ in
         LOCAL_NIXPKGS_CHECKOUT = mkDefault "/var/lib/nix-security-tracker/nixpkgs-repo";
         CVE_CACHE_DIR = mkDefault "/var/lib/nix-security-tracker/cve-cache";
         ACCOUNT_DEFAULT_HTTP_PROTOCOL = mkDefault (with cfg; if production then "https" else "http");
+        BASE_URL = mkDefault (with cfg; "http${optionalString production "s"}://${domain}");
       };
 
       nginx.enable = true;
@@ -244,20 +245,19 @@ in
         };
       in
       mapAttrs (_: recursiveUpdate defaults) {
-        nix-security-tracker-server = {
-          description = "A web security tracker ASGI server";
+        nix-security-tracker-migrations = {
+          description = "Web security tracker - database migrations";
           after = [
             "network.target"
             "postgresql.service"
           ];
           requires = [ "postgresql.service" ];
           wantedBy = [ "multi-user.target" ];
-          serviceConfig = {
-            Restart = cfg.restart;
-            TimeoutStartSec = lib.mkDefault "10m";
-          };
-          preStart = ''
-            # Auto-migrate on first run or if the package has changed
+
+          serviceConfig.Type = "oneshot";
+
+          # Auto-migrate on first run or if the package has changed
+          script = ''
             versionFile="/var/lib/nix-security-tracker/package-version"
             if [[ $(cat "$versionFile" 2>/dev/null) != ${cfg.package} ]]; then
               wst-manage migrate --no-input
@@ -265,6 +265,23 @@ in
               echo ${cfg.package} > "$versionFile"
             fi
           '';
+        };
+        nix-security-tracker-server = {
+          description = "Web security tracker ASGI server";
+          after = [
+            "network.target"
+            "postgresql.service"
+            "nix-security-tracker-migrations.service"
+          ];
+          requires = [
+            "postgresql.service"
+            "nix-security-tracker-migrations.service"
+          ];
+          wantedBy = [ "multi-user.target" ];
+          serviceConfig = {
+            Restart = cfg.restart;
+            TimeoutStartSec = lib.mkDefault "10m";
+          };
           script =
             let
               networking =
@@ -283,9 +300,12 @@ in
           after = [
             "network.target"
             "postgresql.service"
-            "nix-security-tracker-server.service"
+            "nix-security-tracker-worker.service"
           ];
-          requires = [ "postgresql.service" ];
+          requires = [
+            "postgresql.service"
+            "nix-security-tracker-worker.service"
+          ];
           wantedBy = [ "multi-user.target" ];
 
           script = ''
@@ -299,14 +319,36 @@ in
           '';
         };
 
+        nix-security-tracker-caching = {
+          description = "Web security tracker - cache regeneration";
+          after = [
+            "network.target"
+            "postgresql.service"
+            "nix-security-tracker-migrations.service"
+          ];
+          requires = [
+            "postgresql.service"
+            "nix-security-tracker-migrations.service"
+          ];
+          wantedBy = [ "multi-user.target" ];
+
+          serviceConfig.Type = "oneshot";
+          script = ''
+            wst-manage regenerate_cached_suggestions
+          '';
+        };
+
         nix-security-tracker-worker = {
           description = "Web security tracker - background job processor";
           after = [
             "network.target"
             "postgresql.service"
-            "nix-security-tracker-server.service"
+            "nix-security-tracker-migrations.service"
           ];
-          requires = [ "postgresql.service" ];
+          requires = [
+            "postgresql.service"
+            "nix-security-tracker-migrations.service"
+          ];
           wantedBy = [ "multi-user.target" ];
 
           script = ''
@@ -321,14 +363,17 @@ in
         };
 
         nix-security-tracker-fetch-all-channels = {
-          description = "Web security tracker - refresh all channels and start nixpkgs evaluation";
+          description = "Web security tracker - fetch channel branches to trigger evaluation";
 
           after = [
             "network.target"
             "postgresql.service"
-            "nix-security-tracker-server.service"
+            "nix-security-tracker-worker.service"
           ];
-          requires = [ "postgresql.service" ];
+          requires = [
+            "postgresql.service"
+            "nix-security-tracker-worker.service"
+          ];
 
           serviceConfig.Type = "oneshot";
 
@@ -341,13 +386,16 @@ in
         };
 
         nix-security-tracker-delta = {
-          description = "Web security tracker catch up with CVEs";
+          description = "Web security tracker - catch up with CVEs";
           after = [
             "network.target"
             "postgresql.service"
-            "nix-security-tracker-server.service"
+            "nix-security-tracker-worker.service"
           ];
-          requires = [ "postgresql.service" ];
+          requires = [
+            "postgresql.service"
+            "nix-security-tracker-worker.service"
+          ];
           serviceConfig.Type = "oneshot";
 
           script = ''
@@ -358,6 +406,29 @@ in
 
           # Start at 03h so that the data will have been published
           startAt = "*-*-* 03:00:00";
+        };
+
+        nix-security-tracker-garbage-collection = {
+          description = "Web security tracker - garbage collection";
+          after = [
+            "network.target"
+            "postgresql.service"
+            "nix-security-tracker-migrations.service"
+          ];
+          requires = [
+            "postgresql.service"
+            "nix-security-tracker-migrations.service"
+          ];
+          wantedBy = [ "multi-user.target" ];
+
+          serviceConfig.Type = "oneshot";
+          script = ''
+            wst-manage garbage_collect
+          '';
+
+          # Weekly cleanup.
+          # The time is almost arbitrary, just keep it out of the way of ingestions and peak traffic.
+          startAt = "Fri *-*-* 20:00:00";
         };
       };
   };

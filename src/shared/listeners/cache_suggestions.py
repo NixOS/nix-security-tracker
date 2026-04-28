@@ -2,6 +2,7 @@ import itertools
 import logging
 import re
 import urllib.parse
+from collections import defaultdict
 from datetime import datetime
 from itertools import chain
 from typing import Any, overload
@@ -18,7 +19,7 @@ from shared.models.linkage import (
     CVEDerivationClusterProposal,
     MaintainerOverlay,
     PackageOverlay,
-    ReferenceOverlay,
+    ReferenceUrlOverlay,
 )
 from shared.models.nix_evaluation import get_major_channel
 
@@ -102,22 +103,25 @@ class CachedSuggestion(BaseModel):
             "CachedSuggestion.Maintainer"
         ]  # Additional maintainers (not part of original maintainers)
 
-    class CategorizedReferences(BaseModel):
-        # FIXME(@florentc): Having to redefine a pydantic model instead of
-        # using the Django model is annoying. We should find a better solution
-        # for this and the rest in CachedSuggestion (e.g. packages, maintainers).
-        class Reference(BaseModel):
-            id: int
+    class CategorizedUrlReferences(BaseModel):
+        class UrlReference(BaseModel):
+            """
+            These references are in practice the equivalence classes for references wich share the same URL.
+            One object of this model may represent several references which share one URL, and whose tags are combined.
+            """
+
             url: str
             name: str
-            tags: list[str]
+            tags: set[str]
 
-        original: list[Reference]  # References initially present at suggestion creation
-        active: list[Reference]  # Non ignored references
-        ignored: list[Reference]  # Ignored references
+        original: list[
+            UrlReference
+        ]  # References initially present at suggestion creation
+        active: list[UrlReference]  # Non ignored references
+        ignored: list[UrlReference]  # Ignored references
 
     categorized_maintainers: CategorizedMaintainers
-    categorized_references: CategorizedReferences
+    categorized_url_references: CategorizedUrlReferences
 
 
 def apply_package_overlays(
@@ -130,7 +134,7 @@ def apply_package_overlays(
     to_skip = {
         edit.package_attribute
         for edit in edits
-        if edit.edit_type == PackageOverlay.Type.IGNORED
+        if edit.overlay_type == PackageOverlay.Type.IGNORED
     }
 
     return {attr: data for attr, data in packages.items() if attr not in to_skip}
@@ -238,8 +242,8 @@ def cache_new_suggestions(suggestion: CVEDerivationClusterProposal) -> None:
         packages=packages,
         metrics=[to_dict(m) for m in prefetched_metrics],
         categorized_maintainers=categorize_maintainers(packages, maintainer_overlays),
-        categorized_references=categorize_references(
-            suggestion.references, list(suggestion.reference_overlays.all())
+        categorized_url_references=categorize_url_references(
+            suggestion.references, list(suggestion.reference_url_overlays.all())
         ),
     )
 
@@ -420,12 +424,12 @@ def maintainers_list(
     to_skip_or_seen: set[int] = {
         m.maintainer.github_id
         for m in edits
-        if m.edit_type == MaintainerOverlay.Type.IGNORED
+        if m.overlay_type == MaintainerOverlay.Type.IGNORED
     }
     to_add: list[CachedSuggestion.Maintainer] = [
         CachedSuggestion.Maintainer.model_validate(to_dict(m.maintainer))
         for m in edits
-        if m.edit_type == MaintainerOverlay.Type.ADDITIONAL
+        if m.overlay_type == MaintainerOverlay.Type.ADDITIONAL
     ]
 
     maintainers: list[CachedSuggestion.Maintainer] = list()
@@ -439,44 +443,55 @@ def maintainers_list(
     return maintainers
 
 
-def categorize_references(
+def categorize_url_references(
     references: list[Reference],
-    reference_overlay: list[ReferenceOverlay],
-) -> CachedSuggestion.CategorizedReferences:
+    reference_url_overlays: list[ReferenceUrlOverlay],
+) -> CachedSuggestion.CategorizedUrlReferences:
     """
     Categorize references associated to a suggestion.
-    Assumes the references list has no duplicates.
+    Groups references by URL and combines their tags.
     """
 
-    original_references = [
-        CachedSuggestion.CategorizedReferences.Reference(
-            id=ref.id,
-            url=ref.url,
-            name=ref.name,
-            tags=[
-                tag.value for tag in ref.tags.all()
-            ],  # Assuming tags is a many-to-many field
-        )
-        for ref in references
-    ]
+    # Group by URL and combine names and tags
+    url_dict: dict[str, dict[str, Any]] = defaultdict(
+        lambda: {"name": None, "tags": set()}
+    )
+    for ref in references:
+        # We use the common name that references share (ignoring empty names).
+        # In case of mismatch, we fallback to an empty name.
+        if url_dict[ref.url]["name"] is None:
+            url_dict[ref.url]["name"] = ref.name
+        elif ref.name and url_dict[ref.url]["name"] != ref.name:
+            url_dict[ref.url]["name"] = ""
 
-    ignored_reference_ids = {
-        edit.reference.id
-        for edit in reference_overlay
-        if edit.type == ReferenceOverlay.Type.IGNORED
+        # Tags are merged
+        url_dict[ref.url]["tags"].update(tag.value for tag in ref.tags.all())
+
+    ignored_urls = {
+        o.reference_url
+        for o in reference_url_overlays
+        if o.type == ReferenceUrlOverlay.Type.IGNORED
     }
 
-    active_references = [
-        ref for ref in original_references if ref.id not in ignored_reference_ids
-    ]
-    ignored_references = [
-        ref for ref in original_references if ref.id in ignored_reference_ids
-    ]
+    original_url_references = []
+    active_url_references = []
+    ignored_url_references = []
 
-    return CachedSuggestion.CategorizedReferences(
-        original=original_references,
-        active=active_references,
-        ignored=ignored_references,
+    for url, data in url_dict.items():
+        ref = CachedSuggestion.CategorizedUrlReferences.UrlReference(
+            url=url, name=data["name"] or "", tags=data["tags"]
+        )
+        original_url_references.append(ref)
+
+        if url in ignored_urls:
+            ignored_url_references.append(ref)
+        else:
+            active_url_references.append(ref)
+
+    return CachedSuggestion.CategorizedUrlReferences(
+        original=original_url_references,
+        active=active_url_references,
+        ignored=ignored_url_references,
     )
 
 
@@ -500,9 +515,9 @@ def categorize_maintainers(
     additional_maintainers = []
 
     for overlay in maintainer_overlays:
-        if overlay.edit_type == MaintainerOverlay.Type.IGNORED:
+        if overlay.overlay_type == MaintainerOverlay.Type.IGNORED:
             ignored_github_ids.add(overlay.maintainer.github_id)
-        elif overlay.edit_type == MaintainerOverlay.Type.ADDITIONAL:
+        elif overlay.overlay_type == MaintainerOverlay.Type.ADDITIONAL:
             additional_maintainers.append(
                 CachedSuggestion.Maintainer.model_validate(to_dict(overlay.maintainer))
             )

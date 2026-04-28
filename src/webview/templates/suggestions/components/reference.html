@@ -4,7 +4,7 @@
   {% if not data.frozen and data.user_can_edit %}
     <form class="contents"
           method="post"
-          action="{% if data.status.value == 'active' %}{% url 'webview:suggestion:ignore_reference' data.suggestion_id data.reference.id %}{% elif data.status.value == 'ignored' %}{% url 'webview:suggestion:restore_reference' data.suggestion_id data.reference.id %}{% endif %}"
+          action="{% if data.status.value == 'active' %}{% url 'webview:suggestion:ignore_reference' data.suggestion_id %}{% elif data.status.value == 'ignored' %}{% url 'webview:suggestion:restore_reference' data.suggestion_id %}{% endif %}"
           hx-boost="true"
           hx-target="#suggestion-{{ data.suggestion_id }}"
           hx-swap="outerHTML show:none"
@@ -15,6 +15,7 @@
       <input type="hidden"
              name="is_compact"
              value="{% if data.is_compact %}true{% else %}false{% endif %}">
+      <input type="hidden" name="reference_url" value="{{ data.reference.url }}">
       <button type="submit"
               class="btn {% if data.status.value == 'active' %}btn-gray{% else %}btn-green{% endif %} row gap-small centered">
         {% if data.status.value == 'active' %}

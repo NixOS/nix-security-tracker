@@ -77,12 +77,12 @@ urlpatterns = [
     ),
     # Reference operations
     path(
-        "by-id/<int:suggestion_id>/reference/ignore/<int:reference_id>/",
+        "by-id/<int:suggestion_id>/reference/ignore/",
         IgnoreReferenceView.as_view(),
         name="ignore_reference",
     ),
     path(
-        "by-id/<int:suggestion_id>/reference/restore/<int:reference_id>/",
+        "by-id/<int:suggestion_id>/reference/restore/",
         RestoreReferenceView.as_view(),
         name="restore_reference",
     ),

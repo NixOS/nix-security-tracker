@@ -1,4 +1,5 @@
 import logging
+import time
 from argparse import ArgumentParser
 from typing import Any
 
@@ -47,9 +48,14 @@ class Command(BaseCommand):
             )
 
         count = 0
+        start = time.time()
         # FIXME(@fricklerhandwerk): Do this chunk-wise in bulk.
         for suggestion in proposals:
             cache_new_suggestions(suggestion)
             count += 1
+        # FIXME(@fricklerhandwerk): Do structured logging for actual metrics so we can keep track of how we're doing.
+        duration = (time.time() - start,)
 
-        self.stdout.write(f"Regenerated {count} {label} cached suggestion(s).")
+        self.stdout.write(
+            f"Regenerated {count} {label} cached suggestions in {duration} seconds."
+        )

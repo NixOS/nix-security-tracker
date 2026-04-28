@@ -6,6 +6,7 @@ from pydantic import BaseModel
 
 from shared.logs.events import (
     Maintainer,
+    RawCreationEvent,
     RawEventType,
     RawMaintainerEvent,
     RawPackageEvent,
@@ -21,7 +22,14 @@ class FoldedEvent(BaseModel, ABC):
 
     suggestion_id: int
     timestamp: datetime  # Timestamp of the most recent event of the collection
-    username: str
+    username: str | None
+
+
+class FoldedCreationEvent(FoldedEvent):
+    """A folded creation event (always singular)."""
+
+    action: Literal["create"]
+    rejection_reason: str | None
 
 
 class FoldedStatusEvent(FoldedEvent):
@@ -58,7 +66,8 @@ class FoldedReferenceEvent(FoldedEvent):
 
 
 FoldedEventType = (
-    FoldedStatusEvent
+    FoldedCreationEvent
+    | FoldedStatusEvent
     | FoldedPackageEvent
     | FoldedMaintainerEvent
     | FoldedReferenceEvent
@@ -150,6 +159,17 @@ def batch_events(
                 folded_events.append(accumulator)
                 accumulator = None
 
+            # Add creation or status event (always singular)
+            if isinstance(event, RawCreationEvent):
+                folded_events.append(
+                    FoldedCreationEvent(
+                        suggestion_id=event.suggestion_id,
+                        timestamp=event.timestamp,
+                        username=event.username,
+                        action=event.action,
+                        rejection_reason=event.rejection_reason,
+                    )
+                )
             # Add status event (always singular)
             if isinstance(event, RawStatusEvent):
                 folded_events.append(

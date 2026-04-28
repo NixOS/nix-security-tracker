@@ -84,7 +84,7 @@ class ReferenceContext:
     # FIXME(@florentc): It'd be better to use the real `Reference` model but we
     # can't use it directly in cached suggestions (pydantic model). Cached
     # suggestions are the source of info to build these contexts.
-    reference: CachedSuggestion.CategorizedReferences.Reference
+    reference: CachedSuggestion.CategorizedUrlReferences.UrlReference
     status: ReferenceStatus
     frozen: bool
     is_compact: bool
@@ -227,8 +227,8 @@ class SuggestionContext:
         user_can_edit: bool,
         is_compact: bool,
     ) -> None:
-        categorized_references = self.suggestion.cached.payload[
-            "categorized_references"
+        categorized_url_references = self.suggestion.cached.payload[
+            "categorized_url_references"
         ]
         frozen = self.suggestion.is_frozen
 
@@ -241,7 +241,7 @@ class SuggestionContext:
                 suggestion_id=self.suggestion.pk,
                 is_compact=is_compact,
             )
-            for reference in categorized_references["active"]
+            for reference in categorized_url_references["active"]
         ]
 
         ignored_contexts = [
@@ -253,7 +253,7 @@ class SuggestionContext:
                 suggestion_id=self.suggestion.pk,
                 is_compact=is_compact,
             )
-            for reference in categorized_references["ignored"]
+            for reference in categorized_url_references["ignored"]
         ]
 
         self.reference_list_context = ReferenceListContext(

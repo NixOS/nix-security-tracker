@@ -13,7 +13,7 @@ class NixpkgsIssueViewSet(viewsets.ReadOnlyModelViewSet):
     class Filter(filters.FilterSet):
         cve = StringInFilter(
             label="Filter by CVEs referenced",
-            field_name="cve__cve_id",
+            field_name="suggestion__cve__cve_id",
             lookup_expr="in",
         )
 
@@ -25,8 +25,8 @@ class NixpkgsIssueViewSet(viewsets.ReadOnlyModelViewSet):
         status = serializers.CharField(source="get_status_display")
         cve = serializers.SerializerMethodField()
 
-        def get_cve(self, obj: NixpkgsIssue) -> list[str]:
-            return [cve.cve_id for cve in obj.cve.iterator()]
+        def get_cve(self, obj: NixpkgsIssue) -> str:
+            return obj.suggestion.cve.cve_id
 
         class Meta:
             model = NixpkgsIssue
@@ -35,5 +35,7 @@ class NixpkgsIssueViewSet(viewsets.ReadOnlyModelViewSet):
     filterset_class = Filter
 
     permission_classes = [AllowAny]
-    queryset = NixpkgsIssue.objects.all()
+    queryset = NixpkgsIssue.objects.select_related(
+        "suggestion__cve",
+    ).all()
     serializer_class = Serializer
