@@ -54,11 +54,11 @@ class SuggestionListView(ListView, ABC):
             query_filters &= Q(status=self.status_filter)
         if self.package_filter is not None:
             query_filters &= Q(cached__payload__packages__has_key=self.package_filter)
+
+        qs = CVEDerivationClusterProposal.objects.target_proposals()
+
         return (
-            CVEDerivationClusterProposal.objects.active()
-            .select_related(
-                "cached",
-            )
+            qs.select_related("cached")
             .prefetch_related("cve__container__references__tags")
             .filter(query_filters)
             .order_by("-updated_at", "-created_at")

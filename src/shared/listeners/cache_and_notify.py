@@ -15,7 +15,7 @@ def cache_new_suggestions_following_new_container(
     old: CVEDerivationClusterProposal, new: CVEDerivationClusterProposal
 ) -> None:
     logger.info(f"Cache and notify for suggestion {new.pk}")
-    # let generate cache suggestion for only current algorithm
+    # Generate cached value suggestion for only current algorithm
     if new.is_active_algorithm_match:
         cache_new_suggestions(new)
         try:

@@ -6,13 +6,13 @@ from django.db import migrations, models
 class Migration(migrations.Migration):
 
     dependencies = [
-        ('shared', '0083_remove_cvederivationclusterproposal_pgpubsub_07e32_and_more'),
+        ('shared', '0086_remove_metric_attack_complexity_and_more'),
     ]
 
     operations = [
         migrations.AddField(
             model_name='cvederivationclusterproposal',
             name='algorithm_version',
-            field=models.IntegerField(default=1, help_text='Version of the matching algorithm that generated this proposal'),
+            field=models.IntegerField(default=0, help_text='Version of the matching algorithm that generated this proposal'),
         ),
     ]

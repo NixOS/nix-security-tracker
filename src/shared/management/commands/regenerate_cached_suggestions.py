@@ -29,7 +29,7 @@ class Command(BaseCommand):
             deleted_count, _ = CachedSuggestions.objects.all().delete()
             self.stdout.write(f"Purged {deleted_count} cached suggestion(s).")
             proposals = (
-                CVEDerivationClusterProposal.objects.active()
+                CVEDerivationClusterProposal.objects.target_proposals()
                 .order_by("-updated_at")
                 .iterator()
             )
@@ -39,7 +39,7 @@ class Command(BaseCommand):
             num_stale = stale.count()
 
             proposals = (
-                CVEDerivationClusterProposal.objects.active()
+                CVEDerivationClusterProposal.objects.target_proposals()
                 .filter(
                     Q(pk__in=stale.values("proposal_id"))
                     | ~Exists(
