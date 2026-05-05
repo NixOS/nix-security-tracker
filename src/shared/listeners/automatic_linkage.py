@@ -1,3 +1,12 @@
+# ============================================================================
+# ⚠️ IMPORTANT: MATCHING ALGORITHM VERSIONING
+#
+# When modifying this module, you MUST bump
+# CVEDerivationClusterProposal.CURRENT_ALGORITHM_VERSION.
+#
+# Otherwise algorithm_version for matched proposal may become inconsistent.
+# ============================================================================
+
 import logging
 
 import pgpubsub
@@ -123,7 +132,10 @@ def build_new_links(container: Container) -> bool:
         )
         return False
 
-    if CVEDerivationClusterProposal.objects.filter(cve=container.cve).exists():
+    if CVEDerivationClusterProposal.objects.filter(
+        cve=container.cve,
+        algorithm_version=CVEDerivationClusterProposal.CURRENT_ALGORITHM_VERSION,
+    ).exists():
         logger.info("Suggestion already exists for '%s', skipping", container.cve)
         return False
 
@@ -136,6 +148,7 @@ def build_new_links(container: Container) -> bool:
             cve=container.cve,
             status=CVEDerivationClusterProposal.Status.REJECTED,
             rejection_reason=CVEDerivationClusterProposal.RejectionReason.EXCLUSIVELY_HOSTED_SERVICE,
+            algorithm_version=CVEDerivationClusterProposal.CURRENT_ALGORITHM_VERSION,
         )
         return True
 
@@ -159,6 +172,7 @@ def build_new_links(container: Container) -> bool:
             cve=container.cve,
             status=CVEDerivationClusterProposal.Status.REJECTED,
             rejection_reason=CVEDerivationClusterProposal.RejectionReason.HARDWARE_ONLY_CPE,
+            algorithm_version=CVEDerivationClusterProposal.CURRENT_ALGORITHM_VERSION,
         )
         return True
 
@@ -175,7 +189,10 @@ def build_new_links(container: Container) -> bool:
         )
         return False
 
-    proposal = CVEDerivationClusterProposal.objects.create(cve=container.cve)
+    proposal = CVEDerivationClusterProposal.objects.create(
+        cve=container.cve,
+        algorithm_version=CVEDerivationClusterProposal.CURRENT_ALGORITHM_VERSION,
+    )
 
     drvs_throughs = [
         CVEDerivationClusterProposal.derivations.through(

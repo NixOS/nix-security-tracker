@@ -55,7 +55,8 @@ class SuggestionListView(ListView, ABC):
         if self.package_filter is not None:
             query_filters &= Q(cached__payload__packages__has_key=self.package_filter)
         return (
-            CVEDerivationClusterProposal.objects.select_related(
+            CVEDerivationClusterProposal.objects.active()
+            .select_related(
                 "cached",
             )
             .prefetch_related("cve__container__references__tags")

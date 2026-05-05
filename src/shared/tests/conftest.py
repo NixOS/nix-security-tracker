@@ -287,11 +287,15 @@ def make_suggestion(
         status: CVEDerivationClusterProposal.Status = CVEDerivationClusterProposal.Status.PENDING,
         rejection_reason: CVEDerivationClusterProposal.RejectionReason | None = None,
         age: timedelta = timedelta(0),
+        algorithm_version: int | None = None,
     ) -> CVEDerivationClusterProposal:
         suggestion = CVEDerivationClusterProposal.objects.create(
             status=status,
             rejection_reason=rejection_reason,
             cve=container.cve,
+            algorithm_version=algorithm_version
+            if algorithm_version is not None
+            else CVEDerivationClusterProposal.CURRENT_ALGORITHM_VERSION,
         )
 
         if age > timedelta(0):

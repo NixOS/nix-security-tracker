@@ -15,10 +15,12 @@ def cache_new_suggestions_following_new_container(
     old: CVEDerivationClusterProposal, new: CVEDerivationClusterProposal
 ) -> None:
     logger.info(f"Cache and notify for suggestion {new.pk}")
-    cache_new_suggestions(new)
-    try:
-        create_package_subscription_notifications(new)
-    except Exception as e:
-        logger.error(
-            f"Failed to create package subscription notifications for suggestion {new.pk}: {e}"
-        )
+    # let generate cache suggestion for only current algorithm
+    if new.is_active_algorithm_match:
+        cache_new_suggestions(new)
+        try:
+            create_package_subscription_notifications(new)
+        except Exception as e:
+            logger.error(
+                f"Failed to create package subscription notifications for suggestion {new.pk}: {e}"
+            )

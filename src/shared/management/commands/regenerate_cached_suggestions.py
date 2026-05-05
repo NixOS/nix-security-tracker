@@ -28,18 +28,26 @@ class Command(BaseCommand):
             label = "all"
             deleted_count, _ = CachedSuggestions.objects.all().delete()
             self.stdout.write(f"Purged {deleted_count} cached suggestion(s).")
-            proposals = CVEDerivationClusterProposal.objects.order_by(
-                "-updated_at"
-            ).iterator()
+            proposals = (
+                CVEDerivationClusterProposal.objects.active()
+                .order_by("-updated_at")
+                .iterator()
+            )
         else:
             label = "stale/missing"
             stale = CachedSuggestions.objects.stale()
             num_stale = stale.count()
 
-            proposals = CVEDerivationClusterProposal.objects.filter(
-                Q(pk__in=stale.values("proposal_id"))
-                | ~Exists(CachedSuggestions.objects.filter(proposal_id=OuterRef("pk")))
-            ).order_by("-updated_at")
+            proposals = (
+                CVEDerivationClusterProposal.objects.active()
+                .filter(
+                    Q(pk__in=stale.values("proposal_id"))
+                    | ~Exists(
+                        CachedSuggestions.objects.filter(proposal_id=OuterRef("pk"))
+                    )
+                )
+                .order_by("-updated_at")
+            )
             num_total = proposals.count()
             num_missing = num_total - num_stale
             self.stdout.write(
