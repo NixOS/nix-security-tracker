@@ -1,6 +1,7 @@
 import re
 from collections.abc import Callable
 
+import pytest
 from django.contrib.auth.models import User
 from django.urls import reverse
 from playwright.sync_api import Page, expect
@@ -243,6 +244,7 @@ def test_maintainer_notification_many_packages_in_suggestion(
     assert notification.user == user
 
 
+@pytest.mark.xfail(reason="Not implemented")
 def test_email_notifications(
     live_server: LiveServer,
     staff: User,

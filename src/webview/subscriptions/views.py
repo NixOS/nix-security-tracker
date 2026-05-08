@@ -230,6 +230,9 @@ class SetNotificationEmailView(LoginRequiredMixin, TemplateView):
     template_name = "subscriptions/components/email_setter.html"
 
     def post(self, request: HttpRequest) -> HttpResponse:
+        # FIXME(@fricklerhandwerk): Verify ownership first.
+        return self._handle_error(request, "Setting email not implemented")
+
         email = request.POST.get("email", "")
 
         profile = request.user.profile

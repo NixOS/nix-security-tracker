@@ -55,8 +55,8 @@ def create_gh_issue(
 
     def cvss_details() -> str:
         badge = severity_badge(cached_suggestion.payload["metrics"])
-        metric = badge["cvss"]
         if badge:
+            metric = badge["cvss"]
             metrics = "\n".join(
                 [f"- {k}: {v}" for k, v in badge["human_readable"].items()]
             )
