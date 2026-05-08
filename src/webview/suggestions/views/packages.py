@@ -3,7 +3,7 @@ from abc import ABC, abstractmethod
 from django.db import transaction
 from django.http import HttpRequest, HttpResponse
 
-from shared.listeners.cache_suggestions import (
+from shared.cache_suggestions import (
     CachedSuggestion,
     apply_package_overlays,
     categorize_maintainers,

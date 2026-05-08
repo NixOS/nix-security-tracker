@@ -55,21 +55,19 @@ def create_gh_issue(
 
     def cvss_details() -> str:
         badge = severity_badge(cached_suggestion.payload["metrics"])
-        metric = badge.get("metric")
-        if metric:
-            metrics = "\n".join([f"- {k}: {v}" for k, v in metric["metrics"].items()])
-            score = metric.get("baseScore")
-            severity = metric.get("baseSeverity", "")
+        metric = badge["cvss"]
+        if badge:
+            metrics = "\n".join(
+                [f"- {k}: {v}" for k, v in badge["human_readable"].items()]
+            )
             score_label = (
-                f"<strong>{score:.1f} {severity}</strong> | "
-                if score is not None
-                else ""
+                f"<strong>{metric['base_score']:.1f} {metric['base_severity']}</strong>"
             )
             return f"""
 <details>
-<summary>{score_label}{metric["vectorString"]}</summary>
+<summary>{score_label} | {metric["vector_string"]}</summary>
 
-- CVSS version: {metric["version"]}
+- CVSS version (CVSS): {metric["version"]}
 {metrics}
 </details>"""
         else:

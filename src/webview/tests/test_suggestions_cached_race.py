@@ -2,7 +2,7 @@ from django.urls import reverse
 from playwright.sync_api import Page, expect
 from pytest_django.live_server_helper import LiveServer
 
-from shared.listeners.cache_suggestions import cache_new_suggestions
+from shared.cache_suggestions import cache_new_suggestions
 from shared.models.linkage import (
     CVEDerivationClusterProposal,
 )

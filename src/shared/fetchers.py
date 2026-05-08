@@ -96,37 +96,26 @@ def to_camel_case(name: str) -> str:
     return "".join([s[0].lower(), s[1:]])
 
 
-def make_metric(data: dict[str, Any]) -> models.Metric:
-    ctx: dict[str, Any] = dict()
-    ctx["format"] = "cvssV3_1"
-    raw_cvss = data.get("cvssV3_1", {})
-    ctx["raw_cvss_json"] = raw_cvss
+def make_metrics(data: list[dict[str, Any]]) -> list[models.Metric]:
+    metrics = []
+    for item in data:
+        metric = make_metric(item)
+        if metric is not None:
+            metrics.append(metric)
+    return metrics
 
-    if raw_cvss:
-        ctx["scope"] = raw_cvss.get("scope")
-        ctx["vector_string"] = raw_cvss.get("vectorString")
-        ctx["base_score"] = float(raw_cvss.get("baseScore"))
 
-        vector_fields = (
-            "attack_complexity",
-            "attack_vector",
-            "availability_impact",
-            "confidentiality_impact",
-            "integrity_impact",
-            "privileges_required",
-            "user_interaction",
-        )
+def make_metric(data: dict[str, Any]) -> models.Metric | None:
+    for fmt in models.Metric.Format.values:
+        if fmt in data:
+            raw_cvss = data[fmt]
+            return models.Metric.objects.create(
+                format=fmt,
+                vector_string=raw_cvss.get("vectorString", ""),
+                # We throw away everything else, it can be recovered from the above.
+            )
 
-        for field in vector_fields:
-            ctx[field] = raw_cvss.get(to_camel_case(field))
-
-        # TODO: Parse vector string into the various elements
-        # and verify conformance with the "parsed" fields for us.
-
-    obj = models.Metric.objects.create(**ctx)
-    obj.scenarios.set(map(make_description, data.get("scenarios", [])))
-
-    return obj
+    return None
 
 
 def make_event(data: dict[str, Any]) -> models.Event:
@@ -263,7 +252,7 @@ def make_container(
     ]
     obj.problem_types.set(map(make_problem_type, problems))
     obj.references.set(map(make_reference, data.get("references", [])))
-    obj.metrics.set(map(make_metric, data.get("metrics", [])))
+    obj.metrics.set(make_metrics(data.get("metrics", [])))
     obj.configurations.set(map(make_description, data.get("configurations", [])))
     obj.workarounds.set(map(make_description, data.get("workarounds", [])))
     obj.solutions.set(map(make_description, data.get("solutions", [])))

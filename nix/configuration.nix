@@ -357,8 +357,7 @@ in
                 shared.channels.NixChannelInsertChannel \
                 shared.channels.NixChannelUpdateChannel \
                 shared.channels.ContainerChannel \
-                shared.channels.CVEDerivationClusterProposalCacheChannel \
-                shared.channels.CVEDerivationClusterProposalNotificationChannel \
+                shared.channels.CVEDerivationClusterProposalChannel \
           '';
         };
 

@@ -181,6 +181,92 @@ class ToggleAutoSubscribeView(LoginRequiredMixin, TemplateView):
             return redirect(reverse("webview:subscriptions:center"))
 
 
+class ToggleReceiveEmailNotificationsView(LoginRequiredMixin, TemplateView):
+    """Toggle receiving emails for new notifications."""
+
+    template_name = "subscriptions/components/email_notifications_toggler.html"
+
+    def post(self, request: HttpRequest) -> HttpResponse:
+        """Toggle auto-subscription setting."""
+        action = request.POST.get("action", "")
+
+        if action not in ["enable", "disable"]:
+            return self._handle_error(request, "Invalid action.")
+
+        profile = request.user.profile
+
+        profile.receive_email_notifications = action == "enable"
+
+        profile.save(update_fields=["receive_email_notifications"])
+
+        # Handle HTMX vs standard request
+        if request.headers.get("HX-Request"):
+            return self.render_to_response(
+                {
+                    "enabled": profile.receive_email_notifications,
+                }
+            )
+        else:
+            return redirect(reverse("webview:subscriptions:center"))
+
+    def _handle_error(self, request: HttpRequest, error_message: str) -> HttpResponse:
+        """Handle error responses for both HTMX and standard requests."""
+        if request.headers.get("HX-Request"):
+            return self.render_to_response(
+                {
+                    "auto_subscribe_enabled": request.user.profile.receive_email_notifications,
+                    "error_message": error_message,
+                }
+            )
+        else:
+            # Without javascript, we use Django messages for the errors
+            messages.error(request, error_message)
+            return redirect(reverse("webview:subscriptions:center"))
+
+
+class SetNotificationEmailView(LoginRequiredMixin, TemplateView):
+    """Set email used for notifications"""
+
+    template_name = "subscriptions/components/email_setter.html"
+
+    def post(self, request: HttpRequest) -> HttpResponse:
+        email = request.POST.get("email", "")
+
+        profile = request.user.profile
+        profile.notification_email = email
+        profile.save(update_fields=["notification_email"])
+
+        # Handle HTMX vs standard request
+        if request.headers.get("HX-Request"):
+            return self.render_to_response(
+                {
+                    "notification_email": profile.notification_email,
+                    "maintainer_email": request.user.profile.maintainer.email
+                    if request.user.profile.maintainer
+                    else None,
+                }
+            )
+        else:
+            return redirect(reverse("webview:subscriptions:center"))
+
+    def _handle_error(self, request: HttpRequest, error_message: str) -> HttpResponse:
+        """Handle error responses for both HTMX and standard requests."""
+        if request.headers.get("HX-Request"):
+            return self.render_to_response(
+                {
+                    "notification_email": request.user.profile.notification_email,
+                    "maintainer_email": request.user.profile.maintainer.email
+                    if request.user.profile.maintainer
+                    else None,
+                    "error_message": error_message,
+                }
+            )
+        else:
+            # Without javascript, we use Django messages for the errors
+            messages.error(request, error_message)
+            return redirect(reverse("webview:subscriptions:center"))
+
+
 class PackageSubscriptionView(LoginRequiredMixin, TemplateView):
     """Display a package subscription page for a specific package."""
 

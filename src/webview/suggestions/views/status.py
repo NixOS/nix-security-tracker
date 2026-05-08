@@ -77,6 +77,7 @@ class UpdateSuggestionStatusView(SuggestionBaseView):
         undo_status_target = suggestion.status
         # We keep track of the previous potential rejection_reason to be able to restore it during an undo
         undo_rejection_reason = suggestion.rejection_reason
+        # FIXME(@fricklerhandwerk): Use `suggestion.change_status()`
         if new_status == "rejected":
             if not rejection_reason:
                 # Without a rejection reason, we require a comment

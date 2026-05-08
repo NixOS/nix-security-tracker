@@ -5,13 +5,14 @@ from django.contrib.auth.models import User
 from django.urls import reverse
 from playwright.sync_api import Page, expect
 from pytest_django.live_server_helper import LiveServer
+from pytest_mock import MockerFixture
 
-from shared.listeners.notify_users import create_package_subscription_notifications
 from shared.models.linkage import CVEDerivationClusterProposal, ProvenanceFlags
 from shared.models.nix_evaluation import (
     NixDerivation,
     NixMaintainer,
 )
+from shared.notify_users import create_package_subscription_notifications
 from webview.models import Notification
 
 
@@ -240,3 +241,62 @@ def test_maintainer_notification_many_packages_in_suggestion(
     notification = Notification.objects.first()
     assert notification
     assert notification.user == user
+
+
+def test_email_notifications(
+    live_server: LiveServer,
+    staff: User,
+    as_staff: Page,
+    make_maintainer_notification: Callable[..., list[Notification]],
+    mocker: MockerFixture,
+) -> None:
+    """
+    Check that email notifications are sent according to personal user settings
+    """
+    email_address = "alice@company.com"
+    as_staff.goto(live_server.url + reverse("webview:subscriptions:center"))
+    email_settings = as_staff.locator("#email-notifications")
+    # By default, it's supposed to be turned off
+    expect(
+        email_settings.get_by_text(
+            "You won't receive any emails for new notifications."
+        )
+    ).to_be_visible()
+    expect(email_settings.get_by_text("No notification email set")).to_be_visible()
+    # Set a notification email address
+    email_settings.get_by_placeholder("Notification email").fill(email_address)
+    email_settings.get_by_role("button", name="Set email").click()
+    expect(email_settings.get_by_text("Current notification email:")).to_be_visible()
+    expect(email_settings.get_by_text(email_address)).to_be_visible()
+    # Ensure maintainers notifications are enabled
+    expect(
+        as_staff.locator("#maintainer-auto-subscription").get_by_text(
+            "You will automatically receive notifications about packages you maintain."
+        )
+    ).to_be_visible()
+    # Generate notification and check that the user is not notified
+    mock_send_mail = mocker.patch("shared.notify_users.send_mail")
+    make_maintainer_notification(staff)
+    mock_send_mail.assert_not_called()
+    # Enable email notifications
+    email_settings.get_by_role("button", name="Enable").click()
+    email_settings.get_by_text(
+        "You will automatically receive emails for new notifications."
+    ).wait_for()
+    # Send a notification
+    mock_send_mail = mocker.patch("shared.notify_users.send_mail")
+    # Check email emission and content
+    [notification] = make_maintainer_notification(staff)
+    [package_name] = notification.suggestion.cached.payload.get("packages").keys()
+    mock_send_mail.assert_called_once()
+    recipient_list = mock_send_mail.call_args[1]["recipient_list"]
+    message = mock_send_mail.call_args[1]["message"]
+    assert recipient_list == [email_address]
+    assert f"Packages you maintain that may be affected:\n  - {package_name}" in message
+    assert (
+        reverse(
+            "webview:suggestion:detail",
+            kwargs={"suggestion_id": notification.suggestion.pk},
+        )
+        in message
+    )

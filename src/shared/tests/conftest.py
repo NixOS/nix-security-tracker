@@ -10,8 +10,8 @@ from django.conf import settings
 from django.contrib.auth.models import Group, User
 from django.utils import timezone
 
-from shared.listeners.cache_suggestions import cache_new_suggestions
-from shared.listeners.notify_users import create_package_subscription_notifications
+from shared.cache_suggestions import cache_new_suggestions
+from shared.fetchers import make_metrics
 from shared.models.cve import (
     AffectedProduct,
     Container,
@@ -37,11 +37,40 @@ from shared.models.nix_evaluation import (
     NixEvaluation,
     NixMaintainer,
 )
+from shared.notify_users import create_package_subscription_notifications
 from webview.models import SuggestionNotification as Notification
 
 
 @pytest.fixture
-def make_container(db: None) -> Callable[..., Container]:
+def cvss_v3_metric() -> dict:
+    return {
+        "cvssV3_0": {
+            "version": "3.0",
+            "vectorString": "CVSS:3.0/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:H",
+            "baseScore": 9.8,
+            "baseSeverity": "CRITICAL",
+        }
+    }
+
+
+@pytest.fixture
+def cvss_v4_metric() -> dict:
+    return {
+        "cvssV4_0": {
+            "version": "4.0",
+            "vectorString": "CVSS:4.0/AV:N/AC:L/AT:N/PR:N/UI:N/VC:H/VI:H/VA:H/SC:N/SI:N/SA:N",
+            "baseScore": 9.3,
+            "baseSeverity": "CRITICAL",
+        },
+    }
+
+
+@pytest.fixture
+def make_container(
+    db: None,
+    cvss_v3_metric: dict,
+    cvss_v4_metric: dict,
+) -> Callable[..., Container]:
     def wrapped(
         cve_id: str = "CVE-2025-0001",
         title: str = "Dummy Title",
@@ -51,6 +80,7 @@ def make_container(db: None) -> Callable[..., Container]:
         product: str | None = "bar",
         references: list[tuple[str, str, list[str]]] = [],
         cpes: list[str] = [],
+        metrics: list[Metric] = make_metrics([cvss_v3_metric, cvss_v4_metric]),
     ) -> Container:
         org, _created = Organization.objects.get_or_create(
             uuid=1, short_name="test-org"
@@ -59,7 +89,6 @@ def make_container(db: None) -> Callable[..., Container]:
             cve_id=cve_id,
             assigner=org,
         )
-        metric = Metric.objects.create(format="cvssV3_1", raw_cvss_json={})
         version = Version.objects.create(
             status=Version.Status.AFFECTED, version=affected_version
         )
@@ -89,7 +118,7 @@ def make_container(db: None) -> Callable[..., Container]:
         if description is not None:
             desc = Description.objects.create(value=description)
             container.descriptions.add(desc)
-        container.metrics.add(metric)
+        container.metrics.set(metrics)
 
         return container
 
@@ -258,11 +287,15 @@ def make_suggestion(
         status: CVEDerivationClusterProposal.Status = CVEDerivationClusterProposal.Status.PENDING,
         rejection_reason: CVEDerivationClusterProposal.RejectionReason | None = None,
         age: timedelta = timedelta(0),
+        algorithm_version: int | None = None,
     ) -> CVEDerivationClusterProposal:
         suggestion = CVEDerivationClusterProposal.objects.create(
             status=status,
             rejection_reason=rejection_reason,
             cve=container.cve,
+            algorithm_version=algorithm_version
+            if algorithm_version is not None
+            else CVEDerivationClusterProposal.CURRENT_ALGORITHM_VERSION,
         )
 
         if age > timedelta(0):

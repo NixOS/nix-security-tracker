@@ -4,8 +4,8 @@ from django.contrib import messages
 from django.db import transaction
 from django.http import HttpRequest, HttpResponse
 
+from shared.cache_suggestions import to_dict
 from shared.github import fetch_user_info
-from shared.listeners.cache_suggestions import to_dict
 from shared.models.linkage import (
     CVEDerivationClusterProposal,
     MaintainerOverlay,

@@ -39,5 +39,5 @@ This contribution to critical IT infrastructure would not be possible without th
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="./docs/supporters/SovereignTechAgency-white.svg">
   <source media="(prefers-color-scheme: light)" srcset="./docs/supporters/SovereignTechAgency-black.svg">
-  <img alt="Sovereign Tech Agency" style="width: 10rem;" src="/docs/supporters/SovereignTechAgency-black.svg">
+  <img alt="Sovereign Tech Agency" style="width: 10rem;" src="./docs/supporters/SovereignTechAgency-black.svg">
 </picture>

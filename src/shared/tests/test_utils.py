@@ -1,6 +1,6 @@
 import pytest
 
-from shared.listeners.cache_suggestions import parse_drv_name
+from shared.cache_suggestions import parse_drv_name
 
 
 @pytest.mark.parametrize(

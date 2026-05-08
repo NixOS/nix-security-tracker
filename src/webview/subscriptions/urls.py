@@ -4,8 +4,10 @@ from .views import (
     AddSubscriptionView,
     PackageSubscriptionView,
     RemoveSubscriptionView,
+    SetNotificationEmailView,
     SubscriptionCenterView,
     ToggleAutoSubscribeView,
+    ToggleReceiveEmailNotificationsView,
 )
 
 app_name = "subscriptions"
@@ -18,6 +20,16 @@ urlpatterns = [
         "toggle-auto-subscribe/",
         ToggleAutoSubscribeView.as_view(),
         name="toggle_auto_subscribe",
+    ),
+    path(
+        "toggle-receive-email-notifications/",
+        ToggleReceiveEmailNotificationsView.as_view(),
+        name="toggle_receive_email_notifications",
+    ),
+    path(
+        "set-email/",
+        SetNotificationEmailView.as_view(),
+        name="set_email",
     ),
     path(
         "package/<str:package_name>/", PackageSubscriptionView.as_view(), name="package"

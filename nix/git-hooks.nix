@@ -80,6 +80,7 @@ rec {
       lychee = {
         enable = true;
         name = "lychee";
+        extraPackages = [ pkgs.cacert ];
         entry = "${pkgs.lib.getExe pkgs.lychee} --offline --no-progress";
         files = "\\.md$";
         excludes = [ "\\.html$" ];

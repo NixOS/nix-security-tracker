@@ -1,7 +1,7 @@
 from collections.abc import Callable
 from datetime import timedelta
 
-from shared.listeners.cache_suggestions import cache_new_suggestions
+from shared.cache_suggestions import cache_new_suggestions
 from shared.models.cached import CachedSuggestions
 from shared.models.cve import Container
 from shared.models.linkage import (

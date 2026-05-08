@@ -1,0 +1,26 @@
+{% load viewutils %}
+
+<div class="email-notifications-toggler toggler {% if enabled %}toggler-on{% else %}toggler-off{% endif %}">
+  <div class="grow">
+    {% if enabled %}
+      You will automatically receive emails for new notifications.
+    {% else %}
+      You won't receive any emails for new notifications.
+    {% endif %}
+  </div>
+  <form method="post"
+        action="{% url 'webview:subscriptions:toggle_receive_email_notifications' %}"
+        hx-post="{% url 'webview:subscriptions:toggle_receive_email_notifications' %}"
+        hx-target="closest .email-notifications-toggler"
+        hx-swap="outerHTML"
+        hx-indicator="find button">
+    {% csrf_token %}
+    {% if enabled %}
+      <input type="hidden" name="action" value="disable">
+      <button class="btn btn-gray" type="submit">Disable</button>
+    {% else %}
+      <input type="hidden" name="action" value="enable">
+      <button class="btn btn-green" type="submit">Enable</button>
+    {% endif %}
+  </form>
+</div>

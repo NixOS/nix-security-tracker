@@ -64,8 +64,8 @@ class TestIngestBulkCve:
         with patch(
             "shared.management.commands.ingest_bulk_cve.json.load"
         ) as mock_json_load:
-            mock_json_load.side_effect = (
-                lambda f: cve_data[f.name]
+            mock_json_load.side_effect = lambda f: (
+                cve_data[f.name]
                 if hasattr(f, "name")
                 else cve_data[list(cve_data.keys())[0]]
             )

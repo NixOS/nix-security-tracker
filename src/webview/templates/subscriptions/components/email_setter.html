@@ -1,0 +1,60 @@
+{% load viewutils %}
+
+<div class="email-setter column gap">
+  <div>
+    {% if notification_email %}
+      Current notification email: <span class="bold">{{ notification_email }}
+    {% elif maintainer_email %}
+      Current notification email: Nixpkgs maintainer email <span class="bold">{{ maintainer_email }}</span>
+    {% else %}
+      No notification email set
+    {% endif %}
+  </div>
+  <div class="row gap-small centered">
+    <form method="post"
+          action="{% url 'webview:subscriptions:set_email' %}"
+          hx-post="{% url 'webview:subscriptions:set_email' %}"
+          hx-target="closest .email-setter"
+          hx-swap="outerHTML"
+          hx-indicator="find button"
+          class="row">
+      <div class="row join join-green">
+        <input type="email"
+               name="email"
+               placeholder="Notification email"
+               required
+               class="rounded-box-compact join-item">
+        {% csrf_token %}
+        <button type="submit" class="btn btn-green join-item">
+          {% if notification_email %}
+            Change email
+          {% else %}
+            Set email
+          {% endif %}
+        </button>
+      </div>
+    </form>
+    {% if notification_email %}
+      <form method="post"
+            action="{% url 'webview:subscriptions:set_email' %}"
+            hx-post="{% url 'webview:subscriptions:set_email' %}"
+            hx-target="closest .email-setter"
+            hx-swap="outerHTML"
+            hx-indicator="find button"
+            class="row">
+        <input type="hidden" name="email" value="">
+      </input>
+      {% csrf_token %}
+      <button type="submit" class="btn btn-gray">
+        {% if maintainer_email %}
+          Use Nixpkgs maintainer email
+        {% else %}
+          Clear email
+        {% endif %}
+      </button>
+    </div>
+  </form>
+{% endif %}
+</div>
+{% if error_message %}<div class="error-block">{{ error_message }}</div>{% endif %}
+</div>

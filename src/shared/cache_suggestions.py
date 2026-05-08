@@ -7,11 +7,9 @@ from datetime import datetime
 from itertools import chain
 from typing import Any, overload
 
-import pgpubsub
 from django.db.models import Prefetch, Q
 from pydantic import BaseModel, field_serializer
 
-from shared.channels import CVEDerivationClusterProposalCacheChannel
 from shared.models import NixDerivation, NixMaintainer
 from shared.models.cached import CachedSuggestions
 from shared.models.cve import AffectedProduct, Metric, Reference, Version
@@ -224,7 +222,9 @@ def cache_new_suggestions(suggestion: CVEDerivationClusterProposal) -> None:
         .all()
     )
 
-    prefetched_metrics = Metric.objects.filter(container__cve=suggestion.cve)
+    prefetched_metrics = Metric.objects.filter(container__cve=suggestion.cve).order_by(
+        "-format"
+    )
     original_packages = channel_structure(all_versions, derivations)
     maintainer_overlays = list(
         suggestion.maintainer_overlays.select_related("maintainer").all()
@@ -261,20 +261,6 @@ def cache_new_suggestions(suggestion: CVEDerivationClusterProposal) -> None:
         )
     else:
         logger.info("CVE '%s' suggestion cache updated", suggestion.cve.cve_id)
-
-
-# FIXME: this breaks the insert listener, let's report it upstream.
-# @pgpubsub.post_update_listener(CVEDerivationClusterProposalChannel)
-# def expire_cached_suggestions(old: CVEDerivationClusterProposal, new: CVEDerivationClusterProposal) -> None:
-#     if new.status != CVEDerivationClusterProposal.Status.PENDING:
-#         CachedSuggestions.objects.filter(pk=new.pk).delete()
-
-
-@pgpubsub.post_insert_listener(CVEDerivationClusterProposalCacheChannel)
-def cache_new_suggestions_following_new_container(
-    old: CVEDerivationClusterProposal, new: CVEDerivationClusterProposal
-) -> None:
-    cache_new_suggestions(new)
 
 
 def is_version_affected(version_statuses: list[str]) -> Version.Status:

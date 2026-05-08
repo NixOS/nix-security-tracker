@@ -3,14 +3,14 @@ from collections.abc import ItemsView
 from typing import Any, TypedDict
 from urllib.parse import quote, urlencode
 
-from cvss import CVSS3
-from cvss.constants3 import METRICS_ABBREVIATIONS
+from cvss import CVSS3, CVSS4, constants3, constants4
 from django import template
 from django.conf import settings
 from django.template.context import Context
 
-from shared.listeners.cache_suggestions import CachedSuggestion
+from shared.cache_suggestions import CachedSuggestion
 from shared.logs.batches import FoldedEventType
+from shared.models.cve import Metric
 from shared.models.issue import NixpkgsIssue
 from shared.models.linkage import (
     CVEDerivationClusterProposal,
@@ -68,11 +68,6 @@ class PackageSubscriptionsContext(TypedDict):
     error_message: str | None
 
 
-class AutoSubscribeContext(TypedDict):
-    auto_subscribe_enabled: bool
-    error_message: str | None
-
-
 @register.inclusion_tag("subscriptions/components/packages.html")
 def package_subscriptions(
     package_subscriptions: list[str],
@@ -88,9 +83,33 @@ def package_subscriptions(
 def auto_subscribe_toggle(
     auto_subscribe_enabled: bool,
     error_message: str | None = None,
-) -> AutoSubscribeContext:
+) -> dict:
     return {
         "auto_subscribe_enabled": auto_subscribe_enabled,
+        "error_message": error_message,
+    }
+
+
+@register.inclusion_tag("subscriptions/components/email_notifications_toggler.html")
+def email_notifications_toggler(
+    enabled: bool,
+    error_message: str | None = None,
+) -> dict:
+    return {
+        "enabled": enabled,
+        "error_message": error_message,
+    }
+
+
+@register.inclusion_tag("subscriptions/components/email_setter.html")
+def email_setter(
+    notification_email: str,
+    maintainer_email: str,
+    error_message: str | None = None,
+) -> dict:
+    return {
+        "notification_email": notification_email,
+        "maintainer_email": maintainer_email,
         "error_message": error_message,
     }
 
@@ -111,27 +130,43 @@ def notifications_badge(
     return {"count": count, "oob_update": oob_update}
 
 
+CVSS_PARSERS = {
+    Metric.Format.V40: (CVSS4, constants4.METRICS_ABBREVIATIONS),
+    Metric.Format.V31: (CVSS3, constants3.METRICS_ABBREVIATIONS),
+    Metric.Format.V30: (CVSS3, constants3.METRICS_ABBREVIATIONS),
+}
+
+
 @register.inclusion_tag("components/severity_badge.html")
 def severity_badge(metrics: list[dict]) -> dict:
     """
     For now we return the first metric that has a sane looking raw JSON field.
     """
-    for m in metrics:
-        if "raw_cvss_json" in m and "vectorString" in m.get("raw_cvss_json", {}):
-            parsed = CVSS3(m["raw_cvss_json"]["vectorString"])
-            return {
-                "metric": {
-                    # Pass through all raw CVSS JSON fields (attackVector, scope, etc.)
-                    # so the template can access them directly as metric.attackVector etc.
-                    **m["raw_cvss_json"],
-                    "metrics": {
-                        # XXX(@fricklerhandwerk): Yes, the *value* description is also indexed by *key*!
-                        f"{METRICS_ABBREVIATIONS[k]} ({k})": f"{parsed.get_value_description(k)} ({v})"
-                        for k, v in parsed.metrics.items()
-                        if not k.startswith("M")  # Don't display modified metrics
-                    },
+    # FIXME(@fricklerhandwerk): This just returns the first metric that works.
+    # We may want to be precise about what to show here though.
+    for metric in metrics:
+        fmt = metric.get("format", "")
+        for prefix, (parser, abbreviations) in CVSS_PARSERS.items():
+            if fmt.startswith(prefix):
+                parsed = parser(metric["vector_string"])
+                score, *_ = parsed.scores()
+                severity, *_ = parsed.severities()
+
+                result = {
+                    "cvss": metric
+                    | {
+                        "version": Metric.Format(fmt).label,
+                        "base_score": score,
+                        "base_severity": severity.upper(),
+                    }
                 }
-            }
+
+                result["human_readable"] = {
+                    # XXX(@fricklerhandwerk): Yes, the *value* description is also indexed by *key*, not by the value itself!
+                    f"{abbreviations[k]} ({k})": f"{parsed.get_value_description(k)} ({v})"
+                    for k, v in parsed.metrics.items()
+                }
+                return result
     return {}
 
 

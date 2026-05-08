@@ -136,116 +136,17 @@ class ProblemType(models.Model):
     references = models.ManyToManyField(Reference)
 
 
-class Impact(models.Model):
-    """Class representing an impact of a CVE."""
-
-    capec_id = models.CharField(
-        max_length=11, validators=[RegexValidator("^CAPEC-[1-9][0-9]{0,4}$")]
-    )
-    description = models.ManyToManyField(Description)
-
-
-class Severity(models.TextChoices):
-    NONE = ("NONE", _("NONE"))
-    LOW = ("LOW", _("LOW"))
-    MEDIUM = ("MEDIUM", _("MEDIUM"))
-    HIGH = ("HIGH", _("HIGH"))
-    CRITICAL = ("CRITICAL", _("CRITICAL"))
-
-
 class Metric(models.Model):
     """Class representing an impact information related to a CVE record."""
 
-    class Scopes(models.TextChoices):
-        UNCHANGED = (
-            "UNCHANGED",
-            _("UNCHANGED"),
-        )
-        CHANGED = (
-            "CHANGED",
-            _("CHANGED"),
-        )
+    class Format(models.TextChoices):
+        V40 = "cvssV4_0", "4.0"
+        V31 = "cvssV3_1", "3.1"
+        V30 = "cvssV3_0", "3.0"
 
-    class AttackVectors(models.TextChoices):
-        PHYSICAL = ("PHYSICAL", _("PHYSICAL"))
-        LOCAL = (
-            "LOCAL",
-            _("LOCAL"),
-        )
-        ADJACENT_NETWORK = (
-            "ADJACENT_NETWORK",
-            _("ADJACENT_NETWORK"),
-        )
-        NETWORK = ("NETWORK", _("NETWORK"))
+    format = models.CharField(max_length=64, choices=Format.choices)
 
-    # TODO: we do not support antyhing beyond
-    # `cvssV3_1` for now.
-    format = models.CharField(max_length=64)
-    scenarios = models.ManyToManyField(Description)
-    raw_cvss_json = models.JSONField()
-
-    scope = models.CharField(
-        max_length=126, choices=Scopes.choices, null=True, default=None
-    )
-    base_score = models.FloatField(null=True, default=None)
-    vector_string = models.CharField(max_length=128, null=True, default=None)
-
-    attack_vector = models.CharField(
-        max_length=126,
-        choices=AttackVectors.choices,
-        null=True,
-        default=None,
-    )
-    base_severity = models.CharField(
-        max_length=126,
-        choices=Severity.choices,
-        null=True,
-        default=None,
-    )
-    integrity_impact = models.CharField(
-        max_length=126,
-        choices=Severity.choices,
-        null=True,
-        default=None,
-    )
-    user_interaction = models.CharField(
-        max_length=126,
-        choices=Severity.choices,
-        null=True,
-        default=None,
-    )
-    attack_complexity = models.CharField(
-        max_length=126,
-        choices=Severity.choices,
-        null=True,
-        default=None,
-    )
-    availability_impact = models.CharField(
-        max_length=126,
-        choices=Severity.choices,
-        null=True,
-        default=None,
-    )
-    privileges_required = models.CharField(
-        max_length=126,
-        choices=Severity.choices,
-        null=True,
-        default=None,
-    )
-    confidentiality_impact = models.CharField(
-        max_length=126,
-        choices=Severity.choices,
-        null=True,
-        default=None,
-    )
-
-    class Meta:  # type: ignore[override]
-        constraints = [
-            models.CheckConstraint(
-                check=Q(base_score__gte=0.0, base_score__lte=10.0),
-                name="metric_base_score_range",
-            )
-        ]
+    vector_string = models.CharField(max_length=128)
 
 
 class Event(models.Model):

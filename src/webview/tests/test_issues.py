@@ -10,8 +10,8 @@ from playwright.sync_api import Page, expect
 from pytest_django.live_server_helper import LiveServer
 from pytest_mock import MockerFixture
 
+from shared.cache_suggestions import cache_new_suggestions
 from shared.github import create_gh_issue
-from shared.listeners.cache_suggestions import cache_new_suggestions
 from shared.models.cve import (
     Container,
 )
@@ -178,7 +178,6 @@ def test_maintainer_of_active_package_mentioned_in_issue(
 
 
 def test_cvss_base_score_visible_in_web_ui(
-    make_container: Callable[..., Container],
     make_cached_suggestion: Callable[..., CVEDerivationClusterProposal],
     mocker: MockerFixture,
     live_server: LiveServer,
@@ -186,26 +185,17 @@ def test_cvss_base_score_visible_in_web_ui(
     no_js: bool,
 ) -> None:
     """Test that the CVSS base score is visible in the web UI on the accepted suggestions page."""
-    container = make_container()
-    metric = container.metrics.first()
-    assert metric is not None
-    metric.raw_cvss_json = {
-        "version": "3.1",
-        "vectorString": "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:N/A:N",
-        "baseScore": 7.5,
-        "baseSeverity": "HIGH",
-    }
-    metric.save()
-
     accepted_suggestion = make_cached_suggestion(
-        container=container, status=CVEDerivationClusterProposal.Status.ACCEPTED
+        status=CVEDerivationClusterProposal.Status.ACCEPTED
     )
+    # There's no good way to extract that from the data without repeating what the implementation does.
+    expected = "9.3 CRITICAL"
 
     as_staff.goto(live_server.url + reverse("webview:suggestion:accepted_suggestions"))
     suggestion = as_staff.locator(f"#suggestion-{accepted_suggestion.cached.pk}")
 
     # The base score should be visible without expanding the CVSS details
-    expect(suggestion.get_by_text("7.5 HIGH")).to_be_visible()
+    expect(suggestion.get_by_text(expected)).to_be_visible()
 
     mock_repo = mocker.Mock()
     mock_issue = mocker.Mock()
@@ -239,4 +229,4 @@ def test_cvss_base_score_visible_in_web_ui(
     issue_body = mock_repo.create_issue.call_args[1]["body"]
 
     # The base score and severity should be visible in the CVSS summary line
-    assert "7.5 HIGH" in issue_body
+    assert expected in issue_body

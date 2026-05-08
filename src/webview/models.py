@@ -9,6 +9,7 @@ from model_utils.managers import InheritanceManager
 
 from shared.models import TimeStampMixin
 from shared.models.linkage import CVEDerivationClusterProposal
+from shared.models.nix_evaluation import NixMaintainer
 
 
 class Notification(TimeStampMixin):
@@ -92,6 +93,27 @@ class Profile(models.Model):
         default=True,
         help_text="Automatically subscribe to notifications for packages this user maintains",
     )
+    notification_email = models.EmailField(
+        blank=True,
+        help_text="Email address to use for notifications in case it's different from the GitHub email",
+    )
+    receive_email_notifications = models.BooleanField(
+        default=False,
+        help_text="Receive an email about new notifications",
+    )
+
+    @property
+    def maintainer(self) -> NixMaintainer | None:
+        try:
+            maintainer = NixMaintainer.objects.get(
+                github_id=self.user.socialaccount_set.get(provider="github").uid
+            )
+            return maintainer
+        except (
+            NixMaintainer.DoesNotExist,
+            self.user.socialaccount_set.model.DoesNotExist,
+        ):
+            return None
 
     def create_notification(
         self, suggestion: CVEDerivationClusterProposal
@@ -101,7 +123,6 @@ class Profile(models.Model):
             user=self.user,
             suggestion=suggestion,
         )
-
         self.unread_notifications_count += 1
         self.save(update_fields=["unread_notifications_count"])
 

@@ -25,6 +25,14 @@
       {% package_subscriptions package_subscriptions %}
     </div>
 
+    <div id="email-notifications" class="rounded-box column gap">
+      <h2 class="heading">Email notifications</h2>
+
+      {% email_notifications_toggler user.profile.receive_email_notifications %}
+
+      {% email_setter notification_email=user.profile.notification_email maintainer_email=user.profile.maintainer_email %}
+    </div>
+
   </div>
 
 {% endblock content %}

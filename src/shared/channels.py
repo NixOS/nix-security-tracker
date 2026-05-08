@@ -44,13 +44,7 @@ class ContainerChannel(TriggerChannel):
 
 
 @dataclass
-class CVEDerivationClusterProposalCacheChannel(TriggerChannel):
-    model = CVEDerivationClusterProposal
-    lock_notifications = True
-
-
-@dataclass
-class CVEDerivationClusterProposalNotificationChannel(TriggerChannel):
+class CVEDerivationClusterProposalChannel(TriggerChannel):
     model = CVEDerivationClusterProposal
     lock_notifications = True
 

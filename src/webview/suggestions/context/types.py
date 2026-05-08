@@ -1,7 +1,7 @@
 from dataclasses import dataclass
 from enum import Enum
 
-from shared.listeners.cache_suggestions import CachedSuggestion
+from shared.cache_suggestions import CachedSuggestion
 from shared.logs.batches import FoldedEventType, batch_events
 from shared.logs.events import (
     Maintainer,  # FIXME(@florent): This is to import it from that module

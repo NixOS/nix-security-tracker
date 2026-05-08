@@ -1,3 +1,12 @@
+# ============================================================================
+# ⚠️ IMPORTANT: MATCHING ALGORITHM VERSIONING
+#
+# When modifying this module, you MUST bump
+# CVEDerivationClusterProposal.CURRENT_ALGORITHM_VERSION.
+#
+# Otherwise algorithm_version for matched proposal may become inconsistent.
+# ============================================================================
+
 import logging
 
 import pgpubsub
@@ -91,10 +100,17 @@ def produce_linkage_candidates(
     # TODO: record what is used to expand the candidate list.
     candidates: dict[NixDerivation, ProvenanceFlags] = {}
     # TODO: improve accuracy by using bigrams similarity with a `| Q(...)` query.
-    matches = NixDerivation.objects.filter(
-        package_q | product_q,
-        parent_evaluation__in=list(latest_complete_channels),
-    ).annotate(**annotations)
+    matches = (
+        NixDerivation.objects.exclude(
+            # Test derivations are a Nixpkgs implementation detail and never represent software to be distributed.
+            attribute__startswith="tests.",
+        )
+        .filter(
+            package_q | product_q,
+            parent_evaluation__in=list(latest_complete_channels),
+        )
+        .annotate(**annotations)
+    )
     for drv in matches.iterator():
         flags = getattr(drv, "package_match", 0) | getattr(drv, "product_match", 0)
         candidates[drv] = ProvenanceFlags(flags)
@@ -116,7 +132,10 @@ def build_new_links(container: Container) -> bool:
         )
         return False
 
-    if CVEDerivationClusterProposal.objects.filter(cve=container.cve).exists():
+    if CVEDerivationClusterProposal.objects.filter(
+        cve=container.cve,
+        algorithm_version=CVEDerivationClusterProposal.CURRENT_ALGORITHM_VERSION,
+    ).exists():
         logger.info("Suggestion already exists for '%s', skipping", container.cve)
         return False
 
@@ -129,6 +148,7 @@ def build_new_links(container: Container) -> bool:
             cve=container.cve,
             status=CVEDerivationClusterProposal.Status.REJECTED,
             rejection_reason=CVEDerivationClusterProposal.RejectionReason.EXCLUSIVELY_HOSTED_SERVICE,
+            algorithm_version=CVEDerivationClusterProposal.CURRENT_ALGORITHM_VERSION,
         )
         return True
 
@@ -152,6 +172,7 @@ def build_new_links(container: Container) -> bool:
             cve=container.cve,
             status=CVEDerivationClusterProposal.Status.REJECTED,
             rejection_reason=CVEDerivationClusterProposal.RejectionReason.HARDWARE_ONLY_CPE,
+            algorithm_version=CVEDerivationClusterProposal.CURRENT_ALGORITHM_VERSION,
         )
         return True
 
@@ -168,7 +189,10 @@ def build_new_links(container: Container) -> bool:
         )
         return False
 
-    proposal = CVEDerivationClusterProposal.objects.create(cve=container.cve)
+    proposal = CVEDerivationClusterProposal.objects.create(
+        cve=container.cve,
+        algorithm_version=CVEDerivationClusterProposal.CURRENT_ALGORITHM_VERSION,
+    )
 
     drvs_throughs = [
         CVEDerivationClusterProposal.derivations.through(

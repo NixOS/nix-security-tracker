@@ -430,7 +430,8 @@ AUTHENTICATION_BACKENDS = [
 
 
 REST_FRAMEWORK = {
-    "DEFAULT_FILTER_BACKENDS": ["django_filters.rest_framework.DjangoFilterBackend"]
+    "DEFAULT_FILTER_BACKENDS": ["django_filters.rest_framework.DjangoFilterBackend"],
+    "EXCEPTION_HANDLER": "api.exceptions.custom_exception_handler",
 }
 
 SITE_ID = 1
