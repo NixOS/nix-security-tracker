@@ -50,9 +50,9 @@
       },
       "branch": "main",
       "submodules": false,
-      "revision": "3f4291c4dddb67f605778f67ac3d9e4d2b690e7f",
-      "url": "https://github.com/nixos/infra/archive/3f4291c4dddb67f605778f67ac3d9e4d2b690e7f.tar.gz",
-      "hash": "sha256-lDzsr7QneUxbGfrruz02Rf4hu+0RX8AMg9uQPp2aYmc="
+      "revision": "2f6f4f1234455fdb68d05a885ad83693f0d7e6d0",
+      "url": "https://github.com/nixos/infra/archive/2f6f4f1234455fdb68d05a885ad83693f0d7e6d0.tar.gz",
+      "hash": "sha256-yePsSQMVblYQdCgwaTuxpROojdPjXzH+ONmHeFVv2RI="
     },
     "nixpkgs": {
       "type": "Channel",
