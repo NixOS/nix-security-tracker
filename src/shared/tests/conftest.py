@@ -168,10 +168,13 @@ def make_evaluation(
         channel: NixChannel = channel,
         state: NixEvaluation.EvaluationState = NixEvaluation.EvaluationState.COMPLETED,
         age: timedelta = timedelta(0),
+        commit_sha1: str | None = None,
     ) -> NixEvaluation:
         evaluation = NixEvaluation.objects.create(
             channel=channel,
-            commit_sha1=secrets.token_hex(16),
+            commit_sha1=commit_sha1
+            if commit_sha1 is not None
+            else secrets.token_hex(16),
             state=state,
         )
 
