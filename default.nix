@@ -62,13 +62,15 @@ rec {
       '';
       # Run this for a quick start.
       # Login and publishing issues requires setting up credentials properly.
-      dummy-credentials = pkgs.writeShellApplication {
-        name = "dummy-credentials";
+      shell-config-placeholder = pkgs.writeShellApplication {
+        name = "shell-config-placeholder";
         runtimeInputs = [ pkgs.python3 ];
         text = ''
-          dir="${toString ./.credentials}"
-          mkdir -p "$dir"
-          cd "$dir"
+          credentialsDir="${toString ./.credentials}"
+          nixpkgsDir="${toString ./nixpkgs}"
+          mkdir -p "$credentialsDir"
+          mkdir -p "$nixpkgsDir"
+          cd "$credentialsDir"
           set -o noclobber
           python3 -c 'import secrets; print(secrets.token_hex(100))' > SECRET_KEY
           echo bar > GH_CLIENT_ID
@@ -111,7 +113,7 @@ rec {
       };
 
       packages = [
-        dummy-credentials
+        shell-config-placeholder
         manage
         package
         # Explicitly pin git from nixpkgs to ensure the `fetch_all_channels` management command
@@ -138,6 +140,8 @@ rec {
           };
         }).shellHook
         }
+
+        shell-config-placeholder
 
         ln -sf ${sources.htmx}/dist/htmx.js src/webview/static/htmx.min.js
 

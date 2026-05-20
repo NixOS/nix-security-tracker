@@ -167,10 +167,10 @@ To replicate this on a traditional Unix-like system:
 ### Start the service
 
 > [!NOTE]
-> For a quick start, create dummy credentials:
+> For a quick start, create dummy credentials and a Nixpkgs clone directory:
 >
 > ```console
-> dummy-credentials
+> shell-config-placeholder
 > ```
 >
 > Logging in and publishing issues requires [setting up credentials](#setting-up-credentials).
