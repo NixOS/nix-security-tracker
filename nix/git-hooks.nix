@@ -19,7 +19,7 @@ rec {
     in
     lib.mapAttrs (_: v: v // { inherit stages; }) {
       # Nix setup
-      nixfmt-rfc-style.enable = true;
+      nixfmt.enable = true;
       statix = {
         enable = true;
         # XXX(@fricklerhandwerk): statix for some reason needs its own ignores repeated...
