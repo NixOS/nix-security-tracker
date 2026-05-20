@@ -3,6 +3,8 @@ import itertools
 import logging
 import os.path
 import pathlib
+import random
+import time
 from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
 from dataclasses import dataclass
@@ -126,7 +128,14 @@ class GitRepo:
             )
         )
 
-    async def update_from_ref(self, object_sha1: str) -> bool:
+    async def update_from_ref(
+        self,
+        object_sha1: str,
+        # Age above which a leftover `shallow.lock` is considered stale and removed.
+        max_lock_age_seconds: int = 300,
+        # Retries between attempts happen with exponential backoff. Increase with care.
+        max_attempts: int = 7,
+    ) -> bool:
         """
         This checks if `object_sha1` is already present in the repo or not.
         If not, perform a fetch to our remote to obtain it.
@@ -146,25 +155,46 @@ class GitRepo:
         if exists:
             return False
         else:
-            locking_problem = True
-            while locking_problem:
-                # We need to acquire a shallow lock here.
-                # TODO: replace me by an async variant.
-                while os.path.exists(os.path.join(self.repo_path, "shallow.lock")):
-                    await asyncio.sleep(1)
+            # Git tries to create `shallow.lock` before attempting a shallow fetch, in order to prevent conflicts on the `shallow` metadata file:
+            # https://git-scm.com/docs/shallow
+            lock_path = os.path.join(self.repo_path, "shallow.lock")
+            for attempt in range(1, max_attempts + 1):
+                try:
+                    if time.time() - os.path.getmtime(lock_path) > max_lock_age_seconds:
+                        logger.warning("Stale `shallow.lock`, removing: %s", lock_path)
+                        os.remove(lock_path)
+                except FileNotFoundError:
+                    # The lock is gone, nothing to do.
+                    pass
                 process = await self.execute_git_command(
                     f"git fetch --porcelain --depth=1 {repo_clone_url} {object_sha1}",
                     stderr=asyncio.subprocess.PIPE,
                 )
                 _, stderr = await process.communicate()
                 rc = await process.wait()
-                locking_problem = "shallow" in stderr.decode("utf8")
-                if rc != 0 and not locking_problem:
-                    logger.error("git fetch stderr: %s", stderr.decode("utf8"))
+                stderr_text = stderr.decode("utf8")
+                if rc == 0:
+                    return True
+                if "shallow.lock" not in stderr_text:
+                    logger.error("git fetch stderr: %s", stderr_text)
                     raise RepositoryError(
                         f"failed to fetch {object_sha1} while running `git fetch --depth=1 {repo_clone_url} {object_sha1}`"
                     )
-            return True
+                if attempt < max_attempts:
+                    # Exponential backoff with full jitter, per
+                    # https://aws.amazon.com/blogs/architecture/exponential-backoff-and-jitter/
+                    backoff = random.uniform(0, 2 ** (attempt - 1))
+                    logger.warning(
+                        "Found `shallow.lock` when trying to fetch %s (attempt %d/%d), retrying in %.1fs",
+                        object_sha1[:8],
+                        attempt,
+                        max_attempts,
+                        backoff,
+                    )
+                    await asyncio.sleep(backoff)
+            raise RepositoryError(
+                f"Failed to fetch {object_sha1}: exceeded {max_attempts} attempts due to repeated `shallow.lock` contention"
+            )
 
     async def remove_working_tree(self, name: str) -> bool:
         """
