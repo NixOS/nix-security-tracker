@@ -4,31 +4,18 @@ from rest_framework.reverse import reverse
 from rest_framework.test import APIClient
 
 from shared.models.cve import Container
-from shared.models.issue import (
-    NixpkgsIssue,
-)
-from shared.models.linkage import (
-    CVEDerivationClusterProposal,
-)
+from shared.models.issue import NixpkgsIssue
 
 
-def test_published_issue(
+def test_list_issues_by_cve(
     make_container: Callable[..., Container],
-    make_cached_suggestion: Callable[..., CVEDerivationClusterProposal],
+    make_issue: Callable[..., NixpkgsIssue],
 ) -> None:
     container1 = make_container(cve_id="CVE-2025-1111")
     container2 = make_container(cve_id="CVE-2025-2222")
-    suggestion1 = make_cached_suggestion(
-        container=container1,
-        status=CVEDerivationClusterProposal.Status.PUBLISHED,
-    )
-    suggestion2 = make_cached_suggestion(
-        container=container2,
-        status=CVEDerivationClusterProposal.Status.PUBLISHED,
-    )
+    issue1 = make_issue(container=container1)
+    make_issue(container=container2)
 
-    issue1 = NixpkgsIssue.create_nixpkgs_issue(suggestion1)
-    _ = NixpkgsIssue.create_nixpkgs_issue(suggestion2)
     client = APIClient()
     url = reverse("nixpkgsissue-list")
 
@@ -55,3 +42,21 @@ def test_published_issue(
     response = client.get(url, {"cve": "CVE-9999-0000"})
     assert response.status_code == 200
     assert len(response.data) == 0
+
+
+def test_issue_detail_by_code(
+    make_container: Callable[..., Container],
+    make_issue: Callable[..., NixpkgsIssue],
+) -> None:
+    container = make_container(cve_id="CVE-2025-1111")
+    issue = make_issue(container=container)
+    client = APIClient()
+
+    detail_url = reverse("nixpkgsissue-by-code", kwargs={"code": issue.code})
+    response = client.get(detail_url)
+    assert response.status_code == 200
+    assert response.data["code"] == issue.code
+    assert response.data["cve"] == container.cve.cve_id
+
+    missing_url = reverse("nixpkgsissue-by-code", kwargs={"code": "NIXPKGS-2099-99999"})
+    assert client.get(missing_url).status_code == 404

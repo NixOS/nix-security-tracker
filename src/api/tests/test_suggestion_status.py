@@ -87,3 +87,54 @@ def test_suggestion_change_state(
         assert error in response.text
     else:
         assert response.data == {"status": to_status} | post_data
+
+
+def test_suggestion_status_get_anonymous_pending(
+    make_cached_suggestion: Callable[..., CVEDerivationClusterProposal],
+) -> None:
+    client = APIClient()
+    suggestion = make_cached_suggestion(
+        status=CVEDerivationClusterProposal.Status.PENDING
+    )
+    response = client.get(f"/api/v1/suggestions/{suggestion.pk}/status")
+    assert response.status_code == 200
+    assert response.data == {"status": CVEDerivationClusterProposal.Status.PENDING}
+
+
+def test_suggestion_status_get_anonymous_not_found(db: None) -> None:
+    client = APIClient()
+    response = client.get("/api/v1/suggestions/999999999/status")
+    assert response.status_code == 404
+
+
+def test_suggestion_status_get_rejected_includes_reason(
+    make_cached_suggestion: Callable[..., CVEDerivationClusterProposal],
+) -> None:
+    client = APIClient()
+    suggestion = make_cached_suggestion(
+        status=CVEDerivationClusterProposal.Status.REJECTED,
+        rejection_reason=CVEDerivationClusterProposal.RejectionReason.NOT_IN_NIXPKGS,
+    )
+    response = client.get(f"/api/v1/suggestions/{suggestion.pk}/status")
+    assert response.status_code == 200
+    assert response.data == {
+        "status": CVEDerivationClusterProposal.Status.REJECTED,
+        "rejection_reason": CVEDerivationClusterProposal.RejectionReason.NOT_IN_NIXPKGS,
+    }
+
+
+def test_suggestion_status_get_includes_comment_when_set(
+    make_cached_suggestion: Callable[..., CVEDerivationClusterProposal],
+) -> None:
+    client = APIClient()
+    suggestion = make_cached_suggestion(
+        status=CVEDerivationClusterProposal.Status.ACCEPTED
+    )
+    suggestion.comment = "triager note"
+    suggestion.save(update_fields=["comment"])
+    response = client.get(f"/api/v1/suggestions/{suggestion.pk}/status")
+    assert response.status_code == 200
+    assert response.data == {
+        "status": CVEDerivationClusterProposal.Status.ACCEPTED,
+        "comment": "triager note",
+    }

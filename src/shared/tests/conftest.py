@@ -24,6 +24,7 @@ from shared.models.cve import (
     Tag,
     Version,
 )
+from shared.models.issue import NixpkgsIssue
 from shared.models.linkage import (
     CVEDerivationClusterProposal,
     DerivationClusterProposalLink,
@@ -168,10 +169,13 @@ def make_evaluation(
         channel: NixChannel = channel,
         state: NixEvaluation.EvaluationState = NixEvaluation.EvaluationState.COMPLETED,
         age: timedelta = timedelta(0),
+        commit_sha1: str | None = None,
     ) -> NixEvaluation:
         evaluation = NixEvaluation.objects.create(
             channel=channel,
-            commit_sha1=secrets.token_hex(16),
+            commit_sha1=commit_sha1
+            if commit_sha1 is not None
+            else secrets.token_hex(16),
             state=state,
         )
 
@@ -345,6 +349,26 @@ def cached_suggestion(
     cache_new_suggestions(suggestion)
 
     return suggestion
+
+
+@pytest.fixture
+def make_issue(
+    cve: Container,
+    make_cached_suggestion: Callable[..., CVEDerivationClusterProposal],
+) -> Callable[..., NixpkgsIssue]:
+    def wrapped(container: Container = cve) -> NixpkgsIssue:
+        suggestion = make_cached_suggestion(
+            container=container,
+            status=CVEDerivationClusterProposal.Status.PUBLISHED,
+        )
+        return NixpkgsIssue.create_nixpkgs_issue(suggestion)
+
+    return wrapped
+
+
+@pytest.fixture
+def issue(make_issue: Callable[..., NixpkgsIssue]) -> NixpkgsIssue:
+    return make_issue()
 
 
 @pytest.fixture

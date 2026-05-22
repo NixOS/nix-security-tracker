@@ -182,6 +182,7 @@ pkgs.testers.runNixOSTest {
             # XXX(@fricklerhandwerk): We do this at the end since it takes a while and would otherwise stall the Django tests.
             in-shell "wait_until_succeeds" ''
               from shared.models import (
+                NixChannel,
                 NixEvaluation,
                 NixDerivation,
                 NixDerivationMeta,
@@ -198,6 +199,16 @@ pkgs.testers.runNixOSTest {
                 (NixLicense, 1),
               ]:
                 assert model.objects.count() == count, f"{model._meta.object_name}: expected {count}, got {model.objects.count()}"
+
+              # Maintainers should only be attached to derivations from rolling-release channels.
+              stable_meta = NixDerivationMeta.objects.get(
+                derivation__parent_evaluation__channel__state=NixChannel.ChannelState.STABLE,
+              )
+              assert not stable_meta.maintainers.exists()
+              for m in NixDerivationMeta.objects.filter(
+                derivation__parent_evaluation__channel__state=NixChannel.ChannelState.UNSTABLE,
+              ):
+                assert m.maintainers.exists()
             ''
           }
     '';

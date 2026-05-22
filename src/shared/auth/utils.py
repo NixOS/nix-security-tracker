@@ -1,6 +1,7 @@
 from typing import Any
 
 from django.conf import settings
+from django.db.models import F
 
 from shared.models import NixMaintainer
 
@@ -16,7 +17,10 @@ def iscommitter(user: Any) -> bool:
 
 def ismaintainer(user: Any) -> bool:
     return NixMaintainer.objects.filter(
-        github_id=user.socialaccount_set.get(provider="github").uid
+        github_id=user.socialaccount_set.get(provider="github").uid,
+        nixderivationmeta__derivation__parent_evaluation__commit_sha1=F(
+            "nixderivationmeta__derivation__parent_evaluation__channel__head_sha1_commit"
+        ),
     ).exists()
 
 

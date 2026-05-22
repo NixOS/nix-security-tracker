@@ -39,3 +39,4 @@ The icons we use are:
 - "user-minus"
 - "chain"
 - "chain-broken"
+- "rss"

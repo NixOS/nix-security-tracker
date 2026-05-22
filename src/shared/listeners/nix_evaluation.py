@@ -59,6 +59,7 @@ async def perform_evaluation(
         "--meta",
         "--repair",
         "--quiet",
+        "--no-instantiate",
         "--expr",
         evaluation_wrapper,
         "--include",

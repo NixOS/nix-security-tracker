@@ -307,6 +307,11 @@ class SyncBatchAttributeIngester:
                     drv_licenses,
                 ) = self.parse_meta(attribute.meta)
 
+                # Older branches may list people who no longer maintain the package on `master`.
+                # Drop them so they don't get spammed.
+                if not self.rolling_release:
+                    drv_maintainers = []
+
                 metadata.append(drv_metadata)
                 meta_maintainers.append(drv_maintainers)
                 meta_licenses.append(drv_licenses)

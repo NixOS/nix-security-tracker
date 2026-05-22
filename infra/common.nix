@@ -57,7 +57,7 @@ in
       ];
       # We're using both keys and keyFiles here in order to keep some alignment
       # with github:nixos/infra
-      openssh.authorizedKeys.keys = (import "${sources.infra}/ssh-keys.nix").infra;
+      openssh.authorizedKeys.keys = (import "${sources.infra}/keys.nix").ssh.groups.infra;
     };
 
   environment.systemPackages = with pkgs; [
