@@ -19,7 +19,12 @@ rec {
   dev-setup = import ./nix/dev-setup.nix;
 
   git-hooks = pkgs.pre-commit-hooks {
-    src = ./.;
+    src =
+      with pkgs.lib.fileset;
+      toSource {
+        root = ./.;
+        fileset = gitTracked ./.;
+      };
     imports = [ ./nix/git-hooks.nix ];
   };
 
