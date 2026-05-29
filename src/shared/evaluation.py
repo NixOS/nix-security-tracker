@@ -9,7 +9,6 @@ from dataclass_wizard import JSONWizard, LoadMixin
 from django.db.models import Model
 
 from shared.models.nix_evaluation import (
-    MAJOR_CHANNELS,
     NixDerivation,
     NixDerivationMeta,
     NixEvaluation,
@@ -175,10 +174,7 @@ class SyncBatchAttributeIngester:
     ) -> None:
         self.evaluations = evaluations
         self.parent_evaluation = parent_evaluation
-        # FIXME(@fricklerhandwerk): This will fall apart when we obtain the channel structure dynamically [ref:channel-structure]
-        self.rolling_release = (
-            MAJOR_CHANNELS[0] in self.parent_evaluation.channel.channel_branch
-        )
+        self.rolling_release = self.parent_evaluation.channel.is_rolling_release
 
     def initialize(self) -> None:
         self.maintainers = list(NixMaintainer.objects.all())

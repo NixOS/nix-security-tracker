@@ -7,9 +7,9 @@ from django.db import migrations
 import pgtrigger.compiler
 import pgtrigger.migrations
 
-from shared.models import NixDerivation, NixDerivationMeta
-
 def update_search_vectors(apps, schema_editor):
+    NixDerivation = apps.get_model("shared", "NixDerivation")
+    NixDerivationMeta = apps.get_model("shared", "NixDerivationMeta")
     NixDerivation.objects.update(search_vector=SearchVector("attribute", "name"))
     NixDerivationMeta.objects.update(search_vector=SearchVector("description"))
 

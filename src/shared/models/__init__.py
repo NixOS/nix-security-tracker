@@ -9,6 +9,7 @@ from .linkage import (
     ProvenanceFlags,
 )
 from .nix_evaluation import *
+from .package import *
 
 __all__ = [
     "CVEDerivationClusterProposal",

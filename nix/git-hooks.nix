@@ -22,8 +22,10 @@ rec {
       nixfmt.enable = true;
       statix = {
         enable = true;
-        # XXX(@fricklerhandwerk): statix for some reason needs its own ignores repeated...
-        settings.ignore = excludes;
+        # FIXME(@fricklerhandwerk): `git-hooks.nix` currently renders `statix` command-line arguments incorrectly
+        entry = lib.mkForce "${pkgs.statix}/bin/statix check ${
+          lib.concatMapStringsSep " " (p: "--ignore ${lib.escapeShellArg p}") excludes
+        }";
       };
       deadnix.enable = true;
 
