@@ -1,3 +1,4 @@
+import re
 from collections.abc import Callable
 from typing import Any
 from unittest.mock import patch
@@ -15,6 +16,7 @@ from shared.github import create_gh_issue
 from shared.models.cve import (
     Container,
 )
+from shared.models.issue import NixpkgsIssue
 from shared.models.linkage import (
     CVEDerivationClusterProposal,
 )
@@ -230,3 +232,50 @@ def test_cvss_base_score_visible_in_web_ui(
 
     # The base score and severity should be visible in the CVSS summary line
     assert expected in issue_body
+
+
+def test_published_issue_shows_publication_date(
+    make_cached_suggestion: Callable[..., CVEDerivationClusterProposal],
+    mocker: MockerFixture,
+    live_server: LiveServer,
+    as_staff: Page,
+    no_js: bool,
+) -> None:
+    accepted_suggestion = make_cached_suggestion(
+        status=CVEDerivationClusterProposal.Status.ACCEPTED
+    )
+
+    # Mocking GitHub [ref:todo-github-connection]
+    mock_repo = mocker.Mock()
+    mock_issue = mocker.Mock()
+    mock_issue.html_url = "https://fake.url"
+    mock_repo.create_issue.return_value = mock_issue
+    mock_github = mocker.Mock()
+    mock_github.get_repo.return_value = mock_repo
+
+    def mock_create_gh_issue(*args: Any, **kwargs: Any) -> GithubIssue:
+        return create_gh_issue(*args, github=mock_github, **kwargs)
+
+    def mock_get_maintainer_username(
+        maintainer: dict, github: Github = mock_github
+    ) -> str:
+        return maintainer["github"]
+
+    mocker.patch("shared.github.create_gh_issue", mock_create_gh_issue)
+    mocker.patch("shared.github.get_maintainer_username", mock_get_maintainer_username)
+
+    as_staff.goto(live_server.url + reverse("webview:suggestion:accepted_suggestions"))
+    suggestion = as_staff.locator(f"#suggestion-{accepted_suggestion.cached.pk}")
+    publish = suggestion.get_by_role("button", name="Publish issue")
+
+    publish.click()
+
+    if no_js:
+        as_staff.goto(live_server.url + reverse("webview:issue_list"))
+    else:
+        suggestion.get_by_role("link", name="View").click()
+
+    issue = NixpkgsIssue.objects.get(suggestion=accepted_suggestion)
+    github_link = as_staff.locator(f"#issue-{issue.code}-github")
+
+    expect(github_link).to_have_text(re.compile(r"GitHub issue\s+published\s+\S"))

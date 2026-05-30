@@ -1,12 +1,14 @@
+{% load humanize %}
 {% load viewutils %}
 
 <article class="rounded-box column gap" id="issue-{{ issue.code }}">
 
   <div class="row gap spread">
     <div class="uppercase bold">{{ issue.code }}</div>
-    <div>
+    <div id="issue-{{ issue.code }}-github">
       {% if github_issue %}<a href="{{ github_issue }}" target="_blank" class="permalink">GitHub issue</a>{% endif %}
-      published on {{ issue.created }}
+      {# FIXME(@fricklerhandwerk): Allow toggling to absolute time, as in the activity log. #}
+      published {{ issue.created_at | naturaltime }}
     </div>
   </div>
 
