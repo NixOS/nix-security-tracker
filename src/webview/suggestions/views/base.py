@@ -95,6 +95,18 @@ class SuggestionBaseView(TemplateView, ABC):
         except Exception:
             return False
 
+    def _is_origin_url_issue_draft(self, request: HttpRequest) -> bool:
+        """Checks whether we come from the issue draft view."""
+        origin_url = self._get_origin_url(request)
+        if not origin_url:
+            return False
+        try:
+            parsed = urlparse(origin_url)
+            resolved = resolve(parsed.path)
+            return resolved.url_name == "issue_draft"
+        except Exception:
+            return False
+
 
 class SuggestionContentEditBaseView(SuggestionBaseView, ABC):
     """Base view for package and maintainers operations."""

@@ -92,6 +92,17 @@ class CVEDerivationClusterProposal(TimeStampMixin):
         max_length=126, choices=Status.choices, default=Status.PENDING
     )
 
+    # Only suggstions in status ACCEPTED can be in issue_draft
+    in_issue_draft = models.BooleanField(default=False)
+
+    nixpkgs_issue = models.ForeignKey(
+        "NixpkgsIssue",  # In quotes to postpone to runtime and avoid circular dependency
+        null=True,
+        blank=True,
+        related_name="suggestions",
+        on_delete=models.SET_NULL,
+    )
+
     comment = models.CharField(
         max_length=1000,
         null=True,
@@ -193,6 +204,18 @@ class CVEDerivationClusterProposal(TimeStampMixin):
                         "rejection_reason": "Cannot set rejection reason on suggeston that is not rejected"
                     }
                 )
+        if self.in_issue_draft and self.status != SuggestionStatus.ACCEPTED:
+            raise ValidationError(
+                {
+                    "in_issue_draft": "A suggestion can only be in an issue draft when it is accepted"
+                }
+            )
+
+    def save(self, *args: Any, **kwargs: Any) -> None:
+        # Automatically remove from issue draft when changing status away from accepted
+        if self.status != SuggestionStatus.ACCEPTED:
+            self.in_issue_draft = False
+        super().save(*args, **kwargs)
 
     class Meta:  # type: ignore[override]
         triggers = [

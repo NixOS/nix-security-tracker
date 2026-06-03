@@ -200,15 +200,16 @@ pkgs.testers.runNixOSTest {
               ]:
                 assert model.objects.count() == count, f"{model._meta.object_name}: expected {count}, got {model.objects.count()}"
 
-              # Maintainers should only be attached to derivations from rolling-release channels.
-              stable_meta = NixDerivationMeta.objects.get(
-                derivation__parent_evaluation__channel__state=NixChannel.ChannelState.STABLE,
+              # Maintainers should only be attached to derivations from the tracking branch.
+              from django.conf import settings
+              tracking_meta = NixDerivationMeta.objects.get(
+                derivation__parent_evaluation__channel__channel_branch=settings.TRACKING_BRANCH,
               )
-              assert not stable_meta.maintainers.exists()
-              for m in NixDerivationMeta.objects.filter(
-                derivation__parent_evaluation__channel__state=NixChannel.ChannelState.UNSTABLE,
+              assert tracking_meta.maintainers.exists(), f"{settings.TRACKING_BRANCH} meta has no maintainers"
+              for m in NixDerivationMeta.objects.exclude(
+                derivation__parent_evaluation__channel__channel_branch=settings.TRACKING_BRANCH,
               ):
-                assert m.maintainers.exists()
+                assert not m.maintainers.exists(), f"{m.derivation.parent_evaluation.channel.channel_branch}) has unexpected maintainers"
             ''
           }
     '';

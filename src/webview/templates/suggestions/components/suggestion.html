@@ -124,13 +124,30 @@
             Accept
           </button>
         {% elif data.suggestion.status == "accepted" %}
-          <button type="submit"
-                  name="new_status"
-                  value="published"
-                  class="status-change-button btn btn-green row gap-small centered no-line-breaks">
-            {% status_icon "published" %}
-            Publish issue
-          </button>
+          <div class="row gap-small">
+            {% if data.suggestion.in_issue_draft %}
+              <button type="submit"
+                      name="in_issue_draft"
+                      value="0"
+                      class="status-change-button btn btn-gray row gap-small centered no-line-breaks">
+                <i class="icon-stack"></i>Unbundle
+              </button>
+            {% else %}
+              <button type="submit"
+                      name="in_issue_draft"
+                      value="1"
+                      class="status-change-button btn btn-gray row gap-small centered no-line-breaks">
+                <i class="icon-stack"></i>Bundle
+              </button>
+              <button type="submit"
+                      name="new_status"
+                      value="published"
+                      class="status-change-button btn btn-green row gap-small centered no-line-breaks">
+                {% status_icon "published" %}
+                Publish
+              </button>
+            {% endif %}
+          </div>
         {% endif %}
       </div>
     {% else %}
@@ -168,13 +185,30 @@
               Accept
             </button>
           {% elif data.suggestion.status == "accepted" %}
-            <button type="submit"
-                    name="new_status"
-                    value="published"
-                    class="status-change-button btn btn-green row gap-small centered">
-              {% status_icon "published" %}
-              Publish issue
-            </button>
+            <div class="row gap-small">
+              {% if data.suggestion.in_issue_draft %}
+                <button type="submit"
+                        name="in_issue_draft"
+                        value="0"
+                        class="status-change-button btn btn-gray row gap-small centered no-line-breaks">
+                  <i class="icon-stack"></i>Unbundle
+                </button>
+              {% else %}
+                <button type="submit"
+                        name="in_issue_draft"
+                        value="1"
+                        class="status-change-button btn btn-gray row gap-small centered no-line-breaks">
+                  <i class="icon-stack"></i>Bundle
+                </button>
+                <button type="submit"
+                        name="new_status"
+                        value="published"
+                        class="status-change-button btn btn-green row gap-small centered no-line-breaks">
+                  {% status_icon "published" %}
+                  Publish
+                </button>
+              {% endif %}
+            </div>
             {% include "./dismiss_button.html" %}
           {% endif %}
         </div>

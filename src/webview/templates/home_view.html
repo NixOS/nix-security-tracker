@@ -23,6 +23,9 @@
       <span class="inline-row gap-small centered"><i class="icon-draft"></i><a href="{% url 'webview:suggestion:accepted_suggestions' %}">Accepted suggestions</a></span> are slated to be published, but might need further refinement.
     </p>
     <p>
+      <span class="inline-row gap-small centered"><i class="icon-stack"></i><a href="{% url 'webview:suggestion:issue_draft' %}">Draft issue</a></span> lists CVEs that users have bundled together for the next GitHub issue.
+    </p>
+    <p>
       <span class="inline-row gap-small centered"><i class="icon-github"></i><a href="/issues">Published issues</a></span> have a persistent identifier and link to <a href="{% gh_issues_url %}" target="_blank">GitHub issues</a>, where maintainers are notified and mitigation is coordinated.
     </p>
 

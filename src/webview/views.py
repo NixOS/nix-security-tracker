@@ -43,8 +43,8 @@ class NixpkgsIssueView(DetailView):
             super()
             .get_queryset()
             .prefetch_related(
-                "suggestion__cached",
-                "suggestion__cve__container__references__tags",
+                "suggestions__cached",
+                "suggestions__cve__container__references__tags",
             )
         )
 
@@ -52,14 +52,18 @@ class NixpkgsIssueView(DetailView):
         context = super().get_context_data(**kwargs)
         issue = self.object
 
-        # Fetch suggestion_context
-        events = fetch_suggestion_events([issue.suggestion_id])
-        context["suggestion_context"] = get_suggestion_context(
-            issue.suggestion,
-            user_can_edit=False,
-            pre_fetched_events=events[issue.suggestion_id],
-        )
-        context["suggestion_context"].show_status = False
+        suggestions = list(issue.suggestions.select_related("cached").all())
+        events = fetch_suggestion_events([s.pk for s in suggestions])
+        context["suggestion_contexts"] = [
+            get_suggestion_context(
+                s,
+                user_can_edit=False,
+                pre_fetched_events=events[s.pk],
+            )
+            for s in suggestions
+        ]
+        for sc in context["suggestion_contexts"]:
+            sc.show_status = False
         github_issue_opened = NixpkgsEvent.objects.filter(
             issue=issue,
             event_type=EventType.ISSUE | EventType.OPENED,
@@ -81,8 +85,8 @@ class NixpkgsIssueListView(ListView):
         issues = (
             NixpkgsIssue.objects.all()
             .prefetch_related(
-                "suggestion__cached",
-                "suggestion__cve__container__references__tags",
+                "suggestions__cached",
+                "suggestions__cve__container__references__tags",
                 Prefetch(
                     "events",
                     queryset=NixpkgsEvent.objects.filter(
@@ -101,19 +105,24 @@ class NixpkgsIssueListView(ListView):
         ].get_elided_page_range(context["page_obj"].number)
 
         # Fetch activity logs
-        suggestion_ids = [issue.suggestion_id for issue in context["object_list"]]
-        events_by_suggestion = fetch_suggestion_events(suggestion_ids)
+        all_suggestion_ids = [
+            s.pk for issue in context["object_list"] for s in issue.suggestions.all()
+        ]
+        events_by_suggestion = fetch_suggestion_events(all_suggestion_ids)
         for issue in context["object_list"]:
             # FIXME(@fricklerhandwerk): We're assigning an object field that doesn't exist.
             # The horrible thing is that it still works, because somewhere in the template processing it does the equivalent of `object.__dict__` and there the key shows up again.
-            # FIXME(@fricklerhandwerk): That call runs queries as a side effect, but the data should be prefetched.
-            issue.suggestion_context = get_suggestion_context(
-                issue.suggestion,
-                user_can_edit=False,
-                pre_fetched_events=events_by_suggestion[issue.suggestion_id],
-            )
-
-            issue.suggestion_context.show_status = False
+            issue.suggestion_contexts = [
+                get_suggestion_context(
+                    s,
+                    user_can_edit=False,
+                    pre_fetched_events=events_by_suggestion[s.pk],
+                    is_compact=True,
+                )
+                for s in issue.suggestions.all()
+            ]
+            for sc in issue.suggestion_contexts:
+                sc.show_status = False
             github_issue_opened = issue.events.first()
             issue.github_issue = (
                 github_issue_opened.url if github_issue_opened else None

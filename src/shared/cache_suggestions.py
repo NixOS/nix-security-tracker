@@ -310,16 +310,17 @@ def channel_structure(
         _, package_version = parse_drv_name(derivation.name)
         if attribute_path not in packages:
             packages[attribute_path] = CachedSuggestion.Package()
-            if derivation.metadata:
-                if derivation.metadata.description:
-                    packages[
-                        attribute_path
-                    ].description = derivation.metadata.description
-                packages[attribute_path].maintainers = [
-                    CachedSuggestion.Maintainer.model_validate(to_dict(m))
-                    for m in derivation.metadata.prefetched_maintainers
-                ]
         packages[attribute_path].derivation_ids.append(derivation.pk)
+        if (
+            derivation.metadata
+            and derivation.parent_evaluation.channel.is_rolling_release
+        ):
+            if derivation.metadata.description:
+                packages[attribute_path].description = derivation.metadata.description
+            packages[attribute_path].maintainers = [
+                CachedSuggestion.Maintainer.model_validate(to_dict(m))
+                for m in derivation.metadata.prefetched_maintainers
+            ]
         # Get the branch from which that derivation originates
         branch_name = derivation.parent_evaluation.channel.channel_branch
         # Get primary ("major") channel to which that branch belongs

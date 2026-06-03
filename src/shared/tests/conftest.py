@@ -31,7 +31,6 @@ from shared.models.linkage import (
     ProvenanceFlags,
 )
 from shared.models.nix_evaluation import (
-    MAJOR_CHANNELS,
     NixChannel,
     NixDerivation,
     NixDerivationMeta,
@@ -135,21 +134,24 @@ def cve(make_container: Callable[..., Container]) -> Container:
 def make_channel(db: None) -> Callable[..., NixChannel]:
     # FIXME(@fricklerhandwerk): This will fall apart when we obtain the channel structure dynamically [ref:channel-structure]
     def wrapped(
-        release: str = MAJOR_CHANNELS[1],
-        state: NixChannel.ChannelState = NixChannel.ChannelState.STABLE,
+        release: str = "unstable",
+        state: NixChannel.ChannelState = NixChannel.ChannelState.UNSTABLE,
         branch: str | None = None,
     ) -> NixChannel:
         if branch is None:
-            branch = f"nixos-{release}"
+            branch = f"nixpkgs-{release}"
 
-        return NixChannel.objects.create(
-            staging_branch=branch,
+        channel, _ = NixChannel.objects.get_or_create(
             channel_branch=branch,
-            head_sha1_commit=secrets.token_hex(16),
-            state=state,
-            release_version=release,
-            repository="https://github.com/NixOS/nixpkgs",
+            defaults=dict(
+                staging_branch=branch,
+                head_sha1_commit=secrets.token_hex(16),
+                state=state,
+                release_version=release,
+                repository="https://github.com/NixOS/nixpkgs",
+            ),
         )
+        return channel
 
     return wrapped
 
@@ -290,12 +292,14 @@ def make_suggestion(
         },
         status: CVEDerivationClusterProposal.Status = CVEDerivationClusterProposal.Status.PENDING,
         rejection_reason: CVEDerivationClusterProposal.RejectionReason | None = None,
+        in_issue_draft: bool = False,
         age: timedelta = timedelta(0),
         algorithm_version: int | None = None,
     ) -> CVEDerivationClusterProposal:
         suggestion = CVEDerivationClusterProposal.objects.create(
             status=status,
             rejection_reason=rejection_reason,
+            in_issue_draft=in_issue_draft,
             cve=container.cve,
             algorithm_version=algorithm_version
             if algorithm_version is not None
@@ -361,7 +365,10 @@ def make_issue(
             container=container,
             status=CVEDerivationClusterProposal.Status.PUBLISHED,
         )
-        return NixpkgsIssue.create_nixpkgs_issue(suggestion)
+        title = suggestion.cached.payload.get("title") or suggestion.cached.payload.get(
+            "description", "Issue title"
+        )
+        return NixpkgsIssue.create_nixpkgs_issue([suggestion], title)
 
     return wrapped
 

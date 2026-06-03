@@ -1,3 +1,4 @@
+from django.conf import settings
 from django.contrib.postgres import fields
 from django.contrib.postgres.indexes import BTreeIndex, GinIndex
 from django.contrib.postgres.search import SearchVectorField
@@ -117,8 +118,7 @@ class NixDerivationMeta(models.Model):
 
 class NixChannelQuerySet(models.QuerySet):
     def rolling(self) -> "NixChannelQuerySet":
-        # FIXME(@fricklerhandwerk): This will fall apart when we obtain the channel structure dynamically [ref:channel-structure]
-        return self.filter(channel_branch__contains=MAJOR_CHANNELS[0])
+        return self.filter(channel_branch=settings.TRACKING_BRANCH)
 
 
 class NixChannel(TimeStampMixin):
@@ -167,13 +167,11 @@ class NixChannel(TimeStampMixin):
     @property
     def is_rolling_release(self) -> bool:
         """
-        Whether the channel corresponds to a rolling release
+        Whether the channel corresponds to a the tracking branch.
 
-        A rolling release tracks the Nixpkgs `master` branch.
         It's the source of truth for metadata such as package descriptions and maintainer information.
         """
-        # FIXME(@fricklerhandwerk): This will fall apart when we obtain the channel structure dynamically [ref:channel-structure]
-        return MAJOR_CHANNELS[0] in self.channel_branch
+        return self.channel_branch == settings.TRACKING_BRANCH
 
 
 class NixEvaluation(TimeStampMixin):
@@ -284,7 +282,7 @@ class NixDerivation(models.Model):
 # https://github.com/NixOS/infra/pull/921
 MAJOR_CHANNELS = [
     "unstable",
-    "25.11",
+    "26.05",
 ]
 
 

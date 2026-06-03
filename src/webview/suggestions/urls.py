@@ -9,6 +9,7 @@ from webview.suggestions.views.references import (
 )
 
 from .views.detail import SuggestionDetailByCveView, SuggestionDetailView
+from .views.draft import PublishIssueDraftView, ResetIssueDraftView
 from .views.lists import (
     SuggestionListView,
 )
@@ -52,6 +53,21 @@ urlpatterns = [
             status_filter=CVEDerivationClusterProposal.Status.REJECTED
         ),
         name="dismissed_suggestions",
+    ),
+    path(
+        "issue_draft/",
+        SuggestionListView.as_view(in_issue_draft=True),
+        name="issue_draft",
+    ),
+    path(
+        "issue_draft/reset/",
+        ResetIssueDraftView.as_view(),
+        name="reset_issue_draft",
+    ),
+    path(
+        "issue_draft/publish/",
+        PublishIssueDraftView.as_view(),
+        name="publish_issue_draft",
     ),
     path(
         "by-package/<path:package_name>",

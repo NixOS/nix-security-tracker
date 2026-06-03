@@ -38,6 +38,7 @@ class UpdateSuggestionStatusView(SuggestionBaseView):
 
         # Get form data
         new_status = request.POST.get("new_status")
+        in_issue_draft = request.POST.get("in_issue_draft")
         rejection_reason = request.POST.get("rejection_reason")
         new_comment = request.POST.get("comment", "").strip()
         is_compact = (
@@ -56,6 +57,33 @@ class UpdateSuggestionStatusView(SuggestionBaseView):
             pre_fetched_events=events[suggestion.pk],
             is_compact=is_compact,
         )
+
+        # Special case: adding a suggestion to the issue draft
+        if (not new_status) and in_issue_draft:
+            if in_issue_draft == "1":
+                if suggestion.status != CVEDerivationClusterProposal.Status.ACCEPTED:
+                    return self._handle_error(
+                        request,
+                        suggestion_context,
+                        "Only accepted suggestions may be added to the issue draft",
+                    )
+                else:
+                    suggestion.in_issue_draft = True
+            elif in_issue_draft == "0":
+                suggestion.in_issue_draft = False
+            # FIXME(@florentc): We use the occasion of (un)bundling to save the comment if it changed
+            # Eventually, we need a better way to handle comment updates globally.
+            if new_comment:
+                suggestion.comment = new_comment
+            suggestion.save()
+            if request.headers.get("HX-Request"):
+                if in_issue_draft == "0" and self._is_origin_url_issue_draft(request):
+                    # In case we come from the issue draft list, we want to remove the item
+                    return HttpResponse("<template></template>")
+                else:
+                    return self.render_to_response({"data": suggestion_context})
+            else:
+                return self._redirect_to_origin(request)
 
         # Validate status change
         if not new_status:
@@ -105,8 +133,19 @@ class UpdateSuggestionStatusView(SuggestionBaseView):
             elif new_status == "published":
                 try:
                     with transaction.atomic():
-                        tracker_issue = NixpkgsIssue.create_nixpkgs_issue(suggestion)
-                        tracker_issue.publish(new_comment)
+                        from django.template.defaultfilters import truncatewords
+
+                        title = (
+                            suggestion.cached.payload["title"]
+                            or truncatewords(
+                                suggestion.cached.payload.get("description", ""), 10
+                            )
+                            or "Security issue (missing title)"
+                        )
+                        tracker_issue = NixpkgsIssue.create_nixpkgs_issue(
+                            [suggestion], title
+                        )
+                        tracker_issue.publish()
                         suggestion.status = (
                             CVEDerivationClusterProposal.Status.PUBLISHED
                         )
@@ -140,6 +179,11 @@ class UpdateSuggestionStatusView(SuggestionBaseView):
             maintainers.active + maintainers.ignored + maintainers.additional
         ):
             maintainer_context.frozen = suggestion.is_frozen
+
+        # In case we come from the issue draft list, we want to remove the item
+        if self._is_origin_url_issue_draft(request):
+            if request.headers.get("HX-Request"):
+                return HttpResponse("<template></template>")
 
         if self._is_origin_url_a_list(request):
             # We don't display the status in lists (they are "by status" lists already)

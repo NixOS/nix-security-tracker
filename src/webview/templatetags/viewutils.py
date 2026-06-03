@@ -181,14 +181,14 @@ def iso(date: datetime.datetime) -> str:
 def issue(
     context: Context,
     issue: NixpkgsIssue,
-    suggestion_context: SuggestionContext,
+    suggestion_contexts: list[SuggestionContext],
     github_issue: str | None,
     show_permalink: bool = False,
 ) -> dict:
     return {
         "issue": issue,
         "show_permalink": show_permalink,
-        "suggestion_context": suggestion_context,
+        "suggestion_contexts": suggestion_contexts,
         "github_issue": github_issue,
         "page_obj": context.get("page_obj", None),
         "status_filter": "published",  # Needed in context for the suggestion component

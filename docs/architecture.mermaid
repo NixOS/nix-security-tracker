@@ -5,13 +5,13 @@ graph TB
         GitHub["GitHub API"]
         GitHubNixos["GitHub Repository<br/>nixos/nixpkgs"]
         GitHubCVEs["GitHub Repository<br/>CVEProject/cvelistV5"]
-        NixMonitoring["NixOS Monitoring<br/>Channel Status"]
+        NixMonitoring["monitoring.nixos.org<br/>channel revision"]
     end
 
     subgraph SecurityTracker ["Security Tracker Host"]
 	  subgraph Web["Web"]
 		  Nginx["Nginx HTTP"]
-		  WSGI["WSGI Django<br/>Django Views"]
+		  DaphneAsgi["Daphne ASGI<br/>Django"]
 	  end
 
 	  subgraph ManageCommands["Management Commands"]
@@ -22,8 +22,8 @@ graph TB
 	  subgraph Background["Background Tasks"]
 		  SystemdTimerChannels["Systemd Timer Fetch Channels"]
 		  SystemdTimerCVEs["Systemd Timer Ingest CVEs"]
-          NixEval["Evaluate Nix"]
-          DjangoWorker["Django worker"]
+          NixEval["Evaluate Nixpkgs"]
+          MatchingListener["CVE matching"]
 	  end
 
 	  subgraph Storage["Storage"]
@@ -35,20 +35,22 @@ graph TB
     end
 
 	%% User interactions
-	Users -->|HTTP Request| Nginx -->|Forward| WSGI -->|Queries| PostgreSQL
-    WSGI --> GitHub
+	Users -->|HTTP Request| Nginx -->|Forward| DaphneAsgi -->|Queries| PostgreSQL
+    DaphneAsgi --> GitHub
 
     %% Timers
     SystemdTimerChannels -.->|Triggers Daily| FetchAllChannels
     FetchAllChannels -->|1 Fetch Channels| NixMonitoring
     FetchAllChannels -->|2 Git pull| GitHubNixos
     FetchAllChannels -->|3 Update Repo| LocalGitCheckout
-    FetchAllChannels -->|4 Evaluate Nix| NixEval --> NixStore
+    FetchAllChannels -->|4 update channels| PostgreSQL
+    FetchAllChannels -.->|triggers evaluation| NixEval
+    NixEval -->|ingest derivations| PostgreSQL
 
     SystemdTimerCVEs -.->|Triggers Daily| IngestCVEs
     IngestCVEs -->|1 Fetch CVEs| GitHubCVEs
     IngestCVEs -->|2 Update Database| PostgreSQL
-    IngestCVEs -->|3 PgTrigger Suggestions| DjangoWorker
+    IngestCVEs -.->|3 triggers matching| MatchingListener
 
   classDef userClass fill:#e1f5fe,stroke:#01579b,stroke-width:3px,color:#000
     classDef externalClass fill:#f3e5f5,stroke:#4a148c,stroke-width:3px,color:#000
@@ -60,8 +62,14 @@ graph TB
 
     class Users userClass
     class GitHub,GitHubNixos,GitHubCVEs,NixMonitoring externalClass
-    class Nginx,WSGI webClass
+    class Nginx,DaphneAsgi webClass
     class FetchAllChannels,IngestCVEs commandClass
-    class SystemdTimerChannels,SystemdTimerCVEs,NixEval,DjangoWorker backgroundClass
+    class SystemdTimerChannels,SystemdTimerCVEs,NixEval,MatchingListener backgroundClass
     class PostgreSQL,LocalGitCheckout,NixStore storageClass
     class Storage,Background,ManageCommands,Web subgraphClass
+
+    click FetchAllChannels "https://github.com/NixOS/nix-security-tracker/blob/main/src/shared/management/commands/fetch_all_channels.py" "fetch_all_channels"
+    click IngestCVEs "https://github.com/NixOS/nix-security-tracker/blob/main/src/shared/management/commands/ingest_delta_cve.py" "ingest_delta_cve"
+    click NixEval "https://github.com/NixOS/nix-security-tracker/blob/main/src/shared/listeners/nix_evaluation.py" "Evaluate Nixpkgs"
+    click MatchingListener "https://github.com/NixOS/nix-security-tracker/blob/main/src/shared/listeners/automatic_linkage.py" "CVE matching"
+    click DaphneAsgi "https://github.com/NixOS/nix-security-tracker/blob/main/src/project/asgi.py" "Daphne ASGI"

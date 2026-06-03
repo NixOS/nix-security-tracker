@@ -22,6 +22,7 @@ class SuggestionListView(ListView, ABC):
 
     template_name = "suggestions/suggestion_list.html"
     paginate_by = 10
+    in_issue_draft: bool | None = None
     status_filter: CVEDerivationClusterProposal.Status | None = None
     package_filter: str | None = None  # To be defined in concrete classes
 
@@ -52,6 +53,8 @@ class SuggestionListView(ListView, ABC):
         )
         if self.status_filter is not None:
             query_filters &= Q(status=self.status_filter)
+        if self.in_issue_draft is not None:
+            query_filters &= Q(in_issue_draft=self.in_issue_draft)
         if self.package_filter is not None:
             query_filters &= Q(cached__payload__packages__has_key=self.package_filter)
 
@@ -91,6 +94,7 @@ class SuggestionListView(ListView, ABC):
             suggestion_context.show_status = (
                 self.status_filter
                 is None  # We don't show status in lists already filtered by status
+                and not self.in_issue_draft  # Nor in the issue draft list
             )
             suggestion_contexts.append(suggestion_context)
 
@@ -98,9 +102,11 @@ class SuggestionListView(ListView, ABC):
             {
                 "suggestions": suggestion_contexts,
                 "page_obj": page_obj,
+                "in_issue_draft": self.in_issue_draft,
                 "status_filter": self.status_filter,
                 "package_filter": self.package_filter,
                 "is_compact": self.is_compact,
+                "user_can_edit": user_can_edit,
                 "adjusted_elided_page_range": paginator.get_elided_page_range(
                     page_obj.number
                 ),

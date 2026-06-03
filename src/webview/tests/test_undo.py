@@ -48,7 +48,7 @@ def test_cannot_transition_from_published(
     suggestion = make_cached_suggestion(
         status=CVEDerivationClusterProposal.Status.PUBLISHED,
     )
-    NixpkgsIssue.create_nixpkgs_issue(suggestion)
+    NixpkgsIssue.create_nixpkgs_issue([suggestion], "Issue title")
 
     client.force_login(staff)
     url = reverse("webview:suggestion:update_status", args=[suggestion.pk])

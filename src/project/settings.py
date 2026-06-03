@@ -163,6 +163,13 @@ class Settings(BaseSettings):
             The base URL of the tracker instance, used to construct backlinks for GitHub issues.
             """,
         )
+        TRACKING_BRANCH: str = Field(
+            description="""
+            The branch that tracks upstream development.
+            Serves as the source of truth for package metadata such as maintainers and descriptions.
+            """,
+            default="nixpkgs-unstable",
+        )
         MAX_MATCHES: int = Field(
             description="""
             CVEs matching more than this number of derivations are ignored.

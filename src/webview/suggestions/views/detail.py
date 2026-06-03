@@ -43,7 +43,7 @@ class SuggestionDetailView(DetailView):
     def get(self, request: HttpRequest, suggestion_id: int) -> HttpResponse:
         self.object = self.get_object()
         if self.object.status == CVEDerivationClusterProposal.Status.PUBLISHED:
-            issue = NixpkgsIssue.objects.get(suggestion=self.object)
+            issue = NixpkgsIssue.objects.get(suggestions=self.object)
             return redirect(
                 reverse("webview:issue_detail", kwargs={"code": issue.code})
             )

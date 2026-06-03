@@ -26,7 +26,8 @@ def test_create_gh_issue_includes_tracker_link_in_body(
 
     mock_gh = MockGithub()
     create_gh_issue(
-        accepted_suggestion.cached,
+        [accepted_suggestion.cached],
+        "Test issue title",
         tracker_issue_uri,
         github=mock_gh,  # type: ignore
     )
@@ -56,7 +57,7 @@ def test_publish_uses_base_url(
 
     from shared.models import NixpkgsIssue
 
-    tracker_issue = NixpkgsIssue.create_nixpkgs_issue(suggestion)
+    tracker_issue = NixpkgsIssue.create_nixpkgs_issue([suggestion], "Issue title")
 
     with (
         patch("shared.github.create_gh_issue") as mock_create_gh_issue,
@@ -65,12 +66,12 @@ def test_publish_uses_base_url(
         mock_create_gh_issue.return_value.html_url = "https://github.com/mock/issue/1"
 
         # Trigger the publication via the model instance method
-        tracker_issue.publish(new_comment="Test comment")
+        tracker_issue.publish()
 
         # Verify that create_gh_issue was called with the correct tracker link
         assert mock_create_gh_issue.called
-        # args[1] is tracker_issue_link
-        tracker_issue_link = mock_create_gh_issue.call_args[0][1]
+        # args[2] is tracker_issue_link
+        tracker_issue_link = mock_create_gh_issue.call_args[0][2]
 
     expected_issue_path = reverse(
         "webview:issue_detail",

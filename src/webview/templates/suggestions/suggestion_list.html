@@ -74,6 +74,55 @@
         </div>
       </div>
 
+    {% elif in_issue_draft is not None and in_issue_draft %}
+
+      <div>
+        <h1 class="page-title row gap-small centered">Draft issue</h1>
+
+        <div class="prose">
+          <p>
+            The following suggestions will be included in a common GitHub issue upon publication. This draft GitHub is shared by all users of the security tracker.
+          </p>
+          {% if result_count == 0 %}
+            <p>
+              There are currently no suggestions in the draft issue.
+              {% if user_can_edit %}
+                You may click on "Bundle" on <a href="{% url 'webview:suggestion:accepted_suggestions' %}">accepted suggestions</a> to add them to the draft.
+              {% endif %}
+            </p>
+          {% endif %}
+        </div>
+
+        {% if result_count > 0 and user_can_edit %}
+          <div class="row gap-small centered">
+            <form method="post"
+                  action="{% url 'webview:suggestion:reset_issue_draft' %}"
+                  hx-boost="true"
+                  hx-indicator="find button"
+                  class="contents">
+              {% csrf_token %}
+              <!-- Preserve current page in no-js mode -->
+              <button type="submit" hx-swap="none" class="btn btn-gray no-line-breaks">Reset draft</button>
+            </form>
+            <form method="post"
+                  action="{% url 'webview:suggestion:publish_issue_draft' %}"
+                  hx-boost="true"
+                  hx-indicator="find .join"
+                  class="contents">
+              <div class="row join join-green full-width">
+                <input type="text"
+                       name="issue_title"
+                       placeholder="Issue title"
+                       required
+                       class="full-width rounded-box-compact join-item">
+                {% csrf_token %}
+                <button type="submit" class="btn btn-green join-item">Publish</button>
+              </div>
+            </form>
+          </div>
+        {% endif %}
+      </div>
+
     {% elif status_filter == "pending" %}
 
       <div>
@@ -127,18 +176,20 @@
 
     {% endif %}
 
-    <div class="inline-row gap centered justify-right">
-      <div class="inline-row centered gap-small">
-        <i class="icon-eye"></i>View:
+    {% if result_count > 0 %}
+      <div class="inline-row gap centered justify-right">
+        <div class="inline-row centered gap-small">
+          <i class="icon-eye"></i>View:
+        </div>
+        {% if is_compact %}
+          <div class="bold">Compact</div>
+          <a href="{% toggle_param 'compact' %}">Detailed</a>
+        {% else %}
+          <a href="{% toggle_param 'compact' %}">Compact</a>
+          <div class="bold">Detailed</div>
+        {% endif %}
       </div>
-      {% if is_compact %}
-        <div class="bold">Compact</div>
-        <a href="{% toggle_param 'compact' %}">Detailed</a>
-      {% else %}
-        <a href="{% toggle_param 'compact' %}">Compact</a>
-        <div class="bold">Detailed</div>
-      {% endif %}
-    </div>
+    {% endif %}
 
     <div class="column gap">
       {% for s in suggestions %}
