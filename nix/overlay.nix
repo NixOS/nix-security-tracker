@@ -80,6 +80,7 @@ in
       django-pghistory
       django-pglock
       django-pgtrigger
+      django-prometheus
       pytest
       pytest-django
       pytest-playwright
