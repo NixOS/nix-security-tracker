@@ -67,6 +67,7 @@ in
       sentry-sdk
       django-pghistory
       django-pgtrigger
+      django-prometheus
       pytest
       pytest-django
       pytest-playwright
