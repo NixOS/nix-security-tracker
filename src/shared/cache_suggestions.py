@@ -208,7 +208,10 @@ def cache_new_suggestions(suggestion: CVEDerivationClusterProposal) -> None:
 
     derivations = list(
         suggestion.derivations.select_related(
-            "metadata", "parent_evaluation", "parent_evaluation__channel"
+            "metadata",
+            "package_link__package",
+            "parent_evaluation",
+            "parent_evaluation__channel",
         )
         .prefetch_related(
             Prefetch(
@@ -315,8 +318,7 @@ def channel_structure(
             derivation.metadata
             and derivation.parent_evaluation.channel.is_rolling_release
         ):
-            if derivation.metadata.description:
-                packages[attribute_path].description = derivation.metadata.description
+            packages[attribute_path].description = derivation.metadata.get_description()
             packages[attribute_path].maintainers = [
                 CachedSuggestion.Maintainer.model_validate(to_dict(m))
                 for m in derivation.metadata.prefetched_maintainers

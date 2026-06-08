@@ -10,7 +10,7 @@ from django.conf import settings
 from django.contrib.auth.models import Group, User
 from django.utils import timezone
 
-from shared.cache_suggestions import cache_new_suggestions
+from shared.cache_suggestions import cache_new_suggestions, parse_drv_name
 from shared.fetchers import make_metrics
 from shared.models.cve import (
     AffectedProduct,
@@ -37,6 +37,7 @@ from shared.models.nix_evaluation import (
     NixEvaluation,
     NixMaintainer,
 )
+from shared.models.package import Package, PackageAttrpath
 from shared.notify_users import create_package_subscription_notifications
 from webview.models import SuggestionNotification as Notification
 
@@ -249,6 +250,7 @@ def make_drv(
     ) -> NixDerivation:
         meta = NixDerivationMeta.objects.create(
             description="Dummy derivation",
+            homepage="https://example.com",
             insecure=False,
             available=True,
             broken=False,
@@ -277,6 +279,26 @@ def drv(
     make_drv: Callable[..., NixDerivation],
 ) -> NixDerivation:
     return make_drv()
+
+
+@pytest.fixture
+def make_package(db: None) -> Callable[..., Package]:
+    def wrapped(
+        drv: NixDerivation,
+        homepage: str | None = "https://example.com",
+        description: str | None = "My package",
+        attrpath: str | None = None,
+    ) -> Package:
+        pname, _ = parse_drv_name(drv.name)
+        pkg = Package.objects.create(
+            name=pname,
+            homepage=homepage,
+            description=description,
+        )
+        PackageAttrpath.objects.create(package=pkg, attrpath=attrpath or drv.attribute)
+        return pkg
+
+    return wrapped
 
 
 @pytest.fixture

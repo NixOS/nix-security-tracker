@@ -367,6 +367,8 @@ INSTALLED_APPS = [
     "pgtrigger",
     "pghistory",
     "pghistory.admin",
+    "pglock",
+    "pgactivity",
     "rest_framework",
     "shared",
     "api",

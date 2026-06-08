@@ -2,6 +2,7 @@ from django.conf import settings
 from django.contrib.postgres import fields
 from django.contrib.postgres.indexes import BTreeIndex, GinIndex
 from django.contrib.postgres.search import SearchVectorField
+from django.core.exceptions import ObjectDoesNotExist
 from django.db import models
 from django.utils.translation import gettext_lazy as _
 from pgtrigger import UpdateSearchVector
@@ -111,6 +112,14 @@ class NixDerivationMeta(models.Model):
     # platforms = models.ManyToManyField(NixPlatform)
 
     position = models.URLField(null=True)
+
+    def get_description(self) -> str | None:
+        description: str | None = None
+        try:
+            description = self.derivation.package_link.package.description
+        except ObjectDoesNotExist:
+            description = self.description
+        return description
 
     def __str__(self) -> str:
         return self.description or ""

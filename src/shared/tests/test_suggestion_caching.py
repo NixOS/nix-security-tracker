@@ -17,6 +17,8 @@ from shared.models.nix_evaluation import (
     NixEvaluation,
     NixMaintainer,
 )
+from shared.models.package import Package
+from shared.package_clustering import cluster_packages
 
 
 # The Pydantic class for the cached value gives us some assurance about the shape of the data, but ultimately we probabyly want property tests here.
@@ -143,3 +145,48 @@ def test_cache_stale_check(
     cached.schema_version = CachedSuggestions.CURRENT_SCHEMA_VERSION - 1  # type: ignore
     cached.save()
     assert cached.is_stale is True
+
+
+def test_cache_description_from_package(
+    suggestion: CVEDerivationClusterProposal,
+) -> None:
+    """
+    The cached payload must surface the description after clustering.
+    """
+    drv = suggestion.derivations.first()
+    assert drv
+    assert drv.metadata
+    expected_description = drv.metadata.description
+
+    cluster_packages(NixDerivation.objects.filter(pk=drv.pk))
+
+    # Without these the failure below is ambiguous between cache and clustering.
+    drv.metadata.refresh_from_db()
+    assert drv.metadata.description is None
+    assert Package.objects.get().description == expected_description
+
+    cache_new_suggestions(suggestion)
+
+    cached = CachedSuggestions.objects.get(proposal=suggestion)
+    assert (
+        cached.payload["packages"][drv.attribute]["description"] == expected_description
+    )
+
+
+def test_cache_description_falls_back_to_meta(
+    suggestion: CVEDerivationClusterProposal,
+) -> None:
+    """
+    When no PackageDerivation exists, the cached payload falls back to NixDerivationMeta.description.
+    """
+    drv = suggestion.derivations.first()
+    assert drv
+    assert drv.metadata
+
+    cache_new_suggestions(suggestion)
+
+    cached = CachedSuggestions.objects.get(proposal=suggestion)
+    assert (
+        cached.payload["packages"][drv.attribute]["description"]
+        == drv.metadata.description
+    )

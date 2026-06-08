@@ -32,6 +32,12 @@ class NixEvaluationChannel(TriggerChannel):
 
 
 @dataclass
+class NixEvaluationUpdateChannel(TriggerChannel):
+    model = NixEvaluation
+    lock_notifications = True
+
+
+@dataclass
 class NixDerivationChannel(TriggerChannel):
     model = NixDerivation
 

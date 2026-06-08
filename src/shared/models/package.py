@@ -15,6 +15,13 @@ class Package(models.Model):
     search_vector = SearchVectorField(null=True)
 
     class Meta:  # type: ignore[override]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["name", "homepage"],
+                nulls_distinct=False,
+                name="package_name_homepage_unique",
+            ),
+        ]
         indexes = [
             GinIndex(fields=["search_vector"]),
         ]
@@ -32,7 +39,7 @@ class Package(models.Model):
 class PackageAttrpath(models.Model):
     """
     Maps a Nixpkgs attribute path to a package.
-    The unique index on attrpath enables O(1) lookup during package matching:
+    The unique index on `attrpath` enables O(1) lookup during package clustering:
     given a derivation's attribute, find its package without scanning derivations.
     """
 
