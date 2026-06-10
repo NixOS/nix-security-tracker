@@ -13,11 +13,20 @@ def enqueue_evaluation_job(channel: NixChannel) -> tuple[NixEvaluation, bool]:
         defaults={
             # We will leave the scheduling to the evaluation channel
             # listener.
-            "state": NixEvaluation.EvaluationState.WAITING
+            "state": NixEvaluation.EvaluationState.WAITING,
+            "channel": channel,
         },
-        channel=channel,
         commit_sha1=channel.head_sha1_commit,
     )
+    # If the commit is shared by multiple channels, prefer the tracking branch.
+    if (
+        not created
+        and channel.is_rolling_release
+        and not eval_job.channel.is_rolling_release
+    ):
+        eval_job.channel = channel
+        eval_job.save(update_fields=["channel", "updated_at"])
+
     logger.info(
         f"Enqueued evaluation job {eval_job}{' (already existing!)' if not created else ''}"
     )

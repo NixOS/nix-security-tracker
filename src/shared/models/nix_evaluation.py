@@ -256,7 +256,11 @@ class NixEvaluation(TimeStampMixin):
         return f"{self.channel} {self.commit_sha1[:8]}"
 
     class Meta:  # type: ignore[override]
-        unique_together = ("channel", "commit_sha1")
+        constraints = [
+            models.UniqueConstraint(
+                fields=["commit_sha1"], name="nixevaluation_commit_sha1_unique"
+            )
+        ]
 
 
 class NixDerivation(models.Model):
