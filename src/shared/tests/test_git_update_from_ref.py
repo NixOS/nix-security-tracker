@@ -77,7 +77,7 @@ def test_retries_then_succeeds_on_lock_contention() -> None:
     result, exec_mock, sleep_mock, _ = _run(
         [
             _proc("git cat-file", 1),
-            _proc("git fetch", 128, b"fatal: could not lock ref: shallow.lock\n"),
+            _proc("git fetch", 128, b"fatal: cannot lock ref\n"),
             _proc("git fetch", 0),
         ]
     )
@@ -87,7 +87,9 @@ def test_retries_then_succeeds_on_lock_contention() -> None:
 
 
 def _lock_err() -> MagicMock:
-    return _proc("git fetch", 128, b"fatal: could not lock ref: shallow.lock\n")
+    return _proc(
+        "git fetch", 128, b"fatal: shallow file has changed since we read it\n"
+    )
 
 
 @pytest.mark.parametrize("max_attempts", [1, 2, 5])

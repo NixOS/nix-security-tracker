@@ -56,5 +56,5 @@ def test_put_invalid_body(client: APIClient, user: User) -> None:
 
 def test_unauthenticated() -> None:
     anon = APIClient()
-    assert anon.get(URL).status_code == status.HTTP_403_FORBIDDEN
-    assert anon.put(URL).status_code == status.HTTP_403_FORBIDDEN
+    assert anon.get(URL).status_code == status.HTTP_401_UNAUTHORIZED
+    assert anon.put(URL).status_code == status.HTTP_401_UNAUTHORIZED

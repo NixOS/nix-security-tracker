@@ -2,6 +2,7 @@
 #!nix-shell -i bash -p nixos-rebuild coreutils
 
 set -eo pipefail
+export TMPDIR=/tmp
 
 DIR=$(git rev-parse --show-toplevel)
 VERB=${1:-switch}

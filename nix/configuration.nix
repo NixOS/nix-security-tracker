@@ -334,6 +334,7 @@ in
 
           serviceConfig.Type = "oneshot";
           script = ''
+            wst-manage backfill_package_clustering
             wst-manage regenerate_cached_suggestions
           '';
         };
@@ -356,6 +357,7 @@ in
               --channels \
                 shared.channels.NixChannelInsertChannel \
                 shared.channels.NixChannelUpdateChannel \
+                shared.channels.NixEvaluationUpdateChannel \
                 shared.channels.ContainerChannel \
                 shared.channels.CVEDerivationClusterProposalChannel \
           '';

@@ -41,7 +41,7 @@ pkgs.testers.runNixOSTest {
             EOF
 
             cd $out
-            git init
+            git init --initial-branch=master
             git add -A
             git -c user.name=test -c user.email=test@test commit -m "test"
             git rev-parse HEAD > REVISION
@@ -189,12 +189,15 @@ pkgs.testers.runNixOSTest {
                 NixMaintainer,
                 NixLicense,
               )
+              from shared.models.package import Package, PackageDerivation
               assert NixEvaluation.objects.filter(
                 state=NixEvaluation.EvaluationState.COMPLETED,
               ).count() == 3
               for model, count in [
                 (NixDerivation, 3),
                 (NixDerivationMeta, 3),
+                (Package, 1),
+                (PackageDerivation, 3),
                 (NixMaintainer, 1),
                 (NixLicense, 1),
               ]:

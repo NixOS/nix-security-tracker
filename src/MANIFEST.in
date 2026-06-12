@@ -1,17 +1,4 @@
-recursive-include shared/management *
-recursive-include shared/migrations *
-recursive-include shared/static *
-recursive-include shared/templates *
-recursive-include shared/models *
-recursive-include shared/listeners *
-recursive-include shared/auth *
-recursive-include shared/logs *
-recursive-include webview/management *
-recursive-include webview/migrations *
-recursive-include webview/static *
-recursive-include webview/templates *
-recursive-include webview/templatetags *
-recursive-include project/management *
-recursive-include project/migrations *
-recursive-include project/static *
-recursive-include project/templates *
+graft shared
+graft webview
+prune shared/tests
+prune webview/tests

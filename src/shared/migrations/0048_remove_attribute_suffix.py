@@ -31,7 +31,7 @@ def reapply_suffix(apps, schema_editor):
     instances = NixDerivation.objects.all()
     count = instances.count()
 
-    for offset in range(0, offset, batch_size):
+    for offset in range(0, count, batch_size):
         instances_to_update = []
         batch = instances[offset : offset + batch_size]
         for instance in batch:

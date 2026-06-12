@@ -2,7 +2,10 @@ from django.conf import settings
 from django.contrib.postgres import fields
 from django.contrib.postgres.indexes import BTreeIndex, GinIndex
 from django.contrib.postgres.search import SearchVectorField
+from django.core.exceptions import ObjectDoesNotExist
 from django.db import models
+from django.db.models import F, Window
+from django.db.models.functions import RowNumber
 from django.utils.translation import gettext_lazy as _
 from pgtrigger import UpdateSearchVector
 
@@ -112,6 +115,14 @@ class NixDerivationMeta(models.Model):
 
     position = models.URLField(null=True)
 
+    def get_description(self) -> str | None:
+        description: str | None = None
+        try:
+            description = self.derivation.package_link.package.description
+        except ObjectDoesNotExist:
+            description = self.description
+        return description
+
     def __str__(self) -> str:
         return self.description or ""
 
@@ -174,6 +185,22 @@ class NixChannel(TimeStampMixin):
         return self.channel_branch == settings.TRACKING_BRANCH
 
 
+class NixEvaluationQuerySet(models.QuerySet):
+    def latest_per_channel(self) -> "NixEvaluationQuerySet":
+        return self.annotate(
+            row_num=Window(
+                expression=RowNumber(),
+                partition_by=[F("channel")],
+                order_by=F("updated_at").desc(),
+            ),
+        ).filter(row_num=1)
+
+    def latest_completed_per_channel(self) -> "NixEvaluationQuerySet":
+        return self.filter(
+            state=NixEvaluation.EvaluationState.COMPLETED
+        ).latest_per_channel()
+
+
 class NixEvaluation(TimeStampMixin):
     """
     This is a Nix evaluation of a repository,
@@ -182,6 +209,8 @@ class NixEvaluation(TimeStampMixin):
     It contains its derivations via `derivations` attribute
     set by the `NixDerivation` model.
     """
+
+    objects = NixEvaluationQuerySet.as_manager()
 
     class EvaluationState(models.TextChoices):
         COMPLETED = "COMPLETED", _("Completed")

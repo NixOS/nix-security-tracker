@@ -51,6 +51,7 @@
             <a href="{% url 'webview:subscriptions:center' %}"
                id="subscriptions-navbar-icon"></a>
             {% notifications_badge user.profile.unread_notifications_count %}
+            <a href="{% url 'webview:tokens:manage' %}">API</a>
             <a href="{% url 'account_logout' %}">Logout</a>
 
           {% else %}

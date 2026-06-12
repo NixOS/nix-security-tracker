@@ -22,4 +22,5 @@ urlpatterns = [
         name="issue_detail",
     ),
     path("github-webhook/", handle_github_hook, name="github_webhook"),
+    path("tokens/", include("webview.tokens.urls"), name="tokens"),
 ]

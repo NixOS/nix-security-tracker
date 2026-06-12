@@ -19,7 +19,7 @@ def _run_entrypoint(evaluation: NixEvaluation, returncode: int) -> None:
     process = MagicMock()
     process.returncode = returncode
     # stdout that immediately yields EOF
-    stdout = AsyncMock()
+    stdout = MagicMock()
     stdout.readline = AsyncMock(return_value=b"")
     process.stdout = stdout
     process.wait = AsyncMock(return_value=returncode)
@@ -27,13 +27,23 @@ def _run_entrypoint(evaluation: NixEvaluation, returncode: int) -> None:
     mock_repo = MagicMock()
     mock_repo.update_from_ref = AsyncMock()
     mock_git_repo = MagicMock(return_value=mock_repo)
+
+    mock_file = MagicMock()
+    mock_file.fileno = MagicMock(return_value=1)
+    mock_aiofiles_open = MagicMock()
+    mock_aiofiles_open.__aenter__ = AsyncMock(return_value=mock_file)
+    mock_aiofiles_open.__aexit__ = AsyncMock(return_value=None)
+
     with (
         patch(
             "shared.listeners.nix_evaluation.perform_evaluation",
             AsyncMock(return_value=process),
         ),
         patch("shared.listeners.nix_evaluation.GitRepo", mock_git_repo),
-        patch("shared.listeners.nix_evaluation.aiofiles.open", new_callable=MagicMock),
+        patch(
+            "shared.listeners.nix_evaluation.aiofiles.open",
+            return_value=mock_aiofiles_open,
+        ),
     ):
         asyncio.run(evaluation_entrypoint(0.0, evaluation))
 

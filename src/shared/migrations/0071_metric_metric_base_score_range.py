@@ -12,6 +12,6 @@ class Migration(migrations.Migration):
     operations = [
         migrations.AddConstraint(
             model_name='metric',
-            constraint=models.CheckConstraint(check=models.Q(('base_score__gte', 0.0), ('base_score__lte', 10.0)), name='metric_base_score_range'),
+            constraint=models.CheckConstraint(condition=models.Q(('base_score__gte', 0.0), ('base_score__lte', 10.0)), name='metric_base_score_range'),
         ),
     ]

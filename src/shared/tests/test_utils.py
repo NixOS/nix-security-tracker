@@ -12,6 +12,11 @@ from shared.cache_suggestions import parse_drv_name
         ("foo-unstable", ("foo-unstable", "")),
         ("python3-3.11.0", ("python3", "3.11.0")),
         ("no-version", ("no-version", "")),
+        ("mypy-boto3-1.0.0", ("mypy-boto3", "1.0.0")),
+        (
+            "python3.12-mypy-boto3-appmesh-1.43.0",
+            ("python3.12-mypy-boto3-appmesh", "1.43.0"),
+        ),
     ],
 )
 def test_parse_drv_name(drv_name: str, expected: tuple[str, str]) -> None:

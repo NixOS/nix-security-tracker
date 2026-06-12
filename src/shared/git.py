@@ -175,7 +175,13 @@ class GitRepo:
                 stderr_text = stderr.decode("utf8")
                 if rc == 0:
                     return True
-                if "shallow.lock" not in stderr_text:
+                for err in [
+                    "cannot lock ref",
+                    "shallow file has changed since we read it",
+                ]:
+                    if err in stderr_text:
+                        break
+                else:
                     logger.error("git fetch stderr: %s", stderr_text)
                     raise RepositoryError(
                         f"failed to fetch {object_sha1} while running `git fetch --depth=1 {repo_clone_url} {object_sha1}`"

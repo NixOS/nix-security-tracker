@@ -1,0 +1,62 @@
+{% extends "base.html" %}
+
+{% block content %}
+
+  <h1 class="page-title">API token</h1>
+
+  <div class="column gap">
+
+    <p>
+      Use an API token to authenticate requests with
+      <code>Authorization: Bearer &lt;token&gt;</code>.
+      Tokens are valid for {{ TOKEN_LIFETIME_DAYS }} days.
+    </p>
+
+    {% if new_token_value %}
+      <div class="rounded-box column gap">
+        <h2 class="heading">Your new token</h2>
+        <p>
+          <strong>Copy this value now — it will not be shown again.</strong>
+        </p>
+        <pre>{{ new_token_value }}</pre>
+        <p>
+          Created: {{ token.created }}
+          <br />
+          Expires: {{ token.expiry }}
+        </p>
+      </div>
+    {% elif token %}
+      <div class="rounded-box column gap">
+        <h2 class="heading">Active token</h2>
+        <p>
+          Created: {{ token.created }}
+          <br />
+          Expires: {{ token.expiry }}
+        </p>
+        <div class="row gap">
+          <form method="post">
+            {% csrf_token %}
+            <input type="hidden" name="action" value="extend" />
+            <button type="submit" class="btn btn-green">Extend by {{ TOKEN_LIFETIME_DAYS }} days</button>
+          </form>
+          <form method="post">
+            {% csrf_token %}
+            <input type="hidden" name="action" value="revoke" />
+            <button type="submit" class="btn btn-red">Revoke</button>
+          </form>
+        </div>
+      </div>
+    {% else %}
+      <div class="rounded-box column gap">
+        <h2 class="heading">No active token</h2>
+        <form method="post">
+          {% csrf_token %}
+          <input type="hidden" name="action" value="generate" />
+          <button type="submit" class="btn btn-green">Generate API token</button>
+        </form>
+      </div>
+    {% endif %}
+
+  </div>
+
+{% endblock content %}

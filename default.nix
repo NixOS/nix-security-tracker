@@ -76,13 +76,16 @@ rec {
           mkdir -p "$credentialsDir"
           mkdir -p "$nixpkgsDir"
           cd "$credentialsDir"
-          set -o noclobber
-          python3 -c 'import secrets; print(secrets.token_hex(100))' > SECRET_KEY
-          echo bar > GH_CLIENT_ID
-          echo baz > GH_SECRET
-          echo qux > GH_WEBHOOK_SECRET
-          echo 123 > GH_APP_INSTALLATION_ID
-          echo foo > GH_APP_PRIVATE_KEY
+          {
+            set +e -o noclobber
+            python3 -c 'import secrets; print(secrets.token_hex(100))' > SECRET_KEY
+            echo bar > GH_CLIENT_ID
+            echo baz > GH_SECRET
+            echo qux > GH_WEBHOOK_SECRET
+            echo 123 > GH_APP_INSTALLATION_ID
+            echo foo > GH_APP_PRIVATE_KEY
+          } 2>/dev/null
+          set -e
         '';
       };
     in
