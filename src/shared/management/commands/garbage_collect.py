@@ -4,7 +4,7 @@ from typing import Any
 
 from django.core.management.base import BaseCommand, CommandParser, DjangoHelpFormatter
 from django.db import connection, models
-from django.db.models import QuerySet
+from django.db.models import Count, Min, QuerySet
 from django.utils import timezone
 
 from shared.models import (  # type: ignore
@@ -79,15 +79,16 @@ class Command(BaseCommand):
         # Each step satisfies the cascading constraints that gate the next step.
         # `pghistory` events are never auto-deleted — each step explicitly clears relevant events first.
 
-        self.stdout.write("\n[1/4] Deleting stale matches")
+        self.stdout.write("\n[1/5] Deleting stale matches")
         self._delete_stale_matches(cutoff, batch_size, dry_run)
-        self.stdout.write("\n[1/4] Stale proposals cleanup completed")
-        self.stdout.write("\n[2/4] deleting unmatched derivations")
+        self.stdout.write("\n[2/5] Deleting unmatched derivations")
         self._delete_unmatched_derivations(cutoff, batch_size, dry_run)
-        self.stdout.write("\n[3/4] delete empty evaluations")
+        self.stdout.write("\n[3/5] Deleting empty evaluations")
         self._delete_empty_evaluations(cutoff, batch_size, dry_run)
-        self.stdout.write("\n[4/4] deleting inactive channels")
+        self.stdout.write("\n[4/5] Deleting inactive channels")
         self._delete_inactive_channels(batch_size, dry_run)
+        self.stdout.write("\n[5/5] Deduplicating evaluations")
+        self._deduplicate_evaluations(batch_size, dry_run)
 
         self.stdout.write(self.style.SUCCESS("\nGarbage collection complete."))
 
@@ -228,6 +229,67 @@ class Command(BaseCommand):
             model=NixChannel,
             pk_field="channel_branch",
             label="channels",
+            batch_size=batch_size,
+        )
+
+    def _deduplicate_evaluations(self, batch_size: int, dry_run: bool) -> None:
+        duplicate_commits = (
+            NixEvaluation.objects.values("commit_sha1")
+            .annotate(c=Count("id"))
+            .filter(c__gt=1)
+            .values("commit_sha1")
+        )
+
+        canonical_ids = (
+            NixEvaluation.objects.filter(commit_sha1__in=duplicate_commits)
+            .values("commit_sha1")
+            .annotate(canonical_id=Min("id"))
+            .values("canonical_id")
+        )
+
+        evals_to_delete = NixEvaluation.objects.filter(
+            commit_sha1__in=duplicate_commits
+        ).exclude(id__in=canonical_ids)
+
+        total = evals_to_delete.count()
+        self.stdout.write(f"Found {total} duplicate evaluation(s).")
+
+        if total == 0 or dry_run:
+            return
+
+        self._delete_in_batches(
+            qs=DerivationClusterProposalLink.objects.filter(
+                derivation__parent_evaluation__in=evals_to_delete
+            ),
+            model=DerivationClusterProposalLink,
+            pk_field="id",
+            label="proposal links",
+            batch_size=batch_size,
+        )
+
+        self._delete_in_batches(
+            qs=NixDerivation.objects.filter(
+                parent_evaluation__in=evals_to_delete,
+            ),
+            model=NixDerivation,
+            pk_field="id",
+            label="derivations without metadata",
+            batch_size=batch_size,
+        )
+
+        self._delete_in_batches(
+            qs=NixDerivationMeta.objects.filter(derivation__isnull=True),
+            model=NixDerivationMeta,
+            pk_field="id",
+            label="derivation metadata",
+            batch_size=batch_size,
+        )
+
+        self._delete_in_batches(
+            qs=evals_to_delete,
+            model=NixEvaluation,
+            pk_field="id",
+            label="duplicate evaluations",
             batch_size=batch_size,
         )
 

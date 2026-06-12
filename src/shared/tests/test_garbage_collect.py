@@ -281,7 +281,6 @@ def test_deletes_empty_old_evaluations(
 
 def test_only_old_proposals_deleted_recent_kept(
     make_container: Callable[..., Container],
-    make_drv: Callable[..., NixDerivation],
     make_suggestion: Callable[..., CVEDerivationClusterProposal],
 ) -> None:
     """When both old and recent proposals exist, only the old one is removed."""
@@ -299,4 +298,53 @@ def test_only_old_proposals_deleted_recent_kept(
     assert CVEDerivationClusterProposal.objects.count() == 1
     assert CVEDerivationClusterProposal.objects.filter(
         cve=recent_container.cve
+    ).exists()
+
+
+def test_no_duplicate_evaluations(evaluation: NixEvaluation) -> None:
+    call_command("garbage_collect", stdout=StringIO())
+    assert NixEvaluation.objects.count() == 1
+
+
+def test_when_there_is_duplicate_evaluation(
+    evaluation: NixEvaluation,
+    make_channel: Callable[..., NixChannel],
+    make_evaluation: Callable[..., NixEvaluation],
+    make_drv: Callable[..., NixDerivation],
+    make_suggestion: Callable[..., CVEDerivationClusterProposal],
+) -> None:
+    first_drv = make_drv(evaluation=evaluation)
+    first_suggestion = make_suggestion(
+        drvs={first_drv: ProvenanceFlags.PACKAGE_NAME_MATCH}
+    )
+    first_meta_id = first_drv.metadata_id
+
+    duplicate_eval = make_evaluation(
+        channel=make_channel(release="25.11", branch="nixos-25.11"),
+        commit_sha1=evaluation.commit_sha1,
+        state=NixEvaluation.EvaluationState.COMPLETED,
+    )
+    duplicate_drv = make_drv(evaluation=duplicate_eval)
+    duplicate_suggestion = make_suggestion(
+        drvs={duplicate_drv: ProvenanceFlags.PACKAGE_NAME_MATCH}
+    )
+    duplicate_meta_id = duplicate_drv.metadata_id
+
+    assert evaluation.id < duplicate_eval.id
+    call_command("garbage_collect", stdout=StringIO())
+
+    # Canonical evaluation and its data survive.
+    assert NixEvaluation.objects.filter(id=evaluation.id).exists()
+    assert NixDerivation.objects.filter(id=first_drv.id).exists()
+    assert NixDerivationMeta.objects.filter(id=first_meta_id).exists()
+    assert DerivationClusterProposalLink.objects.filter(
+        proposal=first_suggestion
+    ).exists()
+
+    # Duplicate evaluation and all its data are removed.
+    assert not NixEvaluation.objects.filter(id=duplicate_eval.id).exists()
+    assert not NixDerivation.objects.filter(id=duplicate_drv.id).exists()
+    assert not NixDerivationMeta.objects.filter(id=duplicate_meta_id).exists()
+    assert not DerivationClusterProposalLink.objects.filter(
+        proposal=duplicate_suggestion
     ).exists()
