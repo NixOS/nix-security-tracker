@@ -1,9 +1,18 @@
 from django.contrib.postgres.indexes import GinIndex
 from django.contrib.postgres.search import SearchVectorField
 from django.db import models
+from django.db.models import Exists, OuterRef
 from pgtrigger import UpdateSearchVector
 
 from shared.models.nix_evaluation import NixDerivation, NixMaintainer
+
+
+class PackageAttrpathQuerySet(models.QuerySet):
+    def stale(self) -> models.QuerySet:
+        live = PackageDerivation.objects.filter(
+            derivation__attribute=OuterRef("attrpath"),
+        )
+        return self.filter(~Exists(live))
 
 
 class Package(models.Model):
@@ -48,6 +57,8 @@ class PackageAttrpath(models.Model):
         Package, on_delete=models.CASCADE, related_name="attrpaths"
     )
     attrpath = models.CharField(max_length=255, unique=True)
+
+    objects = PackageAttrpathQuerySet.as_manager()
 
 
 class PackageDerivation(models.Model):
