@@ -147,6 +147,50 @@ in
           query = "select count(*) from shared_cvederivationclusterproposal where status='published';";
           values = [ "count" ];
         };
+        channel_evaluation_status = {
+          help = "Per-channel latest and latest-successful Nix evaluation status";
+          labels = [
+            "channel"
+            "channel_head"
+            "latest_state"
+            "latest_commit"
+            "latest_successful_commit"
+          ];
+          values = [
+            "latest_updated"
+            "latest_elapsed"
+            "latest_successful_updated"
+          ];
+          query = "
+            WITH latest AS (
+              SELECT DISTINCT ON (channel_id)
+                channel_id, state, commit_sha1, updated_at, elapsed
+              FROM shared_nixevaluation
+              ORDER BY channel_id, updated_at DESC
+            ),
+            latest_successful AS (
+              SELECT DISTINCT ON (channel_id)
+                channel_id, commit_sha1, updated_at
+              FROM shared_nixevaluation
+              WHERE state = 'COMPLETED'
+              ORDER BY channel_id, updated_at DESC
+            )
+            SELECT
+              c.channel_branch::text AS channel,
+              c.head_sha1_commit::text AS channel_head,
+              COALESCE(l.state, '')::text AS latest_state,
+              COALESCE(l.commit_sha1, '')::text AS latest_commit,
+              COALESCE(extract(epoch FROM l.updated_at) * 1000, 0)::float AS latest_updated,
+              COALESCE(l.elapsed, 0)::float AS latest_elapsed,
+              COALESCE(s.commit_sha1, '')::text AS latest_successful_commit,
+              COALESCE(extract(epoch FROM s.updated_at) * 1000, 0)::float AS latest_successful_updated
+            FROM shared_nixchannel c
+            LEFT JOIN latest l ON l.channel_id = c.channel_branch
+            LEFT JOIN latest_successful s ON s.channel_id = c.channel_branch
+            WHERE c.state IN ('DEPRECATED', 'BETA', 'STABLE', 'UNSTABLE')
+            ORDER BY c.channel_branch
+          ";
+        };
       };
       connections = [ "postgres://postgres@/nix-security-tracker?host=/run/postgresql" ];
       interval = "1h";

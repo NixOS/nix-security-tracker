@@ -28,6 +28,12 @@
       "id": "stat",
       "name": "Stat",
       "version": ""
+    },
+    {
+      "type": "panel",
+      "id": "table",
+      "name": "Table",
+      "version": ""
     }
   ],
   "annotations": {
@@ -807,6 +813,203 @@
         "x": 0,
         "y": 11
       },
+      "id": 10,
+      "panels": [],
+      "title": "Channel evaluations",
+      "type": "row"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${DS_PROMETHEUS}"
+      },
+      "description": "Latest and latest-successful Nix evaluation per tracked channel (issue #626)",
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "align": "auto",
+            "cellOptions": {
+              "type": "auto"
+            },
+            "inspect": false
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": 0
+              }
+            ]
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "latest_updated"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "dateTimeAsIso"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "latest_successful_updated"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "dateTimeAsIso"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "latest_elapsed"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "s"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "latest_state"
+            },
+            "properties": [
+              {
+                "id": "custom.width",
+                "value": 120
+              }
+            ]
+          }
+        ]
+      },
+      "gridPos": {
+        "h": 10,
+        "w": 24,
+        "x": 0,
+        "y": 12
+      },
+      "id": 11,
+      "options": {
+        "cellHeight": "sm",
+        "footer": {
+          "countRows": false,
+          "fields": "",
+          "reducer": [
+            "sum"
+          ],
+          "show": false
+        },
+        "showHeader": true,
+        "sortBy": [
+          {
+            "desc": false,
+            "displayName": "channel"
+          }
+        ]
+      },
+      "pluginVersion": "12.1.1",
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_PROMETHEUS}"
+          },
+          "editorMode": "code",
+          "exemplar": false,
+          "expr": "sql_channel_evaluation_status{sql_job=\"sectracker\", instance=\"$Instance\"}",
+          "format": "table",
+          "instant": true,
+          "legendFormat": "__auto",
+          "range": false,
+          "refId": "A"
+        }
+      ],
+      "title": "Channel evaluation status",
+      "transformations": [
+        {
+          "id": "labelsToFields",
+          "options": {
+            "keepLabels": [
+              "channel",
+              "channel_head",
+              "latest_state",
+              "latest_commit",
+              "latest_successful_commit",
+              "col"
+            ],
+            "mode": "columns",
+            "valueLabel": "col"
+          }
+        },
+        {
+          "id": "groupingToMatrix",
+          "options": {
+            "columnField": "col",
+            "emptyValue": "null",
+            "rowField": "channel",
+            "valueField": "Value"
+          }
+        },
+        {
+          "id": "organize",
+          "options": {
+            "excludeByName": {
+              "Time": true,
+              "__name__": true,
+              "database": true,
+              "host": true,
+              "instance": true,
+              "job": true,
+              "query": true,
+              "sql_job": true,
+              "user": true
+            },
+            "indexByName": {
+              "channel": 0,
+              "channel_head": 1,
+              "latest_state": 2,
+              "latest_commit": 3,
+              "latest_updated": 4,
+              "latest_elapsed": 5,
+              "latest_successful_commit": 6,
+              "latest_successful_updated": 7
+            },
+            "renameByName": {
+              "channel": "Channel",
+              "channel_head": "HEAD",
+              "latest_commit": "Latest commit",
+              "latest_elapsed": "Latest elapsed",
+              "latest_state": "Latest state",
+              "latest_successful_commit": "Latest successful commit",
+              "latest_successful_updated": "Latest successful updated",
+              "latest_updated": "Latest updated"
+            }
+          }
+        }
+      ],
+      "type": "table"
+    },
+    {
+      "collapsed": false,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 22
+      },
       "id": 5,
       "panels": [],
       "title": "Host metrics",
@@ -844,7 +1047,7 @@
         "h": 4,
         "w": 4,
         "x": 0,
-        "y": 12
+        "y": 23
       },
       "id": 9,
       "options": {
