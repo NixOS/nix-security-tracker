@@ -71,10 +71,14 @@ class CVEDerivationClusterProposal(TimeStampMixin):
             "hardware_only_cpe",
             _("hardware only"),
         )
+        KNOWN_VULNERABILITY = (
+            "known_vulnerability",
+            _("already tracked in derivation metadata"),
+        )
 
     @classproperty
     def CURRENT_ALGORITHM_VERSION(cls) -> int:  # noqa: N802, N805
-        return 0
+        return 1
 
     cached: "shared.models.cached.CachedSuggestions"
 

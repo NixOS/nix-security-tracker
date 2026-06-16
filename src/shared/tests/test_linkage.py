@@ -233,3 +233,22 @@ def test_ignore_tests(
     suggestion = CVEDerivationClusterProposal.objects.get(cve=cve.cve)
     assert suggestion.derivations.filter(attribute=drv1.attribute).exists()
     assert not suggestion.derivations.filter(attribute=drv2.attribute).exists()
+
+
+def test_skip_known_vulnerability(
+    cve: Container, make_drv: Callable[..., NixDerivation]
+) -> None:
+    drv1 = make_drv(pname="foo")
+    drv2 = make_drv(pname="bar", known_vulnerabilities=[cve.cve.cve_id])
+
+    assert build_new_links(cve)
+
+    proposal = CVEDerivationClusterProposal.objects.get(cve=cve.cve)
+
+    assert proposal.status == CVEDerivationClusterProposal.Status.REJECTED
+    assert (
+        proposal.rejection_reason
+        == CVEDerivationClusterProposal.RejectionReason.KNOWN_VULNERABILITY
+    )
+    assert not proposal.derivations.filter(attribute=drv1.attribute).exists()
+    assert proposal.derivations.filter(attribute=drv2.attribute).exists()

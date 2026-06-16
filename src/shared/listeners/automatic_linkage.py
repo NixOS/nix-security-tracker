@@ -95,6 +95,7 @@ def produce_linkage_candidates(
             package_q | product_q,
             parent_evaluation__in=list(latest_complete_channels),
         )
+        .select_related("metadata")
         .annotate(**annotations)
     )
     for drv in matches.iterator():
@@ -175,16 +176,32 @@ def build_new_links(container: Container) -> bool:
         )
         return False
 
-    proposal = CVEDerivationClusterProposal.objects.create(
-        cve=container.cve,
-        algorithm_version=CVEDerivationClusterProposal.CURRENT_ALGORITHM_VERSION,
-    )
+    with_known_vuln = {
+        drv: flags
+        for drv, flags in drvs.items()
+        if drv.metadata and container.cve.cve_id in drv.metadata.known_vulnerabilities
+    }
+
+    if with_known_vuln:
+        proposal = CVEDerivationClusterProposal.objects.create(
+            cve=container.cve,
+            status=CVEDerivationClusterProposal.Status.REJECTED,
+            rejection_reason=CVEDerivationClusterProposal.RejectionReason.KNOWN_VULNERABILITY,
+            algorithm_version=CVEDerivationClusterProposal.CURRENT_ALGORITHM_VERSION,
+        )
+        drvs_to_attach = with_known_vuln
+    else:
+        proposal = CVEDerivationClusterProposal.objects.create(
+            cve=container.cve,
+            algorithm_version=CVEDerivationClusterProposal.CURRENT_ALGORITHM_VERSION,
+        )
+        drvs_to_attach = drvs
 
     drvs_throughs = [
         CVEDerivationClusterProposal.derivations.through(
             proposal_id=proposal.pk, derivation_id=drv.pk, provenance_flags=flags
         )
-        for drv, flags in drvs.items()
+        for drv, flags in drvs_to_attach.items()
     ]
 
     # We create all the set in one shot.

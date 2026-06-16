@@ -244,6 +244,7 @@ def make_drv(
         attribute: str | None = None,
         evaluation: NixEvaluation = evaluation,
         maintainer: NixMaintainer = maintainer,
+        known_vulnerabilities: list[str] | None = None,
     ) -> NixDerivation:
         meta = NixDerivationMeta.objects.create(
             description="Dummy derivation",
@@ -253,6 +254,7 @@ def make_drv(
             broken=False,
             unfree=False,
             unsupported=False,
+            known_vulnerabilities=known_vulnerabilities or [],
         )
         meta.maintainers.add(maintainer)
 
