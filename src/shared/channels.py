@@ -1,6 +1,6 @@
 from dataclasses import dataclass
 
-from pgpubsub.channel import TriggerChannel
+from pgpubsub.channel import Channel, TriggerChannel
 
 from shared.models import NixDerivation
 from shared.models.cve import Container
@@ -59,3 +59,9 @@ class CVEDerivationClusterProposalChannel(TriggerChannel):
 class NixpkgsIssueChannel(TriggerChannel):
     model = NixpkgsIssue
     lock_notifications = False
+
+
+@dataclass
+class SuggestionRefreshChannel(Channel):
+    pk: int
+    lock_notifications = True

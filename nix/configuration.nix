@@ -123,7 +123,7 @@ in
         VITE_MANIFEST_PATH = "${cfg.frontend}/.vite/manifest.json";
         PACKAGE_CLUSTERING_BATCH_SIZE =
           let
-            parallelism = cfg.maxJobProcessors + 1; # account for periodic backfill
+            parallelism = cfg.suggestionRefreshProcesses + 1; # account for periodic backfill
             # fall back to implicit Postgres defaults
             connections = cfg.services.postgresql.settings.max_connections or 100;
             locks = cfg.services.postgresql.settings.max_locks_per_transaction or 64;
@@ -159,6 +159,16 @@ in
         How many channels to evaluate in parallel.
 
         Each evaluation of Nixpkgs peaks at ~6GB of required RAM.
+      '';
+      type = types.int;
+      default = 2;
+    };
+
+    suggestionRefreshProcesses = mkOption {
+      description = ''
+        How many parallel pgpubsub listener processes to run for
+        SuggestionRefreshChannel, i.e. how many suggestion derivation-link
+        refreshes can run concurrently after an evaluation completes.
       '';
       type = types.int;
       default = 2;
@@ -444,8 +454,10 @@ in
 
             script = ''
               wst-manage listen --recover \
+                --processes ${toString cfg.suggestionRefreshProcesses} \
                 --channels \
                   shared.channels.NixEvaluationUpdateChannel \
+                  shared.channels.SuggestionRefreshChannel \
             '';
           };
 
