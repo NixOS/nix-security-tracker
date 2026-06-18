@@ -170,7 +170,7 @@ Fetch the tips of all [channel branches](https://nix.dev/concepts/faq#channel-br
 manage fetch_all_channels
 ```
 
-Select a ``head_sha1_commit` from the output and run evaluation on that:
+Select a `head_sha1_commit` from the output and run evaluation on that:
 
 ```console
 manage run_evaluation <commit>
