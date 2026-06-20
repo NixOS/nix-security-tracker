@@ -45,3 +45,5 @@ open http://127.0.0.1:8000
 ## Next steps
 
 In order to log in to the service with your GitHub account, [set up credentials](../CONTRIBUTING.md#setting-up-credentials).
+
+Then try it out with real data by running [manual data ingestion and matching](./data_ingestion_and_matching.md).
