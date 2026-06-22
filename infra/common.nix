@@ -147,6 +147,22 @@ in
           query = "select count(*) from shared_cvederivationclusterproposal where status='published';";
           values = [ "count" ];
         };
+        false_positive_ratio = {
+          query = ''
+            select coalesce(
+              count(*) filter (where status = 'rejected')::double precision
+              / nullif(
+                count(*) filter (where status = 'rejected')
+                + count(*) filter (where status in ('accepted', 'published')),
+                0
+              ),
+              0
+            ) as ratio
+            from shared_cvederivationclusterproposal
+            where status in ('accepted', 'rejected', 'published');
+          '';
+          values = [ "ratio" ];
+        };
       };
       connections = [ "postgres://postgres@/nix-security-tracker?host=/run/postgresql" ];
       interval = "1h";
