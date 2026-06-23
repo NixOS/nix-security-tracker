@@ -1,3 +1,5 @@
+import re
+
 from django.conf import settings
 from django.contrib.postgres import fields
 from django.contrib.postgres.indexes import BTreeIndex, GinIndex
@@ -145,19 +147,24 @@ class NixChannel(TimeStampMixin):
     objects = NixChannelQuerySet.as_manager()
 
     class ChannelState(models.TextChoices):
-        END_OF_LIFE = "END_OF_LIFE", _("End of life")
-        DEPRECATED = "DEPRECATED", _("Deprecated")
-        BETA = "BETA", _("Beta")
-        STABLE = "STABLE", _("Stable")
-        UNSTABLE = "UNSTABLE", _("Unstable")
-        # "Special" channel, for which the staging-branch == staging.
-        # The channel_branch is staging-next in this instance.
-        # But it's complicated because there's no channel move per se.
-        STAGING = "STAGING", _("Staging")
+        END_OF_LIFE = "unmaintained", _("End of life")
+        DEPRECATED = "deprecated", _("Deprecated")
+        BETA = "beta", _("Beta")
+        STABLE = "stable", _("Stable")
+        UNSTABLE = "rolling", _("Unstable")
+
+    # States we care about for evaluation and prospective matching, as those are considered to be maintained.
+    # Mutable per channel over time.
+    TRACKED_STATES = (
+        ChannelState.DEPRECATED,
+        ChannelState.BETA,
+        ChannelState.STABLE,
+        ChannelState.UNSTABLE,
+    )
 
     # A staging branch is the `release-$number` branch or `master` for unstable.
     # Not to confuse with the `staging` branch itself.
-    staging_branch = models.CharField(max_length=255)
+    release_branch = models.CharField(max_length=255)
     # A channel branch is the `nixos-$number` branch of
     # `nixos-unstable(-small)` for unstable(-small). Not to confuse with the
     # channel tarballs and scripts from releases.nixos.org.
@@ -165,7 +172,6 @@ class NixChannel(TimeStampMixin):
     # The currently known HEAD SHA1 commit of that channel.
     head_sha1_commit = models.CharField(max_length=255)
     state = models.CharField(max_length=126, choices=ChannelState.choices)
-    release_version = models.CharField(max_length=255, null=True)
     # Repository can be stored as URLs for now...
     # We can always reparse them as proper GitHub URIs if necessary
     # It's a bit annoying though
@@ -173,7 +179,7 @@ class NixChannel(TimeStampMixin):
     repository = models.CharField(max_length=255)
 
     def __str__(self) -> str:
-        return f"{self.staging_branch} -> {self.channel_branch} (Release: {self.release_version})"
+        return f"{self.release_branch} -> {self.channel_branch}"
 
     @property
     def is_rolling_release(self) -> bool:
@@ -250,7 +256,11 @@ class NixEvaluation(TimeStampMixin):
         return f"{self.channel} {self.commit_sha1[:8]}"
 
     class Meta:  # type: ignore[override]
-        unique_together = ("channel", "commit_sha1")
+        constraints = [
+            models.UniqueConstraint(
+                fields=["commit_sha1"], name="nixevaluation_commit_sha1_unique"
+            )
+        ]
 
 
 class NixDerivation(models.Model):
@@ -321,3 +331,18 @@ def get_major_channel(branch_name: str) -> str | None:
         if mc in branch_name:
             return f"nixos-{mc}"
     return None
+
+
+def get_release(channel_branch: str) -> str:
+    match = re.match(
+        r"^(?P<jobset>[a-z]+)-(?P<release>\d\d\.\d\d|unstable)(?:-(?P<variant>[a-z]+))?$",
+        channel_branch,
+    )
+    if match is None:
+        raise ValueError(f"unexpected channel branch name: {channel_branch!r}")
+    return match.group("release")
+
+
+def release_branch(channel_branch: str) -> str:
+    release = get_release(channel_branch)
+    return "master" if release == "unstable" else f"release-{release}"

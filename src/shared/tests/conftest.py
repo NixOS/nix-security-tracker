@@ -37,6 +37,7 @@ from shared.models.nix_evaluation import (
     NixDerivationMeta,
     NixEvaluation,
     NixMaintainer,
+    release_branch,
 )
 from shared.models.package import Package, PackageAttrpath
 from shared.notify_users import create_package_subscription_notifications
@@ -136,20 +137,15 @@ def cve(make_container: Callable[..., Container]) -> Container:
 def make_channel(db: None) -> Callable[..., NixChannel]:
     # FIXME(@fricklerhandwerk): This will fall apart when we obtain the channel structure dynamically [ref:channel-structure]
     def wrapped(
-        release: str = "unstable",
+        channel_branch: str = settings.TRACKING_BRANCH,
         state: NixChannel.ChannelState = NixChannel.ChannelState.UNSTABLE,
-        branch: str | None = None,
     ) -> NixChannel:
-        if branch is None:
-            branch = f"nixpkgs-{release}"
-
         channel, _ = NixChannel.objects.get_or_create(
-            channel_branch=branch,
+            channel_branch=channel_branch,
             defaults=dict(
-                staging_branch=branch,
                 head_sha1_commit=secrets.token_hex(16),
                 state=state,
-                release_version=None if release == "unstable" else release,
+                release_branch=release_branch(channel_branch),
                 repository="https://github.com/NixOS/nixpkgs",
             ),
         )
@@ -248,6 +244,7 @@ def make_drv(
         attribute: str | None = None,
         evaluation: NixEvaluation = evaluation,
         maintainer: NixMaintainer = maintainer,
+        known_vulnerabilities: list[str] | None = None,
     ) -> NixDerivation:
         meta = NixDerivationMeta.objects.create(
             description="Dummy derivation",
@@ -257,6 +254,7 @@ def make_drv(
             broken=False,
             unfree=False,
             unsupported=False,
+            known_vulnerabilities=known_vulnerabilities or [],
         )
         meta.maintainers.add(maintainer)
 

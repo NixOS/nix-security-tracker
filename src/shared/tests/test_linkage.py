@@ -2,6 +2,7 @@ from collections.abc import Callable
 from datetime import timedelta
 
 import pytest
+from django.test import override_settings
 
 from shared.cache_suggestions import cache_new_suggestions
 from shared.listeners.automatic_linkage import build_new_links
@@ -12,7 +13,6 @@ from shared.models.linkage import (
     ProvenanceFlags,
 )
 from shared.models.nix_evaluation import (
-    MAJOR_CHANNELS,
     NixChannel,
     NixDerivation,
     NixEvaluation,
@@ -30,8 +30,12 @@ def test_link_only_latest_eval(
     """
 
     channels = [
-        make_channel(release="26.05", state=NixChannel.ChannelState.STABLE),
-        make_channel(release="unstable", state=NixChannel.ChannelState.UNSTABLE),
+        make_channel(
+            channel_branch="nixos-26.05", state=NixChannel.ChannelState.STABLE
+        ),
+        make_channel(
+            channel_branch="nixos-unstable", state=NixChannel.ChannelState.UNSTABLE
+        ),
     ]
 
     evaluations = []
@@ -66,21 +70,22 @@ def test_link_only_latest_eval(
     cache_new_suggestions(suggestion)
 
 
-def test_link_only_major_channels(
+def test_eol_channel_produces_no_matches(
     make_container: Callable[..., Container],
     make_channel: Callable[..., NixChannel],
     make_evaluation: Callable[..., NixEvaluation],
     make_drv: Callable[..., NixDerivation],
 ) -> None:
     """
-    Derivations on channels outside MAJOR_CHANNELS must not produce matches.
-    Otherwise we'd be notifying people who aren't maintainers any more.
+    Derivations on unmaintained channels must not produce matches.
     """
-    old_release = "24.05"
-    assert old_release not in MAJOR_CHANNELS
-    old_channel = make_channel(release=old_release)
-    old_eval = make_evaluation(channel=old_channel)
-    make_drv(pname="foo", evaluation=old_eval)
+    assert NixChannel.ChannelState.END_OF_LIFE not in NixChannel.TRACKED_STATES
+    eol_channel = make_channel(
+        channel_branch="nixos-24.05",
+        state=NixChannel.ChannelState.END_OF_LIFE,
+    )
+    eol_eval = make_evaluation(channel=eol_channel)
+    make_drv(pname="foo", evaluation=eol_eval)
 
     container = make_container(package_name="foo")
     assert not build_new_links(container)
@@ -149,6 +154,27 @@ def test_exclusively_hosted_service_creates_rejected_proposal(
         == CVEDerivationClusterProposal.RejectionReason.EXCLUSIVELY_HOSTED_SERVICE
     )
     assert proposal.derivations.count() == 0
+
+
+@override_settings(MAX_MATCHES=1)
+def test_max_matches_exceeded_creates_rejected_proposal(
+    make_container: Callable[..., Container],
+    make_drv: Callable[..., NixDerivation],
+) -> None:
+    container = make_container(package_name="foo", product="foo")
+    make_drv(pname="foo", attribute="foo1")
+    make_drv(pname="foo", attribute="foo2")
+
+    assert build_new_links(container) is True
+    proposal = CVEDerivationClusterProposal.objects.get(cve=container.cve)
+    assert proposal.status == CVEDerivationClusterProposal.Status.REJECTED
+    assert (
+        proposal.rejection_reason
+        == CVEDerivationClusterProposal.RejectionReason.MAX_MATCHES_EXCEEDED
+    )
+    assert proposal.derivations.count() == 0
+    assert proposal.rejection_match_count == 2
+    assert proposal.rejection_max_matches_limit == 1
 
 
 def test_hardware_cpe_produces_no_match(
@@ -229,3 +255,22 @@ def test_ignore_tests(
     suggestion = CVEDerivationClusterProposal.objects.get(cve=cve.cve)
     assert suggestion.derivations.filter(attribute=drv1.attribute).exists()
     assert not suggestion.derivations.filter(attribute=drv2.attribute).exists()
+
+
+def test_skip_known_vulnerability(
+    cve: Container, make_drv: Callable[..., NixDerivation]
+) -> None:
+    drv1 = make_drv(pname="foo")
+    drv2 = make_drv(pname="bar", known_vulnerabilities=[cve.cve.cve_id])
+
+    assert build_new_links(cve)
+
+    proposal = CVEDerivationClusterProposal.objects.get(cve=cve.cve)
+
+    assert proposal.status == CVEDerivationClusterProposal.Status.REJECTED
+    assert (
+        proposal.rejection_reason
+        == CVEDerivationClusterProposal.RejectionReason.KNOWN_VULNERABILITY
+    )
+    assert not proposal.derivations.filter(attribute=drv1.attribute).exists()
+    assert proposal.derivations.filter(attribute=drv2.attribute).exists()

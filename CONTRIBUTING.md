@@ -152,6 +152,8 @@ Assuming you have a local checkout of this repository at `~/src/nix-security-tra
     enable = true;
     # The user you run the backend application as, so that you can access the local database
     user = "myuser";
+    # Optionally enable a local Grafana instance at http://localhost:3000 to preview the monitoring dashboard
+    enableDashboard = true;
   };
 }
 ```
@@ -170,7 +172,7 @@ Fetch the tips of all [channel branches](https://nix.dev/concepts/faq#channel-br
 manage fetch_all_channels
 ```
 
-Select a ``head_sha1_commit` from the output and run evaluation on that:
+Select a `head_sha1_commit` from the output and run evaluation on that:
 
 ```console
 manage run_evaluation <commit>

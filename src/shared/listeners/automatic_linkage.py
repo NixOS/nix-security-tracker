@@ -25,7 +25,7 @@ from django.db.models import (
 from shared.channels import ContainerChannel
 from shared.models.cve import Container, Cpe
 from shared.models.linkage import CVEDerivationClusterProposal, ProvenanceFlags
-from shared.models.nix_evaluation import MAJOR_CHANNELS, NixDerivation, NixEvaluation
+from shared.models.nix_evaluation import NixChannel, NixDerivation, NixEvaluation
 
 logger = logging.getLogger(__name__)
 
@@ -33,14 +33,9 @@ logger = logging.getLogger(__name__)
 def produce_linkage_candidates(
     container: Container,
     filtered_affected: models.QuerySet,
-) -> dict[NixDerivation, ProvenanceFlags]:
-    # FIXME(@fricklerhandwerk): This will fall apart when we obtain the channel structure dynamically [ref:channel-structure]
-    active_channels_q = Q()
-    for ch in MAJOR_CHANNELS:
-        active_channels_q |= Q(channel__channel_branch__contains=ch)
-
+) -> models.QuerySet:
     latest_complete_channels = NixEvaluation.objects.filter(
-        active_channels_q
+        channel__state__in=NixChannel.TRACKED_STATES,
     ).latest_completed_per_channel()
 
     package_names = (
@@ -64,7 +59,7 @@ def produce_linkage_candidates(
 
     # This does not seem to happen in practice though
     if not package_q | product_q:
-        return {}
+        return NixDerivation.objects.none()
 
     annotations = {}
     if package_q:
@@ -84,7 +79,6 @@ def produce_linkage_candidates(
     # We start with a large list and we remove things as we sort out that list.
     # Our initialization must be as large as possible.
     # TODO: record what is used to expand the candidate list.
-    candidates: dict[NixDerivation, ProvenanceFlags] = {}
     # TODO: improve accuracy by using bigrams similarity with a `| Q(...)` query.
     matches = (
         NixDerivation.objects.exclude(
@@ -95,11 +89,9 @@ def produce_linkage_candidates(
             package_q | product_q,
             parent_evaluation__in=list(latest_complete_channels),
         )
+        .select_related("metadata")
         .annotate(**annotations)
     )
-    for drv in matches.iterator():
-        flags = getattr(drv, "package_match", 0) | getattr(drv, "product_match", 0)
-        candidates[drv] = ProvenanceFlags(flags)
 
     # TODO: restrain further the list by checking all version constraints.
     # TODO: restrain further the list by checking hardware constraints or kernel constraints.
@@ -107,7 +99,7 @@ def produce_linkage_candidates(
     # macOS, Linux, Windows, *BSD.
     # TODO: teach it about newcomers kernels such as Redox.
 
-    return candidates
+    return matches
 
 
 def build_new_links(container: Container) -> bool:
@@ -162,29 +154,57 @@ def build_new_links(container: Container) -> bool:
         )
         return True
 
-    drvs = produce_linkage_candidates(container, filtered_affected)
-    if not drvs:
+    matches = produce_linkage_candidates(container, filtered_affected)
+    if not matches.exists():
         logger.info("No derivations matching '%s', ignoring", container.cve)
         return False
 
-    if len(drvs) > settings.MAX_MATCHES:
-        logger.warning(
-            "More than '%d' derivations matching '%s', ignoring",
-            settings.MAX_MATCHES,
+    match_count = matches.count()
+    if match_count > settings.MAX_MATCHES:
+        logger.info(
+            "Container for '%s' exceeds MAX_MATCHES (%d > %d), rejecting without match.",
             container.cve,
+            match_count,
+            settings.MAX_MATCHES,
         )
-        return False
+        CVEDerivationClusterProposal.objects.create(
+            cve=container.cve,
+            status=CVEDerivationClusterProposal.Status.REJECTED,
+            rejection_reason=CVEDerivationClusterProposal.RejectionReason.MAX_MATCHES_EXCEEDED,
+            rejection_match_count=match_count,
+            rejection_max_matches_limit=settings.MAX_MATCHES,
+            algorithm_version=CVEDerivationClusterProposal.CURRENT_ALGORITHM_VERSION,
+        )
+        return True
 
-    proposal = CVEDerivationClusterProposal.objects.create(
-        cve=container.cve,
-        algorithm_version=CVEDerivationClusterProposal.CURRENT_ALGORITHM_VERSION,
+    with_known_vuln = matches.filter(
+        metadata__known_vulnerabilities__contains=[container.cve.cve_id],
     )
+
+    if with_known_vuln.exists():
+        proposal = CVEDerivationClusterProposal.objects.create(
+            cve=container.cve,
+            status=CVEDerivationClusterProposal.Status.REJECTED,
+            rejection_reason=CVEDerivationClusterProposal.RejectionReason.KNOWN_VULNERABILITY,
+            algorithm_version=CVEDerivationClusterProposal.CURRENT_ALGORITHM_VERSION,
+        )
+        drvs_to_attach = with_known_vuln
+    else:
+        proposal = CVEDerivationClusterProposal.objects.create(
+            cve=container.cve,
+            algorithm_version=CVEDerivationClusterProposal.CURRENT_ALGORITHM_VERSION,
+        )
+        drvs_to_attach = matches
 
     drvs_throughs = [
         CVEDerivationClusterProposal.derivations.through(
-            proposal_id=proposal.pk, derivation_id=drv.pk, provenance_flags=flags
+            proposal_id=proposal.pk,
+            derivation_id=drv.pk,
+            provenance_flags=ProvenanceFlags(
+                getattr(drv, "package_match", 0) | getattr(drv, "product_match", 0)
+            ),
         )
-        for drv, flags in drvs.items()
+        for drv in drvs_to_attach
     ]
 
     # We create all the set in one shot.

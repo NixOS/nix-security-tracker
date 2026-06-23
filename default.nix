@@ -152,6 +152,7 @@ rec {
         shell-config-placeholder
 
         ln -sf ${sources.htmx}/dist/htmx.js src/webview/static/htmx.min.js
+        ln -sf ${sources.nixos-logo} src/webview/static/nixos-logo.svg
 
         mkdir -p $CREDENTIALS_DIRECTORY
         # TODO(@fricklerhandwerk): move all configuration over to pydantic-settings

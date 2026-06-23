@@ -173,7 +173,7 @@ class Settings(BaseSettings):
         )
         MAX_MATCHES: int = Field(
             description="""
-            CVEs matching more than this number of derivations are ignored.
+            CVEs matching more than this number of derivations are auto-rejected without derivations.
             """,
             default=1_000,
         )

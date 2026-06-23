@@ -4,7 +4,9 @@ from enum import Enum
 from io import StringIO
 
 import pytest
+from django.contrib.auth.models import User
 from django.core.management import call_command
+from django.utils import timezone
 
 from shared.management.commands.garbage_collect import DEFAULT_CUTOFF_DAYS
 from shared.models.cve import Container, CveRecord
@@ -170,7 +172,6 @@ class GarbageCollect(Enum):
         (NixChannel.ChannelState.BETA, True),
         (NixChannel.ChannelState.STABLE, True),
         (NixChannel.ChannelState.UNSTABLE, True),
-        (NixChannel.ChannelState.STAGING, True),
     ],
 )
 @pytest.mark.parametrize(
@@ -234,7 +235,11 @@ def test_deletes_empty_old_evaluations(
     Empty evaluations are deleted unless completed or not started.
     Empty channels are deleted.
     """
-    channel = make_channel(state=channel_state, branch=channel_state)
+    channel = make_channel(
+        state=channel_state,
+        # Make a unique channel for each state; the concrete name doesn't matter here.
+        channel_branch=f"{channel_state.value}-unstable",
+    )
     evaluation = make_evaluation(
         channel=channel,
         state=eval_state,
@@ -301,55 +306,6 @@ def test_only_old_proposals_deleted_recent_kept(
     assert CVEDerivationClusterProposal.objects.count() == 1
     assert CVEDerivationClusterProposal.objects.filter(
         cve=recent_container.cve
-    ).exists()
-
-
-def test_no_duplicate_evaluations(evaluation: NixEvaluation) -> None:
-    call_command("garbage_collect", stdout=StringIO())
-    assert NixEvaluation.objects.count() == 1
-
-
-def test_when_there_is_duplicate_evaluation(
-    evaluation: NixEvaluation,
-    make_channel: Callable[..., NixChannel],
-    make_evaluation: Callable[..., NixEvaluation],
-    make_drv: Callable[..., NixDerivation],
-    make_suggestion: Callable[..., CVEDerivationClusterProposal],
-) -> None:
-    first_drv = make_drv(evaluation=evaluation)
-    first_suggestion = make_suggestion(
-        drvs={first_drv: ProvenanceFlags.PACKAGE_NAME_MATCH}
-    )
-    first_meta_id = first_drv.metadata_id
-
-    duplicate_eval = make_evaluation(
-        channel=make_channel(release="25.11", branch="nixos-25.11"),
-        commit_sha1=evaluation.commit_sha1,
-        state=NixEvaluation.EvaluationState.COMPLETED,
-    )
-    duplicate_drv = make_drv(evaluation=duplicate_eval)
-    duplicate_suggestion = make_suggestion(
-        drvs={duplicate_drv: ProvenanceFlags.PACKAGE_NAME_MATCH}
-    )
-    duplicate_meta_id = duplicate_drv.metadata_id
-
-    assert evaluation.id < duplicate_eval.id
-    call_command("garbage_collect", stdout=StringIO())
-
-    # Canonical evaluation and its data survive.
-    assert NixEvaluation.objects.filter(id=evaluation.id).exists()
-    assert NixDerivation.objects.filter(id=first_drv.id).exists()
-    assert NixDerivationMeta.objects.filter(id=first_meta_id).exists()
-    assert DerivationClusterProposalLink.objects.filter(
-        proposal=first_suggestion
-    ).exists()
-
-    # Duplicate evaluation and all its data are removed.
-    assert not NixEvaluation.objects.filter(id=duplicate_eval.id).exists()
-    assert not NixDerivation.objects.filter(id=duplicate_drv.id).exists()
-    assert not NixDerivationMeta.objects.filter(id=duplicate_meta_id).exists()
-    assert not DerivationClusterProposalLink.objects.filter(
-        proposal=duplicate_suggestion
     ).exists()
 
 
@@ -442,3 +398,86 @@ def test_garbage_collect_dry_run_preserves_stale_package_attrpaths(
 
     assert PackageAttrpath.objects.filter(attrpath=drv.attribute).exists()
     assert "stale package attrpath" in out.getvalue().lower()
+
+
+@pytest.mark.parametrize(
+    "date_published_age, date_reserved_age, expected_count",
+    [
+        (DEFAULT_CUTOFF_DAYS + 1, None, 0),
+        (DEFAULT_CUTOFF_DAYS - 1, None, 1),
+        (None, DEFAULT_CUTOFF_DAYS + 1, 0),
+        (None, DEFAULT_CUTOFF_DAYS - 1, 1),
+    ],
+)
+def test_proposal_deletion_by_cve_date(
+    make_container: Callable[..., Container],
+    make_suggestion: Callable[..., CVEDerivationClusterProposal],
+    date_published_age: int | None,
+    date_reserved_age: int | None,
+    expected_count: int,
+) -> None:
+    """
+    Proposals are deleted when the relevant CVE date exceeds the cutoff, preserved when within it.
+    Falls back to `date_reserved` when `date_published` is absent.
+    """
+    container = make_container()
+    if date_published_age is not None:
+        CveRecord.objects.filter(pk=container.cve.pk).update(
+            date_published=timezone.now() - timedelta(days=date_published_age),
+        )
+    elif date_reserved_age is not None:
+        CveRecord.objects.filter(pk=container.cve.pk).update(
+            date_published=None,
+            date_reserved=timezone.now() - timedelta(days=date_reserved_age),
+        )
+    make_suggestion(container=container)
+
+    call_command("garbage_collect", stdout=StringIO())
+
+    assert CVEDerivationClusterProposal.objects.count() == expected_count
+
+
+def test_stale_proposal_deletion_cascades_to_cache(
+    make_container: Callable[..., Container],
+    make_cached_suggestion: Callable[..., CVEDerivationClusterProposal],
+) -> None:
+    """Deleting a stale proposal removes CachedSuggestions and link rows via CASCADE."""
+    from shared.models.cached import CachedSuggestions
+
+    container = make_container()
+    suggestion = make_cached_suggestion(
+        container=container, age=timedelta(days=DEFAULT_CUTOFF_DAYS + 1)
+    )
+
+    assert DerivationClusterProposalLink.objects.filter(proposal=suggestion).exists()
+    assert hasattr(suggestion, "cached")
+
+    call_command("garbage_collect", stdout=StringIO())
+
+    assert CVEDerivationClusterProposal.objects.count() == 0
+    assert DerivationClusterProposalLink.objects.count() == 0
+    assert CachedSuggestions.objects.count() == 0
+
+
+def test_stale_proposal_deletion_cascades_to_notifications(
+    make_container: Callable[..., Container],
+    make_suggestion: Callable[..., CVEDerivationClusterProposal],
+    user: User,
+) -> None:
+    """Old suggestions with notifications are deleted via CASCADE and the unread counter is updated."""
+    from webview.models import SuggestionNotification
+
+    container = make_container()
+    suggestion = make_suggestion(
+        container=container, age=timedelta(days=DEFAULT_CUTOFF_DAYS + 1)
+    )
+    user.profile.create_notification(suggestion)
+
+    assert SuggestionNotification.objects.count() == 1
+    assert user.profile.unread_notifications_count == 1
+
+    call_command("garbage_collect", stdout=StringIO())
+
+    assert SuggestionNotification.objects.count() == 0
+    user.profile.refresh_from_db()
+    assert user.profile.unread_notifications_count == 0

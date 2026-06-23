@@ -178,6 +178,7 @@ class GitRepo:
                 for err in [
                     "cannot lock ref",
                     "shallow file has changed since we read it",
+                    "the lock file may be stale",
                 ]:
                     if err in stderr_text:
                         break

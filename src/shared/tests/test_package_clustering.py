@@ -6,13 +6,13 @@ from typing import Any
 from unittest import mock
 
 import pytest
+from django.conf import settings
 from django.core.management import call_command
 from django.db import close_old_connections
 
 from shared.cache_suggestions import parse_drv_name
 from shared.listeners.package_clustering import cluster_after_evaluation
 from shared.models.nix_evaluation import (
-    MAJOR_CHANNELS,
     NixChannel,
     NixDerivation,
     NixEvaluation,
@@ -255,7 +255,7 @@ def test_listener_clusters_on_completed(
     Test when an evaluation transitions to COMPLETED, the listener clusters all
     its derivations. Rolling channel pass update_packages=True.
     """
-    channel = make_channel(release=MAJOR_CHANNELS[0])  # rolling (unstable)
+    channel = make_channel(channel_branch=settings.TRACKING_BRANCH)
     evaluation = make_evaluation(channel=channel)
     drv = make_drv(evaluation=evaluation)
 

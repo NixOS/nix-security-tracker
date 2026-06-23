@@ -1,12 +1,6 @@
 final: prev:
 let
   sources = import ../npins;
-  # FIXME(@fricklerhandwerk): `npins` doesn't support references to separate files.
-  # Build the logo from source, find a tarball reference, or add a `file` type to `npins`.
-  nixos-logo = final.fetchurl {
-    url = "https://brand.nixos.org/internals/nixos-logomark-white-flat-none.svg";
-    hash = "sha256-00efVhs4+7AOH9Y8Evg1snHLSw54sg06iEEF/LaScwk=";
-  };
   meta = with builtins; fromTOML (readFile ../src/pyproject.toml);
 in
 {
@@ -105,7 +99,7 @@ in
       chmod +x $out/bin/manage.py
       wrapProgram $out/bin/manage.py --prefix PYTHONPATH : "$PYTHONPATH"
       cp ${sources.htmx}/dist/htmx.min.js* $out/${final.python3.sitePackages}/webview/static/
-      cp ${nixos-logo} $out/${final.python3.sitePackages}/webview/static/nixos-logomark-white-flat-none.svg
+      cp ${sources.nixos-logo} $out/${final.python3.sitePackages}/webview/static/nixos-logo.svg
     '';
   };
 }

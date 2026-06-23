@@ -143,7 +143,7 @@ pkgs.testers.runNixOSTest {
         ''}
         ${in-shell "succeed " ''
           from shared.models import NixEvaluation
-          assert NixEvaluation.objects.count() == 3
+          assert NixEvaluation.objects.count() == 1
         ''}
 
       with subtest("Application tests"):
@@ -192,12 +192,12 @@ pkgs.testers.runNixOSTest {
               from shared.models.package import Package, PackageDerivation
               assert NixEvaluation.objects.filter(
                 state=NixEvaluation.EvaluationState.COMPLETED,
-              ).count() == 3
+              ).count() == 1
               for model, count in [
-                (NixDerivation, 3),
-                (NixDerivationMeta, 3),
+                (NixDerivation, 1),
+                (NixDerivationMeta, 1),
                 (Package, 1),
-                (PackageDerivation, 3),
+                (PackageDerivation, 1),
                 (NixMaintainer, 1),
                 (NixLicense, 1),
               ]:

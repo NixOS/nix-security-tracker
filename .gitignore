@@ -16,6 +16,7 @@ result
 *.log
 src/static
 src/webview/static/htmx.min.js
+src/webview/static/nixos-logo.svg
 # A shallow checkout of nixpkgs
 nixpkgs/
 nixpkgs-gc-roots/

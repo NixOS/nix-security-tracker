@@ -10,7 +10,7 @@ from django.conf import settings
 from django.core.management.base import BaseCommand
 
 from shared.git import GitRepo
-from shared.models.nix_evaluation import NixChannel
+from shared.models.nix_evaluation import NixChannel, release_branch
 
 
 @dataclass
@@ -18,53 +18,6 @@ class MonitoredChannel:
     name: str
     revision: str
     status: str
-
-
-def release_from_branch(branch: str) -> str | None:
-    """
-    >>> release_from_branch("nixpkgs-23.05-darwin")
-    23.05
-    >>> release_from_branch("nixpkgs-23.11-darwin")
-    23.11
-    >>> release_from_branch("nixpkgs-23.05")
-    23.05
-    >>> release_from_branch("nixpkgs-unstable")
-    None
-    >>> release_from_branch("nixpkgs-unstable-small")
-    None
-    """
-    parts = branch.split("-")
-    if len(parts) < 2:
-        return None
-
-    ver = parts[1]
-    if "." not in ver:
-        return None
-
-    return ver
-
-
-def state_from_status(status: str) -> NixChannel.ChannelState:
-    if status == "unmaintained":
-        return NixChannel.ChannelState.END_OF_LIFE
-    elif status == "deprecated":
-        return NixChannel.ChannelState.DEPRECATED
-    elif status == "beta":
-        return NixChannel.ChannelState.BETA
-    elif status == "stable":
-        return NixChannel.ChannelState.STABLE
-    elif status == "rolling":
-        return NixChannel.ChannelState.UNSTABLE
-    else:
-        return NixChannel.ChannelState.STAGING
-
-
-def staging_from_branch(branch: str) -> str:
-    release_ver = release_from_branch(branch)
-    if release_ver is None:
-        return "master"
-    else:
-        return f"release-{release_ver}"
 
 
 def aggregate_by_channels(data: list[dict[str, Any]]) -> dict[str, MonitoredChannel]:
@@ -105,12 +58,10 @@ class Command(BaseCommand):
         fresh_channels = fetch_from_monitoring()
         for channel in fresh_channels.values():
             channel_branch = channel.name
-            staging_branch = staging_from_branch(channel.name)
             branch_info = {
-                "staging_branch": staging_branch,
-                "state": state_from_status(channel.status),
+                "release_branch": release_branch(channel.name),
+                "state": NixChannel.ChannelState(channel.status),
                 "head_sha1_commit": channel.revision,
-                "release_version": release_from_branch(channel.name),
             }
             pprint(branch_info | {"channel_branch": channel.name})
             NixChannel.objects.update_or_create(

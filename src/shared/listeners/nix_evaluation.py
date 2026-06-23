@@ -189,10 +189,19 @@ async def drain_lines(
 async def evaluation_entrypoint(
     avg_eval_time: float, evaluation: NixEvaluation
 ) -> None:
+    already_completed = False
+
     # Acquire an evaluation slot atomically: lock all IN_PROGRESS rows
     # to prevent concurrent workers from racing past the count check.
     def _try_acquire_slot() -> bool:
+        nonlocal already_completed
         with transaction.atomic():
+            if NixEvaluation.objects.filter(
+                id=evaluation.pk,
+                state=NixEvaluation.EvaluationState.COMPLETED,
+            ).exists():
+                already_completed = True
+                return True
             in_progress = (
                 NixEvaluation.objects.select_for_update()
                 .filter(state=NixEvaluation.EvaluationState.IN_PROGRESS)
@@ -210,6 +219,10 @@ async def evaluation_entrypoint(
         # Add in average 30s as a jitter to enable clear winners during the grab for the evaluation slot.
         jitter = random.randint(1, 60)
         await asyncio.sleep(avg_eval_time + jitter)
+
+    if already_completed:
+        return
+
     repo = GitRepo(settings.LOCAL_NIXPKGS_CHECKOUT)
     start = time.time()
     try:

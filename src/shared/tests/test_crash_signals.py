@@ -82,3 +82,43 @@ def test_zero_exit_marks_completed(
     _run_entrypoint(waiting_evaluation, 0)
     waiting_evaluation.refresh_from_db()
     assert waiting_evaluation.state == NixEvaluation.EvaluationState.COMPLETED
+
+
+@pytest.mark.django_db(transaction=True)
+def test_already_completed_evaluation_is_not_re_run(
+    make_evaluation: Callable[..., NixEvaluation],
+) -> None:
+    completed = make_evaluation(state=NixEvaluation.EvaluationState.COMPLETED)
+    perform_mock = AsyncMock()
+
+    process = MagicMock()
+    stdout = MagicMock()
+    stdout.readline = AsyncMock(return_value=b"")
+    process.stdout = stdout
+    process.wait = AsyncMock(return_value=0)
+    perform_mock.return_value = process
+
+    mock_repo = MagicMock()
+    mock_repo.update_from_ref = AsyncMock()
+
+    mock_file = MagicMock()
+    mock_file.fileno = MagicMock(return_value=1)
+    mock_aiofiles_open = MagicMock()
+    mock_aiofiles_open.__aenter__ = AsyncMock(return_value=mock_file)
+    mock_aiofiles_open.__aexit__ = AsyncMock(return_value=None)
+
+    with (
+        patch("shared.listeners.nix_evaluation.perform_evaluation", perform_mock),
+        patch(
+            "shared.listeners.nix_evaluation.GitRepo", MagicMock(return_value=mock_repo)
+        ),
+        patch(
+            "shared.listeners.nix_evaluation.aiofiles.open",
+            return_value=mock_aiofiles_open,
+        ),
+    ):
+        asyncio.run(evaluation_entrypoint(0.0, completed))
+
+    perform_mock.assert_not_called()
+    completed.refresh_from_db()
+    assert completed.state == NixEvaluation.EvaluationState.COMPLETED

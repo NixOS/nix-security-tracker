@@ -4,7 +4,7 @@ from typing import Any
 
 from django.core.management.base import BaseCommand, CommandParser, DjangoHelpFormatter
 from django.db import connection, models
-from django.db.models import Count, Min, QuerySet
+from django.db.models import Q, QuerySet
 from django.utils import timezone
 
 from shared.models import (  # type: ignore
@@ -86,13 +86,11 @@ class Command(BaseCommand):
         self._delete_stale_matches(cutoff, batch_size, dry_run)
         self.stdout.write("\n[2/6] Deleting unmatched derivations")
         self._delete_unmatched_derivations(cutoff, batch_size, dry_run)
-        self.stdout.write("\n[3/6] Deleting empty evaluations")
+        self.stdout.write("\n[3/5] Deleting empty evaluations")
         self._delete_empty_evaluations(cutoff, batch_size, dry_run)
-        self.stdout.write("\n[4/6] Deleting inactive channels")
+        self.stdout.write("\n[4/5] Deleting inactive channels")
         self._delete_inactive_channels(batch_size, dry_run)
-        self.stdout.write("\n[5/6] Deduplicating evaluations")
-        self._deduplicate_evaluations(batch_size, dry_run)
-        self.stdout.write("\n[6/6] Pruning stale package attrpaths")
+        self.stdout.write("\n[5/5] Pruning stale package attrpaths")
         self._prune_stale_package_attrpaths(batch_size, dry_run)
 
         self.stdout.write(self.style.SUCCESS("\nGarbage collection complete."))
@@ -100,14 +98,24 @@ class Command(BaseCommand):
     def _delete_stale_matches(
         self, cutoff: Any, batch_size: int, dry_run: bool
     ) -> None:
-        candidates = CVEDerivationClusterProposal.objects.filter(
-            created_at__lt=cutoff,
-            status=CVEDerivationClusterProposal.Status.PENDING,
-            # No user input must be attached
-            maintainer_overlays__isnull=True,
-            package_overlays__isnull=True,
-            reference_url_overlays__isnull=True,
-        ).distinct()
+        candidates = (
+            CVEDerivationClusterProposal.objects.filter(
+                Q(created_at__lt=cutoff)
+                | Q(cve__date_published__lt=cutoff)
+                | Q(
+                    cve__date_published__isnull=True,
+                    cve__date_reserved__lt=cutoff,
+                ),
+            )
+            .filter(
+                status=CVEDerivationClusterProposal.Status.PENDING,
+                # No user input must be attached
+                maintainer_overlays__isnull=True,
+                package_overlays__isnull=True,
+                reference_url_overlays__isnull=True,
+            )
+            .distinct()
+        )
 
         total = candidates.count()
         self.stdout.write(f"Found {total} eligible proposals.")
@@ -245,67 +253,6 @@ class Command(BaseCommand):
             label="stale package attrpaths",
             batch_size=batch_size,
             dry_run=dry_run,
-        )
-
-    def _deduplicate_evaluations(self, batch_size: int, dry_run: bool) -> None:
-        duplicate_commits = (
-            NixEvaluation.objects.values("commit_sha1")
-            .annotate(c=Count("id"))
-            .filter(c__gt=1)
-            .values("commit_sha1")
-        )
-
-        canonical_ids = (
-            NixEvaluation.objects.filter(commit_sha1__in=duplicate_commits)
-            .values("commit_sha1")
-            .annotate(canonical_id=Min("id"))
-            .values("canonical_id")
-        )
-
-        evals_to_delete = NixEvaluation.objects.filter(
-            commit_sha1__in=duplicate_commits
-        ).exclude(id__in=canonical_ids)
-
-        total = evals_to_delete.count()
-        self.stdout.write(f"Found {total} duplicate evaluation(s).")
-
-        if total == 0 or dry_run:
-            return
-
-        self._delete_in_batches(
-            qs=DerivationClusterProposalLink.objects.filter(
-                derivation__parent_evaluation__in=evals_to_delete
-            ),
-            model=DerivationClusterProposalLink,
-            pk_field="id",
-            label="suggestion links to duplicate derivations",
-            batch_size=batch_size,
-        )
-
-        self._delete_in_batches(
-            qs=NixDerivation.objects.filter(
-                parent_evaluation__in=evals_to_delete,
-            ),
-            model=NixDerivation,
-            pk_field="id",
-            label="duplicate derivations",
-            batch_size=batch_size,
-        )
-
-        self._delete_in_batches(
-            qs=NixDerivationMeta.objects.filter(derivation__isnull=True),
-            model=NixDerivationMeta,
-            pk_field="id",
-            label="dangling metadata",
-            batch_size=batch_size,
-        )
-
-        self._delete_in_batches(
-            qs=evals_to_delete,
-            model=NixEvaluation,
-            pk_field="id",
-            label="duplicate evaluations",
-            batch_size=batch_size,
         )
 
     def _purge_events(

@@ -9,6 +9,42 @@
 }:
 let
   cfg = config.nix-security-tracker-dev-environment;
+
+  original = builtins.fromJSON (builtins.readFile ../contrib/grafana-dashboard.json);
+
+  replace-uid =
+    v:
+    if builtins.isAttrs v then
+      builtins.mapAttrs (_: replace-uid) v
+    else if builtins.isList v then
+      map replace-uid v
+    else if v == "\${DS_PROMETHEUS}" then
+      "prometheus"
+    else
+      v;
+
+  # We can't use subsitution with file provisioning, so replace the data source literally.
+  local-dashboard = builtins.toFile "grafana-dashboard-local.json" (
+    builtins.toJSON (
+      replace-uid (
+        original
+        // {
+          templating = original.templating // {
+            list = map (
+              item:
+              item
+              // {
+                datasource = {
+                  type = "prometheus";
+                  uid = "prometheus";
+                };
+              }
+            ) original.templating.list;
+          };
+        }
+      )
+    )
+  );
 in
 {
 
@@ -18,25 +54,97 @@ in
       type = lib.types.str;
       description = "Unix user that runs the nix-security-tracker to connect to the database";
     };
+    enableDashboard = lib.mkEnableOption "local Grafana dashboard for monitoring";
   };
 
   config = lib.mkIf cfg.enable {
-    services.postgresql = {
-      enable = true;
-      ensureDatabases = [ "nix-security-tracker" ];
-      ensureUsers = [
-        {
-          name = "nix-security-tracker";
-          ensureDBOwnership = true;
-          ensureClauses.createdb = true;
-        }
-      ];
-      identMap = ''
-        map-nix-security-tracker ${cfg.user} nix-security-tracker
-      '';
-      authentication = ''
-        local all nix-security-tracker ident map=map-nix-security-tracker
-      '';
+    services = {
+      postgresql = {
+        enable = true;
+        ensureDatabases = [ "nix-security-tracker" ];
+        ensureUsers = [
+          {
+            name = "nix-security-tracker";
+            ensureDBOwnership = true;
+            ensureClauses.createdb = true;
+          }
+        ];
+        identMap = ''
+          map-nix-security-tracker ${cfg.user} nix-security-tracker
+        '';
+        authentication = ''
+          local all nix-security-tracker ident map=map-nix-security-tracker
+        '';
+      };
+
+      prometheus = lib.mkIf cfg.enableDashboard {
+        enable = true;
+        scrapeConfigs =
+          let
+            job = job_name: {
+              inherit job_name;
+              static_configs = [
+                { targets = [ "localhost:${toString config.services.prometheus.exporters.${job_name}.port}" ]; }
+              ];
+            };
+          in
+          map job [
+            "node"
+            "postgres"
+            "sql"
+          ];
+        exporters = {
+          node.enable = true;
+          postgres.enable = true;
+          sql = {
+            enable = true;
+            configuration.jobs.sectracker = {
+              queries = import ../infra/sql-exporter-queries.nix;
+              connections =
+                let
+                  db-name = builtins.head config.services.postgresql.ensureDatabases;
+                  db-user = (builtins.head config.services.postgresql.ensureUsers).name;
+                in
+                [ "postgres://${db-user}@/${db-name}?host=/run/postgresql" ];
+              interval = "1h";
+            };
+          };
+        };
+      };
+
+      grafana = lib.mkIf cfg.enableDashboard {
+        enable = true;
+        settings = {
+          server = {
+            http_addr = "127.0.0.1";
+            http_port = 3000;
+          };
+          security.secret_key = "dev-only-secret-key";
+          "auth.anonymous" = {
+            enabled = true;
+            org_role = "Viewer";
+          };
+          dashboards.default_home_dashboard_path = "${local-dashboard}";
+        };
+        provision = {
+          enable = true;
+          datasources.settings.datasources = [
+            {
+              name = "Prometheus";
+              type = "prometheus";
+              uid = "prometheus";
+              url = "http://localhost:${toString config.services.prometheus.port}";
+              isDefault = true;
+            }
+          ];
+          dashboards.settings.providers = [
+            {
+              name = "sectracker";
+              options.path = local-dashboard;
+            }
+          ];
+        };
+      };
     };
   };
 }

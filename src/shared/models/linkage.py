@@ -71,10 +71,18 @@ class CVEDerivationClusterProposal(TimeStampMixin):
             "hardware_only_cpe",
             _("hardware only"),
         )
+        MAX_MATCHES_EXCEEDED = (
+            "max_matches_exceeded",
+            _("max. allowed matches exceeded"),
+        )
+        KNOWN_VULNERABILITY = (
+            "known_vulnerability",
+            _("already tracked in derivation metadata"),
+        )
 
     @classproperty
     def CURRENT_ALGORITHM_VERSION(cls) -> int:  # noqa: N802, N805
-        return 0
+        return 1
 
     cached: "shared.models.cached.CachedSuggestions"
 
@@ -121,6 +129,9 @@ class CVEDerivationClusterProposal(TimeStampMixin):
         blank=True,
         help_text=_("Reason for rejection (automatic or manual)"),
     )
+
+    rejection_match_count = models.PositiveIntegerField(null=True, blank=True)
+    rejection_max_matches_limit = models.PositiveIntegerField(null=True, blank=True)
 
     algorithm_version = models.IntegerField(
         default=0,
@@ -196,6 +207,39 @@ class CVEDerivationClusterProposal(TimeStampMixin):
                     {
                         "rejection_reason": "Rejecting a suggestion requires a reason or a comment"
                     }
+                )
+            elif self.rejection_reason == self.RejectionReason.MAX_MATCHES_EXCEEDED:
+                if (
+                    self.rejection_match_count is not None
+                    and self.rejection_max_matches_limit is not None
+                ):
+                    pass
+                elif (
+                    self.rejection_match_count is None
+                    and self.rejection_max_matches_limit is None
+                ):
+                    raise ValidationError(
+                        {
+                            "rejection_reason": "MAX_MATCHES_EXCEEDED requires match count and limit"
+                        }
+                    )
+                else:
+                    raise ValidationError(
+                        {
+                            "rejection_reason": "MAX_MATCHES_EXCEEDED requires both match count and limit"
+                        }
+                    )
+            elif self.rejection_reason in (
+                None,  # when comment is set
+                self.RejectionReason.EXCLUSIVELY_HOSTED_SERVICE,
+                self.RejectionReason.NOT_IN_NIXPKGS,
+                self.RejectionReason.HARDWARE_ONLY_CPE,
+                self.RejectionReason.KNOWN_VULNERABILITY,
+            ):
+                pass
+            else:
+                raise ValidationError(
+                    {"rejection_reason": "Unhandled rejection reason"}
                 )
         else:
             if self.rejection_reason is not None:

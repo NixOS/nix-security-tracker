@@ -2,6 +2,7 @@ from collections.abc import Callable
 from datetime import timedelta
 
 import pytest
+from django.conf import settings
 
 from shared.cache_suggestions import cache_new_suggestions
 from shared.models.cached import CachedSuggestions
@@ -35,7 +36,7 @@ def test_caching_newest_package(
 
     # Use a primary channel, since otherwise the overall version won't be captured.
     # FIXME(@fricklerhandwerk): This shouldn't be something to keep track of. [ref:channel-structure]
-    primary_channel = make_channel(branch="nixos-26.05")
+    primary_channel = make_channel(channel_branch="nixos-26.05")
     # Order of creation matters for triggering the bug.
     # This is brittle because it assumes things about the database, but it seems that derivations are scanned in insertion order of their evaluations.
     eval_new = make_evaluation(channel=primary_channel)
@@ -98,8 +99,8 @@ def test_maintainers_come_from_rolling_release_channel(
     Its maintainers must appear regardless of evaluation order,
     and stable-only maintainers must never appear.
     """
-    stable_channel = make_channel(release="26.05")
-    rolling_channel = make_channel()
+    stable_channel = make_channel(channel_branch="nixos-26.05-small")
+    rolling_channel = make_channel(channel_branch=settings.TRACKING_BRANCH)
     stable_age = timedelta(hours=1) if stable_is_older else timedelta(0)
     rolling_age = timedelta(0) if stable_is_older else timedelta(hours=1)
     eval_stable = make_evaluation(channel=stable_channel, age=stable_age)
