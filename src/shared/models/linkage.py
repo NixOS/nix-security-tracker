@@ -79,6 +79,10 @@ class CVEDerivationClusterProposal(TimeStampMixin):
             "known_vulnerability",
             _("already tracked in derivation metadata"),
         )
+        NO_MATCHES = (
+            "no_matches",
+            _("no matching packages found"),
+        )
 
     @classproperty
     def CURRENT_ALGORITHM_VERSION(cls) -> int:  # noqa: N802, N805

@@ -88,7 +88,14 @@ def test_eol_channel_produces_no_matches(
     make_drv(pname="foo", evaluation=eol_eval)
 
     container = make_container(package_name="foo")
-    assert not build_new_links(container)
+    assert build_new_links(container) is True
+    proposal = CVEDerivationClusterProposal.objects.get(cve=container.cve)
+    assert proposal.status == CVEDerivationClusterProposal.Status.REJECTED
+    assert (
+        proposal.rejection_reason
+        == CVEDerivationClusterProposal.RejectionReason.NO_MATCHES
+    )
+    assert proposal.derivations.count() == 0
 
 
 @pytest.mark.parametrize(
@@ -113,8 +120,6 @@ def test_eol_channel_produces_no_matches(
 )
 def test_link_product_or_package_name(
     make_container: Callable[..., Container],
-    make_channel: Callable[..., NixChannel],
-    make_evaluation: Callable[..., NixEvaluation],
     make_drv: Callable[..., NixDerivation],
     package_name: str | None,
     product: str | None,
@@ -125,15 +130,20 @@ def test_link_product_or_package_name(
     drv = make_drv(pname=drv_pname)
 
     match = build_new_links(container)
-
+    assert match
     if expected_flags:
-        assert match
         link = DerivationClusterProposalLink.objects.get(derivation=drv)
         assert link.provenance_flags == expected_flags
+        assert link.proposal.status == CVEDerivationClusterProposal.Status.PENDING
         # Check the whole data pipeline by also caching the suggestion
         cache_new_suggestions(link.proposal)
     else:
-        assert not match
+        proposal = CVEDerivationClusterProposal.objects.get(cve=container.cve)
+        assert proposal.status == CVEDerivationClusterProposal.Status.REJECTED
+        assert (
+            proposal.rejection_reason
+            == CVEDerivationClusterProposal.RejectionReason.NO_MATCHES
+        )
 
 
 def test_exclusively_hosted_service_creates_rejected_proposal(
