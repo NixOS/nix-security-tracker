@@ -4,6 +4,7 @@ import logging
 import os.path
 import pathlib
 import random
+import subprocess
 import time
 from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
@@ -11,8 +12,23 @@ from dataclasses import dataclass
 from typing import IO, Any
 
 from django.conf import settings
+from pydantic import AnyUrl
 
 logger = logging.getLogger(__name__)
+
+
+def get_head_sha1(url: AnyUrl, branch: str) -> str:
+    result = subprocess.run(
+        ["git", "ls-remote", str(url), f"refs/heads/{branch}"],
+        capture_output=True,
+        text=True,
+        check=True,
+        timeout=settings.NETWORK_REQUEST_TIMEOUT,
+    )
+    line = result.stdout.strip()
+    if not line:
+        raise ValueError(f"branch {branch!r} not found at {url!r}")
+    return line.split()[0]
 
 
 @dataclass

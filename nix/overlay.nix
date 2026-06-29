@@ -2,6 +2,7 @@ final: prev:
 let
   sources = import ../npins;
   meta = with builtins; fromTOML (readFile ../src/pyproject.toml);
+  release-channels = builtins.toFile "_release_channels.py" "channels = ${builtins.toJSON (import "${sources.infra}/channels.nix").channels}\n";
 in
 {
   /*
@@ -92,7 +93,10 @@ in
       django-vite
     ];
 
-    passthru.PLAYWRIGHT_BROWSERS_PATH = final.playwright-driver.browsers;
+    passthru = {
+      PLAYWRIGHT_BROWSERS_PATH = final.playwright-driver.browsers;
+      inherit release-channels;
+    };
 
     postInstall = ''
       mkdir -p $out/bin
@@ -101,6 +105,7 @@ in
       wrapProgram $out/bin/manage.py --prefix PYTHONPATH : "$PYTHONPATH"
       cp ${sources.htmx}/dist/htmx.min.js* $out/${final.python3.sitePackages}/webview/static/
       cp ${sources.nixos-logo} $out/${final.python3.sitePackages}/webview/static/nixos-logo.svg
+      cp ${release-channels} $out/${final.python3.sitePackages}/shared/_release_channels.py
     '';
   };
 }

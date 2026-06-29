@@ -19,7 +19,7 @@ def ismaintainer(user: Any) -> bool:
     return NixMaintainer.objects.filter(
         github_id=user.socialaccount_set.get(provider="github").uid,
         nixderivationmeta__derivation__parent_evaluation__commit_sha1=F(
-            "nixderivationmeta__derivation__parent_evaluation__channel__head_sha1_commit"
+            "nixderivationmeta__derivation__parent_evaluation__branch__head_sha1_commit"
         ),
     ).exists()
 

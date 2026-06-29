@@ -220,14 +220,16 @@ class Command(BaseCommand):
                     NixChannel.ChannelState.DEPRECATED,
                 ]
             )
-            .exclude(evaluations__derivations__cve_links_proposals__isnull=False)
+            .exclude(
+                release_branch__evaluations__derivations__cve_links_proposals__isnull=False
+            )
             .exclude(
                 # No user input must be attached.
                 # Currently only ignored/additional maintainers relate directly to derivations.
-                evaluations__derivations__metadata__maintainers__maintaineroverlay__isnull=False
+                release_branch__evaluations__derivations__metadata__maintainers__maintaineroverlay__isnull=False
             )
-            .exclude(evaluations__derivations__isnull=False)
-            .exclude(evaluations__isnull=False)
+            .exclude(release_branch__evaluations__derivations__isnull=False)
+            .exclude(release_branch__evaluations__isnull=False)
             .distinct()
         )
 

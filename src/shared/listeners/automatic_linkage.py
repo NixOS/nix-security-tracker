@@ -25,7 +25,11 @@ from django.db.models import (
 from shared.channels import ContainerChannel
 from shared.models.cve import Container, Cpe
 from shared.models.linkage import CVEDerivationClusterProposal, ProvenanceFlags
-from shared.models.nix_evaluation import NixChannel, NixDerivation, NixEvaluation
+from shared.models.nix_evaluation import (
+    NixChannel,
+    NixDerivation,
+    NixEvaluation,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -34,9 +38,9 @@ def produce_linkage_candidates(
     container: Container,
     filtered_affected: models.QuerySet,
 ) -> models.QuerySet:
-    latest_complete_channels = NixEvaluation.objects.filter(
-        channel__state__in=NixChannel.TRACKED_STATES,
-    ).latest_completed_per_channel()
+    latest_complete_evaluations = NixEvaluation.objects.filter(
+        branch__channels__state__in=NixChannel.TRACKED_STATES,
+    ).latest_completed_per_branch()
 
     package_names = (
         filtered_affected.exclude(package_name__isnull=True)
@@ -87,7 +91,7 @@ def produce_linkage_candidates(
         )
         .filter(
             package_q | product_q,
-            parent_evaluation__in=list(latest_complete_channels),
+            parent_evaluation__in=list(latest_complete_evaluations),
         )
         .select_related("metadata")
         .annotate(**annotations)

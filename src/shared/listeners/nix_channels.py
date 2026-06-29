@@ -2,30 +2,31 @@ import logging
 
 import pgpubsub
 
-from shared.channels import NixChannelInsertChannel, NixChannelUpdateChannel
-from shared.models import NixChannel, NixEvaluation
+from shared.channels import NixpkgsBranchInsertChannel, NixpkgsBranchUpdateChannel
+from shared.models import NixEvaluation
+from shared.models.nix_evaluation import NixpkgsBranch
 
 logger = logging.getLogger(__name__)
 
 
-def enqueue_evaluation_job(channel: NixChannel) -> tuple[NixEvaluation, bool]:
+def enqueue_evaluation_job(branch: NixpkgsBranch) -> tuple[NixEvaluation, bool]:
     eval_job, created = NixEvaluation.objects.get_or_create(
         defaults={
             # We will leave the scheduling to the evaluation channel
             # listener.
-            "state": NixEvaluation.EvaluationState.WAITING,
-            "channel": channel,
+            "state": NixEvaluation.EvaluationState.WAITING
         },
-        commit_sha1=channel.head_sha1_commit,
+        branch=branch,
+        commit_sha1=branch.head_sha1_commit,
     )
     # If the commit is shared by multiple channels, prefer the tracking branch.
     if (
         not created
-        and channel.is_tracking_branch
-        and not eval_job.channel.is_tracking_branch
+        and branch.is_tracking_branch
+        and not eval_job.branch.is_tracking_branch
     ):
-        eval_job.channel = channel
-        eval_job.save(update_fields=["channel", "updated_at"])
+        eval_job.branch = branch
+        eval_job.save(update_fields=["branch", "updated_at"])
 
     logger.info(
         f"Enqueued evaluation job {eval_job}{' (already existing!)' if not created else ''}"
@@ -33,22 +34,27 @@ def enqueue_evaluation_job(channel: NixChannel) -> tuple[NixEvaluation, bool]:
     return eval_job, created
 
 
-@pgpubsub.post_insert_listener(NixChannelInsertChannel)
-def start_evaluation_jobs_upon_insertion(old: NixChannel, new: NixChannel) -> None:
-    logger.info("Nix channel created: %s", new.head_sha1_commit)
-    if new.state in NixChannel.TRACKED_STATES:
-        enqueue_evaluation_job(new)
+@pgpubsub.post_insert_listener(NixpkgsBranchInsertChannel)
+def start_evaluation_jobs_upon_insertion(
+    old: NixpkgsBranch, new: NixpkgsBranch
+) -> None:
+    logger.info("Nixpkgs branch created: %s at %s", new.name, new.head_sha1_commit)
+    branch = NixpkgsBranch.objects.get(pk=new.name)
+    if branch.is_tracked:
+        enqueue_evaluation_job(branch)
 
 
 # XXX(@fricklerhandwerk): We can't reuse the same channel for different events
 # https://github.com/PaulGilmartin/django-pgpubsub/issues/86
-@pgpubsub.post_update_listener(NixChannelUpdateChannel)
-def start_evaluation_jobs_upon_updates(old: NixChannel, new: NixChannel) -> None:
+@pgpubsub.post_update_listener(NixpkgsBranchUpdateChannel)
+def start_evaluation_jobs_upon_updates(old: NixpkgsBranch, new: NixpkgsBranch) -> None:
     logger.info(
-        "Nix channel updated: %s -> %s", old.head_sha1_commit, new.head_sha1_commit
+        "Nixpkgs branch updated: %s %s -> %s",
+        new.name,
+        old.head_sha1_commit,
+        new.head_sha1_commit,
     )
-    if (
-        old.head_sha1_commit != new.head_sha1_commit
-        and new.state in NixChannel.TRACKED_STATES
-    ):
-        enqueue_evaluation_job(new)
+    if old.head_sha1_commit != new.head_sha1_commit:
+        branch = NixpkgsBranch.objects.get(pk=new.name)
+        if branch.is_tracked:
+            enqueue_evaluation_job(branch)

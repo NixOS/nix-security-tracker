@@ -18,7 +18,7 @@ def test_latest_per_channel_selects_by_updated_at(
         age=timedelta(days=0),
     )
 
-    latest = NixEvaluation.objects.latest_per_channel().get()
+    latest = NixEvaluation.objects.latest_per_branch().get()
 
     assert latest == newer
     assert latest != older

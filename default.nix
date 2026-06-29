@@ -162,6 +162,7 @@ rec {
 
         ln -sf ${sources.htmx}/dist/htmx.js src/webview/static/htmx.min.js
         ln -sf ${sources.nixos-logo} src/webview/static/nixos-logo.svg
+        ln -sf ${package.passthru.release-channels} src/shared/_release_channels.py
 
         mkdir -p $CREDENTIALS_DIRECTORY
         # TODO(@fricklerhandwerk): move all configuration over to pydantic-settings

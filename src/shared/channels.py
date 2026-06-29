@@ -6,18 +6,18 @@ from shared.models import NixDerivation
 from shared.models.cve import Container
 from shared.models.issue import NixpkgsIssue
 from shared.models.linkage import CVEDerivationClusterProposal
-from shared.models.nix_evaluation import NixChannel, NixEvaluation
+from shared.models.nix_evaluation import NixEvaluation, NixpkgsBranch
 
 
 @dataclass
-class NixChannelUpdateChannel(TriggerChannel):
-    model = NixChannel
+class NixpkgsBranchInsertChannel(TriggerChannel):
+    model = NixpkgsBranch
     lock_notifications = True
 
 
 @dataclass
-class NixChannelInsertChannel(TriggerChannel):
-    model = NixChannel
+class NixpkgsBranchUpdateChannel(TriggerChannel):
+    model = NixpkgsBranch
     lock_notifications = True
 
 

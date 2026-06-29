@@ -16,26 +16,28 @@ from shared.models.nix_evaluation import (
     NixChannel,
     NixDerivation,
     NixEvaluation,
+    NixpkgsBranch,
 )
 
 
 def test_link_only_latest_eval(
     make_container: Callable[..., Container],
+    make_branch: Callable[..., NixpkgsBranch],
     make_channel: Callable[..., NixChannel],
     make_evaluation: Callable[..., NixEvaluation],
     make_drv: Callable[..., NixDerivation],
 ) -> None:
     """
-    Check that only derivations from the latest complete evaluation of each channel are matched.
+    Check that only derivations from the latest complete evaluation of each branch are matched.
     """
 
     channels = [
         make_channel(
-            channel_branch="nixos-26.05", state=NixChannel.ChannelState.STABLE
-        ),
-        make_channel(
-            channel_branch="nixos-unstable", state=NixChannel.ChannelState.UNSTABLE
-        ),
+            channel_branch=f"nixos-25.{i:02}",
+            state=NixChannel.ChannelState.STABLE,
+            branch=make_branch(name=f"release-25.{i:02}"),
+        )
+        for i in range(3)
     ]
 
     evaluations = []
@@ -70,19 +72,23 @@ def test_link_only_latest_eval(
     cache_new_suggestions(suggestion)
 
 
-def test_eol_channel_produces_no_matches(
+def test_link_only_admissible_channels(
     make_container: Callable[..., Container],
+    make_branch: Callable[..., NixpkgsBranch],
     make_channel: Callable[..., NixChannel],
     make_evaluation: Callable[..., NixEvaluation],
     make_drv: Callable[..., NixDerivation],
 ) -> None:
     """
-    Derivations on unmaintained channels must not produce matches.
+    Derivations on end-of-life channels must not produce matches.
+    Otherwise we'd be notifying people who aren't maintainers any more.
     """
     assert NixChannel.ChannelState.END_OF_LIFE not in NixChannel.TRACKED_STATES
+    eol_branch = make_branch(name="release-eol")
     eol_channel = make_channel(
-        channel_branch="nixos-24.05",
+        channel_branch="nixos-eol",
         state=NixChannel.ChannelState.END_OF_LIFE,
+        branch=eol_branch,
     )
     eol_eval = make_evaluation(channel=eol_channel)
     make_drv(pname="foo", evaluation=eol_eval)

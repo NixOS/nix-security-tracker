@@ -24,6 +24,7 @@ from shared.models.nix_evaluation import (
     NixDerivationMeta,
     NixEvaluation,
     NixMaintainer,
+    NixpkgsBranch,
 )
 from shared.models.package import Package, PackageAttrpath, PackageDerivation
 from shared.package_clustering import cluster_packages
@@ -217,6 +218,7 @@ class GarbageCollect(Enum):
     ],
 )
 def test_deletes_empty_old_evaluations(
+    make_branch: Callable[..., NixpkgsBranch],
     make_channel: Callable[..., NixChannel],
     make_evaluation: Callable[..., NixEvaluation],
     make_drv: Callable[..., NixDerivation],
@@ -237,8 +239,9 @@ def test_deletes_empty_old_evaluations(
     """
     channel = make_channel(
         state=channel_state,
-        # Make a unique channel for each state; the concrete name doesn't matter here.
+        # Make a unique channel and branch for each state; the concrete names don't matter here.
         channel_branch=f"{channel_state.value}-unstable",
+        branch=make_branch(name=f"{channel_state.value}-branch"),
     )
     evaluation = make_evaluation(
         channel=channel,

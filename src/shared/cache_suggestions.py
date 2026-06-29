@@ -19,7 +19,6 @@ from shared.models.linkage import (
     PackageOverlay,
     ReferenceUrlOverlay,
 )
-from shared.models.nix_evaluation import get_major_channel
 
 logger = logging.getLogger(__name__)
 
@@ -211,8 +210,9 @@ def cache_new_suggestions(suggestion: CVEDerivationClusterProposal) -> None:
             "metadata",
             "package_link__package",
             "parent_evaluation",
-            "parent_evaluation__channel",
+            "parent_evaluation__branch",
         )
+        .prefetch_related("parent_evaluation__branch__channels")
         .prefetch_related(
             Prefetch(
                 "metadata__maintainers",
@@ -316,69 +316,61 @@ def channel_structure(
         packages[attribute_path].derivation_ids.append(derivation.pk)
         if (
             derivation.metadata
-            and derivation.parent_evaluation.channel.is_tracking_branch
+            and derivation.parent_evaluation.branch.is_tracking_branch
         ):
             packages[attribute_path].description = derivation.metadata.get_description()
             packages[attribute_path].maintainers = [
                 CachedSuggestion.Maintainer.model_validate(to_dict(m))
                 for m in derivation.metadata.prefetched_maintainers
             ]
-        # Get the branch from which that derivation originates
-        branch_name = derivation.parent_evaluation.channel.channel_branch
-        # Get primary ("major") channel to which that branch belongs
-        major_channel = get_major_channel(branch_name)
-        # FIXME This quietly drops unfamiliar branch names
-        if major_channel:
-            # XXX(@fricklerhandwerk): Here we assign package information to channel names in iteration order, which in the query we have established to be oldest-first by evaluation time.
-            channels = packages[attribute_path].channels
-            if major_channel not in channels:
-                channels[major_channel] = CachedSuggestion.PackageOnPrimaryChannel(
-                    major_version=None,
-                    status=None,
-                    src_position=None,
-                    # XXX(@fricklerhandwerk): If this is not replaced in subsequent processing, it will display "-"
-                    uniform_versions=None,
-                    sub_branches=dict(),
-                    updated=None,
-                )
-            if branch_name == major_channel:
-                channels[major_channel] = CachedSuggestion.PackageOnPrimaryChannel(
+        all_channels = list(derivation.parent_evaluation.branch.channels.all())
+        status = is_version_affected(
+            [c.affects(package_version) for c in version_constraints]
+        )
+        src_position = get_src_position(derivation)
+        updated = derivation.parent_evaluation.updated_at
+        if len(all_channels) > 1:
+            # Old style: multiple channels were evaluated separately.
+            # Display under the primary channel with others nested.
+            # FIXME(@fricklerhandwerk): Ideally we'd garbage-collect all those evaluations,
+            # except the one with the latest commit.
+            # That would require knowing the order of evaluation commits:
+            # https://docs.github.com/en/rest/commits/commits?apiVersion=2026-03-10#compare-two-commits
+            primary = next((c for c in all_channels if c.primary), None)
+            if primary is None:
+                continue
+            group_name = primary.channel_branch
+            packages[attribute_path].channels[group_name] = (
+                CachedSuggestion.PackageOnPrimaryChannel(
                     major_version=package_version,
-                    status=is_version_affected(
-                        [c.affects(package_version) for c in version_constraints]
-                    ),
-                    src_position=get_src_position(derivation),
-                    uniform_versions=channels[major_channel].uniform_versions,
-                    sub_branches=channels[major_channel].sub_branches,
-                    updated=derivation.parent_evaluation.updated_at,
+                    status=status,
+                    src_position=src_position,
+                    uniform_versions=True,
+                    sub_branches={
+                        c.channel_branch: CachedSuggestion.PackageOnBranch(
+                            version=package_version,
+                            status=status,
+                            src_position=src_position,
+                            updated=updated,
+                        )
+                        for c in all_channels
+                        if not c.primary
+                    },
+                    updated=updated,
                 )
-            else:
-                channels[major_channel].sub_branches[branch_name] = (
-                    CachedSuggestion.PackageOnBranch(
-                        version=package_version,
-                        status=is_version_affected(
-                            [c.affects(package_version) for c in version_constraints]
-                        ),
-                        src_position=get_src_position(derivation),
-                        updated=derivation.parent_evaluation.updated_at,
-                    )
-                )
-
-    for package_name in packages:
-        channels = packages[package_name].channels
-        for mc in channels.keys():
-            uniform_versions = True
-            major_version = channels[mc].major_version
-            for _, branch in channels[mc].sub_branches.items():
-                uniform_versions = (
-                    uniform_versions and str(major_version) == branch.version
-                )
-            channels[mc].uniform_versions = uniform_versions
-            # We just sort branch names by length to get a good-enough order
-            channels[mc].sub_branches = dict(
-                sorted(
-                    channels[mc].sub_branches.items(),
-                    reverse=True,
+            )
+        else:
+            # New style: evaluations per release branch.
+            # Display the version for each branch separately
+            group_name = derivation.parent_evaluation.branch.name
+            packages[attribute_path].channels[group_name] = (
+                CachedSuggestion.PackageOnPrimaryChannel(
+                    major_version=package_version,
+                    status=status,
+                    src_position=src_position,
+                    uniform_versions=True,
+                    sub_branches={},
+                    updated=updated,
                 )
             )
     return packages

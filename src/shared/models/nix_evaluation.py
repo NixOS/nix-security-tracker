@@ -1,5 +1,3 @@
-import re
-
 from django.conf import settings
 from django.contrib.postgres import fields
 from django.contrib.postgres.indexes import BTreeIndex, GinIndex
@@ -129,6 +127,32 @@ class NixDerivationMeta(models.Model):
         return self.description or ""
 
 
+class NixpkgsBranch(models.Model):
+    """
+    A Nixpkgs source branch that gets evaluated, e.g. `master` or `release-26.05`.
+    """
+
+    name = models.CharField(max_length=126, primary_key=True)
+    repository = models.CharField(max_length=255)
+    head_sha1_commit = models.CharField(max_length=126)
+
+    def __str__(self) -> str:
+        return self.name
+
+    @property
+    def is_tracking_branch(self) -> bool:
+        """
+        Whether this branch is the tracking branch.
+
+        The tracking branch is the source of truth for package metadata such as descriptions and maintainer information.
+        """
+        return self.name == settings.TRACKING_BRANCH
+
+    @property
+    def is_tracked(self) -> bool:
+        return self.channels.filter(state__in=NixChannel.TRACKED_STATES).exists()
+
+
 class NixChannel(TimeStampMixin):
     """
     This represents a "Nixpkgs" (*) channel, e.g.
@@ -155,9 +179,12 @@ class NixChannel(TimeStampMixin):
         ChannelState.UNSTABLE,
     )
 
-    # A staging branch is the `release-$number` branch or `master` for unstable.
-    # Not to confuse with the `staging` branch itself.
-    release_branch = models.CharField(max_length=255)
+    # The underlying Nixpkgs branch (e.g. `master` or `release-25.05`).
+    release_branch = models.ForeignKey(
+        NixpkgsBranch,
+        on_delete=models.PROTECT,
+        related_name="channels",
+    )
     # A channel branch is the `nixos-$number` branch of
     # `nixos-unstable(-small)` for unstable(-small). Not to confuse with the
     # channel tarballs and scripts from releases.nixos.org.
@@ -165,39 +192,29 @@ class NixChannel(TimeStampMixin):
     # The currently known HEAD SHA1 commit of that channel.
     head_sha1_commit = models.CharField(max_length=255)
     state = models.CharField(max_length=126, choices=ChannelState.choices)
-    # Repository can be stored as URLs for now...
-    # We can always reparse them as proper GitHub URIs if necessary
-    # It's a bit annoying though
-    # TODO(raitobezarius): make a proper ForeignKey?
-    repository = models.CharField(max_length=255)
-
-    def __str__(self) -> str:
-        return f"{self.release_branch} -> {self.channel_branch}"
 
     @property
-    def is_tracking_branch(self) -> bool:
-        """
-        Whether the channel corresponds to a the tracking branch.
+    def primary(self) -> bool:
+        return get_major_channel(self.channel_branch) == self.channel_branch
 
-        It's the source of truth for metadata such as package descriptions and maintainer information.
-        """
-        return self.channel_branch == settings.TRACKING_BRANCH
+    def __str__(self) -> str:
+        return self.channel_branch
 
 
 class NixEvaluationQuerySet(models.QuerySet):
-    def latest_per_channel(self) -> "NixEvaluationQuerySet":
+    def latest_per_branch(self) -> "NixEvaluationQuerySet":
         return self.annotate(
             row_num=Window(
                 expression=RowNumber(),
-                partition_by=[F("channel")],
+                partition_by=[F("branch")],
                 order_by=F("updated_at").desc(),
             ),
         ).filter(row_num=1)
 
-    def latest_completed_per_channel(self) -> "NixEvaluationQuerySet":
+    def latest_completed_per_branch(self) -> "NixEvaluationQuerySet":
         return self.filter(
             state=NixEvaluation.EvaluationState.COMPLETED
-        ).latest_per_channel()
+        ).latest_per_branch()
 
 
 class NixEvaluation(TimeStampMixin):
@@ -229,9 +246,9 @@ class NixEvaluation(TimeStampMixin):
         # Failed means critical evaluation errors
         FAILED = "FAILED", _("Failed")
 
-    # Parent channel of that evaluation.
-    channel = models.ForeignKey(
-        NixChannel, related_name="evaluations", on_delete=models.PROTECT
+    # Source branch on which the evaluation was performed.
+    branch = models.ForeignKey(
+        NixpkgsBranch, related_name="evaluations", on_delete=models.PROTECT
     )
     # Commit SHA1 on which the evaluation was done precisely.
     commit_sha1 = models.CharField(max_length=255)
@@ -246,14 +263,10 @@ class NixEvaluation(TimeStampMixin):
     elapsed = models.FloatField(null=True)
 
     def __str__(self) -> str:
-        return f"{self.channel} {self.commit_sha1[:8]}"
+        return f"{self.branch} {self.commit_sha1[:8]}"
 
     class Meta:  # type: ignore[override]
-        constraints = [
-            models.UniqueConstraint(
-                fields=["commit_sha1"], name="nixevaluation_commit_sha1_unique"
-            )
-        ]
+        unique_together = ("branch", "commit_sha1")
 
 
 class NixDerivation(models.Model):
@@ -324,18 +337,3 @@ def get_major_channel(branch_name: str) -> str | None:
         if mc in branch_name:
             return f"nixos-{mc}"
     return None
-
-
-def get_release(channel_branch: str) -> str:
-    match = re.match(
-        r"^(?P<jobset>[a-z]+)-(?P<release>\d\d\.\d\d|unstable)(?:-(?P<variant>[a-z]+))?$",
-        channel_branch,
-    )
-    if match is None:
-        raise ValueError(f"unexpected channel branch name: {channel_branch!r}")
-    return match.group("release")
-
-
-def release_branch(channel_branch: str) -> str:
-    release = get_release(channel_branch)
-    return "master" if release == "unstable" else f"release-{release}"

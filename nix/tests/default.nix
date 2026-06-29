@@ -15,8 +15,24 @@ let
       diskSize = 4096;
     };
   };
-  channels = with builtins; toFile "channels.json" (toJSON (import ./channels.nix));
-  channels-port = toString 8080;
+  hydra = {
+    port = toString 8080;
+    mock = pkgs.writeText "hydra-mock" ''
+      from http.server import BaseHTTPRequestHandler, HTTPServer
+      class H(BaseHTTPRequestHandler):
+          def do_GET(self):
+              self.send_response(200)
+              self.send_header("Content-Type", "application/json")
+              self.end_headers()
+              self.wfile.write(b'${
+                builtins.toJSON {
+                  inputs.nixpkgs.value = "https://github.com/NixOS/nixpkgs.git";
+                }
+              }')
+          log_message = lambda *_: None
+      HTTPServer(("", ${hydra.port}), H).serve_forever()
+    '';
+  };
 in
 pkgs.testers.runNixOSTest {
   name = "default";
@@ -65,7 +81,7 @@ pkgs.testers.runNixOSTest {
         domain = "example.org";
         settings = {
           DEBUG = true;
-          CHANNEL_MONITORING_URL = "http://localhost:${channels-port}/channels.json";
+          HYDRA_URL = "http://localhost:${hydra.port}";
           GIT_CLONE_URL = "file://${dummy-nixpkgs}";
           SYNC_GITHUB_STATE_AT_STARTUP = false;
           GH_ISSUES_PING_MAINTAINERS = true;
@@ -93,18 +109,11 @@ pkgs.testers.runNixOSTest {
             GH_APP_PRIVATE_KEY = dummy-str;
           };
       };
-      systemd.services.mock-channels = {
+      systemd.services.${hydra.mock.name} = {
         wantedBy = [ "multi-user.target" ];
-        before = [ "${application}-server.service" ];
-        path = with pkgs; [
-          python3
-          gnused
-        ];
-        script = ''
-          cd /tmp
-          sed "s/@commit@/$(cat ${dummy-nixpkgs}/REVISION)/g" ${channels} > channels.json
-          python -m http.server ${channels-port}
-        '';
+        before = [ "${application}-fetch-all-channels.service" ];
+        path = [ pkgs.python3 ];
+        script = "python ${hydra.mock}";
       };
       systemd.services.setup-git-repo = {
         wantedBy = [ "multi-user.target" ];
@@ -130,20 +139,22 @@ pkgs.testers.runNixOSTest {
     ''
       server.wait_for_unit("${application}-server.service")
       server.wait_for_unit("${application}-worker.service")
-      server.wait_for_unit("mock-channels.service")
+      server.wait_for_unit("${hydra.mock.name}.service")
 
       with subtest("Check that no migrations were missed"):
         server.succeed("wst-manage makemigrations --check --dry-run")
 
-      with subtest("Check that channel are fetched and evaluations enqueued"):
+      with subtest("Check that channels are fetched and evaluations enqueued"):
         server.succeed("wst-manage fetch_all_channels")
         ${in-shell "succeed" ''
           from shared.models import NixChannel
-          assert NixChannel.objects.count() == 4
+          from shared.models.nix_evaluation import NixpkgsBranch
+          assert NixpkgsBranch.objects.count() == 1, f"expected 1 branch, got {NixpkgsBranch.objects.count()}"
+          assert NixChannel.objects.count() >= 1, f"expected at least 1 channel, got {NixChannel.objects.count()}"
         ''}
-        ${in-shell "succeed " ''
+        ${in-shell "succeed" ''
           from shared.models import NixEvaluation
-          assert NixEvaluation.objects.count() == 1
+          assert NixEvaluation.objects.count() == 1, f"expected 1 evaluation, got {NixEvaluation.objects.count()}"
         ''}
 
       with subtest("Application tests"):
@@ -214,11 +225,11 @@ pkgs.testers.runNixOSTest {
               # Maintainers should only be attached to derivations from the tracking branch.
               from django.conf import settings
               tracking_meta = NixDerivationMeta.objects.get(
-                derivation__parent_evaluation__channel__channel_branch=settings.TRACKING_BRANCH,
+                derivation__parent_evaluation__channel__release_branch__name=settings.TRACKING_BRANCH,
               )
               assert tracking_meta.maintainers.exists(), f"{settings.TRACKING_BRANCH} meta has no maintainers"
               for m in NixDerivationMeta.objects.exclude(
-                derivation__parent_evaluation__channel__channel_branch=settings.TRACKING_BRANCH,
+                derivation__parent_evaluation__channel__release_branch__name=settings.TRACKING_BRANCH,
               ):
                 assert not m.maintainers.exists(), f"{m.derivation.parent_evaluation.channel.channel_branch}) has unexpected maintainers"
             ''

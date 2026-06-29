@@ -233,3 +233,31 @@ def test_ignored_packages_persist_across_page_load(
         re.compile("Ignored packages")
     ).click()
     expect(ignored.get_by_text("bravo")).to_be_visible()
+
+
+def test_new_style_channel_label_is_branch_name(
+    live_server: LiveServer,
+    as_staff: Page,
+    cached_suggestion: CVEDerivationClusterProposal,
+) -> None:
+    """
+    When a branch has exactly one channel, the channel group label is the branch name,
+    not the channel name.
+    """
+    drv = cached_suggestion.derivations.first()
+    assert drv is not None
+
+    as_staff.goto(
+        live_server.url
+        + reverse(
+            "webview:suggestion:detail",
+            kwargs={"suggestion_id": cached_suggestion.pk},
+        )
+    )
+
+    branch_name = drv.parent_evaluation.branch.name
+    channel_name = drv.parent_evaluation.branch.channels.first().channel_branch
+
+    package_section = as_staff.locator(f".package-{drv.attribute}")
+    expect(package_section.get_by_text(branch_name)).to_be_visible()
+    expect(package_section.get_by_text(channel_name)).not_to_be_visible()

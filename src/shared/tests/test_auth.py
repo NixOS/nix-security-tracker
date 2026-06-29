@@ -21,7 +21,9 @@ def test_ismaintainer_respects_channel_tip(
 ) -> None:
     evaluation = make_evaluation(
         channel=channel,
-        commit_sha1=channel.head_sha1_commit if at_tip else None,  # otherwise random
+        commit_sha1=channel.release_branch.head_sha1_commit
+        if at_tip
+        else None,  # otherwise random
     )
     make_drv(evaluation=evaluation, maintainer=make_maintainer_from_user(user))
     assert ismaintainer(user) is expected

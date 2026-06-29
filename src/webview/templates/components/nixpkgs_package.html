@@ -10,9 +10,11 @@
   <ul class="w-25 column">
     {% for major_channel, major_version in pdata.channels|reverse_keys %}
       <li>
-        <details {% if not major_version.uniform_versions %}open{% endif %}
-                 class="details-marker-outside">
-          <summary>
+        {% if major_version.sub_branches %}
+          <details {% if not major_version.uniform_versions %}open{% endif %}
+                   class="details-marker-outside">
+            <summary>
+            {% endif %}
             <div class="inline-row gap-small">
               <span class="w-12">{{ major_channel }}</span>
               {% if major_version.major_version %}
@@ -24,19 +26,21 @@
                 -
               {% endif %}
             </div>
-          </summary>
-          <ul class="column">
-            {% for branch_name, minor_version in major_version.sub_branches.items %}
-              <li class="inline-row gap-small">
-                <span class="w-12">{{ branch_name }}</span>
-                <a class="{% if minor_version.status == 'affected' %}hl-red{% elif minor_version.status == 'unaffected' %}hl-green{% endif %}"
-                   target="_blank"
-                   href="{{ minor_version.src_position }}"
-                   title="evaluated {{ minor_version.updated|iso }}">{{ minor_version.version }}</a>
-              </li>
-            {% endfor %}
-          </ul>
-        </details>
+            {% if major_version.sub_branches %}
+            </summary>
+            <ul class="column">
+              {% for branch_name, minor_version in major_version.sub_branches.items %}
+                <li class="inline-row gap-small">
+                  <span class="w-12">{{ branch_name }}</span>
+                  <a class="{% if minor_version.status == 'affected' %}hl-red{% elif minor_version.status == 'unaffected' %}hl-green{% endif %}"
+                     target="_blank"
+                     href="{{ minor_version.src_position }}"
+                     title="evaluated {{ minor_version.updated|iso }}">{{ minor_version.version }}</a>
+                </li>
+              {% endfor %}
+            </ul>
+          </details>
+        {% endif %}
       </li>
     {% endfor %}
   </ul>
