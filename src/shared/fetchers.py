@@ -248,7 +248,7 @@ def make_container(
     problems = [
         desc
         for problem in data.get("problemTypes", [])
-        for desc in problem.get("description", [])
+        for desc in problem.get("descriptions", [])
     ]
     obj.problem_types.set(map(make_problem_type, problems))
     obj.references.set(map(make_reference, data.get("references", [])))
