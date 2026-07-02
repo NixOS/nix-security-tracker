@@ -60,6 +60,9 @@ class Migration(migrations.Migration):
                 to="shared.nixpkgsbranch",
             ),
         ),
+        # The table has triggers registered.
+        # Altering it within the migration will defer them to after the transaction, thus failing the whole thing.
+        migrations.RunSQL("ALTER TABLE shared_nixchannel DISABLE TRIGGER USER"),
         migrations.RunPython(
             code=populate_release_branch,
             reverse_code=migrations.RunPython.noop,
@@ -94,4 +97,5 @@ class Migration(migrations.Migration):
             code=populate_variant,
             reverse_code=migrations.RunPython.noop,
         ),
+        migrations.RunSQL("ALTER TABLE shared_nixchannel ENABLE TRIGGER USER"),
     ]
