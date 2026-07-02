@@ -20,18 +20,7 @@ let
     ;
   inherit (pkgs) writeScriptBin writeShellApplication stdenv;
   cfg = config.services.nix-security-tracker;
-  pythonFmt = pkgs.formats.pythonVars { };
 
-  settingsFile = pythonFmt.generate "wst-settings.py" cfg.settings;
-  extraConfigFile = pkgs.writeTextFile {
-    name = "wst-extraConfig.py";
-    text = cfg.extraConfig;
-  };
-
-  configFile = pkgs.concatText "configuration.py" [
-    settingsFile
-    extraConfigFile
-  ];
   pythonEnv = pkgs.python3.withPackages (
     ps: with ps; [
       cfg.package
@@ -119,7 +108,6 @@ in
       type = types.attrsOf types.anything;
       default = {
         DATABASE_URL = databaseUrl;
-        USER_SETTINGS_FILE = "${configFile}";
         DJANGO_SETTINGS = builtins.toJSON cfg.settings;
       };
       # only override defaults with explicit values
@@ -152,10 +140,6 @@ in
       # only override defaults with explicit values
       apply = lib.recursiveUpdate default;
     };
-    extraConfig = mkOption {
-      type = types.lines;
-      default = "";
-    };
     secrets = mkOption {
       type = types.attrsOf types.path;
       default = { };
@@ -186,7 +170,6 @@ in
   config = mkIf cfg.enable {
     environment.systemPackages = [ wstExternalManageScript ];
     services = {
-      # TODO(@fricklerhandwerk): move all configuration over to pydantic-settings
       nix-security-tracker.settings = {
         ALLOWED_HOSTS = mkDefault [
           (with cfg; if production then domain else "*")
