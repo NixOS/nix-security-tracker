@@ -4,10 +4,10 @@ from django.conf import settings
 from django.core.management.base import BaseCommand
 from pydantic import BaseModel, field_validator
 
-from shared import hydra
-
 # Populated at build time from `github:NixOS/infra//channels.nix`
 from shared._release_channels import channels  # type: ignore[reportMissingImports]
+
+from shared import hydra
 from shared.git import get_head_sha1
 from shared.models.nix_evaluation import NixChannel, NixpkgsBranch
 
