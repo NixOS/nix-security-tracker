@@ -39,18 +39,32 @@ let
   hydra = {
     port = toString 8080;
     mock = pkgs.writeText "hydra-mock" ''
+      import json
       from http.server import BaseHTTPRequestHandler, HTTPServer
+
+      nixpkgs_url = "file://${dummy-nixpkgs}"
+      with open("${dummy-nixpkgs}/REVISION") as f:
+          revision = f.read().strip()
+
+      responses = {
+          "jobset": {"inputs": {"nixpkgs": {"type": "git", "value": nixpkgs_url}}},
+          "job": {"id": 1, "jobsetevals": [1]},
+          "eval": {"id": 1, "jobsetevalinputs": {"nixpkgs": {"type": "git", "uri": nixpkgs_url, "revision": revision}}},
+      }
+
       class H(BaseHTTPRequestHandler):
           def do_GET(self):
+              body = responses.get(self.path.split("/")[1])
+              if body is None:
+                  self.send_response(404)
+                  self.end_headers()
+                  return
               self.send_response(200)
               self.send_header("Content-Type", "application/json")
               self.end_headers()
-              self.wfile.write(b'${
-                builtins.toJSON {
-                  inputs.nixpkgs.value = "file://${dummy-nixpkgs}";
-                }
-              }')
+              self.wfile.write(json.dumps(body).encode())
           log_message = lambda *_: None
+
       HTTPServer(("", ${hydra.port}), H).serve_forever()
     '';
   };

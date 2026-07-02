@@ -52,8 +52,9 @@ class Command(BaseCommand):
             # By pre-configuring the source location on our end, we're decoupling the routing (where to get the data) from the parameters (which piece of the data to get).
             # This slightly reduces our reliance on Hydra to be trustworthy:
             # Limit the blast radius of compromise to be denial of service for updates instead of silent poisoning of new data.
-            assert settings.GIT_CLONE_URL == source.url, (
-                f"Unexpected source URL: {source.url}"
+            # FIXME(@fricklerhandwerk): The values should be directly comparable but for some reason aren't.
+            assert str(settings.GIT_CLONE_URL) == str(source.url), (
+                f"Unexpected source URL: {source.url!r}, expected {settings.GIT_CLONE_URL!r}"
             )
 
             # FIXME(@fricklerhandwerk): Deduplicate the release branches beforehand.
@@ -73,7 +74,10 @@ class Command(BaseCommand):
             )
             evaluation = client.get_evaluation(latest_build.jobsetevals[0])
             eval_input = evaluation.jobsetevalinputs[settings.HYDRA_INPUT_NAME]
-            assert eval_input.uri == source.url  # Sanity check
+            # FIXME(@fricklerhandwerk): The values should be directly comparable but for some reason aren't.
+            assert str(eval_input.uri) == str(source.url), (  # Sanity check
+                f"Unexpected eval input URI: {eval_input.uri!r}, expected {source.url!r}"
+            )
             commit = eval_input.revision
 
             ch, created = NixChannel.objects.update_or_create(
