@@ -139,12 +139,14 @@ def make_channel(db: None) -> Callable[..., NixChannel]:
     def wrapped(
         channel_branch: str = settings.TRACKING_BRANCH,
         state: NixChannel.ChannelState = NixChannel.ChannelState.UNSTABLE,
+        variant: NixChannel.Variant | None = None,
     ) -> NixChannel:
         channel, _ = NixChannel.objects.get_or_create(
             channel_branch=channel_branch,
             defaults=dict(
                 head_sha1_commit=secrets.token_hex(16),
                 state=state,
+                variant=variant,
                 release_branch=release_branch(channel_branch),
                 repository="https://github.com/NixOS/nixpkgs",
             ),

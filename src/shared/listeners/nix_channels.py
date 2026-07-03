@@ -34,9 +34,12 @@ def enqueue_evaluation_job(channel: NixChannel) -> tuple[NixEvaluation, bool]:
 
 
 @pgpubsub.post_insert_listener(NixChannelInsertChannel)
-def start_evaluation_jobs_upon_insertion(old: NixChannel, new: NixChannel) -> None:
+def start_evaluation_jobs_upon_insertion(old: None, new: NixChannel) -> None:
     logger.info("Nix channel created: %s", new.head_sha1_commit)
-    if new.state in NixChannel.TRACKED_STATES:
+    if (
+        new.state in NixChannel.TRACKED_STATES
+        and new.variant == NixChannel.Variant.SMALL
+    ):
         enqueue_evaluation_job(new)
 
 
@@ -50,5 +53,6 @@ def start_evaluation_jobs_upon_updates(old: NixChannel, new: NixChannel) -> None
     if (
         old.head_sha1_commit != new.head_sha1_commit
         and new.state in NixChannel.TRACKED_STATES
+        and new.variant == NixChannel.Variant.SMALL
     ):
         enqueue_evaluation_job(new)

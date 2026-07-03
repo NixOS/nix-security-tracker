@@ -135,15 +135,20 @@ pkgs.testers.runNixOSTest {
       with subtest("Check that no migrations were missed"):
         server.succeed("wst-manage makemigrations --check --dry-run")
 
-      with subtest("Check that channel are fetched and evaluations enqueued"):
+      with subtest("Check that channels are fetched and only small ones get enqueued for evaluation"):
         server.succeed("wst-manage fetch_all_channels")
         ${in-shell "succeed" ''
           from shared.models import NixChannel
-          assert NixChannel.objects.count() == 4
+          assert NixChannel.objects.count() == 6
         ''}
-        ${in-shell "succeed " ''
+        ${
+          # Give it some time to queue up the evaluations...
+          ""
+        }
+        ${in-shell "succeed" ''
           from shared.models import NixEvaluation
           assert NixEvaluation.objects.count() == 1
+          assert NixEvaluation.objects.get().channel.variant == NixChannel.Variant.SMALL
         ''}
 
       with subtest("Application tests"):

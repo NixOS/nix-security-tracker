@@ -18,6 +18,15 @@
       {
         metric = {
           __name__ = "channel_revision";
+          channel = "nixos-unstable-small";
+          revision = "@commit@";
+          status = "rolling";
+          variant = "small";
+        };
+      }
+      {
+        metric = {
+          __name__ = "channel_revision";
           channel = "nixpkgs-unstable";
           revision = "@commit@";
           status = "rolling";
@@ -30,6 +39,15 @@
           revision = "@commit@";
           status = "stable";
           variant = "primary";
+        };
+      }
+      {
+        metric = {
+          __name__ = "channel_revision";
+          channel = "nixos-25.11-small";
+          revision = "@commit@";
+          status = "stable";
+          variant = "small";
         };
       }
       {
