@@ -174,6 +174,32 @@ def test_cache_description_from_package(
     )
 
 
+def test_ensure_fresh_cache_builds_when_missing(
+    suggestion: CVEDerivationClusterProposal,
+) -> None:
+    """Test that the cache created when no row exists."""
+    assert not CachedSuggestions.objects.filter(proposal=suggestion).exists()
+
+    suggestion.ensure_fresh_cache()
+
+    assert CachedSuggestions.objects.filter(proposal=suggestion).exists()
+
+
+def test_ensure_fresh_cache_noop_when_fresh(
+    suggestion: CVEDerivationClusterProposal,
+) -> None:
+    """Test that cache does not rebuild when the cache is already fresh."""
+    cache_new_suggestions(suggestion)
+    original_updated_at = CachedSuggestions.objects.get(proposal=suggestion).updated_at
+
+    suggestion.ensure_fresh_cache()
+
+    assert (
+        CachedSuggestions.objects.get(proposal=suggestion).updated_at
+        == original_updated_at
+    )
+
+
 def test_cache_description_falls_back_to_meta(
     suggestion: CVEDerivationClusterProposal,
 ) -> None:
