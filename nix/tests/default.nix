@@ -161,10 +161,17 @@ pkgs.testers.runNixOSTest {
       with subtest("Check that channels are fetched and evaluations enqueued"):
         server.succeed("wst-manage fetch_all_channels")
         ${in-shell "succeed" ''
-          from shared.models import NixChannel
-          from shared.models.nix_evaluation import NixpkgsBranch
+          import pathlib
+          from shared.models import NixChannel, NixpkgsBranch
+
           assert NixpkgsBranch.objects.count() == 1, f"expected 1 branch, got {NixpkgsBranch.objects.count()}"
           assert NixChannel.objects.count() >= 1, f"expected at least 1 channel, got {NixChannel.objects.count()}"
+
+          revision = pathlib.Path("${dummy-nixpkgs}/REVISION").read_text().strip()
+          branch = NixpkgsBranch.objects.get()
+          assert branch.head_sha1_commit == revision, f"expected {revision}, got {branch.head_sha1_commit}"
+          channel_tips = NixChannel.objects.values_list("head_sha1_commit", flat=True)
+          assert all(hash == revision for hash in channel_tips), f"unexpected channel tips: {[hash for hash in channel_tips if hash != revision]}"
         ''}
         ${in-shell "succeed" ''
           from shared.models import NixEvaluation
