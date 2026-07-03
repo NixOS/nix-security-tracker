@@ -76,8 +76,8 @@ def make_container(
 ) -> Callable[..., Container]:
     def wrapped(
         cve_id: str = "CVE-2025-0001",
-        title: str = "Dummy Title",
-        description: str | None = "Test description",
+        title: str | None = "Dummy Title",
+        description: str = "Test description",
         affected_version: str = "1.0",
         package_name: str | None = "foo",
         product: str | None = "bar",

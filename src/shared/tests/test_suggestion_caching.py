@@ -200,6 +200,24 @@ def test_ensure_fresh_cache_noop_when_fresh(
     )
 
 
+# FIXME(@fricklerhandwerk): [ref:invalid-cves] This tests a thing that shouldn't be possible in the first place; fix the underlying problem.
+def test_cache_skipped_without_title_or_description(
+    make_container: Callable[..., Container],
+) -> None:
+    container = make_container(
+        title=None, description=None, package_name=None, product=None
+    )
+    suggestion = CVEDerivationClusterProposal.objects.create(
+        status=CVEDerivationClusterProposal.Status.REJECTED,
+        rejection_reason=CVEDerivationClusterProposal.RejectionReason.NO_MATCHES,
+        cve=container.cve,
+    )
+
+    cache_new_suggestions(suggestion)
+
+    assert not CachedSuggestions.objects.filter(proposal=suggestion).exists()
+
+
 def test_cache_description_falls_back_to_meta(
     suggestion: CVEDerivationClusterProposal,
 ) -> None:
