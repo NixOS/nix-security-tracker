@@ -32,8 +32,8 @@ Similarly, merges on the `production` branch get automatically applied to tracke
 
 To request access to the staging or production environment, open a pull request with:
 
-- Your SSH public key added to the [`keys`][./keys] directory
-- An addition to `user.users.<name>.openssh.authorizedKeys.keyFiles` in the respective environment ([staging](./staging.nix), [production](./production.nix), or [both](./common.nix)).
+- Your SSH public key added to a file `<your-github-handle>` in the [`keys`](./keys) directory
+- An addition to `users.users.root.openssh.authorizedKeys.keyFiles` in the respective environment ([staging](./staging.nix), [production](./production.nix), or [both](./common.nix)).
 
 ## Secrets
 

@@ -1,7 +1,6 @@
 {
   config,
   pkgs,
-  lib,
   ...
 }:
 let
@@ -44,16 +43,12 @@ in
     linkConfig.RequiredForOnline = "routable";
   };
 
-  users.users.root =
-    let
-      keys = with lib; mapAttrs (n: _: ./keys/${n}) (builtins.readDir ./keys);
-    in
-    {
-      openssh.authorizedKeys.keyFiles = with keys; [
-        florentc
-        adekoder
-      ];
-    };
+  # FIXME(@fricklerhandwerk): Don't give everyone root.
+  # Wire the users to have the right permissions for doing what they need.
+  users.users.root.openssh.authorizedKeys.keyFiles = with config.custom.keys; [
+    florentc
+    adekoder
+  ];
 
   nixpkgs.overlays = sectracker.overlays;
   services = {
