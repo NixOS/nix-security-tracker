@@ -251,10 +251,13 @@ in
             WorkingDirectory = "/var/lib/nix-security-tracker";
             StateDirectory = "nix-security-tracker";
             RuntimeDirectory = "nix-security-tracker";
+            CacheDirectory = "nix-security-tracker";
             LogsDirectory = "nix-security-tracker";
             LoadCredential = credentials;
           };
-          environment = cfg.env;
+          environment = cfg.env // {
+            XDG_CACHE_HOME = "/var/cache/nix-security-tracker";
+          };
         };
       in
       mapAttrs (_: recursiveUpdate defaults) {
