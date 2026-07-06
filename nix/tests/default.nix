@@ -124,7 +124,7 @@ pkgs.testers.runNixOSTest {
       in-shell = command: python-lines: ''
         server.${command}("""echo '
         ${python-lines}
-        ' | wst-manage shell""")
+        ' | wst-manage shell 2>&1 | tee /dev/ttyS0""", timeout=60)
       '';
     in
     ''
