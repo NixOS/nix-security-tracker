@@ -13,19 +13,6 @@
       "url": "https://github.com/ryantm/agenix/archive/b027ee29d959fda4b60b57566d64c98a202e0feb.tar.gz",
       "hash": "sha256-9VnK6Oqai65puVJ4WYtCTvlJeXxMzAp/69HhQuTdl/I="
     },
-    "gitignore": {
-      "type": "Git",
-      "repository": {
-        "type": "GitHub",
-        "owner": "hercules-ci",
-        "repo": "gitignore"
-      },
-      "branch": "master",
-      "submodules": false,
-      "revision": "cb5e3fdca1de58ccbc3ef53de65bd372b48f567c",
-      "url": "https://github.com/hercules-ci/gitignore/archive/cb5e3fdca1de58ccbc3ef53de65bd372b48f567c.tar.gz",
-      "hash": "sha256-XmjITeZNMTQXGhhww6ed/Wacy2KzD6svioyCX7pkUu4="
-    },
     "htmx": {
       "type": "GitRelease",
       "repository": {
