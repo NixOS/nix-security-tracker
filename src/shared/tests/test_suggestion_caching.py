@@ -101,11 +101,14 @@ def test_maintainers_come_from_rolling_release_channel(
     Its maintainers must appear regardless of evaluation order,
     and stable-only maintainers must never appear.
     """
-    stable_branch = make_branch(name="release-26.05")
     stable_channel = make_channel(
-        channel_branch="nixos-26.05-small", branch=stable_branch
+        channel_branch="nixos-26.05-small",
+        branch=make_branch(name="release-26.05")
     )
-    rolling_channel = make_channel(channel_branch=settings.TRACKING_BRANCH)
+    rolling_channel = make_channel(
+        channel_branch="nixos-unstable",
+        branch=make_branch(settings.TRACKING_BRANCH),
+    )
     stable_age = timedelta(hours=1) if stable_is_older else timedelta(0)
     rolling_age = timedelta(0) if stable_is_older else timedelta(hours=1)
     eval_stable = make_evaluation(channel=stable_channel, age=stable_age)
