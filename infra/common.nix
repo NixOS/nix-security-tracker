@@ -93,6 +93,9 @@ in
   services.prometheus.exporters.postgres = {
     enable = true;
     openFirewall = true;
+    # FIXME(@fricklerhandwerk): Remove when the fix to the upstream issue has landed in Nixpkgs:
+    # https://github.com/prometheus-community/postgres_exporter/issues/1310
+    extraFlags = [ "--no-collector.stat_replication" ];
   };
 
   services.prometheus.exporters.sql = {
