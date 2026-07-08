@@ -52,7 +52,7 @@ let
           "eval": {"id": 1, "jobsetevalinputs": {"nixpkgs": {"type": "git", "uri": nixpkgs_url, "revision": revision}}},
       }
 
-      class H(BaseHTTPRequestHandler):
+      class Handler(BaseHTTPRequestHandler):
           def do_GET(self):
               body = responses.get(self.path.split("/")[1])
               if body is None:
@@ -65,7 +65,7 @@ let
               self.wfile.write(json.dumps(body).encode())
           log_message = lambda *_: None
 
-      HTTPServer(("", ${hydra.port}), H).serve_forever()
+      HTTPServer(("", ${hydra.port}), Handler).serve_forever()
     '';
   };
 in
