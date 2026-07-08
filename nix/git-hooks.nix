@@ -58,7 +58,21 @@ rec {
 
       prettier = {
         enable = true;
-        excludes = [ "\\.html$" ];
+        excludes = [
+          "\\.html$"
+          "^frontend/"
+        ];
+      };
+
+      # Frontend linting and formatting
+      biome = {
+        enable = true;
+        name = "biome";
+        entry = "${pkgs.writeShellScript "biome-check" ''
+          cd frontend && exec ${pkgs.lib.getExe pkgs.biome} check --write .
+        ''}";
+        files = "^frontend/.*\\.(ts|tsx|js|json)$";
+        pass_filenames = false; # false because the passed paths are repo-root-relative
       };
 
       djlint =
@@ -110,6 +124,11 @@ rec {
               - Terraform
               - OpenTofu
               - SSH
+              - API
+              - UI
+              - Preact
+              - Vite
+              - Orval
           '';
 
           terms = pkgs.writeText "Terms.yml" ''

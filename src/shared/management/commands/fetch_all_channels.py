@@ -18,6 +18,7 @@ class MonitoredChannel:
     name: str
     revision: str
     status: str
+    variant: str | None
 
 
 def aggregate_by_channels(data: list[dict[str, Any]]) -> dict[str, MonitoredChannel]:
@@ -25,7 +26,10 @@ def aggregate_by_channels(data: list[dict[str, Any]]) -> dict[str, MonitoredChan
     for metric in data:
         m = metric["metric"]
         channels[m["channel"]] = MonitoredChannel(
-            name=m["channel"], revision=m["revision"], status=m["status"]
+            name=m["channel"],
+            revision=m["revision"],
+            status=m["status"],
+            variant=m.get("variant"),
         )
     return channels
 
@@ -62,6 +66,7 @@ class Command(BaseCommand):
                 "release_branch": release_branch(channel.name),
                 "state": NixChannel.ChannelState(channel.status),
                 "head_sha1_commit": channel.revision,
+                "variant": channel.variant,
             }
             pprint(branch_info | {"channel_branch": channel.name})
             NixChannel.objects.update_or_create(

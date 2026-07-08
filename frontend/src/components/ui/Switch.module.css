@@ -1,0 +1,41 @@
+.switch {
+  cursor: pointer;
+}
+
+.switch[data-disabled] {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.switchLoading[data-disabled] {
+  opacity: 1;
+  cursor: wait;
+}
+
+.control {
+  position: relative;
+  width: 2.5em;
+  height: 1.4em;
+  border-radius: 9999px;
+  background-color: var(--gray);
+  transition: background-color 0.05s ease;
+}
+
+.control[data-state="checked"] {
+  background-color: var(--green);
+}
+
+.thumb {
+  position: absolute;
+  left: 0.15em;
+  top: 0.15em;
+  width: 1.1em;
+  height: 1.1em;
+  border-radius: 50%;
+  background-color: white;
+  transition: transform 0.05s ease;
+}
+
+.thumb[data-state="checked"] {
+  transform: translateX(1.1em);
+}

@@ -1,0 +1,5 @@
+node_modules/
+.vite/
+dist/
+src/api/generated/
+schema.yaml

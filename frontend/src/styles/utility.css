@@ -1,0 +1,482 @@
+/* Utility classes
+ *
+ * Utility classes for layout, typography, and various reusable UI components.
+ * This should contain all the classes you need to style your html templates.
+ * New classes should only be added there after due consideration, and never to introduce small ad hoc variations.
+ */
+
+/* Prose
+ *
+ * .prose - Apply to containers with longer text content.
+ *          Restores expected styling (margins between paragraphs, bullets on item lists) that is removed by reset.css for the rest of the UI.
+ */
+
+.prose p {
+  margin: 1em 0;
+}
+
+.prose ul {
+  list-style-type: disc;
+  padding-left: 1em;
+}
+
+.prose li {
+  margin: 1em 0;
+}
+
+/* Buttons
+ *
+ * .btn - Base button style to be used on every standard button
+ * .btn-green - Green button variant
+ * .btn-gray - Gray button variant
+ * .btn-red - Red button variant
+ *
+ * Usage: Combine .btn with one of the color variants
+ * Example: <button class="btn btn-green">Publish</button>
+ *
+ * See next section for how to combine buttons with other widgets
+ */
+
+.btn {
+  font-size: 1em;
+  border: solid 2px white;
+  border-radius: 0.4em;
+  padding: 0.3em 0.5em;
+  outline-width: 2px;
+}
+
+.btn:not(:disabled) {
+  cursor: pointer;
+}
+
+.btn:disabled {
+  cursor: not-allowed;
+}
+
+.btn:not(:disabled):hover {
+  outline-style: solid;
+}
+
+.btn-green {
+  background-color: var(--green);
+  outline-color: var(--green);
+  color: white;
+}
+
+.btn-gray {
+  background-color: var(--gray);
+  outline-color: var(--gray);
+  color: white;
+}
+
+.btn-red {
+  background-color: var(--red);
+  outline-color: var(--red);
+  color: white;
+}
+
+@keyframes pulse-outline {
+  0%,
+  100% {
+    outline-width: 2px;
+    opacity: 1;
+  }
+  50% {
+    outline-width: 4px;
+    opacity: 0.7;
+  }
+}
+
+.join.htmx-request,
+.btn.htmx-request {
+  outline-style: solid;
+  animation: pulse-outline 0.5s ease-in-out infinite;
+  pointer-events: none; /* Prevent additional clicks during request */
+}
+
+.join.htmx-request:hover,
+.btn.htmx-request:hover {
+  /* Override hover styles during request to maintain consistent animation */
+  outline-style: solid;
+}
+
+/* Grouping buttons with other widgets
+ * This will alter the style of the button to play nicely
+ *
+ * .join - Container that combines button and other widgets horizontally
+ * .join-green - Green variant (will behave like standalone button)
+ * .join-gray - Gray variant (will behave like standalone button)
+ * .join-red - Red variant (will behave like standalone button)
+ * .join-item - Item to combine
+ *
+ * Usage: Use join with join-items children which have utility classes you would have used normally
+ * Advice: Use rounded-box-compact on text inputs and such
+ * Example:
+ * <div class="row join join-green">
+ *   <input type="text" name="package_name" class="rounded-box-compact join-item">
+ *   <button type="submit" class="btn btn-green join-item">Subscribe</button>
+ * </div>
+ *
+ */
+
+.join {
+  border: solid 2px white;
+  border-radius: 0.4em;
+  outline-width: 2px;
+  align-items: stretch;
+}
+
+.join-green {
+  outline-color: var(--green);
+}
+
+.join-gray {
+  outline-color: var(--gray);
+}
+
+.join-red {
+  outline-color: var(--red);
+}
+
+.join:hover {
+  outline-style: solid;
+}
+
+.join > .btn {
+  border: none;
+}
+
+.join > .btn.htmx-request {
+  animation: none;
+  outline-width: 0;
+}
+
+.join > .btn.htmx-request:hover {
+  outline-width: 0;
+}
+
+.join > .join-item {
+  outline: none;
+  border-radius: 0;
+}
+
+.join-green > .join-item:focus {
+  border-color: var(--green);
+}
+
+.join-gray > .join-item:focus {
+  border-color: var(--gray);
+}
+
+.join-red > .join-item:focus {
+  border-color: var(--red);
+}
+
+.join > :not(.btn) .join-item:focus {
+  outline: none;
+  border: 1px solid;
+}
+
+.join > .join-item:hover {
+  outline-style: none;
+}
+
+.join > .join-item:first-child {
+  border-top-left-radius: 0.4em;
+  border-bottom-left-radius: 0.4em;
+}
+
+.join > .join-item:last-child {
+  border-top-right-radius: 0.4em;
+  border-bottom-right-radius: 0.4em;
+}
+
+/* Tags
+ *
+ * .tag - Base tag style to be used on every tag
+ * .tag-gray - Gray tag variant
+ *
+ * Usage: Combine .tag with one of the color variants
+ * Example: <span class="tag tag-gray">Keyword</button>
+ */
+
+.tag {
+  border-radius: 1rem;
+  padding: 0.15rem 0.5rem;
+  word-break: normal;
+  font-size: 0.8rem;
+}
+
+.tag-gray {
+  color: black;
+  border: 1px solid var(--gray);
+  background-color: var(--light-gray);
+}
+
+/* Text
+ *
+ * Typography and text styling utilities:
+ *
+ * .text-xl, .text-l - Font size variants
+ * .text-white - White text color
+ * .bold - Bold font weight
+ * .monospace - Apply monospace font
+ * .condensed - Apply condensed font
+ * .uppercase - Force uppercase
+ * .dimmed - Dimmed gray text color
+ * .no-line-breaks - Prevent line breaks
+ */
+
+.text-xl {
+  font-size: 2em;
+}
+
+.text-l {
+  font-size: 1.2em;
+}
+
+.text-white {
+  color: white;
+}
+
+.bold {
+  font-weight: bold;
+}
+
+.monospace {
+  font-family: ui-monospace, monospace;
+}
+
+.condensed {
+  font-family: system-ui, sans-serif;
+}
+
+.uppercase {
+  text-transform: uppercase;
+}
+
+.dimmed {
+  color: var(--gray);
+}
+
+.no-line-breaks {
+  white-space: nowrap;
+}
+
+/* Layout
+ *
+ * Layout utilities using flexbox. Start with a required container type,
+ * then add optional alignment, spacing, and sizing classes.
+ *
+ * Required container types (choose one):
+ * .row - Display children horizontally in a row
+ * .row-reverse - Same but from right to left
+ * .inline-row - Same but the container will be inlined (e.g. in text)
+ * .column - Display children vertically in a column
+ * .contents - Removes element from the tree, as if its children were direct children of the parent.
+ *             For instance, a .column div containing a .contents form containing form inputs.
+ *
+ * Alignment of the children relative to each other:
+ * By default - At the start of container (top for rows, left for columns)
+ * .centered - Center items together (e.g. vertical centering for row items)
+ * .baseline - Baseline of the first line of text
+ * .align-end - At the end of container (bottom for rows, right for columns)
+ *
+ * Spacing (use one or none):
+ * .gap, .gap-small, .gap-big - Gap between items
+ * .dividers - Display a separation line between items (handles gaps, don't use gap classes)
+ *
+ * Horizontal separator line:
+ * .divider - On an <hr> element: display a horizontal line to separate content.
+ *            To be used in a column + (small-)gap container.
+ *
+ * Sizing:
+ * .full-width - Force to use all available space (width: 100%)
+ * .grow - Make an item grow in a container
+ * .spread - Force items to be spread across available space
+ *           For instance 2 elements on a .row .spread .full-width will be respectively on the far left and far right.
+ * .justify-right - Right-justify items in the container
+ * .wrap - Allow items to wrap for responsivity. This is how responsivity is to be implemented rather than through breakpoints.
+ *
+ */
+
+.row {
+  display: flex;
+  flex-direction: row;
+}
+
+.row-reverse {
+  display: flex;
+  flex-direction: row-reverse;
+}
+
+.inline-row {
+  display: inline-flex;
+  flex-direction: row;
+}
+
+.centered {
+  align-items: center;
+}
+
+.baseline {
+  align-items: baseline;
+}
+
+.align-end {
+  align-items: flex-end;
+}
+
+.column {
+  display: flex;
+  flex-direction: column;
+}
+
+.contents {
+  display: contents;
+}
+
+.full-width {
+  width: 100%;
+}
+
+.justify-right {
+  justify-content: flex-end;
+}
+
+.spread {
+  justify-content: space-between;
+}
+
+.gap {
+  gap: 1em;
+}
+
+.gap-big {
+  gap: 2em;
+}
+
+.gap-small {
+  gap: 0.5em;
+}
+
+.grow {
+  flex-grow: 1;
+}
+
+.wrap {
+  flex-wrap: wrap;
+}
+
+.dividers > *:not(:first-child) {
+  padding-top: 0.5em;
+}
+
+.dividers > *:not(:last-child) {
+  padding-bottom: 0.5em;
+}
+
+.dividers > * {
+  border-bottom: 1px solid var(--gray);
+}
+
+.dividers > *:last-child {
+  border-bottom: none;
+}
+
+.divider {
+  width: 100%;
+  height: 1px;
+  background-color: var(--gray);
+  border: none;
+}
+
+/* Boxes
+ *
+ * .rounded - Rounded corners
+ * .border - Gray border
+ * .circle - Circular shape
+ * .box - Padding and scrollbars during overflows.
+ *        Modifiers: .spacious, .compact (affects padding)
+ */
+
+.rounded {
+  border-radius: 0.4em;
+}
+
+.rounded-full {
+  border-radius: 99999px;
+}
+
+.border {
+  border: 1px solid var(--gray);
+}
+
+.box {
+  padding: 1em;
+  overflow: auto;
+}
+
+.circle {
+  border-radius: 50%;
+}
+
+.box.spacious {
+  padding: 2em;
+}
+
+.box.compact {
+  padding: 0.3em;
+}
+
+/* Loading / Skeleton
+ *
+ * .loading - Animated shimmer background for loading/skeleton states.
+ *            Apply directly, or use the <Skeleton> component for shaped placeholders.
+ *            Override border-radius as needed (e.g. 50% for circles).
+ */
+
+@keyframes skeleton-shimmer {
+  0% {
+    background-position: 200% center;
+  }
+  100% {
+    background-position: -200% center;
+  }
+}
+
+.loading {
+  background: linear-gradient(90deg, var(--light-gray) 25%, white 50%, var(--light-gray) 75%);
+  background-size: 200% 100%;
+  animation: skeleton-shimmer 1.5s ease-in-out infinite;
+  border: 1px solid var(--light-gray);
+}
+
+/* Background
+ *
+ * Background color utilities for theme colors (yellow, red, green, nixos-blue).
+ */
+
+.bg-yellow-light {
+  background-color: var(--light-yellow);
+}
+
+.bg-red {
+  background-color: var(--red);
+}
+
+.bg-red-light {
+  background-color: var(--light-red);
+}
+
+.bg-green {
+  background-color: var(--green);
+}
+
+.bg-green-light {
+  background-color: var(--light-green);
+}
+
+.bg-nixos-blue {
+  background-color: var(--nixos-blue);
+}

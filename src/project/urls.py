@@ -16,7 +16,11 @@ Including another URLconf
 """
 
 from django.contrib import admin
-from django.urls import include, path
+from django.urls import include, path, re_path
+from django.views.generic import TemplateView
+
+# SPA catch-all: serves the same template for all /ui-v2/ sub-paths (client-side routing)
+ui_v2_view = TemplateView.as_view(template_name="ui_v2.html")
 
 urlpatterns = [
     path("", include("webview.urls")),
@@ -25,4 +29,5 @@ urlpatterns = [
     path("admin/", admin.site.urls),
     path("accounts/", include("allauth.urls")),
     path("debug/", include("debug_toolbar.urls")),
+    re_path(r"^ui-v2/(?:.*)?$", ui_v2_view, name="ui_v2"),
 ]

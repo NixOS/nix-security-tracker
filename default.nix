@@ -14,6 +14,7 @@ rec {
   # For exports.
   overlays = [ overlay ];
   package = pkgs.nix-security-tracker;
+  frontend = pkgs.callPackage ./nix/frontend.nix { };
   module = import ./nix/configuration.nix;
   dev-container = import ./infra/container.nix;
   dev-setup = import ./nix/dev-setup.nix;
@@ -109,6 +110,8 @@ rec {
           GH_COMMITTERS_TEAM = "sectracker-testing-committers";
           STATIC_ROOT = "${toString ./src/static}";
           BASE_URL = "http://localhost:8000";
+          VITE_MANIFEST_PATH = toString ./. + "frontend/dist/.vite/manifest.json";
+
           REVISION =
             let
               git = builtins.fetchGit {
@@ -133,8 +136,14 @@ rec {
         pkgs.nix-eval-jobs
         pkgs.npins
         pkgs.pv
+        # Runs the dev processes defined in the repo-root Procfile (Django, workers,
+        # Vite) together via a single `hivemind` invocation.
+        pkgs.hivemind
         (import sources.agenix { inherit pkgs; }).agenix
         format
+        # Frontend tooling (Preact/Vite UI at /ui-v2)
+        pkgs.nodejs
+        pkgs.biome
       ]
       ++ git-hooks.enabledPackages;
 
@@ -158,6 +167,12 @@ rec {
         # TODO(@fricklerhandwerk): move all configuration over to pydantic-settings
         touch .settings.py
         export USER_SETTINGS_FILE=${builtins.toString ./.settings.py}
+
+        # Frontend: install npm dependencies if needed
+        if [ -f frontend/package.json ] && [ ! -d frontend/node_modules ]; then
+          echo "Installing frontend dependencies..."
+          (cd frontend && npm ci --prefer-offline 2>/dev/null || npm install)
+        fi
       '';
     };
 

@@ -1,0 +1,22 @@
+.tab {
+  padding: 0.5em 1em;
+  background: none;
+  border: none;
+  border-bottom: 0.2em solid transparent;
+  cursor: pointer;
+  font-size: 1em;
+  gap: 0.4em;
+  outline: none;
+  color: black;
+}
+
+.tab:hover {
+  color: black;
+  border-color: var(--light-gray);
+}
+
+.tab[data-selected] {
+  color: black;
+  border-color: black;
+  font-weight: bold;
+}

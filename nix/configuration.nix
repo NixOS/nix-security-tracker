@@ -89,6 +89,11 @@ in
     enable = mkEnableOption "web security tracker for Nixpkgs and similar monorepos";
 
     package = mkPackageOption pkgs "nix-security-tracker" { };
+    frontend = mkOption {
+      type = types.package;
+      default = pkgs.callPackage ./frontend.nix { };
+      description = "Built frontend package (Preact/Vite UI served at /ui-v2/)";
+    };
     production = mkOption {
       type = types.bool;
       default = true;
@@ -129,6 +134,7 @@ in
       default = {
         PRODUCTION = cfg.production;
         STATIC_ROOT = "/var/lib/nix-security-tracker/static/"; # trailing slash is required!
+        VITE_MANIFEST_PATH = "${cfg.frontend}/.vite/manifest.json";
         REVISION =
           (builtins.fetchGit {
             url = ../.;
@@ -199,6 +205,13 @@ in
           locations = {
             "/".proxyPass = "http://localhost:${toString cfg.wsgi-port}";
             "/static/".alias = cfg.settings.STATIC_ROOT;
+            # Vite-built frontend assets (hashed filenames → immutable cache)
+            "/static/vite/" = {
+              alias = "${cfg.frontend}/";
+              extraConfig = ''
+                add_header Cache-Control "public, max-age=31536000, immutable";
+              '';
+            };
           };
         }
         // lib.optionalAttrs cfg.production {
@@ -238,10 +251,13 @@ in
             WorkingDirectory = "/var/lib/nix-security-tracker";
             StateDirectory = "nix-security-tracker";
             RuntimeDirectory = "nix-security-tracker";
+            CacheDirectory = "nix-security-tracker";
             LogsDirectory = "nix-security-tracker";
             LoadCredential = credentials;
           };
-          environment = cfg.env;
+          environment = cfg.env // {
+            XDG_CACHE_HOME = "/var/cache/nix-security-tracker";
+          };
         };
       in
       mapAttrs (_: recursiveUpdate defaults) {

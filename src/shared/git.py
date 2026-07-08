@@ -68,14 +68,14 @@ class GitRepo:
 
     async def execute_git_command(
         self,
-        cmd: str,
+        *cmd: str,
         stdout: int | IO[Any] | None = None,
         stderr: int | IO[Any] | None = None,
     ) -> asyncio.subprocess.Process:
         final_stdout = stdout or self.stdout or asyncio.subprocess.PIPE
         final_stderr = stderr or self.stderr or asyncio.subprocess.PIPE
-        return await asyncio.create_subprocess_shell(
-            cmd, cwd=self.repo_path, stdout=final_stdout, stderr=final_stderr
+        return await asyncio.create_subprocess_exec(
+            *cmd, cwd=self.repo_path, stdout=final_stdout, stderr=final_stderr
         )
 
     async def clone(
@@ -91,14 +91,33 @@ class GitRepo:
         stdout = self.stdout or asyncio.subprocess.PIPE
         stderr = self.stderr or asyncio.subprocess.PIPE
         if reference_repo_path is not None:
-            clone_process = await asyncio.create_subprocess_shell(
-                f"git clone --depth=1 --bare --progress --reference={reference_repo_path} {repo_clone_url} {self.repo_path}",
+            clone_process = await asyncio.create_subprocess_exec(
+                *[
+                    "git",
+                    "clone",
+                    "--depth=1",
+                    "--bare",
+                    "--progress",
+                    f"--reference={reference_repo_path}",
+                    "--",
+                    repo_clone_url,
+                    self.repo_path,
+                ],
                 stdout=stdout,
                 stderr=stderr,
             )
         else:
-            clone_process = await asyncio.create_subprocess_shell(
-                f"git clone --depth=1 --bare --progress {repo_clone_url} {self.repo_path}",
+            clone_process = await asyncio.create_subprocess_exec(
+                *[
+                    "git",
+                    "clone",
+                    "--depth=1",
+                    "--bare",
+                    "--progress",
+                    "--",
+                    repo_clone_url,
+                    self.repo_path,
+                ],
                 stdout=stdout,
                 stderr=stderr,
             )
@@ -111,7 +130,14 @@ class GitRepo:
         e.g. filter out the `bare` worktree.
         """
         process = await self.execute_git_command(
-            "git worktree list -z --porcelain", stdout=asyncio.subprocess.PIPE
+            *[
+                "git",
+                "worktree",
+                "list",
+                "-z",
+                "--porcelain",
+            ],
+            stdout=asyncio.subprocess.PIPE,
         )
         stdout, _ = await process.communicate()
         parts = stdout.split(b"\x00")
@@ -146,7 +172,12 @@ class GitRepo:
         exists = (
             await (
                 await self.execute_git_command(
-                    f"git cat-file commit {object_sha1}",
+                    *[
+                        "git",
+                        "cat-file",
+                        "commit",
+                        object_sha1,
+                    ],
                     stderr=asyncio.subprocess.PIPE,
                 )
             ).wait()
@@ -167,7 +198,14 @@ class GitRepo:
                     # The lock is gone, nothing to do.
                     pass
                 process = await self.execute_git_command(
-                    f"git fetch --porcelain --depth=1 {repo_clone_url} {object_sha1}",
+                    *[
+                        "git",
+                        "fetch",
+                        "--porcelain",
+                        "--depth=1",
+                        repo_clone_url,
+                        object_sha1,
+                    ],
                     stderr=asyncio.subprocess.PIPE,
                 )
                 _, stderr = await process.communicate()
@@ -209,7 +247,14 @@ class GitRepo:
 
         Returns `True` if it does exist, otherwise `False`.
         """
-        process = await self.execute_git_command(f"git worktree remove {name}")
+        process = await self.execute_git_command(
+            *[
+                "git",
+                "worktree",
+                "remove",
+                name,
+            ]
+        )
         deleted = await process.wait() == 0
 
         return deleted
@@ -220,7 +265,13 @@ class GitRepo:
 
         Returns `True` if it does get pruned, otherwise `False`.
         """
-        process = await self.execute_git_command("git worktree prune")
+        process = await self.execute_git_command(
+            *[
+                "git",
+                "worktree",
+                "prune",
+            ]
+        )
         pruned = await process.wait() == 0
 
         return pruned
@@ -246,7 +297,13 @@ class GitRepo:
             await self.prune_working_trees()
 
         process = await self.execute_git_command(
-            f"git worktree add {target_path} {commit_sha1}"
+            *[
+                "git",
+                "worktree",
+                "add",
+                target_path,
+                commit_sha1,
+            ]
         )
         created = await process.wait() == 0
 

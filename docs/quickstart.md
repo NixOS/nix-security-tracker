@@ -42,6 +42,35 @@ Check that the service has started:
 open http://127.0.0.1:8000
 ```
 
+## Experimental UI
+
+If you want to enable the new experimental UI, replace "Start the development server" with the following steps:
+
+Install the dependencies:
+
+```console
+# From the `frontend` directory:
+npm install
+```
+
+Start the development servers (Django and Vite):
+
+```console
+# From the root directory
+hivemind
+```
+
+Generate the API client:
+
+```console
+# From the `frontend` directory:
+npm run generate-api
+```
+
+The new UI is available at `http://127.0.0.1:8000/ui-v2`
+
 ## Next steps
 
 In order to log in to the service with your GitHub account, [set up credentials](../CONTRIBUTING.md#setting-up-credentials).
+
+Then try it out with real data by running [manual data ingestion and matching](./data_ingestion_and_matching.md).

@@ -1,0 +1,52 @@
+/* FIXME(@florentc): Styling of the menu trigger should be decoupled from the menu itself */
+
+.trigger {
+  background: none;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+  color: inherit;
+  display: flex;
+  outline: none;
+}
+
+.trigger:hover > *,
+.trigger[data-state="open"] > * {
+  outline: 2px solid white;
+  border-radius: 99999px;
+}
+
+.content {
+  background: white;
+  color: black;
+  border: 1px solid var(--gray);
+  border-radius: 0.4em;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  padding: 0.25em 0;
+  min-width: 12em;
+  z-index: 100;
+  outline: none;
+}
+
+.groupLabel {
+  padding: 0.5em 1em;
+  font-weight: bold;
+  font-size: 0.9em;
+}
+
+.item {
+  padding: 0.5em 1em;
+  cursor: pointer;
+  outline: none;
+}
+
+.item[data-highlighted] {
+  background-color: var(--light-gray);
+}
+
+.separator {
+  border: none;
+  height: 1px;
+  background-color: var(--light-gray);
+  margin: 0.1em 0;
+}

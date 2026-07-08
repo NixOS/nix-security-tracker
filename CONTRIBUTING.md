@@ -7,6 +7,7 @@ This document is for anyone wanting to contribute to the implementation of the N
 Resources to help you get started:
 
 - [**Quickstart guide**](./docs/quickstart.md): Set up a database, run the service locally.
+- [**Manual data ingestion and matching**](./docs/data_ingestion_and_matching.md): Ingest Nixpkgs metadata and CVEs into your local instance.
 - [**Architecture Overview**](docs/README.md): High-level system design and component interaction.
 - [**Architecture Diagram**](docs/architecture.mermaid): Visual representation of the system (Mermaid source).
 - [**Design Documents**](docs/design/): Detailed design specifications for individual features (E.g., linkage).
@@ -163,37 +164,6 @@ To replicate this on a traditional Unix-like system:
 - Inspect the [local database configuration](./nix/dev-setup.nix)
 - Read the documentation on the respective module options for the general idea, e.g. [`services.postgresql.ensureDatabases`](https://search.nixos.org/options?query=postgresql.ensureDatabases)
 - Search the linked module source for the option names for implementation details, e.g. [`postgresql.nix`](https://github.com/NixOS/nixpkgs/blob/master/nixos/modules/services/databases/postgresql.nix)
-
-### Ingest Nixpkgs metadata
-
-Fetch the tips of all [channel branches](https://nix.dev/concepts/faq#channel-branches):
-
-```console
-manage fetch_all_channels
-```
-
-Select a `head_sha1_commit` from the output and run evaluation on that:
-
-```console
-manage run_evaluation <commit>
-```
-
-### Start matching listeners and ingest CVEs for matching
-
-Matching CVEs against Nixpkgs metadata is triggered by `pgpubsub` notifications internally as CVEs are ingested.
-To test this dataflow locally, start the listeners:
-
-```console
-manage listen -v3 --recover
-```
-
-Ingest some CVEs:
-
-```console
-manage ingest_bulk_cve --from 2024-01-01 --to 2024-01-31
-```
-
-This should produce untriaged matches.
 
 ### Resetting the database
 

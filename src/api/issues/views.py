@@ -8,6 +8,13 @@ from rest_framework.response import Response
 
 from shared.models import NixpkgsIssue
 
+# FIXME(@florentc): The inline Serializer class causes drf-spectacular to generate a schema
+# named "_" (unusable in generated clients). It should be renamed to NixpkgsIssueSerializer
+# at module level with an explicit component_name or @extend_schema_serializer decorator.
+# The `status` field also uses get_status_display (returns a string) instead of a ChoiceField
+# (which would generate a proper enum type in the OpenAPI spec).
+# The `cve` field should become `cves` (plural) per the existing FIXME.
+
 
 class StringInFilter(filters.BaseInFilter, filters.CharFilter):
     pass

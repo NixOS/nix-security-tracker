@@ -169,7 +169,7 @@ class Settings(BaseSettings):
             The branch that tracks upstream development.
             Serves as the source of truth for package metadata such as maintainers and descriptions.
             """,
-            default="nixpkgs-unstable",
+            default="nixos-unstable-small",
         )
         MAX_MATCHES: int = Field(
             description="""
@@ -204,6 +204,22 @@ class Settings(BaseSettings):
             if not self.SERVER_EMAIL:
                 self.SERVER_EMAIL = self.DEFAULT_FROM_EMAIL
             return self
+
+        VITE_MANIFEST_PATH: Path | None = Field(
+            description="""
+            Manifest of built assets.
+            In production this is set to the Nix-built path via environment variable;
+            locally it defaults to the one built with `npm` in the development environment.
+            """,
+            default=None,
+        )
+
+        VITE_STATIC_URL_PREFIX: str = Field(
+            description="""
+            Prefix for vite assets in the static assets directory.
+            """,
+            default="vite",
+        )
 
         class SocialAccountProviders(BaseModel):
             class GitHub(BaseModel):
@@ -376,6 +392,7 @@ INSTALLED_APPS = [
     "api",
     "webview",
     "drf_spectacular",
+    "django_vite",
 ]
 
 MIDDLEWARE = [
@@ -405,7 +422,6 @@ TEMPLATES = [
                 "django.template.context_processors.request",
                 "django.contrib.auth.context_processors.auth",
                 "django.contrib.messages.context_processors.messages",
-                "shared.context_processors.deployment_info",
             ],
         },
     },
@@ -469,6 +485,8 @@ SITE_ID = 1
 
 # Disable regular signup but allow GitHub auth
 SOCIALACCOUNT_ONLY = True
+# Skip intermediate "Continue" page, redirect to GitHub immediately
+SOCIALACCOUNT_LOGIN_ON_GET = True
 ACCOUNT_ALLOW_REGISTRATION = False
 ACCOUNT_EMAIL_VERIFICATION = "none"
 
@@ -491,6 +509,39 @@ USE_TZ = True
 # https://docs.djangoproject.com/en/4.2/howto/static-files/
 
 STATIC_URL = "static/"
+
+
+# django-vite: Vite serves JS/CSS assets, Django serves the HTML shell. See
+# https://github.com/MrBin99/django-vite. `dev_mode` selects the asset source:
+#   - True  -> the Vite dev server (HMR) at VITE_DEV_SERVER_{HOST,PORT}
+#   - False -> hashed URLs under /static/<prefix>/, read from the built manifest
+#
+# These constants are the single source of truth for the django-vite wiring; the
+# new-UI test suite (src/webview/tests/ui_v2/) imports them and the helper below
+# rather than re-declaring the config.
+DJANGO_VITE = {
+    "default": {
+        "dev_mode": DEBUG,  # noqa: F821 # pyright: ignore [reportUndefinedVariable]
+        "dev_server_host": "localhost",
+        "dev_server_port": 5173,
+        "static_url_prefix": VITE_STATIC_URL_PREFIX,  # noqa: F821 # pyright: ignore [reportUndefinedVariable]
+        "manifest_path": VITE_MANIFEST_PATH,  # noqa: F821 # pyright: ignore [reportUndefinedVariable]
+    }
+}
+
+
+# When django-vite serves built assets (dev_mode=False) they must be reachable at
+# /static/<prefix>/. In production nginx aliases that path to the Nix-built dist; for
+# Django-served contexts (e.g. the test live_server's static handler) we register the
+# build output directory under the prefix so the staticfiles finders can serve it. The
+# asset dir is the manifest's grandparent (<dist>/.vite/manifest.json -> <dist>).
+if not DEBUG:  # noqa: F821 # pyright: ignore [reportUndefinedVariable]
+    _vite_assets_dir = VITE_MANIFEST_PATH.parent.parent  # noqa: F821 # pyright: ignore [reportUndefinedVariable]
+    if _vite_assets_dir.is_dir():
+        STATICFILES_DIRS = [
+            *globals().get("STATICFILES_DIRS", []),
+            (VITE_STATIC_URL_PREFIX, str(_vite_assets_dir)),  # noqa: F821 # pyright: ignore [reportUndefinedVariable]
+        ]
 
 # Default primary key field type
 # https://docs.djangoproject.com/en/4.2/ref/settings/#default-auto-field

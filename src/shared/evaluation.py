@@ -174,7 +174,7 @@ class SyncBatchAttributeIngester:
     ) -> None:
         self.evaluations = evaluations
         self.parent_evaluation = parent_evaluation
-        self.rolling_release = self.parent_evaluation.channel.is_rolling_release
+        self.tracking_branch = self.parent_evaluation.channel.is_tracking_branch
 
     def initialize(self) -> None:
         self.maintainers = list(NixMaintainer.objects.all())
@@ -305,7 +305,7 @@ class SyncBatchAttributeIngester:
 
                 # Older branches may list people who no longer maintain the package on `master`.
                 # Drop them so they don't get spammed.
-                if not self.rolling_release:
+                if not self.tracking_branch:
                     drv_maintainers = []
 
                 metadata.append(drv_metadata)
@@ -335,8 +335,8 @@ class SyncBatchAttributeIngester:
             bulk_maintainers.values(),
             # This will ignore existing rows and won't return primary keys when `True`.
             # That's okay because we'll fetch the relevant objects aftwards unconditionally.
-            ignore_conflicts=not self.rolling_release,
-            update_conflicts=self.rolling_release,
+            ignore_conflicts=not self.tracking_branch,
+            update_conflicts=self.tracking_branch,
             unique_fields=["github_id"],
             update_fields=["github", "email", "matrix", "name"],
         )
@@ -353,8 +353,8 @@ class SyncBatchAttributeIngester:
         start = time.time()
         NixLicense.objects.bulk_create(
             bulk_licenses.values(),
-            ignore_conflicts=not self.rolling_release,
-            update_conflicts=self.rolling_release,
+            ignore_conflicts=not self.tracking_branch,
+            update_conflicts=self.tracking_branch,
             unique_fields=["spdx_id"],
             update_fields=[
                 "deprecated",

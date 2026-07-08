@@ -129,11 +129,6 @@ class NixDerivationMeta(models.Model):
         return self.description or ""
 
 
-class NixChannelQuerySet(models.QuerySet):
-    def rolling(self) -> "NixChannelQuerySet":
-        return self.filter(channel_branch=settings.TRACKING_BRANCH)
-
-
 class NixChannel(TimeStampMixin):
     """
     This represents a "Nixpkgs" (*) channel, e.g.
@@ -144,14 +139,17 @@ class NixChannel(TimeStampMixin):
     (*): Anything that looks like Nixpkgs is also good.
     """
 
-    objects = NixChannelQuerySet.as_manager()
-
     class ChannelState(models.TextChoices):
         END_OF_LIFE = "unmaintained", _("End of life")
         DEPRECATED = "deprecated", _("Deprecated")
         BETA = "beta", _("Beta")
         STABLE = "stable", _("Stable")
         UNSTABLE = "rolling", _("Unstable")
+
+    class Variant(models.TextChoices):
+        PRIMARY = "primary", _("primary")
+        SMALL = "small", _("small")
+        DARWIN = "darwin", _("darwin")
 
     # States we care about for evaluation and prospective matching, as those are considered to be maintained.
     # Mutable per channel over time.
@@ -172,6 +170,7 @@ class NixChannel(TimeStampMixin):
     # The currently known HEAD SHA1 commit of that channel.
     head_sha1_commit = models.CharField(max_length=255)
     state = models.CharField(max_length=126, choices=ChannelState.choices)
+    variant = models.CharField(max_length=126, choices=Variant.choices, null=True)
     # Repository can be stored as URLs for now...
     # We can always reparse them as proper GitHub URIs if necessary
     # It's a bit annoying though
@@ -182,7 +181,7 @@ class NixChannel(TimeStampMixin):
         return f"{self.release_branch} -> {self.channel_branch}"
 
     @property
-    def is_rolling_release(self) -> bool:
+    def is_tracking_branch(self) -> bool:
         """
         Whether the channel corresponds to a the tracking branch.
 

@@ -19,6 +19,7 @@ from shared.models.cve import (
 from shared.models.issue import NixpkgsIssue
 from shared.models.linkage import (
     CVEDerivationClusterProposal,
+    ProvenanceFlags,
 )
 from shared.models.nix_evaluation import (
     NixDerivation,
@@ -52,7 +53,11 @@ def test_publish_gh_issue_empty_title(
 
     container = make_container(title=title, description=description)
     accepted_suggestion = make_suggestion(
-        container=container, status=CVEDerivationClusterProposal.Status.ACCEPTED
+        drvs={
+            drv: ProvenanceFlags.PACKAGE_NAME_MATCH,
+        },
+        container=container,
+        status=CVEDerivationClusterProposal.Status.ACCEPTED,
     )
     cache_new_suggestions(accepted_suggestion)
 

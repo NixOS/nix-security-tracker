@@ -76,8 +76,8 @@ def make_container(
 ) -> Callable[..., Container]:
     def wrapped(
         cve_id: str = "CVE-2025-0001",
-        title: str = "Dummy Title",
-        description: str | None = "Test description",
+        title: str | None = "Dummy Title",
+        description: str = "Test description",
         affected_version: str = "1.0",
         package_name: str | None = "foo",
         product: str | None = "bar",
@@ -139,12 +139,14 @@ def make_channel(db: None) -> Callable[..., NixChannel]:
     def wrapped(
         channel_branch: str = settings.TRACKING_BRANCH,
         state: NixChannel.ChannelState = NixChannel.ChannelState.UNSTABLE,
+        variant: NixChannel.Variant | None = None,
     ) -> NixChannel:
         channel, _ = NixChannel.objects.get_or_create(
             channel_branch=channel_branch,
             defaults=dict(
                 head_sha1_commit=secrets.token_hex(16),
                 state=state,
+                variant=variant,
                 release_branch=release_branch(channel_branch),
                 repository="https://github.com/NixOS/nixpkgs",
             ),
@@ -284,11 +286,13 @@ def drv(
 def make_package(db: None) -> Callable[..., Package]:
     def wrapped(
         drv: NixDerivation,
-        homepage: str | None = "https://example.com",
+        homepage: str | None = None,
         description: str | None = "My package",
         attrpath: str | None = None,
     ) -> Package:
         pname, _ = parse_drv_name(drv.name)
+        if not homepage:
+            homepage = f"https://example.com/{pname}"
         pkg = Package.objects.create(
             name=pname,
             homepage=homepage,
@@ -298,6 +302,14 @@ def make_package(db: None) -> Callable[..., Package]:
         return pkg
 
     return wrapped
+
+
+@pytest.fixture
+def package(
+    make_package: Callable[..., NixDerivation],
+    drv: NixDerivation,
+) -> NixDerivation:
+    return make_package(drv)
 
 
 @pytest.fixture

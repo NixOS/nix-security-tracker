@@ -24,3 +24,5 @@ nixpkgs-gc-roots/
 .envrc-local
 # user settings file
 .settings.py
+# Frontend build output (node_modules and dist are in frontend/.gitignore)
+frontend/dist/

@@ -124,7 +124,7 @@ pkgs.testers.runNixOSTest {
       in-shell = command: python-lines: ''
         server.${command}("""echo '
         ${python-lines}
-        ' | wst-manage shell""")
+        ' | wst-manage shell 2>&1 | tee /dev/ttyS0""", timeout=60)
       '';
     in
     ''
@@ -135,15 +135,20 @@ pkgs.testers.runNixOSTest {
       with subtest("Check that no migrations were missed"):
         server.succeed("wst-manage makemigrations --check --dry-run")
 
-      with subtest("Check that channel are fetched and evaluations enqueued"):
+      with subtest("Check that channels are fetched and only small ones get enqueued for evaluation"):
         server.succeed("wst-manage fetch_all_channels")
         ${in-shell "succeed" ''
           from shared.models import NixChannel
-          assert NixChannel.objects.count() == 4
+          assert NixChannel.objects.count() == 6
         ''}
-        ${in-shell "succeed " ''
+        ${
+          # Give it some time to queue up the evaluations...
+          ""
+        }
+        ${in-shell "succeed" ''
           from shared.models import NixEvaluation
           assert NixEvaluation.objects.count() == 1
+          assert NixEvaluation.objects.get().channel.variant == NixChannel.Variant.SMALL
         ''}
 
       with subtest("Application tests"):
@@ -176,6 +181,14 @@ pkgs.testers.runNixOSTest {
 
       with subtest("Check that admin interface is served"):
         server.succeed("curl --fail -L -H 'Host: example.org' http://localhost/admin")
+
+      with subtest("Check that frontend UI is served"):
+        server.succeed("curl --fail -H 'Host: example.org' http://localhost/ui-v2/")
+        # SPA fallback: unknown routes still return the same page
+        server.succeed("curl --fail -H 'Host: example.org' http://localhost/ui-v2/some/route")
+        # Vite-built assets are served by nginx with immutable cache headers
+        result = server.succeed("curl -sI -H 'Host: example.org' http://localhost/static/vite/.vite/manifest.json")
+        assert "200" in result, f"Expected 200 for manifest.json, got: {result}"
 
       with subtest("Check that evaluations succeed"):
           ${
