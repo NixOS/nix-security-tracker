@@ -8,7 +8,8 @@ from django.conf import settings
 from django.core.management.base import BaseCommand
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
-from shared.models.nix_evaluation import NixChannel
+from shared.git import get_head_sha1
+from shared.models.nix_evaluation import NixChannel, NixpkgsBranch
 
 
 class MonitoredChannel(BaseModel):
@@ -57,7 +58,8 @@ def fetch_from_monitoring() -> list[MonitoredChannel]:
         # https://github.com/NixOS/infra/blob/795508213eb35eee099b1b8d12dd46a9f7b03697/build/pluto/prometheus/exporters/channel.nix#L4-L6
         # channel structure:
         # https://github.com/NixOS/infra/blob/795508213eb35eee099b1b8d12dd46a9f7b03697/channels.nix
-        settings.CHANNEL_MONITORING_URL
+        settings.CHANNEL_MONITORING_URL,
+        timeout=settings.NETWORK_REQUEST_TIMEOUT,
     )
     resp.raise_for_status()
     channels = []
@@ -70,11 +72,26 @@ class Command(BaseCommand):
     help = "Fetch current channel tips"
 
     def handle(self, *args: Any, **kwargs: Any) -> str | None:
-        for monitored in fetch_from_monitoring():
-            channel, _ = NixChannel.objects.update_or_create(
+        channels = fetch_from_monitoring()
+
+        branch_tips: dict[str, str] = {
+            release_branch: get_head_sha1(settings.GIT_CLONE_URL, release_branch)
+            for release_branch in {c.release_branch for c in channels}
+        }
+
+        branches: dict[str, NixpkgsBranch] = {}
+        for name, head in branch_tips.items():
+            branch, _ = NixpkgsBranch.objects.update_or_create(
+                name=name,
+                defaults={"head_sha1_commit": head},
+            )
+            branches[name] = branch
+
+        for monitored in channels:
+            NixChannel.objects.update_or_create(
                 channel_branch=monitored.channel,
                 defaults=dict(
-                    release_branch=monitored.release_branch,
+                    release_branch=branches[monitored.release_branch],
                     head_sha1_commit=monitored.revision,
                     state=monitored.status,
                     variant=monitored.variant,

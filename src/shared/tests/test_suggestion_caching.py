@@ -2,7 +2,6 @@ from collections.abc import Callable
 from datetime import timedelta
 
 import pytest
-from django.conf import settings
 
 from shared.cache_suggestions import cache_new_suggestions
 from shared.models.cached import CachedSuggestions
@@ -17,6 +16,7 @@ from shared.models.nix_evaluation import (
     NixDerivation,
     NixEvaluation,
     NixMaintainer,
+    NixpkgsBranch,
 )
 from shared.models.package import Package
 from shared.package_clustering import cluster_packages
@@ -86,6 +86,7 @@ def test_caching_newest_package(
 @pytest.mark.parametrize("rolling_has_maintainers", [True, False])
 def test_maintainers_come_from_rolling_release_channel(
     cve: Container,
+    make_branch: Callable[..., NixpkgsBranch],
     make_channel: Callable[..., NixChannel],
     make_evaluation: Callable[..., NixEvaluation],
     make_drv: Callable[..., NixDerivation],
@@ -99,8 +100,11 @@ def test_maintainers_come_from_rolling_release_channel(
     Its maintainers must appear regardless of evaluation order,
     and stable-only maintainers must never appear.
     """
-    stable_channel = make_channel(channel_branch="nixos-26.05-small")
-    rolling_channel = make_channel(channel_branch=settings.TRACKING_BRANCH)
+    stable_channel = make_channel(
+        channel_branch="nixos-26.05-small",
+        release_branch=make_branch(name="release-26.05"),
+    )
+    rolling_channel = make_channel()
     stable_age = timedelta(hours=1) if stable_is_older else timedelta(0)
     rolling_age = timedelta(0) if stable_is_older else timedelta(hours=1)
     eval_stable = make_evaluation(channel=stable_channel, age=stable_age)

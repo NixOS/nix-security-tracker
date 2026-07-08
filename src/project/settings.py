@@ -135,6 +135,12 @@ class Settings(BaseSettings):
                 "https://monitoring.nixos.org/prometheus/api/v1/query?query=channel_revision"
             ),
         )
+        NETWORK_REQUEST_TIMEOUT: int = Field(
+            description="""
+            Timeout in seconds for outbound network requests.
+            """,
+            default=60,
+        )
         SYNC_GITHUB_STATE_AT_STARTUP: bool = Field(
             description="""
             Connect to GitHub when the service is started and update
