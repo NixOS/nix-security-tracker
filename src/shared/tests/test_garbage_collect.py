@@ -237,8 +237,8 @@ def test_deletes_empty_old_evaluations(
     """
     channel = make_channel(
         state=channel_state,
-        # Make a unique channel for each state; the concrete name doesn't matter here.
-        channel_branch=f"{channel_state.value}-unstable",
+        # FIXME(@fricklerhandwerk): When leaving this at the default value, the channel is created via `make_drv()` at parse time...
+        channel_branch="nixos-unstable",
     )
     evaluation = make_evaluation(
         channel=channel,

@@ -1,5 +1,3 @@
-import re
-
 from django.conf import settings
 from django.contrib.postgres import fields
 from django.contrib.postgres.indexes import BTreeIndex, GinIndex
@@ -330,18 +328,3 @@ def get_major_channel(branch_name: str) -> str | None:
         if mc in branch_name:
             return f"nixos-{mc}"
     return None
-
-
-def get_release(channel_branch: str) -> str:
-    match = re.match(
-        r"^(?P<jobset>[a-z]+)-(?P<release>\d\d\.\d\d|unstable)(?:-(?P<variant>[a-z]+))?$",
-        channel_branch,
-    )
-    if match is None:
-        raise ValueError(f"unexpected channel branch name: {channel_branch!r}")
-    return match.group("release")
-
-
-def release_branch(channel_branch: str) -> str:
-    release = get_release(channel_branch)
-    return "master" if release == "unstable" else f"release-{release}"
