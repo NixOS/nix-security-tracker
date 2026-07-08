@@ -102,8 +102,7 @@ def test_maintainers_come_from_rolling_release_channel(
     and stable-only maintainers must never appear.
     """
     stable_channel = make_channel(
-        channel_branch="nixos-26.05-small",
-        branch=make_branch(name="release-26.05")
+        channel_branch="nixos-26.05-small", branch=make_branch(name="release-26.05")
     )
     rolling_channel = make_channel(
         channel_branch="nixos-unstable",
