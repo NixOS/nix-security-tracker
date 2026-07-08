@@ -69,11 +69,19 @@ in
             ensureClauses.createdb = true;
           }
         ];
+        # This is to simplify invocation of Postgres commands such that it doesn't require running everything with `sudo.`
         identMap = ''
           map-nix-security-tracker ${cfg.user} nix-security-tracker
+          map-nix-security-tracker ${config.services.prometheus.exporters.sql.user} nix-security-tracker
+          map-postgres ${config.services.prometheus.exporters.postgres.user} postgres
+          ${
+            # Required for NixOS-specific Postgres self-checks
+            ""
+          }map-postgres postgres postgres
         '';
         authentication = ''
           local all nix-security-tracker ident map=map-nix-security-tracker
+          local all postgres ident map=map-postgres
         '';
       };
 

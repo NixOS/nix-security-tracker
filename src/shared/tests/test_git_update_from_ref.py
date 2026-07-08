@@ -14,7 +14,7 @@ from shared.git import GitRepo, RepositoryError
 
 def _proc(command: str, rc: int, stderr: bytes = b"") -> MagicMock:
     p = MagicMock()
-    p.command = command
+    p.command = command.split(" ")
     p.communicate = AsyncMock(return_value=(b"", stderr))
     p.wait = AsyncMock(return_value=rc)
     return p
@@ -49,9 +49,11 @@ def _run(
     # Validate that mocked processes lined up with real call sites:
     # The Nth call to `execute_git_command` should contain the Nth expected process's `command` substring.
     expected = [p.command for p in processes[: exec_mock.await_count]]
-    actual = [call.args[0] for call in exec_mock.await_args_list]
-    for cmd, sig in zip(actual, expected, strict=True):
-        assert sig in cmd, f"expected a {sig!r} command, got: {cmd!r}"
+    actual = [call.args for call in exec_mock.await_args_list]
+    for command, signature in zip(actual, expected, strict=True):
+        assert list(command[: len(signature)]) == signature, (
+            f"expected a {signature!r} command, got: {command!r}"
+        )
 
     return result, exec_mock, sleep_mock, remove_mock
 

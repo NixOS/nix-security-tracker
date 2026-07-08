@@ -76,8 +76,8 @@ def make_container(
 ) -> Callable[..., Container]:
     def wrapped(
         cve_id: str = "CVE-2025-0001",
-        title: str = "Dummy Title",
-        description: str | None = "Test description",
+        title: str | None = "Dummy Title",
+        description: str = "Test description",
         affected_version: str = "1.0",
         package_name: str | None = "foo",
         product: str | None = "bar",
@@ -161,6 +161,7 @@ def make_channel(
         channel_branch: str = "nixpkgs-unstable",
         state: NixChannel.ChannelState = NixChannel.ChannelState.UNSTABLE,
         branch: NixpkgsBranch = branch,
+        variant: NixChannel.Variant | None = None,
     ) -> NixChannel:
         channel, _ = NixChannel.objects.get_or_create(
             channel_branch=channel_branch,
@@ -168,6 +169,7 @@ def make_channel(
                 head_sha1_commit=secrets.token_hex(16),
                 state=state,
                 release_branch=branch,
+                variant=variant,
             ),
         )
         return channel

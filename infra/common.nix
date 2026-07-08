@@ -1,10 +1,15 @@
-{ pkgs, lib, ... }:
+{
+  config,
+  pkgs,
+  ...
+}:
 let
   sources = import ../npins;
 in
 {
   imports = [
     "${sources.agenix}/modules/age.nix"
+    ./keys.nix
   ];
 
   boot = {
@@ -45,20 +50,18 @@ in
   };
 
   users.mutableUsers = false;
-  users.users.root =
-    let
-      keys = with lib; mapAttrs (n: _: ./keys/${n}) (builtins.readDir ./keys);
-    in
-    {
-      openssh.authorizedKeys.keyFiles = with keys; [
-        fricklerhandwerk
-        erethon
-        security-tracker-gh-actions
-      ];
-      # We're using both keys and keyFiles here in order to keep some alignment
-      # with github:nixos/infra
-      openssh.authorizedKeys.keys = (import "${sources.infra}/keys.nix").ssh.groups.infra;
-    };
+  users.users.root = {
+    # FIXME(@fricklerhandwerk): Don't give everyone root.
+    # Wire the users to have the right permissions for doing what they need.
+    openssh.authorizedKeys.keyFiles = with config.custom.keys; [
+      fricklerhandwerk
+      erethon
+      security-tracker-gh-actions
+    ];
+    # We're using both keys and keyFiles here in order to keep some alignment
+    # with github:nixos/infra
+    openssh.authorizedKeys.keys = (import "${sources.infra}/keys.nix").ssh.groups.infra;
+  };
 
   environment.systemPackages = with pkgs; [
     curl

@@ -147,7 +147,7 @@ pkgs.testers.runNixOSTest {
       in-shell = command: python-lines: ''
         server.${command}("""echo '
         ${python-lines}
-        ' | wst-manage shell""")
+        ' | wst-manage shell 2>&1 | tee /dev/ttyS0""", timeout=60)
       '';
     in
     ''
@@ -158,7 +158,7 @@ pkgs.testers.runNixOSTest {
       with subtest("Check that no migrations were missed"):
         server.succeed("wst-manage makemigrations --check --dry-run")
 
-      with subtest("Check that channels are fetched and evaluations enqueued"):
+      with subtest("Check that channels are fetched and only small ones get enqueued for evaluation"):
         server.succeed("wst-manage fetch_all_channels")
         ${in-shell "succeed" ''
           import pathlib
@@ -173,9 +173,14 @@ pkgs.testers.runNixOSTest {
           channel_tips = NixChannel.objects.values_list("head_sha1_commit", flat=True)
           assert all(hash == revision for hash in channel_tips), f"unexpected channel tips: {[hash for hash in channel_tips if hash != revision]}"
         ''}
+        ${
+          # Give it some time to queue up the evaluations...
+          ""
+        }
         ${in-shell "succeed" ''
-          from shared.models import NixEvaluation
+          from shared.models import NixChannel, NixEvaluation
           assert NixEvaluation.objects.count() == 1, f"expected 1 evaluation, got {NixEvaluation.objects.count()}"
+          assert NixEvaluation.objects.get().channel.variant == NixChannel.Variant.SMALL
         ''}
 
       with subtest("Application tests"):

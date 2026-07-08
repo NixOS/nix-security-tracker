@@ -11,6 +11,13 @@ in
     sectracker.module
     ./common.nix
   ];
+
+  # FIXME(@fricklerhandwerk): Don't give everyone root.
+  # Wire the users to have the right permissions for doing what they need.
+  users.users.root.openssh.authorizedKeys.keyFiles = with config.custom.keys; [
+
+  ];
+
   networking.hostName = "sectracker";
 
   fileSystems."/" = {

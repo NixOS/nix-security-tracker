@@ -10,8 +10,15 @@ from django.conf import settings
 from django.core.management import call_command
 from django.db import close_old_connections
 
-from shared.cache_suggestions import parse_drv_name
+from shared.cache_suggestions import cache_new_suggestions, parse_drv_name
 from shared.listeners.package_clustering import cluster_after_evaluation
+from shared.models.cached import CachedSuggestions
+from shared.models.cve import Container
+from shared.models.linkage import (
+    CVEDerivationClusterProposal,
+    DerivationClusterProposalLink,
+    ProvenanceFlags,
+)
 from shared.models.nix_evaluation import (
     NixChannel,
     NixDerivation,
@@ -403,3 +410,66 @@ def test_concurrent_attrpath_consistency(
     pkg = PackageAttrpath.objects.get(attrpath="shared").package
     assert PackageDerivation.objects.get(derivation=drv_a).package == pkg
     assert PackageDerivation.objects.get(derivation=drv_b).package == pkg
+
+
+def test_cache_rebuilt_after_clustering(
+    cve: Container,
+    make_evaluation: Callable[..., NixEvaluation],
+    make_drv: Callable[..., NixDerivation],
+    make_suggestion: Callable[..., CVEDerivationClusterProposal],
+) -> None:
+    old_eval = make_evaluation()
+    new_eval = make_evaluation()
+
+    old_drv = make_drv(pname="foo", evaluation=old_eval)
+    make_drv(pname="foo", evaluation=new_eval, attribute=old_drv.attribute)
+
+    suggestion = make_suggestion(
+        container=cve, drvs={old_drv: ProvenanceFlags.PACKAGE_NAME_MATCH}
+    )
+    cache_new_suggestions(suggestion)
+    cached_before = CachedSuggestions.objects.get(proposal=suggestion)
+
+    cluster_after_evaluation(
+        old=NixEvaluation(state=NixEvaluation.EvaluationState.IN_PROGRESS),
+        new=new_eval,
+    )
+
+    cached_after = CachedSuggestions.objects.get(proposal=suggestion)
+    assert cached_after.updated_at > cached_before.updated_at
+
+
+@pytest.mark.parametrize(
+    "status",
+    [
+        CVEDerivationClusterProposal.Status.REJECTED,
+        CVEDerivationClusterProposal.Status.PUBLISHED,
+    ],
+)
+def test_only_pending_and_accepted_suggestions_updated(
+    status: CVEDerivationClusterProposal.Status,
+    cve: Container,
+    make_evaluation: Callable[..., NixEvaluation],
+    make_drv: Callable[..., NixDerivation],
+    make_suggestion: Callable[..., CVEDerivationClusterProposal],
+) -> None:
+    """Only PENDING and ACCEPTED suggestions have their derivation links refreshed; REJECTED and PUBLISHED are skipped."""
+    old_eval = make_evaluation()
+    new_eval = make_evaluation()
+
+    old_drv = make_drv(pname="foo", evaluation=old_eval)
+    make_drv(pname="foo", evaluation=new_eval, attribute=old_drv.attribute)
+
+    suggestion = make_suggestion(
+        container=cve,
+        drvs={old_drv: ProvenanceFlags.PACKAGE_NAME_MATCH},
+        status=status,
+    )
+
+    cluster_after_evaluation(
+        old=NixEvaluation(state=NixEvaluation.EvaluationState.IN_PROGRESS),
+        new=new_eval,
+    )
+
+    link = DerivationClusterProposalLink.objects.get(proposal=suggestion)
+    assert link.derivation == old_drv

@@ -5,7 +5,10 @@ import pytest
 from django.test import override_settings
 
 from shared.cache_suggestions import cache_new_suggestions
-from shared.listeners.automatic_linkage import build_new_links
+from shared.listeners.automatic_linkage import (
+    build_new_links,
+    refresh_suggestion_derivation_links,
+)
 from shared.models.cve import Container, Tag
 from shared.models.linkage import (
     CVEDerivationClusterProposal,
@@ -284,3 +287,183 @@ def test_skip_known_vulnerability(
     )
     assert not proposal.derivations.filter(attribute=drv1.attribute).exists()
     assert proposal.derivations.filter(attribute=drv2.attribute).exists()
+
+
+def test_refresh_links_replaced_with_latest_evaluation(
+    cve: Container,
+    make_evaluation: Callable[..., NixEvaluation],
+    make_drv: Callable[..., NixDerivation],
+    make_suggestion: Callable[..., CVEDerivationClusterProposal],
+) -> None:
+    """
+    Links are replaced with derivations from the latest evaluation,
+    using the same name-based matching as the initial linkage algorithm.
+    """
+    old_eval = make_evaluation()
+    new_eval = make_evaluation()
+
+    old_drv = make_drv(pname="foo", evaluation=old_eval)
+    new_drv = make_drv(pname="foo", evaluation=new_eval, attribute=old_drv.attribute)
+
+    suggestion = make_suggestion(
+        container=cve, drvs={old_drv: ProvenanceFlags.PACKAGE_NAME_MATCH}
+    )
+
+    refresh_suggestion_derivation_links(suggestion)
+
+    suggestion.refresh_from_db()
+    assert (
+        suggestion.algorithm_version
+        == CVEDerivationClusterProposal.CURRENT_ALGORITHM_VERSION
+    )
+    links = DerivationClusterProposalLink.objects.filter(proposal=suggestion)
+    assert links.count() == 1
+    link = links.get()
+    assert link.derivation == new_drv
+    assert link.provenance_flags == ProvenanceFlags.PACKAGE_NAME_MATCH
+
+
+def test_refresh_suggestion_rejected_when_package_gone(
+    cve: Container,
+    make_evaluation: Callable[..., NixEvaluation],
+    drv: NixDerivation,
+    make_suggestion: Callable[..., CVEDerivationClusterProposal],
+) -> None:
+    """
+    When a package no longer appears in the latest evaluation the suggestion is
+    rejected with NO_MATCHES and its links are cleared.
+    """
+    suggestion = make_suggestion(
+        container=cve, drvs={drv: ProvenanceFlags.PACKAGE_NAME_MATCH}
+    )
+
+    make_evaluation()
+
+    refresh_suggestion_derivation_links(suggestion)
+
+    suggestion.refresh_from_db()
+    assert suggestion.status == CVEDerivationClusterProposal.Status.REJECTED
+    assert (
+        suggestion.rejection_reason
+        == CVEDerivationClusterProposal.RejectionReason.NO_MATCHES
+    )
+    assert not DerivationClusterProposalLink.objects.filter(
+        proposal=suggestion
+    ).exists()
+
+
+@override_settings(MAX_MATCHES=1)
+def test_refresh_suggestion_rejected_when_too_many_matches(
+    cve: Container,
+    make_evaluation: Callable[..., NixEvaluation],
+    make_drv: Callable[..., NixDerivation],
+    make_suggestion: Callable[..., CVEDerivationClusterProposal],
+) -> None:
+    """When matches exceed MAX_MATCHES the suggestion is rejected with MAX_MATCHES_EXCEEDED."""
+    old_eval = make_evaluation()
+    new_eval = make_evaluation()
+
+    old_drv = make_drv(pname="foo", evaluation=old_eval)
+    make_drv(pname="foo", evaluation=new_eval)
+    make_drv(pname="foo", evaluation=new_eval)
+
+    suggestion = make_suggestion(
+        container=cve, drvs={old_drv: ProvenanceFlags.PACKAGE_NAME_MATCH}
+    )
+
+    refresh_suggestion_derivation_links(suggestion)
+
+    suggestion.refresh_from_db()
+    assert suggestion.status == CVEDerivationClusterProposal.Status.REJECTED
+    assert (
+        suggestion.rejection_reason
+        == CVEDerivationClusterProposal.RejectionReason.MAX_MATCHES_EXCEEDED
+    )
+
+
+def test_refresh_suggestion_rejected_when_derivation_has_known_vulnerability(
+    cve: Container,
+    make_evaluation: Callable[..., NixEvaluation],
+    make_drv: Callable[..., NixDerivation],
+    make_suggestion: Callable[..., CVEDerivationClusterProposal],
+) -> None:
+    """Suggestion is rejected when the latest matching derivation lists the CVE as a known vulnerability."""
+    old_eval = make_evaluation()
+    new_eval = make_evaluation()
+
+    old_drv = make_drv(pname="foo", evaluation=old_eval)
+    make_drv(
+        pname="foo",
+        evaluation=new_eval,
+        attribute=old_drv.attribute,
+        known_vulnerabilities=[cve.cve.cve_id],
+    )
+
+    suggestion = make_suggestion(
+        container=cve, drvs={old_drv: ProvenanceFlags.PACKAGE_NAME_MATCH}
+    )
+    assert suggestion.status == CVEDerivationClusterProposal.Status.PENDING
+
+    refresh_suggestion_derivation_links(suggestion)
+
+    suggestion.refresh_from_db()
+    assert suggestion.status == CVEDerivationClusterProposal.Status.REJECTED
+    assert (
+        suggestion.rejection_reason
+        == CVEDerivationClusterProposal.RejectionReason.KNOWN_VULNERABILITY
+    )
+    assert DerivationClusterProposalLink.objects.filter(proposal=suggestion).exists()
+
+
+def test_refresh_skips_published_suggestion_on_rejection(
+    make_evaluation: Callable[..., NixEvaluation],
+    drv: NixDerivation,
+    make_suggestion: Callable[..., CVEDerivationClusterProposal],
+) -> None:
+    """
+    When a suggestion is published while refresh is running, the status must not
+    be overwritten to REJECTED and its links must not be deleted.
+    """
+    suggestion = make_suggestion(
+        drvs={drv: ProvenanceFlags.PACKAGE_NAME_MATCH},
+        status=CVEDerivationClusterProposal.Status.PUBLISHED,
+    )
+    # Simulate the stale in-memory object the worker would hold.
+    suggestion.status = CVEDerivationClusterProposal.Status.ACCEPTED
+    # A new evaluation with no matching derivation makes the resolver return NO_MATCHES.
+    make_evaluation()
+
+    refresh_suggestion_derivation_links(suggestion)
+
+    suggestion.refresh_from_db()
+    assert suggestion.status == CVEDerivationClusterProposal.Status.PUBLISHED
+    assert DerivationClusterProposalLink.objects.filter(proposal=suggestion).exists()
+
+
+def test_refresh_skips_published_suggestion_on_match(
+    make_evaluation: Callable[..., NixEvaluation],
+    make_drv: Callable[..., NixDerivation],
+    make_suggestion: Callable[..., CVEDerivationClusterProposal],
+) -> None:
+    """
+    When a suggestion is published while refresh is running, its derivation links
+    must not be replaced even when newer matching derivations exist.
+    """
+    old_eval = make_evaluation()
+    new_eval = make_evaluation()
+
+    old_drv = make_drv(pname="foo", evaluation=old_eval)
+    make_drv(pname="foo", evaluation=new_eval, attribute=old_drv.attribute)
+
+    suggestion = make_suggestion(
+        drvs={old_drv: ProvenanceFlags.PACKAGE_NAME_MATCH},
+        status=CVEDerivationClusterProposal.Status.PUBLISHED,
+    )
+    # Simulate the stale in-memory object the worker would hold.
+    suggestion.status = CVEDerivationClusterProposal.Status.ACCEPTED
+
+    refresh_suggestion_derivation_links(suggestion)
+
+    links = DerivationClusterProposalLink.objects.filter(proposal=suggestion)
+    assert links.count() == 1
+    assert links.get().derivation == old_drv

@@ -7,7 +7,7 @@ from datetime import datetime
 from itertools import chain
 from typing import Any, overload
 
-from django.db.models import Prefetch, Q
+from django.db.models import Case, IntegerField, Prefetch, Q, When
 from pydantic import BaseModel, field_serializer
 
 from shared.models import NixDerivation, NixMaintainer
@@ -83,7 +83,7 @@ class CachedSuggestion(BaseModel):
 
     pk: int
     cve_id: str
-    title: str
+    title: str | None
     description: str | None
     affected_products: dict[str, AffectedProduct]
     original_packages: dict[str, Package]
@@ -160,20 +160,41 @@ def cache_new_suggestions(suggestion: CVEDerivationClusterProposal) -> None:
     # For instance, at the time of writing, most titles in containers are one of
     # - "CVE Program Container" (>600k)
     # - "CISA ADP VUlnrichment" (>270k)
-    relevant_piece = (
-        suggestion.cve.container.values(
-            "title",
-            "descriptions__value",
-        )
-        .filter(
-            Q(affected__package_name__isnull=False)
-            | Q(affected__product__isnull=False),
-        )
-        .first()
+    has_package_data = Q(affected__package_name__isnull=False) | Q(
+        affected__product__isnull=False
     )
 
-    # XXX(@fricklerhandwerk): Satisfy static typecheck. This must hold due to how we construct matches.
-    assert relevant_piece is not None
+    def nonempty(field: str) -> str | None:
+        """
+        Take the first nonempty of the given field, prioritising one that has package data.
+        """
+        return (
+            suggestion.cve.container.annotate(
+                priority=Case(
+                    When(has_package_data, then=0),
+                    default=1,
+                    output_field=IntegerField(),
+                )
+            )
+            .exclude(**{f"{field}__isnull": True})
+            .order_by("priority")
+            .values_list(field, flat=True)
+            .first()
+        )
+
+    title = nonempty("title")
+    description = nonempty("descriptions__value")
+
+    if title is None and description is None:
+        # FIXME(@fricklerhandwerk): Currently there are some entries that hit this case, despite them violating the spec. [tag:invalid-cves]
+        # Example:
+        # - https://nvd.nist.gov/vuln/detail/CVE-2026-11950
+        # - https://nvd.nist.gov/vuln/detail/CVE-2026-47105
+        # Make that impossible:
+        # - Filter them out at ingestion
+        # - Clean up the database in a migration
+        # - Narrow down all types in the pipeline
+        return
 
     affected_products: dict[str, CachedSuggestion.AffectedProduct] = {}
     all_versions = list()
@@ -240,8 +261,8 @@ def cache_new_suggestions(suggestion: CVEDerivationClusterProposal) -> None:
     only_relevant_data = CachedSuggestion(
         pk=suggestion.pk,
         cve_id=suggestion.cve.cve_id,
-        title=relevant_piece["title"],
-        description=relevant_piece["descriptions__value"],
+        title=title,
+        description=description,
         affected_products=affected_products,
         original_packages=original_packages,
         packages=packages,
