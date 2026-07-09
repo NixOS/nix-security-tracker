@@ -6,6 +6,7 @@ from typing import Annotated, Any
 import requests
 from django.conf import settings
 from django.core.management.base import BaseCommand
+from django.db import transaction
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from shared.git import get_head_sha1
@@ -79,26 +80,27 @@ class Command(BaseCommand):
             for release_branch in {c.release_branch for c in channels}
         }
 
-        branches: dict[str, NixpkgsBranch] = {}
-        for name, head in branch_tips.items():
-            branch, _ = NixpkgsBranch.objects.update_or_create(
-                name=name,
-                defaults={"head_sha1_commit": head},
-            )
-            branches[name] = branch
+        with transaction.atomic():
+            branches: dict[str, NixpkgsBranch] = {}
+            for name, head in branch_tips.items():
+                branch, _ = NixpkgsBranch.objects.update_or_create(
+                    name=name,
+                    defaults={"head_sha1_commit": head},
+                )
+                branches[name] = branch
 
-        for monitored in channels:
-            NixChannel.objects.update_or_create(
-                channel_branch=monitored.channel,
-                defaults=dict(
-                    release_branch=branches[monitored.release_branch],
-                    head_sha1_commit=monitored.revision,
-                    state=monitored.status,
-                    variant=monitored.variant,
-                ),
-            )
+            for monitored in channels:
+                NixChannel.objects.update_or_create(
+                    channel_branch=monitored.channel,
+                    defaults=dict(
+                        release_branch=branches[monitored.release_branch],
+                        head_sha1_commit=monitored.revision,
+                        state=monitored.status,
+                        variant=monitored.variant,
+                    ),
+                )
 
-            # Can't `pprint()` to `self.stdout` directly...
-            stream = StringIO()
-            pprint(monitored.__dict__, stream=stream)
-            self.stdout.write(stream.getvalue())
+                # Can't `pprint()` to `self.stdout` directly...
+                stream = StringIO()
+                pprint(monitored.__dict__, stream=stream)
+                self.stdout.write(stream.getvalue())
