@@ -30,7 +30,7 @@ The tracker needs to communicate with third party services, namely:
 - GitHub repositories:
   - https://github.com/nixos/nixpkgs to pull the latest changes from Nixpkgs
   - https://github.com/CVEProject/cvelistV5 to pull CVE data
-- https://monitoring.nixos.org/prometheus/api/v1/query?query=channel_revision to get information about the latest channels
+- https://hydra.nixos.org to get information about the latest builds
 
 ## Storage space considerations
 

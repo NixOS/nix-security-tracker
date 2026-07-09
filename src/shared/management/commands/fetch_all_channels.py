@@ -1,86 +1,94 @@
-import asyncio
-import sys
-from collections.abc import Coroutine
-from dataclasses import dataclass
-from pprint import pprint
 from typing import Any
 
-import requests
 from django.conf import settings
 from django.core.management.base import BaseCommand
+from pydantic import BaseModel, field_validator
 
-from shared.git import GitRepo
-from shared.models.nix_evaluation import NixChannel, release_branch
+# Populated at build time from `github:NixOS/infra//channels.nix`
+from shared._release_channels import channels  # type: ignore[reportMissingImports]
 
-
-@dataclass
-class MonitoredChannel:
-    name: str
-    revision: str
-    status: str
-    variant: str | None
+from shared import hydra
+from shared.git import get_head_sha1
+from shared.models.nix_evaluation import NixChannel, NixpkgsBranch
 
 
-def aggregate_by_channels(data: list[dict[str, Any]]) -> dict[str, MonitoredChannel]:
-    channels = {}
-    for metric in data:
-        m = metric["metric"]
-        channels[m["channel"]] = MonitoredChannel(
-            name=m["channel"],
-            revision=m["revision"],
-            status=m["status"],
-            variant=m.get("variant"),
-        )
-    return channels
+class Job(BaseModel):
+    project: hydra.ProjectName
+    jobset: hydra.JobsetName
+    name: hydra.JobName
 
 
-def fetch_from_monitoring() -> dict[str, MonitoredChannel]:
-    resp = requests.get(
-        # XXX(@fricklerhandwerk): The sources for this are declared in the `NixOS/infra` repo. [tag:channel-structure]
-        # exporter logic:
-        # https://github.com/NixOS/infra/blob/795508213eb35eee099b1b8d12dd46a9f7b03697/build/pluto/prometheus/exporters/channel-exporter.py#L13-L17
-        # systemd service:
-        # https://github.com/NixOS/infra/blob/795508213eb35eee099b1b8d12dd46a9f7b03697/build/pluto/prometheus/exporters/channel.nix#L4-L6
-        # channel structure:
-        # https://github.com/NixOS/infra/blob/795508213eb35eee099b1b8d12dd46a9f7b03697/channels.nix
-        settings.CHANNEL_MONITORING_URL
-    )
-    resp.raise_for_status()
-    return aggregate_by_channels(resp.json()["data"]["result"])
+class Channel(BaseModel):
+    """
+    A release channel as defined in `NixOS/infra`.
+    """
 
+    job: Job
+    status: NixChannel.ChannelState
+    variant: NixChannel.Variant | None = None
 
-async def wait_for_parallel_fetches(
-    parallel_fetches: list[Coroutine[Any, Any, bool]],
-) -> list[Any]:
-    return await asyncio.gather(*parallel_fetches, return_exceptions=True)
+    @field_validator("job", mode="before")
+    @classmethod
+    def parse_job(cls, v: str) -> dict:
+        project, jobset, name = v.split("/")
+        return {"project": project, "jobset": jobset, "name": name}
 
 
 class Command(BaseCommand):
-    help = "Register Nix channels"
+    help = "Fetch current channel tips and update source branches"
 
     def handle(self, *args: Any, **kwargs: Any) -> str | None:
-        fresh_channels = fetch_from_monitoring()
-        for channel in fresh_channels.values():
-            channel_branch = channel.name
-            branch_info = {
-                "release_branch": release_branch(channel.name),
-                "state": NixChannel.ChannelState(channel.status),
-                "head_sha1_commit": channel.revision,
-                "variant": channel.variant,
-            }
-            pprint(branch_info | {"channel_branch": channel.name})
-            NixChannel.objects.update_or_create(
-                branch_info, channel_branch=channel_branch
+        client = hydra.default_client()
+
+        # FIXME(@fricklerhandwerk): Run requests async.
+        for channel_name, _raw in channels.items():
+            channel = Channel.model_validate(_raw)  # type: ignore[reportArgumentType]
+            job = channel.job
+
+            jobset = client.get_jobset(project=job.project, jobset=job.jobset)
+            source = jobset.inputs[settings.HYDRA_INPUT_NAME]
+            branch_name = source.get_branch(default=settings.TRACKING_BRANCH)
+
+            # By pre-configuring the source location on our end, we're decoupling the routing (where to get the data) from the parameters (which piece of the data to get).
+            # This slightly reduces our reliance on Hydra to be trustworthy:
+            # Limit the blast radius of compromise to be denial of service for updates instead of silent poisoning of new data.
+            assert str(settings.GIT_CLONE_URL).lower() == str(source.url).lower(), (
+                f"Unexpected source URL: {source.url!r}, expected {settings.GIT_CLONE_URL!r}"
             )
 
-        repo = GitRepo(
-            settings.LOCAL_NIXPKGS_CHECKOUT,
-            stderr=sys.stderr.fileno(),
-        )
-        parallel_fetches = []
-        for channel in NixChannel.objects.iterator():
-            parallel_fetches.append(repo.update_from_ref(channel.head_sha1_commit))
+            # FIXME(@fricklerhandwerk): Deduplicate the release branches beforehand.
+            # Due to which channels are currently marked "primary" in practice, this bumps each release branch exactly once.
+            # If something invalidates the heuristic, this will send unnecessary requests.
+            if channel.variant == NixChannel.Variant.PRIMARY:
+                commit_sha1 = get_head_sha1(source.url, branch_name)
+                branch, _ = NixpkgsBranch.objects.update_or_create(
+                    name=branch_name,
+                    defaults={"head_sha1_commit": commit_sha1},
+                )
+            else:
+                branch = NixpkgsBranch.objects.get(name=branch_name)
 
-        results = asyncio.run(wait_for_parallel_fetches(parallel_fetches))
-        # FIXME(@fricklerhandwerk): Fold that into `branch_info`, so there's only one output.
-        print("Parallel fetches results", results)
+            latest_build = client.get_latest_build(
+                project=job.project, jobset=job.jobset, job=job.name
+            )
+            evaluation = client.get_evaluation(latest_build.jobsetevals[0])
+            eval_input = evaluation.jobsetevalinputs[settings.HYDRA_INPUT_NAME]
+            assert (
+                str(eval_input.uri).lower() == str(source.url).lower()
+            ), (  # Sanity check
+                f"Unexpected eval input URI: {eval_input.uri!r}, expected {source.url!r}"
+            )
+            commit = eval_input.revision
+
+            ch, created = NixChannel.objects.update_or_create(
+                channel_branch=channel_name,
+                defaults={
+                    "release_branch": branch,
+                    "head_sha1_commit": commit,
+                    "state": channel.status,
+                    "variant": channel.variant,
+                },
+            )
+            self.stdout.write(
+                f"Channel {ch.channel_branch} ({ch.state}) {'created at' if created else 'updated to'} {branch.head_sha1_commit[:8]}"
+            )

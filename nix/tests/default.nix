@@ -15,8 +15,59 @@ let
       diskSize = 4096;
     };
   };
-  channels = with builtins; toFile "channels.json" (toJSON (import ./channels.nix));
-  channels-port = toString 8080;
+  dummy-nixpkgs =
+    pkgs.runCommand "dummy-nixpkgs"
+      {
+        nativeBuildInputs = [ pkgs.git ];
+      }
+      ''
+        mkdir -p $out/pkgs/top-level
+
+        cat > $out/pkgs/top-level/release.nix << EOF
+        { ... }:
+        {
+          hello.x86_64-linux = (import ${pkgs.path} {}).hello;
+        }
+        EOF
+
+        cd $out
+        git init --initial-branch=master
+        git add -A
+        git -c user.name=test -c user.email=test@test commit -m "test"
+        git rev-parse HEAD > REVISION
+      '';
+  hydra = {
+    port = toString 8080;
+    mock = pkgs.writeText "hydra-mock" ''
+      import json
+      from http.server import BaseHTTPRequestHandler, HTTPServer
+
+      nixpkgs_url = "file://${dummy-nixpkgs}"
+      with open("${dummy-nixpkgs}/REVISION") as f:
+          revision = f.read().strip()
+
+      responses = {
+          "jobset": {"inputs": {"nixpkgs": {"type": "git", "value": nixpkgs_url}}},
+          "job": {"id": 1, "jobsetevals": [1]},
+          "eval": {"id": 1, "jobsetevalinputs": {"nixpkgs": {"type": "git", "uri": nixpkgs_url, "revision": revision}}},
+      }
+
+      class Handler(BaseHTTPRequestHandler):
+          def do_GET(self):
+              body = responses.get(self.path.split("/")[1])
+              if body is None:
+                  self.send_response(404)
+                  self.end_headers()
+                  return
+              self.send_response(200)
+              self.send_header("Content-Type", "application/json")
+              self.end_headers()
+              self.wfile.write(json.dumps(body).encode())
+          log_message = lambda *_: None
+
+      HTTPServer(("", ${hydra.port}), Handler).serve_forever()
+    '';
+  };
 in
 pkgs.testers.runNixOSTest {
   name = "default";
@@ -25,27 +76,6 @@ pkgs.testers.runNixOSTest {
     { config, ... }:
     let
       cfg = config.services.${application};
-      dummy-nixpkgs =
-        pkgs.runCommand "dummy-nixpkgs"
-          {
-            nativeBuildInputs = [ pkgs.git ];
-          }
-          ''
-            mkdir -p $out/pkgs/top-level
-
-            cat > $out/pkgs/top-level/release.nix << EOF
-            { ... }:
-            {
-              hello.x86_64-linux = (import ${pkgs.path} {}).hello;
-            }
-            EOF
-
-            cd $out
-            git init --initial-branch=master
-            git add -A
-            git -c user.name=test -c user.email=test@test commit -m "test"
-            git rev-parse HEAD > REVISION
-          '';
     in
     {
       imports = [ module ];
@@ -65,7 +95,7 @@ pkgs.testers.runNixOSTest {
         domain = "example.org";
         settings = {
           DEBUG = true;
-          CHANNEL_MONITORING_URL = "http://localhost:${channels-port}/channels.json";
+          HYDRA_URL = "http://localhost:${hydra.port}";
           GIT_CLONE_URL = "file://${dummy-nixpkgs}";
           SYNC_GITHUB_STATE_AT_STARTUP = false;
           GH_ISSUES_PING_MAINTAINERS = true;
@@ -93,18 +123,11 @@ pkgs.testers.runNixOSTest {
             GH_APP_PRIVATE_KEY = dummy-str;
           };
       };
-      systemd.services.mock-channels = {
+      systemd.services.${hydra.mock.name} = {
         wantedBy = [ "multi-user.target" ];
-        before = [ "${application}-server.service" ];
-        path = with pkgs; [
-          python3
-          gnused
-        ];
-        script = ''
-          cd /tmp
-          sed "s/@commit@/$(cat ${dummy-nixpkgs}/REVISION)/g" ${channels} > channels.json
-          python -m http.server ${channels-port}
-        '';
+        before = [ "${application}-fetch-all-channels.service" ];
+        path = [ pkgs.python3 ];
+        script = "python ${hydra.mock}";
       };
       systemd.services.setup-git-repo = {
         wantedBy = [ "multi-user.target" ];
@@ -130,7 +153,7 @@ pkgs.testers.runNixOSTest {
     ''
       server.wait_for_unit("${application}-server.service")
       server.wait_for_unit("${application}-worker.service")
-      server.wait_for_unit("mock-channels.service")
+      server.wait_for_unit("${hydra.mock.name}.service")
 
       with subtest("Check that no migrations were missed"):
         server.succeed("wst-manage makemigrations --check --dry-run")
@@ -138,16 +161,25 @@ pkgs.testers.runNixOSTest {
       with subtest("Check that channels are fetched and only small ones get enqueued for evaluation"):
         server.succeed("wst-manage fetch_all_channels")
         ${in-shell "succeed" ''
-          from shared.models import NixChannel
-          assert NixChannel.objects.count() == 6
+          import pathlib
+          from shared.models import NixChannel, NixpkgsBranch
+
+          assert NixpkgsBranch.objects.count() == 1, f"expected 1 branch, got {NixpkgsBranch.objects.count()}"
+          assert NixChannel.objects.count() >= 1, f"expected at least 1 channel, got {NixChannel.objects.count()}"
+
+          revision = pathlib.Path("${dummy-nixpkgs}/REVISION").read_text().strip()
+          branch = NixpkgsBranch.objects.get()
+          assert branch.head_sha1_commit == revision, f"expected {revision}, got {branch.head_sha1_commit}"
+          channel_tips = NixChannel.objects.values_list("head_sha1_commit", flat=True)
+          assert all(hash == revision for hash in channel_tips), f"unexpected channel tips: {[hash for hash in channel_tips if hash != revision]}"
         ''}
         ${
           # Give it some time to queue up the evaluations...
           ""
         }
         ${in-shell "succeed" ''
-          from shared.models import NixEvaluation
-          assert NixEvaluation.objects.count() == 1
+          from shared.models import NixChannel, NixEvaluation
+          assert NixEvaluation.objects.count() == 1, f"expected 1 evaluation, got {NixEvaluation.objects.count()}"
           assert NixEvaluation.objects.get().channel.variant == NixChannel.Variant.SMALL
         ''}
 
@@ -219,11 +251,11 @@ pkgs.testers.runNixOSTest {
               # Maintainers should only be attached to derivations from the tracking branch.
               from django.conf import settings
               tracking_meta = NixDerivationMeta.objects.get(
-                derivation__parent_evaluation__channel__channel_branch=settings.TRACKING_BRANCH,
+                derivation__parent_evaluation__channel__release_branch__name=settings.TRACKING_BRANCH,
               )
               assert tracking_meta.maintainers.exists(), f"{settings.TRACKING_BRANCH} meta has no maintainers"
               for m in NixDerivationMeta.objects.exclude(
-                derivation__parent_evaluation__channel__channel_branch=settings.TRACKING_BRANCH,
+                derivation__parent_evaluation__channel__release_branch__name=settings.TRACKING_BRANCH,
               ):
                 assert not m.maintainers.exists(), f"{m.derivation.parent_evaluation.channel.channel_branch}) has unexpected maintainers"
             ''

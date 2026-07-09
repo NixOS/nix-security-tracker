@@ -14,9 +14,11 @@ result
 *.dump
 *.jsonl
 *.log
+# Generated at build time for development use
 src/static
 src/webview/static/htmx.min.js
 src/webview/static/nixos-logo.svg
+src/shared/_release_channels.py
 # A shallow checkout of nixpkgs
 nixpkgs/
 nixpkgs-gc-roots/

@@ -1,0 +1,37 @@
+{
+  "checkinterval": 43200,
+  "description": "NixOS Unstable (small)",
+  "emailoverride": "",
+  "enable_dynamic_run_command": false,
+  "enabled": 1,
+  "enableemail": false,
+  "errormsg": "",
+  "errortime": 1782915561,
+  "fetcherrormsg": "",
+  "flake": "",
+  "inputs": {
+    "nixpkgs": {
+      "emailresponsible": false,
+      "name": "nixpkgs",
+      "type": "git",
+      "value": "https://github.com/NixOS/nixpkgs.git"
+    },
+    "stableBranch": {
+      "emailresponsible": false,
+      "name": "stableBranch",
+      "type": "boolean",
+      "value": "false"
+    }
+  },
+  "keepnr": 3,
+  "lastcheckedtime": 1782915596,
+  "name": "unstable-small",
+  "nixexprinput": "nixpkgs",
+  "nixexprpath": "nixos/release-small.nix",
+  "project": "nixos",
+  "schedulingshares": 2000000,
+  "starttime": null,
+  "triggertime": null,
+  "type": 0,
+  "visible": true
+}

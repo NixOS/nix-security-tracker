@@ -92,7 +92,7 @@ class Settings(BaseSettings):
             description="""
             URL from which to clone the Nix expressions encoding the software distribution.
             """,
-            default=HttpUrl("https://github.com/NixOS/nixpkgs"),
+            default=AnyUrl("https://github.com/NixOS/nixpkgs.git"),
         )
         LOCAL_NIXPKGS_CHECKOUT: DirectoryPath = Field(
             description="""
@@ -100,13 +100,23 @@ class Settings(BaseSettings):
             By default, in the root of this Git repository.
             """
         )
-        CHANNEL_MONITORING_URL: HttpUrl = Field(
+        HYDRA_URL: HttpUrl = Field(
             description="""
-            URL from which to fetch the current channel structure.
+            Base URL of the Hydra instance used to look up jobset inputs for branch resolution.
             """,
-            default=HttpUrl(
-                "https://monitoring.nixos.org/prometheus/api/v1/query?query=channel_revision"
-            ),
+            default=HttpUrl("https://hydra.nixos.org"),
+        )
+        HYDRA_INPUT_NAME: str = Field(
+            description="""
+            Name of the Hydra jobset input that refers to the source we're tracking.
+            """,
+            default="nixpkgs",
+        )
+        NETWORK_REQUEST_TIMEOUT: int = Field(
+            description="""
+            Timeout in seconds for outbound network requests.
+            """,
+            default=60,
         )
         SYNC_GITHUB_STATE_AT_STARTUP: bool = Field(
             description="""
@@ -169,7 +179,7 @@ class Settings(BaseSettings):
             The branch that tracks upstream development.
             Serves as the source of truth for package metadata such as maintainers and descriptions.
             """,
-            default="nixos-unstable-small",
+            default="master",
         )
         MAX_MATCHES: int = Field(
             description="""

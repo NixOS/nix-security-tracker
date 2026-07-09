@@ -1,0 +1,24 @@
+{
+  "buildmetrics": {},
+  "buildoutputs": {
+    "out": {
+      "path": "/nix/store/nqr39d6fv455fqb81jwwjkpzxcq32lfs-nixos-26.11pre1025869.8465ac306246"
+    }
+  },
+  "buildproducts": {},
+  "buildstatus": 0,
+  "drvpath": "/nix/store/far9rcw9ilkjrbqnz9z9y6pwk7ck6ns6-nixos-26.11pre1025869.8465ac306246.drv",
+  "finished": 1,
+  "id": 334072527,
+  "job": "tested",
+  "jobset": "unstable-small",
+  "jobsetevals": [1826766],
+  "nixname": "nixos-26.11pre1025869.8465ac306246",
+  "priority": 100,
+  "project": "nixos",
+  "releasename": null,
+  "starttime": 1782918492,
+  "stoptime": 1782918495,
+  "system": "x86_64-linux",
+  "timestamp": 1782915595
+}

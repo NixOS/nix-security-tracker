@@ -37,7 +37,7 @@ from shared.models.nix_evaluation import (
     NixDerivationMeta,
     NixEvaluation,
     NixMaintainer,
-    release_branch,
+    NixpkgsBranch,
 )
 from shared.models.package import Package, PackageAttrpath
 from shared.notify_users import create_package_subscription_notifications
@@ -134,11 +134,33 @@ def cve(make_container: Callable[..., Container]) -> Container:
 
 
 @pytest.fixture
-def make_channel(db: None) -> Callable[..., NixChannel]:
+def make_branch(db: None) -> Callable[..., NixpkgsBranch]:
+    def wrapped(name: str = settings.TRACKING_BRANCH) -> NixpkgsBranch:
+        branch, _ = NixpkgsBranch.objects.get_or_create(
+            name=name,
+            defaults={"head_sha1_commit": secrets.token_hex(20)},
+        )
+        return branch
+
+    return wrapped
+
+
+@pytest.fixture
+def branch(make_branch: Callable[..., NixpkgsBranch]) -> NixpkgsBranch:
+    return make_branch()
+
+
+@pytest.fixture
+def make_channel(
+    db: None,
+    make_branch: Callable[..., NixpkgsBranch],
+    branch: NixpkgsBranch,
+) -> Callable[..., NixChannel]:
     # FIXME(@fricklerhandwerk): This will fall apart when we obtain the channel structure dynamically [ref:channel-structure]
     def wrapped(
-        channel_branch: str = settings.TRACKING_BRANCH,
+        channel_branch: str = "nixpkgs-unstable",
         state: NixChannel.ChannelState = NixChannel.ChannelState.UNSTABLE,
+        branch: NixpkgsBranch = branch,
         variant: NixChannel.Variant | None = None,
     ) -> NixChannel:
         channel, _ = NixChannel.objects.get_or_create(
@@ -146,9 +168,8 @@ def make_channel(db: None) -> Callable[..., NixChannel]:
             defaults=dict(
                 head_sha1_commit=secrets.token_hex(16),
                 state=state,
+                release_branch=branch,
                 variant=variant,
-                release_branch=release_branch(channel_branch),
-                repository="https://github.com/NixOS/nixpkgs",
             ),
         )
         return channel

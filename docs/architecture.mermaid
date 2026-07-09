@@ -5,7 +5,7 @@ graph TB
         GitHub["GitHub API"]
         GitHubNixos["GitHub Repository<br/>nixos/nixpkgs"]
         GitHubCVEs["GitHub Repository<br/>CVEProject/cvelistV5"]
-        NixMonitoring["monitoring.nixos.org<br/>channel revision"]
+        Hydra["hydra.nixos.org<br/>channel revision"]
     end
 
     subgraph SecurityTracker ["Security Tracker Host"]
@@ -40,7 +40,7 @@ graph TB
 
     %% Timers
     SystemdTimerChannels -.->|Triggers Daily| FetchAllChannels
-    FetchAllChannels -->|1 Fetch Channels| NixMonitoring
+    FetchAllChannels -->|1 Fetch Channels| Hydra
     FetchAllChannels -->|2 Git pull| GitHubNixos
     FetchAllChannels -->|3 Update Repo| LocalGitCheckout
     FetchAllChannels -->|4 update channels| PostgreSQL
@@ -61,7 +61,7 @@ graph TB
     classDef subgraphClass fill:#fafafa,stroke:#424242,stroke-width:3px
 
     class Users userClass
-    class GitHub,GitHubNixos,GitHubCVEs,NixMonitoring externalClass
+    class GitHub,GitHubNixos,GitHubCVEs,Hydra externalClass
     class Nginx,DaphneAsgi webClass
     class FetchAllChannels,IngestCVEs commandClass
     class SystemdTimerChannels,SystemdTimerCVEs,NixEval,MatchingListener backgroundClass

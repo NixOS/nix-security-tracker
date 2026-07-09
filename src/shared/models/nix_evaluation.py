@@ -1,5 +1,3 @@
-import re
-
 from django.conf import settings
 from django.contrib.postgres import fields
 from django.contrib.postgres.indexes import BTreeIndex, GinIndex
@@ -129,6 +127,18 @@ class NixDerivationMeta(models.Model):
         return self.description or ""
 
 
+class NixpkgsBranch(models.Model):
+    """
+    A Nixpkgs branch that gets evaluated, e.g. `master` or `release-26.05`.
+    """
+
+    name = models.CharField(max_length=126, primary_key=True)
+    head_sha1_commit = models.CharField(max_length=126)
+
+    def __str__(self) -> str:
+        return self.name
+
+
 class NixChannel(TimeStampMixin):
     """
     This represents a "Nixpkgs" (*) channel, e.g.
@@ -160,9 +170,12 @@ class NixChannel(TimeStampMixin):
         ChannelState.UNSTABLE,
     )
 
-    # A staging branch is the `release-$number` branch or `master` for unstable.
-    # Not to confuse with the `staging` branch itself.
-    release_branch = models.CharField(max_length=255)
+    # The underlying Nixpkgs branch (e.g. `master` or `release-25.05`).
+    release_branch = models.ForeignKey(
+        NixpkgsBranch,
+        on_delete=models.PROTECT,
+        related_name="channels",
+    )
     # A channel branch is the `nixos-$number` branch of
     # `nixos-unstable(-small)` for unstable(-small). Not to confuse with the
     # channel tarballs and scripts from releases.nixos.org.
@@ -171,14 +184,9 @@ class NixChannel(TimeStampMixin):
     head_sha1_commit = models.CharField(max_length=255)
     state = models.CharField(max_length=126, choices=ChannelState.choices)
     variant = models.CharField(max_length=126, choices=Variant.choices, null=True)
-    # Repository can be stored as URLs for now...
-    # We can always reparse them as proper GitHub URIs if necessary
-    # It's a bit annoying though
-    # TODO(raitobezarius): make a proper ForeignKey?
-    repository = models.CharField(max_length=255)
 
     def __str__(self) -> str:
-        return f"{self.release_branch} -> {self.channel_branch}"
+        return self.channel_branch
 
     @property
     def is_tracking_branch(self) -> bool:
@@ -187,7 +195,7 @@ class NixChannel(TimeStampMixin):
 
         It's the source of truth for metadata such as package descriptions and maintainer information.
         """
-        return self.channel_branch == settings.TRACKING_BRANCH
+        return self.release_branch.name == settings.TRACKING_BRANCH
 
 
 class NixEvaluationQuerySet(models.QuerySet):
@@ -330,18 +338,3 @@ def get_major_channel(branch_name: str) -> str | None:
         if mc in branch_name:
             return f"nixos-{mc}"
     return None
-
-
-def get_release(channel_branch: str) -> str:
-    match = re.match(
-        r"^(?P<jobset>[a-z]+)-(?P<release>\d\d\.\d\d|unstable)(?:-(?P<variant>[a-z]+))?$",
-        channel_branch,
-    )
-    if match is None:
-        raise ValueError(f"unexpected channel branch name: {channel_branch!r}")
-    return match.group("release")
-
-
-def release_branch(channel_branch: str) -> str:
-    release = get_release(channel_branch)
-    return "master" if release == "unstable" else f"release-{release}"
