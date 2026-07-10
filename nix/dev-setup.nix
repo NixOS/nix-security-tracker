@@ -100,6 +100,13 @@ in
             "node"
             "postgres"
             "sql"
+          ]
+          ++ [
+            {
+              job_name = "django";
+              static_configs = [ { targets = [ "localhost:8000" ]; } ];
+              metrics_path = "/metrics";
+            }
           ];
         exporters = {
           node.enable = true;

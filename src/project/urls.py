@@ -23,6 +23,7 @@ from django.views.generic import TemplateView
 ui_v2_view = TemplateView.as_view(template_name="ui_v2.html")
 
 urlpatterns = [
+    path("", include("django_prometheus.urls")),
     path("", include("webview.urls")),
     path("api/", include("api.urls")),
     path("feeds/", include("feeds.urls")),
