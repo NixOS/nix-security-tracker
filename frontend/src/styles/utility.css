@@ -219,11 +219,10 @@
  *
  * .text-xl, .text-l - Font size variants
  * .text-white - White text color
+ * .text-gray - Dimmed gray text color
  * .bold - Bold font weight
  * .monospace - Apply monospace font
- * .condensed - Apply condensed font
  * .uppercase - Force uppercase
- * .dimmed - Dimmed gray text color
  * .no-line-breaks - Prevent line breaks
  */
 
@@ -239,6 +238,10 @@
   color: white;
 }
 
+.text-gray {
+  color: var(--gray);
+}
+
 .bold {
   font-weight: bold;
 }
@@ -247,16 +250,8 @@
   font-family: ui-monospace, monospace;
 }
 
-.condensed {
-  font-family: system-ui, sans-serif;
-}
-
 .uppercase {
   text-transform: uppercase;
-}
-
-.dimmed {
-  color: var(--gray);
 }
 
 .no-line-breaks {
@@ -313,6 +308,10 @@
 .inline-row {
   display: inline-flex;
   flex-direction: row;
+}
+
+.align-start {
+  align-items: flex-start;
 }
 
 .centered {
@@ -417,6 +416,10 @@
   overflow: auto;
 }
 
+.shadow {
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+}
+
 .circle {
   border-radius: 50%;
 }
@@ -427,6 +430,49 @@
 
 .box.compact {
   padding: 0.3em;
+}
+
+/* Accordions (details/summary)
+ *
+ * Utilities for HTML details/summary elements to create expandable content.
+ * These classes should only be used if you want different title for open/closed states.
+ *
+ * Use on <details>
+ * .details-marker-outside - Move the arrow marker outside the container.
+ *                           This align the accordion content with its title (e.g. for presenting table-like data)
+ *
+ * Use on content in <summary>
+ * .details-open - Content shown when accordion is open (hidden by default)
+ * .details-closed - Content shown when accordion is closed (hidden when open)
+ *
+ * Usage:
+ * <details>
+ *   <summary>
+ *     <span class="details-closed">Show more</span>
+ *     <span class="details-open">Show less</span>
+ *   </summary>
+ *   <div>Expandable content here</div>
+ * </details>
+ */
+
+details > summary > .details-open {
+  display: none;
+}
+
+details[open] > summary > .details-open {
+  display: inline;
+}
+
+details[open] > summary > .details-closed {
+  display: none;
+}
+
+details.details-marker-outside {
+  margin-left: 1em;
+}
+
+details.details-marker-outside > summary {
+  list-style-position: outside;
 }
 
 /* Loading / Skeleton
@@ -456,6 +502,14 @@
  *
  * Background color utilities for theme colors (yellow, red, green, nixos-blue).
  */
+
+.bg-white {
+  background-color: white;
+}
+
+.bg-gray-light {
+  background-color: var(--light-gray);
+}
 
 .bg-yellow-light {
   background-color: var(--light-yellow);

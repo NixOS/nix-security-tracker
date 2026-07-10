@@ -13,6 +13,7 @@ from shared.models.cve import Container, Tag
 from shared.models.linkage import (
     CVEDerivationClusterProposal,
     DerivationClusterProposalLink,
+    PackageClusterProposalLink,
     ProvenanceFlags,
 )
 from shared.models.nix_evaluation import (
@@ -20,6 +21,7 @@ from shared.models.nix_evaluation import (
     NixDerivation,
     NixEvaluation,
 )
+from shared.models.package import Package, PackageDerivation
 
 
 def test_link_only_latest_eval(
@@ -467,3 +469,83 @@ def test_refresh_skips_published_suggestion_on_match(
     links = DerivationClusterProposalLink.objects.filter(proposal=suggestion)
     assert links.count() == 1
     assert links.get().derivation == old_drv
+
+
+def test_package_links_populated_alongside_drv_links(
+    make_container: Callable[..., Container],
+    make_drv: Callable[..., NixDerivation],
+    make_package: Callable[..., Package],
+) -> None:
+    """Package links are created alongside derivation links when a derivation is clustered."""
+    drv = make_drv(pname="foo")
+    pkg = make_package(drv)
+    PackageDerivation.objects.create(derivation=drv, package=pkg)
+    container = make_container(package_name="foo")
+
+    assert build_new_links(container)
+
+    proposal = CVEDerivationClusterProposal.objects.get(cve=container.cve)
+    assert proposal.status == CVEDerivationClusterProposal.Status.PENDING
+    link = PackageClusterProposalLink.objects.get(proposal=proposal)
+    assert link.package == pkg
+    assert link.provenance_flags == ProvenanceFlags.PACKAGE_NAME_MATCH
+
+
+def test_unclustered_drv_produces_no_package_links(
+    make_container: Callable[..., Container],
+    make_drv: Callable[..., NixDerivation],
+) -> None:
+    """Derivations not yet assigned to a package are skipped without error."""
+    make_drv(pname="foo")
+    container = make_container(package_name="foo")
+
+    assert build_new_links(container)
+
+    proposal = CVEDerivationClusterProposal.objects.get(cve=container.cve)
+    assert proposal.status == CVEDerivationClusterProposal.Status.PENDING
+    assert DerivationClusterProposalLink.objects.filter(proposal=proposal).count() == 1
+    assert PackageClusterProposalLink.objects.filter(proposal=proposal).count() == 0
+
+
+def test_multiple_drvs_same_package_produce_one_package_link(
+    make_container: Callable[..., Container],
+    make_drv: Callable[..., NixDerivation],
+    make_package: Callable[..., Package],
+) -> None:
+    """Multiple matching derivations that belong to the same package produce a single package link."""
+    drv1 = make_drv(pname="foo", attribute="foo")
+    drv2 = make_drv(pname="foo-cli", attribute="foo-cli")
+    pkg = make_package(drv1)
+    PackageDerivation.objects.create(derivation=drv1, package=pkg)
+    PackageDerivation.objects.create(derivation=drv2, package=pkg)
+
+    container = make_container(package_name="foo")
+
+    assert build_new_links(container)
+
+    proposal = CVEDerivationClusterProposal.objects.get(cve=container.cve)
+    assert DerivationClusterProposalLink.objects.filter(proposal=proposal).count() == 2
+    assert PackageClusterProposalLink.objects.filter(proposal=proposal).count() == 1
+
+
+def test_package_link_provenance_flags_merged_across_drvs(
+    make_container: Callable[..., Container],
+    make_drv: Callable[..., NixDerivation],
+) -> None:
+    """Provenance flags are OR-ed across all derivations belonging to the same package."""
+    drv1 = make_drv(pname="alpha", attribute="alpha")
+    drv2 = make_drv(pname="beta", attribute="beta")
+    pkg = Package.objects.create(name="alpha-beta", homepage="https://example.com")
+    PackageDerivation.objects.create(derivation=drv1, package=pkg)
+    PackageDerivation.objects.create(derivation=drv2, package=pkg)
+
+    container = make_container(package_name="alpha", product="beta")
+
+    assert build_new_links(container)
+
+    proposal = CVEDerivationClusterProposal.objects.get(cve=container.cve)
+    link = PackageClusterProposalLink.objects.get(proposal=proposal)
+    assert (
+        link.provenance_flags
+        == ProvenanceFlags.PACKAGE_NAME_MATCH | ProvenanceFlags.PRODUCT_MATCH
+    )

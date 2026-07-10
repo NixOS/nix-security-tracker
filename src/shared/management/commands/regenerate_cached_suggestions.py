@@ -5,8 +5,10 @@ from typing import Any
 
 from django.core.management.base import BaseCommand
 from django.db.models import Exists, OuterRef, Q
+from prometheus_client import CollectorRegistry, Gauge
 
 from shared.cache_suggestions import cache_new_suggestions
+from shared.metrics import write_metrics_textfile
 from shared.models.cached import CachedSuggestions
 from shared.models.linkage import CVEDerivationClusterProposal
 
@@ -61,9 +63,21 @@ class Command(BaseCommand):
         for suggestion in proposals:
             cache_new_suggestions(suggestion)
             count += 1
-        # FIXME(@fricklerhandwerk): Do structured logging for actual metrics so we can keep track of how we're doing.
-        duration = (time.time() - start,)
+        duration = time.time() - start
+
+        registry = CollectorRegistry()
+        Gauge(
+            "sectracker_cache_regeneration_duration_seconds",
+            "Duration of last cache regeneration run",
+            registry=registry,
+        ).set(duration)
+        Gauge(
+            "sectracker_cache_regeneration_suggestions",
+            "Suggestions regenerated in last run",
+            registry=registry,
+        ).set(float(count))
+        write_metrics_textfile("cache_regeneration", registry)
 
         self.stdout.write(
-            f"Regenerated {count} {label} cached suggestions in {duration} seconds."
+            f"Regenerated {count} {label} cached suggestions in {duration:.2f} seconds."
         )

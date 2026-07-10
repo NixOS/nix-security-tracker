@@ -15,6 +15,7 @@ from django.utils.translation import gettext_lazy as _
 import shared.models.cached
 from shared.models.cve import CveRecord, Reference
 from shared.models.nix_evaluation import NixDerivation, NixMaintainer, TimeStampMixin
+from shared.models.package import Package
 
 
 class SuggestionStatus(models.TextChoices):
@@ -503,3 +504,25 @@ class DerivationClusterProposalLink(models.Model):
     # TODO: how to design the integrity here?
     # we probably want to add a fancy check here.
     provenance_flags = models.IntegerField()
+
+
+class PackageClusterProposalLink(models.Model):
+    proposal = models.ForeignKey(
+        CVEDerivationClusterProposal,
+        on_delete=models.CASCADE,
+        related_name="package_links",
+    )
+    package = models.ForeignKey(
+        Package,
+        on_delete=models.PROTECT,
+        related_name="cve_links",
+    )
+    provenance_flags = models.IntegerField()
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(
+                fields=["proposal", "package"],
+                name="unique_package_per_proposal",
+            )
+        ]

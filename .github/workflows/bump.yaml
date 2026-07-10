@@ -22,6 +22,8 @@ jobs:
       - run: |
           nix-build -A ci
           result/bin/npins update
+          cd frontend
+          ../result/bin/npm update
       - uses: actions/create-github-app-token@29824e69f54612133e76f7eaac726eef6c875baf # v2.2.1
         id: generate-token
         with:

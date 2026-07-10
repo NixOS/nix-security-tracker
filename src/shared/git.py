@@ -87,7 +87,7 @@ class GitRepo:
 
         Otherwise, it will use a shallow clone, since we can fetch commits manually.
         """
-        repo_clone_url = settings.GIT_CLONE_URL
+        repo_clone_url = str(settings.GIT_CLONE_URL)
         stdout = self.stdout or asyncio.subprocess.PIPE
         stderr = self.stderr or asyncio.subprocess.PIPE
         if reference_repo_path is not None:
@@ -168,7 +168,7 @@ class GitRepo:
 
         Returns whether this was fetched or already present.
         """
-        repo_clone_url = settings.GIT_CLONE_URL
+        repo_clone_url = str(settings.GIT_CLONE_URL)
         exists = (
             await (
                 await self.execute_git_command(

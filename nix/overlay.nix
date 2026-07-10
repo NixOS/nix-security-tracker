@@ -63,6 +63,7 @@ in
       pytest-socket
       ipython
       pydantic-settings
+      prometheus-client
       pygithub
       requests
       tqdm

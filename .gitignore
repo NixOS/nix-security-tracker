@@ -6,6 +6,7 @@ __pycache__
 .credentials
 *.jsonl
 cve-cache
+prometheus-metrics
 nixpkgs
 nixpkgs-gc-roots/*
 nixpkgs-evaluation-logs/*.log

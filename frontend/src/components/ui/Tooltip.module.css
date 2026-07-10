@@ -1,0 +1,26 @@
+.Content {
+  --arrow-background: var(--demo-bg-popover);
+  --arrow-size: 10px;
+  position: relative;
+  background: var(--demo-bg-popover);
+  color: var(--fg-inverted);
+  padding-inline: 0.625rem;
+  padding-block: 0.25rem;
+  border-radius: 0.25rem;
+  border: 1px solid var(--demo-border-muted);
+  font-weight: 500;
+  font-size: 0.75rem;
+  line-height: 1.25rem;
+  box-shadow: var(--demo-shadow-md);
+  max-width: 20rem;
+  z-index: calc(var(--demo-popover-z-index) + var(--layer-index, 0));
+  transform-origin: var(--transform-origin);
+
+  &[data-state="open"] {
+    animation: scale-fade-in 0.15s ease-out;
+  }
+
+  &[data-state="closed"] {
+    animation: scale-fade-out 0.1s ease-in;
+  }
+}

@@ -10,7 +10,7 @@ import type { NewToken, TokenInfo } from "@/api/generated/models";
 import { Skeleton } from "@/components/ui/Skeleton";
 import { Spinner } from "@/components/ui/Spinner";
 import { useTokenStatus } from "@/hooks/useTokenStatus";
-import { formatDate } from "@/utils/date";
+import { formatTime } from "@/utils/date";
 
 export function ApiToken() {
   const queryClient = useQueryClient();
@@ -68,9 +68,9 @@ export function ApiToken() {
           <div className="bold">Copy this value now. It will not be shown again.</div>
           <pre>{newToken.token}</pre>
           <p>
-            Created: {formatDate(newToken.created)}
+            Created: {formatTime(newToken.created)}
             <br />
-            Expires: {formatDate(newToken.expiry)}
+            Expires: {formatTime(newToken.expiry)}
           </p>
           <div className="row gap-small centered">
             <button
@@ -88,9 +88,9 @@ export function ApiToken() {
         <div className="rounded border box column gap">
           <h2 className="text-l bold">Active token</h2>
           <p>
-            Created: {formatDate(tokenInfo.created)}
+            Created: {formatTime(tokenInfo.created)}
             <br />
-            Expires: {formatDate(tokenInfo.expiry)}
+            Expires: {formatTime(tokenInfo.expiry)}
           </p>
           <div className="row gap-small centered">
             <button

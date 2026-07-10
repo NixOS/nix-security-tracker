@@ -100,6 +100,12 @@ class Settings(BaseSettings):
             By default, in the root of this Git repository.
             """
         )
+        METRICS_TEXTFILE_DIR: DirectoryPath | None = Field(
+            description="""
+            Directory for Prometheus textfile metrics consumed by node_exporter.
+            """,
+            default=None,
+        )
         CHANNEL_MONITORING_URL: HttpUrl = Field(
             description="""
             URL from which to fetch the current channel structure.
@@ -198,6 +204,17 @@ class Settings(BaseSettings):
         EMAIL_USE_SSL: bool = False
         DEFAULT_FROM_EMAIL: str = ""
         SERVER_EMAIL: str = ""
+        PACKAGE_CLUSTERING_BATCH_SIZE: int = Field(
+            description="""
+            Batch size for package clustering, which uses advisory locks and thus needs to be scaled to the database settings which limit the maximum number of simultaneously locked rows.
+
+            The default is computed from Postgresql default settings for `max_connections` (100) and `max_locks_per_transaction` (64) and some margin to cover for expected parallelism.
+
+            https://www.postgresql.org/docs/current/runtime-config-connection.html#GUC-MAX-CONNECTIONS
+            https://www.postgresql.org/docs/current/runtime-config-locks.html#GUC-MAX-LOCKS-PER-TRANSACTION
+            """,
+            default=100 * 64 // 2,
+        )
 
         @model_validator(mode="after")
         def default_server_email(self) -> Self:

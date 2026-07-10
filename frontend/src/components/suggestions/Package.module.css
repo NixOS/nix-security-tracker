@@ -1,0 +1,12 @@
+.packageTitle {
+  width: 20em;
+}
+
+.channel,
+.branch {
+  width: 15em;
+}
+
+.details {
+  width: 40em;
+}

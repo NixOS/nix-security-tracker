@@ -28,9 +28,11 @@ from shared.models.cve import Container, Cpe
 from shared.models.linkage import (
     CVEDerivationClusterProposal,
     DerivationClusterProposalLink,
+    PackageClusterProposalLink,
     ProvenanceFlags,
 )
 from shared.models.nix_evaluation import NixChannel, NixDerivation, NixEvaluation
+from shared.models.package import PackageDerivation
 
 logger = logging.getLogger(__name__)
 
@@ -154,6 +156,30 @@ def build_derivation_links(
     ]
 
 
+def build_package_links(
+    proposal: CVEDerivationClusterProposal,
+    derivations: models.QuerySet,
+) -> list[PackageClusterProposalLink]:
+    """Build one PackageClusterProposalLink per distinct package in the matched derivations."""
+    package_flags: dict[int, int] = {}
+    for drv in derivations:
+        try:
+            pkg_id = drv.package_link.package_id
+        except PackageDerivation.DoesNotExist:
+            continue
+        flags = getattr(drv, "package_match", 0) | getattr(drv, "product_match", 0)
+        package_flags[pkg_id] = package_flags.get(pkg_id, 0) | flags
+
+    return [
+        PackageClusterProposalLink(
+            proposal=proposal,
+            package_id=pkg_id,
+            provenance_flags=ProvenanceFlags(flags),
+        )
+        for pkg_id, flags in package_flags.items()
+    ]
+
+
 def produce_linkage_candidates(
     filtered_affected: models.QuerySet,
 ) -> models.QuerySet:
@@ -212,7 +238,7 @@ def produce_linkage_candidates(
             package_q | product_q,
             parent_evaluation__in=list(latest_complete_channels),
         )
-        .select_related("metadata")
+        .select_related("metadata", "package_link")
         .annotate(**annotations)
     )
 
@@ -262,10 +288,13 @@ def build_new_links(container: Container) -> bool:
     if outcome.derivations:
         links = build_derivation_links(proposal, outcome.derivations)
         DerivationClusterProposalLink.objects.bulk_create(links)
+        pkg_links = build_package_links(proposal, outcome.derivations)
+        PackageClusterProposalLink.objects.bulk_create(pkg_links)
         logger.info(
-            "Matching suggestion for '%s': %d derivations found.",
+            "Matching suggestion for '%s': %d derivations, %d packages found.",
             container.cve,
             len(links),
+            len(pkg_links),
         )
 
     return True

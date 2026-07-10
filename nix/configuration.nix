@@ -135,6 +135,14 @@ in
         PRODUCTION = cfg.production;
         STATIC_ROOT = "/var/lib/nix-security-tracker/static/"; # trailing slash is required!
         VITE_MANIFEST_PATH = "${cfg.frontend}/.vite/manifest.json";
+        PACKAGE_CLUSTERING_BATCH_SIZE =
+          let
+            parallelism = cfg.maxJobProcessors + 1; # account for periodic backfill
+            # fall back to implicit Postgres defaults
+            connections = cfg.services.postgresql.settings.max_connections or 100;
+            locks = cfg.services.postgresql.settings.max_locks_per_transaction or 64;
+          in
+          connections * locks / parallelism * 4 / 5; # add some margin for other transactions
         REVISION =
           (builtins.fetchGit {
             url = ../.;
@@ -348,7 +356,11 @@ in
           ];
           wantedBy = [ "multi-user.target" ];
 
-          serviceConfig.Type = "oneshot";
+          serviceConfig = {
+            Type = "oneshot";
+            # Make performance metrics file, produced as a side effect, readable by Prometheus node exporter
+            UMask = "0027";
+          };
           script = ''
             wst-manage backfill_package_clustering
             wst-manage regenerate_cached_suggestions

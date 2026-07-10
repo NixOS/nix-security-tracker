@@ -3,6 +3,7 @@ from dataclasses import dataclass
 from itertools import groupby
 
 import pglock
+from django.conf import settings
 from django.db import transaction
 from django.db.models import QuerySet
 
@@ -33,7 +34,7 @@ class ClusterResult:
 def cluster_packages(
     derivations: QuerySet[NixDerivation],
     update_packages: bool = False,
-    batch_size: int = 10_000,
+    batch_size: int = settings.PACKAGE_CLUSTERING_BATCH_SIZE,
 ) -> ClusterResult:
     """
     Assign derivations to packages, in batches.

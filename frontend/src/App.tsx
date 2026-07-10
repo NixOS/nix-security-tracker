@@ -4,6 +4,7 @@ import { Footer } from "@/components/footer/Footer";
 import { Disclaimer } from "@/components/header/Disclaimer";
 import { HeaderBar } from "@/components/header/HeaderBar";
 import { Home } from "@/routes/Home";
+import { SuggestionDetail } from "@/routes/SuggestionDetail";
 import { UserSettings } from "@/routes/UserSettings";
 
 const queryClient = new QueryClient({
@@ -22,6 +23,7 @@ export function App() {
       <Disclaimer />
       <main>
         <Switch>
+          <Route path="/ui-v2/suggestions/by-id/:id" component={SuggestionDetail} />
           <Route path="/ui-v2/" component={Home} />
           <Route path="/ui-v2/user">
             <Redirect to="/ui-v2/user/subscriptions" />

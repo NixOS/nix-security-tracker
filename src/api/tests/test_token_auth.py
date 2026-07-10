@@ -98,7 +98,7 @@ def test_bearer_auth_change_status_permissions(
     client = APIClient()
     client.credentials(HTTP_AUTHORIZATION=f"Bearer {raw}")
     response = client.post(
-        f"/api/v1/suggestions/{suggestion.pk}/change_status",
+        f"/api/v1/suggestions/{suggestion.pk}/status",
         {"status": CVEDerivationClusterProposal.Status.ACCEPTED},
         format="json",
     )

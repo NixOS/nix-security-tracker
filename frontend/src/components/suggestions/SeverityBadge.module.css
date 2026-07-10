@@ -1,0 +1,25 @@
+/* CVSS severity tag color variants.
+ *
+ * These colors mirror nvd.nist.gov and must not be used for anything other than CVSS severity display.
+ */
+
+.cvss {
+  padding: 0 0.3em;
+  font-weight: bold;
+}
+
+.NONE {
+  background: #a9a9a9;
+}
+.LOW {
+  background: #f2cc0c;
+}
+.MEDIUM {
+  background: #ec971f;
+}
+.HIGH {
+  background: #d9534f;
+}
+.CRITICAL {
+  background: red;
+}

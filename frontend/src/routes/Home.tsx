@@ -5,15 +5,16 @@ const doneFeatures = [
   "User settings: package subscriptions",
   "User settings: individual package subscription pages",
   "User settings: API token management",
-];
-
-const pendingFeatures = [
   "Suggestions: individual pages (permalinks)",
   "Viewing suggestion info: references",
   "Viewing suggestion info: affected product",
   "Viewing suggestion info: packages",
   "Viewing suggestion info: maintainers",
   "Viewing suggestion info: activity log",
+  "Viewing suggestion info: comments",
+];
+
+const pendingFeatures = [
   "Suggestions: package ignore/restore",
   "Suggestions: maintainer ignore/restore",
   "Suggestions: maintainer add/delete",

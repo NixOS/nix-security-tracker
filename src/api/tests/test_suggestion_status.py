@@ -75,7 +75,7 @@ def test_suggestion_change_state(
     client.force_login(staff)
     cached_suggestion = make_cached_suggestion(status=from_status)
     response = client.post(
-        f"/api/v1/suggestions/{cached_suggestion.pk}/change_status",
+        f"/api/v1/suggestions/{cached_suggestion.pk}/status",
         {
             "status": to_status,
         }
