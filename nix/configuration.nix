@@ -385,9 +385,28 @@ in
               --channels \
                 shared.channels.NixChannelInsertChannel \
                 shared.channels.NixChannelUpdateChannel \
-                shared.channels.NixEvaluationUpdateChannel \
                 shared.channels.ContainerChannel \
                 shared.channels.CVEDerivationClusterProposalChannel \
+          '';
+        };
+
+        nix-security-tracker-worker-rematching = {
+          description = "Web security tracker - post-evaluation suggestion rematching";
+          after = [
+            "network.target"
+            "postgresql.service"
+            "nix-security-tracker-migrations.service"
+          ];
+          requires = [
+            "postgresql.service"
+            "nix-security-tracker-migrations.service"
+          ];
+          wantedBy = [ "multi-user.target" ];
+
+          script = ''
+            wst-manage listen --recover \
+              --channels \
+                shared.channels.NixEvaluationUpdateChannel \
           '';
         };
 
