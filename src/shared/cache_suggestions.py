@@ -85,7 +85,7 @@ class CachedSuggestion(BaseModel):
     cve_id: str
     title: str | None
     description: str | None
-    affected_products: dict[str, AffectedProduct]
+    affected_products: dict[str, "CachedSuggestion.AffectedProduct"]
     original_packages: dict[str, Package]
     packages: dict[str, Package]
     # XXX(@fricklerhandwerk): These are converted with `to_dict()` naively, we're not doing anything interesting to them here.

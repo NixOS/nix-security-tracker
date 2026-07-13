@@ -10,7 +10,6 @@ in
   */
   python3 = prev.python3.override {
     packageOverrides = pyfinal: _pyprev: {
-      django = pyfinal.django_5;
       psycopg2 = pyfinal.psycopg;
       django-rest-knox = pyfinal.buildPythonPackage rec {
         pname = "django-rest-knox";
