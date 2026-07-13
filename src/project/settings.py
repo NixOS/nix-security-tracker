@@ -223,6 +223,15 @@ class Settings(BaseSettings):
             """,
             default=30,
         )
+        DATABASE_CONN_MAX_AGE: int = Field(
+            description="""
+            Django CONN_MAX_AGE for the default database connection (in
+            seconds). If the ASGI server is fronted by PgBouncer, it overrides
+            this to 0. The direct connections (workers and management commands)
+            use this value instead.
+            """,
+            default=600,
+        )
         EMAIL_BACKEND: str = "django.core.mail.backends.console.EmailBackend"
         EMAIL_HOST: str = "localhost"
         EMAIL_PORT: int = 25
@@ -476,7 +485,10 @@ WSGI_APPLICATION = "project.wsgi.application"
 # https://docs.djangoproject.com/en/4.2/ref/settings/#databases
 
 DATABASES = {}
-DATABASES["default"] = dj_database_url.config(conn_max_age=600, conn_health_checks=True)
+DATABASES["default"] = dj_database_url.config(
+    conn_max_age=DATABASE_CONN_MAX_AGE,  # noqa: F821 # pyright: ignore [reportUndefinedVariable]
+    conn_health_checks=True,
+)
 
 # Password validation
 # https://docs.djangoproject.com/en/4.2/ref/settings/#auth-password-validators
