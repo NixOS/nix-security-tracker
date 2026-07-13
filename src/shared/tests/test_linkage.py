@@ -552,7 +552,6 @@ def test_package_link_provenance_flags_merged_across_drvs(
     )
 
 
-@pytest.mark.xfail(reason="Not implemented", strict=True)
 def test_build_new_links_is_atomic(
     make_container: Callable[..., Container],
     make_drv: Callable[..., NixDerivation],
