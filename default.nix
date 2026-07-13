@@ -58,6 +58,7 @@ rec {
         deploy
         pkgs.nodejs
         pkgs.npins
+        pkgs.prefetch-npm-deps
         pkgs.zizmor
       ];
     };
