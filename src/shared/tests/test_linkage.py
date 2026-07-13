@@ -1,5 +1,6 @@
 from collections.abc import Callable
 from datetime import timedelta
+from unittest import mock
 
 import pytest
 from django.test import override_settings
@@ -549,3 +550,23 @@ def test_package_link_provenance_flags_merged_across_drvs(
         link.provenance_flags
         == ProvenanceFlags.PACKAGE_NAME_MATCH | ProvenanceFlags.PRODUCT_MATCH
     )
+
+
+@pytest.mark.xfail(reason="Not implemented", strict=True)
+def test_build_new_links_is_atomic(
+    make_container: Callable[..., Container],
+    make_drv: Callable[..., NixDerivation],
+) -> None:
+    make_drv(pname="foo")
+    container = make_container(package_name="foo")
+
+    with mock.patch.object(
+        DerivationClusterProposalLink.objects,
+        "bulk_create",
+        side_effect=Exception("simulated DB failure"),
+    ):
+        with pytest.raises(Exception, match="simulated DB failure"):
+            build_new_links(container)
+
+    # A retry must succeed after a failed first attempt
+    assert build_new_links(container)
