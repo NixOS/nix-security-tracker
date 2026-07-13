@@ -22,6 +22,7 @@ from shared.evaluation import (
     parse_evaluation_result,
 )
 from shared.git import GitRepo
+from shared.metrics import observe_eval_batch_ingest
 from shared.models import NixDerivation, NixEvaluation
 
 logger = logging.getLogger(__name__)
@@ -117,6 +118,7 @@ async def realtime_batch_process_attributes(
     drvs = await sync_to_async(ingester.ingest)()
 
     elapsed = time.time() - start
+    observe_eval_batch_ingest(elapsed, len(drvs))
     logger.info(
         "%d attributes were ingested in %f seconds (%s, %s)",
         len(drvs),

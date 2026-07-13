@@ -98,6 +98,7 @@ in
 
   systemd.tmpfiles.rules = [
     "d ${config.services.nix-security-tracker.settings.METRICS_TEXTFILE_DIR} 2750 nix-security-tracker ${config.services.prometheus.exporters.node.user} -"
+    "d /var/lib/nix-security-tracker/prometheus-multiproc 0750 nix-security-tracker nix-security-tracker -"
   ];
 
   services.prometheus.exporters.postgres = {

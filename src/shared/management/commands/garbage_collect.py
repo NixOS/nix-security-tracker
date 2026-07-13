@@ -1,3 +1,4 @@
+import time
 from argparse import ArgumentDefaultsHelpFormatter, ArgumentParser
 from datetime import timedelta
 from typing import Any
@@ -6,7 +7,9 @@ from django.core.management.base import BaseCommand, CommandParser, DjangoHelpFo
 from django.db import connection, models
 from django.db.models import Q, QuerySet
 from django.utils import timezone
+from prometheus_client import CollectorRegistry, Gauge
 
+from shared.metrics import write_metrics_textfile
 from shared.models import (  # type: ignore
     CVEDerivationClusterProposalStatusEvent,
     DerivationClusterProposalLinkEvent,
@@ -24,6 +27,17 @@ from shared.models.nix_evaluation import (
 from shared.models.package import PackageAttrpath
 
 DEFAULT_CUTOFF_DAYS = 365
+
+DELETED_KINDS = (
+    "proposals",
+    "proposal_status_events",
+    "derivation_link_events",
+    "derivations",
+    "derivation_metas",
+    "evaluations",
+    "channels",
+    "stale_package_attrpaths",
+)
 
 
 class Command(BaseCommand):
@@ -82,22 +96,84 @@ class Command(BaseCommand):
         # Each step satisfies the cascading constraints that gate the next step.
         # `pghistory` events are never auto-deleted — each step explicitly clears relevant events first.
 
+        deleted: dict[str, int] = {kind: 0 for kind in DELETED_KINDS}
+        step_durations: dict[str, float] = {}
+        start_total = time.time()
+
         self.stdout.write("\n[1/6] Deleting stale matches")
-        self._delete_stale_matches(cutoff, batch_size, dry_run)
+        step_start = time.time()
+        for kind, count in self._delete_stale_matches(
+            cutoff, batch_size, dry_run
+        ).items():
+            deleted[kind] += count
+        step_durations["stale_matches"] = time.time() - step_start
+
         self.stdout.write("\n[2/6] Deleting unmatched derivations")
-        self._delete_unmatched_derivations(cutoff, batch_size, dry_run)
+        step_start = time.time()
+        for kind, count in self._delete_unmatched_derivations(
+            cutoff, batch_size, dry_run
+        ).items():
+            deleted[kind] += count
+        step_durations["unmatched_derivations"] = time.time() - step_start
+
         self.stdout.write("\n[3/5] Deleting empty evaluations")
-        self._delete_empty_evaluations(cutoff, batch_size, dry_run)
+        step_start = time.time()
+        for kind, count in self._delete_empty_evaluations(
+            cutoff, batch_size, dry_run
+        ).items():
+            deleted[kind] += count
+        step_durations["empty_evaluations"] = time.time() - step_start
+
         self.stdout.write("\n[4/5] Deleting inactive channels")
-        self._delete_inactive_channels(batch_size, dry_run)
+        step_start = time.time()
+        for kind, count in self._delete_inactive_channels(batch_size, dry_run).items():
+            deleted[kind] += count
+        step_durations["inactive_channels"] = time.time() - step_start
+
         self.stdout.write("\n[5/5] Pruning stale package attrpaths")
-        self._prune_stale_package_attrpaths(batch_size, dry_run)
+        step_start = time.time()
+        for kind, count in self._prune_stale_package_attrpaths(
+            batch_size, dry_run
+        ).items():
+            deleted[kind] += count
+        step_durations["stale_attrpaths"] = time.time() - step_start
+
+        total_duration = time.time() - start_total
+        self._write_metrics(total_duration, step_durations, deleted)
 
         self.stdout.write(self.style.SUCCESS("\nGarbage collection complete."))
 
+    def _write_metrics(
+        self,
+        total_duration: float,
+        step_durations: dict[str, float],
+        deleted: dict[str, int],
+    ) -> None:
+        registry = CollectorRegistry()
+        duration_gauge = Gauge(
+            "sectracker_garbage_collect_duration_seconds",
+            "Duration of last garbage collection run by step",
+            ["step"],
+            registry=registry,
+        )
+        duration_gauge.labels(step="total").set(total_duration)
+        for step, duration in step_durations.items():
+            duration_gauge.labels(step=step).set(duration)
+
+        deleted_gauge = Gauge(
+            "sectracker_garbage_collect_deleted",
+            "Rows deleted in last garbage collection run by kind",
+            ["kind"],
+            registry=registry,
+        )
+        for kind, count in deleted.items():
+            deleted_gauge.labels(kind=kind).set(float(count))
+
+        write_metrics_textfile("garbage_collection", registry)
+
     def _delete_stale_matches(
         self, cutoff: Any, batch_size: int, dry_run: bool
-    ) -> None:
+    ) -> dict[str, int]:
         candidates = (
             CVEDerivationClusterProposal.objects.filter(
                 Q(created_at__lt=cutoff)
@@ -121,7 +197,7 @@ class Command(BaseCommand):
         self.stdout.write(f"Found {total} eligible proposals.")
 
         if total == 0 or dry_run:
-            return
+            return {}
 
         proposal_ids = list(candidates.values_list("id", flat=True))
         link_ids = list(
@@ -130,28 +206,29 @@ class Command(BaseCommand):
             ).values_list("id", flat=True)
         )
 
-        self._purge_events(
-            CVEDerivationClusterProposalStatusEvent,
-            pgh_obj_id__in=proposal_ids,
-            label="proposal status events",
-        )
-        self._purge_events(
-            DerivationClusterProposalLinkEvent,
-            pgh_obj_id__in=link_ids,
-            label="derivation link events",
-        )
-
-        self._delete_in_batches(
-            qs=candidates,
-            model=CVEDerivationClusterProposal,
-            pk_field="id",
-            label="proposals",
-            batch_size=batch_size,
-        )
+        return {
+            "proposal_status_events": self._purge_events(
+                CVEDerivationClusterProposalStatusEvent,
+                pgh_obj_id__in=proposal_ids,
+                label="proposal status events",
+            ),
+            "derivation_link_events": self._purge_events(
+                DerivationClusterProposalLinkEvent,
+                pgh_obj_id__in=link_ids,
+                label="derivation link events",
+            ),
+            "proposals": self._delete_in_batches(
+                qs=candidates,
+                model=CVEDerivationClusterProposal,
+                pk_field="id",
+                label="proposals",
+                batch_size=batch_size,
+            ),
+        }
 
     def _delete_unmatched_derivations(
         self, cutoff: Any, batch_size: int, dry_run: bool
-    ) -> None:
+    ) -> dict[str, int]:
         failed_crashed = NixDerivation.objects.filter(
             parent_evaluation__state__in=[
                 NixEvaluation.EvaluationState.FAILED,
@@ -173,28 +250,28 @@ class Command(BaseCommand):
             )
         )
 
-        self._delete_in_batches(
-            qs=candidates,
-            model=NixDerivation,
-            pk_field="id",
-            label="derivations",
-            batch_size=batch_size,
-            dry_run=dry_run,
-        )
-
-        meta_candidates = NixDerivationMeta.objects.filter(pk__in=meta_ids)
-        self._delete_in_batches(
-            qs=meta_candidates,
-            model=NixDerivationMeta,
-            pk_field="id",
-            label="derivation metas",
-            batch_size=batch_size,
-            dry_run=dry_run,
-        )
+        return {
+            "derivations": self._delete_in_batches(
+                qs=candidates,
+                model=NixDerivation,
+                pk_field="id",
+                label="derivations",
+                batch_size=batch_size,
+                dry_run=dry_run,
+            ),
+            "derivation_metas": self._delete_in_batches(
+                qs=NixDerivationMeta.objects.filter(pk__in=meta_ids),
+                model=NixDerivationMeta,
+                pk_field="id",
+                label="derivation metas",
+                batch_size=batch_size,
+                dry_run=dry_run,
+            ),
+        }
 
     def _delete_empty_evaluations(
         self, cutoff: Any, batch_size: int, dry_run: bool
-    ) -> None:
+    ) -> dict[str, int]:
         candidates = NixEvaluation.objects.filter(
             state__in=[
                 NixEvaluation.EvaluationState.FAILED,
@@ -203,16 +280,20 @@ class Command(BaseCommand):
             derivations__isnull=True,
         )
 
-        self._delete_in_batches(
-            qs=candidates,
-            model=NixEvaluation,
-            pk_field="id",
-            label="evaluations",
-            batch_size=batch_size,
-            dry_run=dry_run,
-        )
+        return {
+            "evaluations": self._delete_in_batches(
+                qs=candidates,
+                model=NixEvaluation,
+                pk_field="id",
+                label="evaluations",
+                batch_size=batch_size,
+                dry_run=dry_run,
+            )
+        }
 
-    def _delete_inactive_channels(self, batch_size: int, dry_run: bool) -> None:
+    def _delete_inactive_channels(
+        self, batch_size: int, dry_run: bool
+    ) -> dict[str, int]:
         candidates = (
             NixChannel.objects.filter(
                 state__in=[
@@ -235,32 +316,38 @@ class Command(BaseCommand):
         self.stdout.write(f"Found {total} eligible inactive channels.")
 
         if total == 0 or dry_run:
-            return
+            return {}
 
-        self._delete_in_batches(
-            qs=candidates,
-            model=NixChannel,
-            pk_field="channel_branch",
-            label="channels",
-            batch_size=batch_size,
-        )
+        return {
+            "channels": self._delete_in_batches(
+                qs=candidates,
+                model=NixChannel,
+                pk_field="channel_branch",
+                label="channels",
+                batch_size=batch_size,
+            )
+        }
 
-    def _prune_stale_package_attrpaths(self, batch_size: int, dry_run: bool) -> None:
-        self._delete_in_batches(
-            qs=PackageAttrpath.objects.stale(),
-            model=PackageAttrpath,
-            pk_field="attrpath",
-            label="stale package attrpaths",
-            batch_size=batch_size,
-            dry_run=dry_run,
-        )
+    def _prune_stale_package_attrpaths(
+        self, batch_size: int, dry_run: bool
+    ) -> dict[str, int]:
+        return {
+            "stale_package_attrpaths": self._delete_in_batches(
+                qs=PackageAttrpath.objects.stale(),
+                model=PackageAttrpath,
+                pk_field="attrpath",
+                label="stale package attrpaths",
+                batch_size=batch_size,
+                dry_run=dry_run,
+            )
+        }
 
     def _purge_events(
         self,
         event_model: type[models.Model],
         label: str,
         **filter_kwargs: Any,
-    ) -> None:
+    ) -> int:
         table_name = event_model._meta.db_table
 
         try:
@@ -272,6 +359,7 @@ class Command(BaseCommand):
 
             deleted, _ = event_model.objects.filter(**filter_kwargs).delete()
             self.stdout.write(f"Purged {deleted} {label}.")
+            return deleted
         finally:
             with connection.cursor() as cursor:
                 cursor.execute(f"ALTER TABLE {table_name} ENABLE TRIGGER ALL")
@@ -284,12 +372,12 @@ class Command(BaseCommand):
         label: str,
         batch_size: int,
         dry_run: bool = False,
-    ) -> None:
+    ) -> int:
         total = qs.count()
         self.stdout.write(f"Found {total} eligible {label}.")
 
         if total == 0 or dry_run:
-            return
+            return 0
 
         deleted_total = 0
         batch_num = 1
@@ -307,3 +395,4 @@ class Command(BaseCommand):
             batch_num += 1
 
         self.stdout.write(self.style.SUCCESS(f"Done. Deleted {deleted_total} {label}."))
+        return deleted_total

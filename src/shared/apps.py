@@ -7,7 +7,15 @@ class SharedConfig(AppConfig):
     name = "shared"
 
     def ready(self) -> None:
+        import sys
+
         import shared.listeners  # noqa
+
+        # Expose /metrics only in pgpubsub listen --worker processes (not web/oneshots).
+        if settings.METRICS_HTTP_PORT is not None and "--worker" in sys.argv:
+            from shared.metrics import start_worker_metrics_server
+
+            start_worker_metrics_server()
 
         # TODO: run this as a separate service, as this is almost exclusively a deployment concern
         if settings.SYNC_GITHUB_STATE_AT_STARTUP:

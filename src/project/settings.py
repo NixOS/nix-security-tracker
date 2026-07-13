@@ -106,6 +106,12 @@ class Settings(BaseSettings):
             """,
             default=None,
         )
+        METRICS_HTTP_PORT: int | None = Field(
+            description="""
+            If set, expose prometheus_client /metrics on this TCP port (listen workers).
+            """,
+            default=None,
+        )
         CHANNEL_MONITORING_URL: HttpUrl = Field(
             description="""
             URL from which to fetch the current channel structure.
