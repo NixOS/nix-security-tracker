@@ -49,7 +49,6 @@ class Command(BaseCommand):
         )
         cluster_result = cluster_packages(
             NixDerivation.objects.filter(pk__in=derivation_ids),
-            batch_size=batch_size,
         )
         self.stdout.write(
             f"Clustered {cluster_result.packages_created} new packages "
