@@ -47,13 +47,17 @@ class Command(BaseCommand):
             .values_list("derivation_id", flat=True)
             .distinct()
         )
+        count = derivation_ids.count()
+        self.stdout.write(
+            f"Clustering {count} derivations into packages...",
+        )
         cluster_result = cluster_packages(
             NixDerivation.objects.filter(pk__in=derivation_ids),
         )
         self.stdout.write(
             f"Clustered {cluster_result.packages_created} new packages "
             f"({cluster_result.attrpaths_created} attrpaths) for "
-            f"previously unlinked derivations."
+            f"{count} previously unlinked derivations."
         )
 
         created = 0
