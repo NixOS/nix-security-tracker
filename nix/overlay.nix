@@ -10,7 +10,6 @@ in
   */
   python3 = prev.python3.override {
     packageOverrides = pyfinal: _pyprev: {
-      django = pyfinal.django_5;
       psycopg2 = pyfinal.psycopg;
       django-rest-knox = pyfinal.buildPythonPackage rec {
         pname = "django-rest-knox";
@@ -30,8 +29,24 @@ in
 
         doCheck = false;
       };
+      cpe = pyfinal.buildPythonPackage {
+        pname = "cpe";
+        version = "1.3.1";
+        pyproject = true;
+        build-system = [
+          pyfinal.setuptools
+        ];
+        src = sources.cpe;
+      };
     };
   };
+  /*
+    FIXME(@fricklerhandwerk): `commitizen` tests fail upstream.
+    Python 3.14 changed argparse's error message format for invalid choices (values are now quoted).
+    This breaks `commitizen`'s snapshot tests.
+    Skip them until commitizen updates its fixtures.
+  */
+  commitizen = prev.commitizen.overrideAttrs { doInstallCheck = false; };
   # go through the motions to make a flake-incompat project use the build
   # inputs we want
   pre-commit-hooks = final.callPackage "${sources.pre-commit-hooks}/nix/run.nix" {
@@ -82,6 +97,7 @@ in
       pytest-playwright
       pytest-mock
       cvss
+      cpe
       freezegun
       django-model-utils
       drf-spectacular

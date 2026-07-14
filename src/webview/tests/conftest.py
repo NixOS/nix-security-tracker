@@ -64,6 +64,15 @@ def as_staff(
 
 
 @pytest.fixture
+def as_committer(
+    logged_in_as: Callable[..., AbstractContextManager[Page]],
+    committer: User,
+) -> Generator[Page]:
+    with logged_in_as(committer) as page:
+        yield page
+
+
+@pytest.fixture
 def logged_in_as(
     live_server: LiveServer,
     mock_oauth_login: Callable[[User], _patch],

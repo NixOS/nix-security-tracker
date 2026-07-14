@@ -7,10 +7,11 @@ from django.db import migrations
 import pgtrigger.compiler
 import pgtrigger.migrations
 
-from shared.models import AffectedProduct, Container, Cpe, Description
-
-
 def update_search_vectors(apps, schema_editor):
+    Container = apps.get_model("shared", "Container")
+    Description = apps.get_model("shared", "Description")
+    AffectedProduct = apps.get_model("shared", "AffectedProduct")
+    Cpe = apps.get_model("shared", "Cpe")
     Container.objects.update(search_vector=SearchVector("title"))
     Description.objects.update(search_vector=SearchVector("value"))
     AffectedProduct.objects.update(search_vector=SearchVector("vendor", "product", "package_name", "repo"))

@@ -1,7 +1,9 @@
 import functools
 
+from cpe import CPE
 from django.contrib.postgres.indexes import BTreeIndex, GinIndex
 from django.contrib.postgres.search import SearchVectorField
+from django.core.exceptions import ValidationError
 from django.core.validators import RegexValidator
 from django.db import models
 from django.db.models import Index, Q
@@ -247,37 +249,22 @@ class Version(models.Model):
         return Version.Status.UNKNOWN
 
 
+def validate_cpe(value: str) -> None:
+    try:
+        CPE(value)
+    except (NotImplementedError, ValueError) as e:
+        raise ValidationError(str(e)) from e
+
+
 class Cpe(models.Model):
     name = models.CharField(
         max_length=2048,
-        null=True,
-        default=None,
-        validators=[
-            RegexValidator(
-                "([c][pP][eE]:/[AHOaho]?(:[A-Za-z0-9._\\-~%]*){0,6})|(cpe:2\\.3:[aho*\\"
-                "-](:(((\\?*|\\*?)([a-zA-Z0-9\\-._]|(\\\\[\\\\*?!\"#$%&'()+,/:;<=>@\\["
-                "\\]\\^`{|}~]))+(\\?*|\\*?))|[*\\-])){5}(:(([a-zA-Z]{2,3}(-([a-zA-Z]{2}"
-                '|[0-9]{3}))?)|[*\\-]))(:(((\\?*|\\*?)([a-zA-Z0-9\\-._]|(\\\\[\\\\*?!"'
-                "#$%&'()+,/:;<=>@\\[\\]\\^`{|}~]))+(\\?*|\\*?))|[*\\-])){4})"
-            )
-        ],
+        validators=[validate_cpe],
     )
 
-    search_vector = SearchVectorField(null=True)
-
-    class Meta:  # type: ignore[override]
-        indexes = [
-            # Add a GIN index to speed up vector search queries
-            GinIndex(fields=["search_vector"]),
-        ]
-        triggers = [
-            # Add a trigger to maintain the search vector updated with row changes
-            UpdateSearchVector(
-                name="cpe_search_vector_idx",
-                vector_field="search_vector",
-                document_fields=["name"],
-            )
-        ]
+    @property
+    def parsed(self) -> CPE:
+        return CPE(self.name)
 
 
 class Module(models.Model):

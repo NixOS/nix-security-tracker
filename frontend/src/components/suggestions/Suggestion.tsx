@@ -1,5 +1,6 @@
 import { Link } from "wouter-preact";
 import type { Suggestion as SuggestionType } from "@/api/generated/models";
+import { useAuth } from "@/hooks/useAuth";
 import { ActivityLog } from "./ActivityLog";
 import { AffectedProductsList } from "./AffectedProductsList";
 import { CategorizedMaintainersList } from "./CategorizedMaintainersList";
@@ -29,6 +30,9 @@ export function Suggestion({ suggestion }: Props) {
     categorized_maintainers,
     categorized_url_references,
   } = suggestion;
+
+  const { user } = useAuth();
+  const canEdit = Boolean(user?.is_committer || user?.is_admin);
 
   const nvdUrl = `https://nvd.nist.gov/vuln/detail/${encodeURIComponent(cve_id)}`;
 
@@ -88,7 +92,9 @@ export function Suggestion({ suggestion }: Props) {
       )}
 
       {/* Comment */}
-      {comment && comment.length > 0 && <Comment comment={comment} />}
+      {(comment || canEdit) && (
+        <Comment suggestionId={id} comment={comment ?? null} canEdit={canEdit} />
+      )}
     </article>
   );
 }

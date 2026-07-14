@@ -182,6 +182,11 @@ class CVEDerivationClusterProposal(TimeStampMixin):
             overlay_type=PackageOverlay.Type.IGNORED,
         ).delete()
 
+    def set_comment(self, comment: str | None) -> None:
+        """Update the free-text comment independently of status changes."""
+        self.comment = comment or None
+        self.save(update_fields=["comment"])
+
     def change_status(
         self,
         status: SuggestionStatus,

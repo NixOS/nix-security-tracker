@@ -13,6 +13,18 @@ from shared.logs.batches import (
 from shared.models.linkage import CVEDerivationClusterProposal
 
 
+class SuggestionCommentSerializer(serializers.Serializer):
+    """Serializer for reading or updating a suggestion comment."""
+
+    comment = serializers.CharField(
+        allow_null=True,
+        allow_blank=True,
+        required=True,
+        max_length=1000,
+        help_text="Free-text comment. Set to empty string to clear.",
+    )
+
+
 class MetricHumanReadableItemSerializer(serializers.Serializer):
     label = serializers.CharField()
     value = serializers.CharField()

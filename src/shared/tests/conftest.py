@@ -324,6 +324,7 @@ def make_suggestion(
             drv: ProvenanceFlags.PACKAGE_NAME_MATCH
         },
         status: CVEDerivationClusterProposal.Status = CVEDerivationClusterProposal.Status.PENDING,
+        comment: str | None = None,
         rejection_reason: CVEDerivationClusterProposal.RejectionReason | None = None,
         in_issue_draft: bool = False,
         age: timedelta = timedelta(0),
@@ -334,6 +335,7 @@ def make_suggestion(
             rejection_reason=rejection_reason,
             in_issue_draft=in_issue_draft,
             cve=container.cve,
+            comment=comment,
             algorithm_version=algorithm_version
             if algorithm_version is not None
             else CVEDerivationClusterProposal.CURRENT_ALGORITHM_VERSION,

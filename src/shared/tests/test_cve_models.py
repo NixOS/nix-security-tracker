@@ -1,4 +1,7 @@
-from shared.models.cve import Version
+import pytest
+from django.core.exceptions import ValidationError
+
+from shared.models.cve import Cpe, Version, validate_cpe
 
 
 def test_version_constraint_str_less_equal() -> None:
@@ -60,3 +63,20 @@ def test_version_affects_empty_version() -> None:
     v = Version(status=Version.Status.AFFECTED, version="1.0.0")
     assert v.affects("") == Version.Status.UNKNOWN
     assert v.affects(None) == Version.Status.UNKNOWN
+
+
+def test_cpe_accepts_cpe23() -> None:
+    validate_cpe("cpe:2.3:a:vendor:product:1.0:*:*:*:*:*:*:*")
+
+
+def test_cpe_accepts_cpe22() -> None:
+    validate_cpe("cpe:/a:vendor:product:1.0")
+
+
+def test_cpe_rejects_invalid() -> None:
+    with pytest.raises(ValidationError):
+        Cpe(name="not-a-cpe").clean_fields()
+
+
+def test_cpe_is_hardware() -> None:
+    assert Cpe(name="cpe:2.3:h:acme:device:1.0:*:*:*:*:*:*:*").parsed.is_hardware()

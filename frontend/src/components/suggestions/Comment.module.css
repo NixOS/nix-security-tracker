@@ -1,0 +1,22 @@
+.textarea {
+  width: 100%;
+  min-height: 6em;
+  resize: vertical;
+  transition: background-color 0.2s ease;
+}
+
+.pending {
+  background-color: var(--light-yellow);
+}
+
+.saving {
+  background-color: var(--light-yellow);
+}
+
+.saved {
+  background-color: var(--light-green);
+}
+
+.error {
+  background-color: var(--light-red);
+}

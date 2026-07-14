@@ -11,6 +11,7 @@ from rest_framework.views import APIView
 from api.serializers import ErrorDetailSerializer
 from api.suggestions.serializers import (
     ActivityLogEntrySerializer,
+    SuggestionCommentSerializer,
     SuggestionSerializer,
     folded_event_to_dict,
 )
@@ -134,3 +135,40 @@ class SuggestionViewSet(RetrieveModelMixin, viewsets.GenericViewSet):
         data = [folded_event_to_dict(e) for e in folded]
         serializer = ActivityLogEntrySerializer(data, many=True)
         return Response(serializer.data)
+
+    @extend_schema(
+        methods=["get"],
+        operation_id="getSuggestionComment",
+        description="Get the current comment for a suggestion.",
+        responses={200: SuggestionCommentSerializer, 404: ErrorDetailSerializer},
+    )
+    @extend_schema(
+        methods=["patch"],
+        operation_id="updateSuggestionComment",
+        description="Update the comment for a suggestion. Send an empty string to clear it.",
+        request=SuggestionCommentSerializer,
+        responses={
+            200: SuggestionCommentSerializer,
+            400: ErrorDetailSerializer,
+            403: ErrorDetailSerializer,
+            404: ErrorDetailSerializer,
+        },
+    )
+    @action(
+        detail=True,
+        methods=["get", "patch"],
+        url_path="comment",
+        serializer_class=SuggestionCommentSerializer,
+    )
+    def comment(self, request: Request, pk: int) -> Response:
+        if request.method == "GET":
+            instance = self.get_object()
+            return Response(self.get_serializer(instance).data)
+        elif request.method == "PATCH":
+            serializer = self.get_serializer(data=request.data)
+            serializer.is_valid(raise_exception=True)
+            instance = self.get_object()
+            instance.set_comment(serializer.validated_data["comment"])
+            return Response(self.get_serializer(instance).data)
+        else:
+            raise MethodNotAllowed(request.method)

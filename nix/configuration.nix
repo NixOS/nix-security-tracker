@@ -367,6 +367,28 @@ in
           '';
         };
 
+        # FIXME(@fricklerhandwerk): This only needs to run once, since new suggestions get the data automatically.
+        # Remove before the next deployment to production.
+        nix-security-tracker-backfill-package-links = {
+          description = "Web security tracker - backfill package links for existing proposals";
+          after = [
+            "network.target"
+            "postgresql.service"
+            "nix-security-tracker-migrations.service"
+            "nix-security-tracker-caching.service"
+          ];
+          requires = [
+            "postgresql.service"
+            "nix-security-tracker-migrations.service"
+          ];
+          wantedBy = [ "multi-user.target" ];
+
+          serviceConfig.Type = "oneshot";
+          script = ''
+            wst-manage backfill_proposal_package_links
+          '';
+        };
+
         nix-security-tracker-worker = {
           description = "Web security tracker - background job processor";
           after = [
@@ -385,9 +407,28 @@ in
               --channels \
                 shared.channels.NixChannelInsertChannel \
                 shared.channels.NixChannelUpdateChannel \
-                shared.channels.NixEvaluationUpdateChannel \
                 shared.channels.ContainerChannel \
                 shared.channels.CVEDerivationClusterProposalChannel \
+          '';
+        };
+
+        nix-security-tracker-worker-rematching = {
+          description = "Web security tracker - post-evaluation suggestion rematching";
+          after = [
+            "network.target"
+            "postgresql.service"
+            "nix-security-tracker-migrations.service"
+          ];
+          requires = [
+            "postgresql.service"
+            "nix-security-tracker-migrations.service"
+          ];
+          wantedBy = [ "multi-user.target" ];
+
+          script = ''
+            wst-manage listen --recover \
+              --channels \
+                shared.channels.NixEvaluationUpdateChannel \
           '';
         };
 

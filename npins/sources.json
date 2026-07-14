@@ -13,6 +13,14 @@
       "url": "https://github.com/ryantm/agenix/archive/b027ee29d959fda4b60b57566d64c98a202e0feb.tar.gz",
       "hash": "sha256-9VnK6Oqai65puVJ4WYtCTvlJeXxMzAp/69HhQuTdl/I="
     },
+    "cpe": {
+      "type": "PyPi",
+      "name": "cpe",
+      "version_upper_bound": null,
+      "version": "1.3.1",
+      "url": "https://files.pythonhosted.org/packages/a4/30/9b907ff7e4af8c64d5461ab7e7beeff5dc53893dd1c70347069915c82eb1/cpe-1.3.1.tar.gz",
+      "hash": "sha256-8wqXiBtut0ptYwVSrrzgPfIs3belh9YyoTtOFLZrlbA="
+    },
     "htmx": {
       "type": "GitRelease",
       "repository": {
@@ -38,9 +46,9 @@
       },
       "branch": "main",
       "submodules": false,
-      "revision": "b094753fa38c7d22fdf70cd31ced6d2758713024",
-      "url": "https://github.com/nixos/infra/archive/b094753fa38c7d22fdf70cd31ced6d2758713024.tar.gz",
-      "hash": "sha256-xod5ibLX/4wh88seTQYJSl2rpI58y43qg2xIVEbxuhY="
+      "revision": "0b4b5e2ceed76115539c4c42001898e20180e14d",
+      "url": "https://github.com/nixos/infra/archive/0b4b5e2ceed76115539c4c42001898e20180e14d.tar.gz",
+      "hash": "sha256-gyvwxoaazs1fBnm2G0vXW7E2IBlDaMIJIsayidm0D6U="
     },
     "nixos-logo": {
       "type": "Url",
@@ -52,8 +60,8 @@
       "type": "Channel",
       "name": "nixpkgs-unstable",
       "artifact": "nixexprs.tar.xz",
-      "url": "https://releases.nixos.org/nixpkgs/nixpkgs-26.11pre1027958.c4013e501c04/nixexprs.tar.xz",
-      "hash": "sha256-t7OSMeG4CpSTLZKByvK/m0MY1eRLWsmNWL5bcqnbLng="
+      "url": "https://releases.nixos.org/nixpkgs/nixpkgs-26.11pre1033157.3b32825de172/nixexprs.tar.xz",
+      "hash": "sha256-M2X3JTJp7ktX73uVDEAm0Rws2A/xljf4Cu1ojd/o8pU="
     },
     "pre-commit-hooks": {
       "type": "Git",
