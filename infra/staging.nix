@@ -49,6 +49,7 @@ in
     florentc
     adekoder
     DarshanCode2005
+    devnchill
   ];
 
   nixpkgs.overlays = sectracker.overlays;
