@@ -472,7 +472,6 @@ in
             "postgresql.service"
             "nix-security-tracker-migrations.service"
           ];
-          wantedBy = [ "multi-user.target" ];
 
           serviceConfig.Type = "oneshot";
           script = ''
