@@ -167,27 +167,26 @@ class Command(BaseCommand):
 
         candidates = failed_crashed | completed_unmatched
 
-        meta_ids = list(
-            candidates.filter(metadata__isnull=False).values_list(
-                "metadata_id", flat=True
-            )
-        )
-
+        # Deleting metadata cascades to derivations
         self._delete_in_batches(
-            qs=candidates,
-            model=NixDerivation,
+            qs=NixDerivationMeta.objects.filter(
+                pk__in=candidates.filter(metadata__isnull=False).values_list(
+                    "metadata_id", flat=True
+                )
+            ),
+            model=NixDerivationMeta,
             pk_field="id",
-            label="derivations",
+            label="derivations with metadata",
             batch_size=batch_size,
             dry_run=dry_run,
         )
 
-        meta_candidates = NixDerivationMeta.objects.filter(pk__in=meta_ids)
+        # Delete whatever derivations without metadata remain
         self._delete_in_batches(
-            qs=meta_candidates,
-            model=NixDerivationMeta,
+            qs=candidates,
+            model=NixDerivation,
             pk_field="id",
-            label="derivation metas",
+            label="derivations without metadata",
             batch_size=batch_size,
             dry_run=dry_run,
         )
