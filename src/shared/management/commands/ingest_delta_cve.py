@@ -4,7 +4,6 @@ import json
 import logging
 import tempfile
 import zipfile
-from concurrent.futures import ProcessPoolExecutor, as_completed
 from glob import glob
 from typing import Any
 
@@ -104,37 +103,6 @@ def process_day(repo: Repository, day: datetime.datetime) -> None:
         )
 
 
-def parallel_ingestion(
-    repo: Repository,
-    next_ingestion: datetime.datetime,
-    until_date: datetime.datetime,
-    num_processes: int,
-) -> None:
-    """
-    Parallel ingestion of CVE data.
-
-    :param repo: Repository to ingest data from.
-    :param next_ingestion: The starting date for ingestion.
-    :param date: The end date for ingestion.
-    :param num_processes: Number of parallel processes.
-    """
-    days = [
-        next_ingestion + datetime.timedelta(days=x)
-        for x in range((until_date - next_ingestion).days + 1)
-    ]
-
-    with ProcessPoolExecutor(max_workers=num_processes) as executor:
-        # Submit tasks to the executor
-        futures = {executor.submit(process_day, repo, day): day for day in days}
-
-        for future in as_completed(futures):
-            day = futures[future]
-            try:
-                future.result()
-            except Exception as e:
-                logger.exception(f"An error occurred while processing day {day}: {e}")
-
-
 class Command(BaseCommand):
     help = "Ingest CVEs day per day using the MITRE CVE repo"
 
@@ -153,22 +121,10 @@ class Command(BaseCommand):
             help="Default start ingestion date if there is no CVE ingestion record in database",
             default=get_past_january_first(),
         )
-        parser.add_argument(
-            "--num-parallel-processes",
-            type=int,
-            help="Number of parallel processes for the ingestion",
-            default=1,
-        )
 
     def handle(self, *args: Any, **kwargs: Any) -> None:
         until_date = kwargs["date"]
         default_start_ingestion = kwargs["default_start_ingestion"]
-        num_processes = kwargs["num_parallel_processes"]
-
-        if num_processes > 1:
-            logger.warning(
-                "Do not run with more than one process if you do not know what you are doing, the ingestion layer is not ready yet."
-            )
 
         if CveIngestion.objects.filter(valid_to__gte=until_date).exists():
             logger.warning(
@@ -199,4 +155,9 @@ class Command(BaseCommand):
         # Select the CVEList repository
         repo = g.get_repo("CVEProject/cvelistV5")
 
-        parallel_ingestion(repo, next_ingestion, until_date, num_processes)
+        days = [
+            next_ingestion + datetime.timedelta(days=x)
+            for x in range((until_date - next_ingestion).days + 1)
+        ]
+        for day in days:
+            process_day(repo, day)
