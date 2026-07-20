@@ -99,7 +99,7 @@ def test_delete_only_pending_proposals(
 
 
 @pytest.mark.parametrize(
-    "overlay_type",
+    "type",
     [
         "maintainer",
         "package",
@@ -110,24 +110,24 @@ def test_preserves_proposal_with_maintainer_overlay(
     make_drv: Callable[..., NixDerivation],
     make_suggestion: Callable[..., CVEDerivationClusterProposal],
     maintainer: NixMaintainer,
-    overlay_type: str,
+    type: str,
 ) -> None:
     """Old PENDING proposal with user data attached is preserved."""
     suggestion = make_suggestion(age=timedelta(days=400))
 
-    if overlay_type == "maintainer":
+    if type == "maintainer":
         MaintainerOverlay.objects.create(
-            overlay_type=MaintainerOverlay.Type.ADDITIONAL,
+            type=MaintainerOverlay.Type.ADDITIONAL,
             maintainer=maintainer,
             suggestion=suggestion,
         )
-    elif overlay_type == "package":
+    elif type == "package":
         PackageOverlay.objects.create(
-            overlay_type=PackageOverlay.Type.IGNORED,
+            type=PackageOverlay.Type.IGNORED,
             package_attribute="foo",
             suggestion=suggestion,
         )
-    elif overlay_type == "reference":
+    elif type == "reference":
         ReferenceUrlOverlay.objects.create(
             type=ReferenceUrlOverlay.Type.IGNORED,
             reference_url="https://reference.com",
@@ -135,7 +135,7 @@ def test_preserves_proposal_with_maintainer_overlay(
             suggestion=suggestion,
         )
     else:
-        pytest.fail(f"Unknown overlay type: {overlay_type}")
+        pytest.fail(f"Unknown overlay type: {type}")
 
     call_command("garbage_collect", stdout=StringIO())
 
@@ -237,8 +237,8 @@ def test_deletes_empty_old_evaluations(
     """
     channel = make_channel(
         state=channel_state,
-        # Make a unique channel for each state; the concrete name doesn't matter here.
-        channel_branch=f"{channel_state.value}-unstable",
+        # FIXME(@fricklerhandwerk): When leaving this at the default value, the channel is created via `make_drv()` at parse time...
+        channel_branch="nixos-unstable",
     )
     evaluation = make_evaluation(
         channel=channel,

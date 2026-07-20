@@ -14,19 +14,19 @@ This document shows how to fetch channels, run evaluations, ingest CVEs and prod
 manage fetch_all_channels
 ```
 
-When running this command for first time, this would take a couple of minutes.
-In the meantime you can watch some cat videos.
 The output will look like this:
 
 ```console
-{'channel_branch': 'nixos-25.05',
- 'head_sha1_commit': 'ac62194c3917d5f474c1a844b6fd6da2db95077d',
- 'release_branch': 'release-25.05',
- 'state': NixChannel.ChannelState.END_OF_LIFE}
-{'channel_branch': 'nixos-25.05-small',
- 'head_sha1_commit': 'ac62194c3917d5f474c1a844b6fd6da2db95077d',
- 'release_branch': 'release-25.05',
- 'state': NixChannel.ChannelState.END_OF_LIFE}
+{'channel': 'nixos-25.11-small',
+ 'release_branch': 'release-25.11',
+ 'revision': 'c9bfd86ed684d27e63b0ff9ebb18699f84f27a3b',
+ 'status': NixChannel.ChannelState.END_OF_LIFE,
+ 'variant': NixChannel.Variant.SMALL}
+{'channel': 'nixpkgs-25.11-darwin',
+ 'release_branch': 'release-25.11',
+ 'revision': '0921fdb3e13e40fe25fbc52b89661a9d6d32ac68',
+ 'status': NixChannel.ChannelState.END_OF_LIFE,
+ 'variant': NixChannel.Variant.DARWIN}
 ```
 
 2. Select a `head_sha1_commit` from the output of `fetch_all_channels` command and run evaluation on that:

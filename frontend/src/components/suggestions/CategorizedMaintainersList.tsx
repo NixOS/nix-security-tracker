@@ -2,13 +2,14 @@ import type { SuggestionCategorizedMaintainers } from "@/api/generated/models";
 import { Maintainer } from "./Maintainer";
 
 type Props = {
+  suggestionId: number;
   categorizedMaintainers: SuggestionCategorizedMaintainers;
 };
 
-export function CategorizedMaintainersList({ categorizedMaintainers }: Props) {
+export function CategorizedMaintainersList({ suggestionId, categorizedMaintainers }: Props) {
   const { active, ignored, added } = categorizedMaintainers;
   return (
-    <div className="column gap">
+    <div className="column gap" data-testid={`suggestion-${suggestionId}-maintainers`}>
       <ul className="column gap-small">
         {active.map((m) => (
           <li key={m.github_id}>

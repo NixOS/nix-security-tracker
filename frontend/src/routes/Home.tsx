@@ -12,14 +12,14 @@ const doneFeatures = [
   "Viewing suggestion info: maintainers",
   "Viewing suggestion info: activity log",
   "Viewing suggestion info: comments",
+  "Suggestions: comment edit",
+  "Suggestions: reference ignore/restore",
 ];
 
 const pendingFeatures = [
   "Suggestions: package ignore/restore",
   "Suggestions: maintainer ignore/restore",
   "Suggestions: maintainer add/delete",
-  "Suggestions: reference ignore/restore",
-  "Suggestions: comment edit",
   "Suggestions: status change",
   "Notification center",
   "Notification pill (in navbar)",

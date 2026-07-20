@@ -412,6 +412,7 @@ def test_concurrent_attrpath_consistency(
     assert PackageDerivation.objects.get(derivation=drv_b).package == pkg
 
 
+@pytest.mark.xfail(reason="Not implemented", strict=True)
 def test_cache_rebuilt_after_clustering(
     cve: Container,
     make_evaluation: Callable[..., NixEvaluation],

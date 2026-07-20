@@ -3,9 +3,11 @@ import { Redirect, Route, Switch } from "wouter-preact";
 import { Footer } from "@/components/footer/Footer";
 import { Disclaimer } from "@/components/header/Disclaimer";
 import { HeaderBar } from "@/components/header/HeaderBar";
+import { Toaster } from "@/components/ui/Toaster";
 import { Home } from "@/routes/Home";
 import { SuggestionDetail } from "@/routes/SuggestionDetail";
 import { UserSettings } from "@/routes/UserSettings";
+import { toaster } from "@/utils/toaster";
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -36,6 +38,7 @@ export function App() {
         </Switch>
       </main>
       <Footer />
+      <Toaster toaster={toaster} />
     </QueryClientProvider>
   );
 }

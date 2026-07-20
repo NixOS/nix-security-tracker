@@ -265,34 +265,35 @@ def build_new_links(container: Container) -> bool:
 
     outcome = resolve_linkage_candidates(container)
 
-    proposal = CVEDerivationClusterProposal.objects.create(
-        cve=container.cve,
-        status=(
-            CVEDerivationClusterProposal.Status.REJECTED
+    with transaction.atomic():
+        proposal = CVEDerivationClusterProposal.objects.create(
+            cve=container.cve,
+            status=(
+                CVEDerivationClusterProposal.Status.REJECTED
+                if outcome.rejection
+                else CVEDerivationClusterProposal.Status.PENDING
+            ),
+            rejection_reason=outcome.rejection.reason if outcome.rejection else None,
+            rejection_match_count=outcome.rejection.match_count or None
             if outcome.rejection
-            else CVEDerivationClusterProposal.Status.PENDING
-        ),
-        rejection_reason=outcome.rejection.reason if outcome.rejection else None,
-        rejection_match_count=outcome.rejection.match_count or None
-        if outcome.rejection
-        else None,
-        rejection_max_matches_limit=outcome.rejection.max_matches_limit or None
-        if outcome.rejection
-        else None,
-        algorithm_version=CVEDerivationClusterProposal.CURRENT_ALGORITHM_VERSION,
-    )
-
-    if outcome.derivations:
-        links = build_derivation_links(proposal, outcome.derivations)
-        DerivationClusterProposalLink.objects.bulk_create(links)
-        pkg_links = build_package_links(proposal, outcome.derivations)
-        PackageClusterProposalLink.objects.bulk_create(pkg_links)
-        logger.info(
-            "Matching suggestion for '%s': %d derivations, %d packages found.",
-            container.cve,
-            len(links),
-            len(pkg_links),
+            else None,
+            rejection_max_matches_limit=outcome.rejection.max_matches_limit or None
+            if outcome.rejection
+            else None,
+            algorithm_version=CVEDerivationClusterProposal.CURRENT_ALGORITHM_VERSION,
         )
+
+        if outcome.derivations:
+            links = build_derivation_links(proposal, outcome.derivations)
+            DerivationClusterProposalLink.objects.bulk_create(links)
+            pkg_links = build_package_links(proposal, outcome.derivations)
+            PackageClusterProposalLink.objects.bulk_create(pkg_links)
+            logger.info(
+                "Matching suggestion for '%s': %d derivations, %d packages found.",
+                container.cve,
+                len(links),
+                len(pkg_links),
+            )
 
     return True
 

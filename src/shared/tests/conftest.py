@@ -37,7 +37,6 @@ from shared.models.nix_evaluation import (
     NixDerivationMeta,
     NixEvaluation,
     NixMaintainer,
-    release_branch,
 )
 from shared.models.package import Package, PackageAttrpath
 from shared.notify_users import create_package_subscription_notifications
@@ -135,20 +134,19 @@ def cve(make_container: Callable[..., Container]) -> Container:
 
 @pytest.fixture
 def make_channel(db: None) -> Callable[..., NixChannel]:
-    # FIXME(@fricklerhandwerk): This will fall apart when we obtain the channel structure dynamically [ref:channel-structure]
     def wrapped(
         channel_branch: str = settings.TRACKING_BRANCH,
+        release_branch: str = "master",
         state: NixChannel.ChannelState = NixChannel.ChannelState.UNSTABLE,
         variant: NixChannel.Variant | None = None,
     ) -> NixChannel:
         channel, _ = NixChannel.objects.get_or_create(
             channel_branch=channel_branch,
             defaults=dict(
-                head_sha1_commit=secrets.token_hex(16),
+                head_sha1_commit=secrets.token_hex(20),
                 state=state,
                 variant=variant,
-                release_branch=release_branch(channel_branch),
-                repository="https://github.com/NixOS/nixpkgs",
+                release_branch=release_branch,
             ),
         )
         return channel
@@ -177,7 +175,7 @@ def make_evaluation(
             channel=channel,
             commit_sha1=commit_sha1
             if commit_sha1 is not None
-            else secrets.token_hex(16),
+            else secrets.token_hex(20),
             state=state,
         )
 

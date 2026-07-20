@@ -1,7 +1,9 @@
+from django.core.exceptions import ValidationError
 from drf_spectacular.utils import extend_schema, extend_schema_serializer
 from rest_framework import serializers, viewsets
 from rest_framework.decorators import action
 from rest_framework.exceptions import MethodNotAllowed
+from rest_framework.exceptions import ValidationError as DRFValidationError
 from rest_framework.mixins import RetrieveModelMixin
 from rest_framework.permissions import AllowAny, BasePermission, IsAuthenticated
 from rest_framework.request import Request
@@ -11,7 +13,9 @@ from rest_framework.views import APIView
 from api.serializers import ErrorDetailSerializer
 from api.suggestions.serializers import (
     ActivityLogEntrySerializer,
+    SuggestionCategorizedUrlReferencesSerializer,
     SuggestionCommentSerializer,
+    SuggestionReferenceUpdateSerializer,
     SuggestionSerializer,
     folded_event_to_dict,
 )
@@ -170,5 +174,58 @@ class SuggestionViewSet(RetrieveModelMixin, viewsets.GenericViewSet):
             instance = self.get_object()
             instance.set_comment(serializer.validated_data["comment"])
             return Response(self.get_serializer(instance).data)
+        else:
+            raise MethodNotAllowed(request.method)
+
+    @extend_schema(
+        methods=["get"],
+        operation_id="getSuggestionReferences",
+        description="Get the categorized URL references of a suggestion (original, active, ignored).",
+        responses={
+            200: SuggestionCategorizedUrlReferencesSerializer,
+            404: ErrorDetailSerializer,
+        },
+    )
+    @extend_schema(
+        methods=["patch"],
+        operation_id="updateSuggestionReference",
+        description="Ignore or restore a URL reference. Send `ignored: true` to ignore, `ignored: false` to restore.",
+        request=SuggestionReferenceUpdateSerializer,
+        responses={
+            204: None,
+            400: ErrorDetailSerializer,
+            403: ErrorDetailSerializer,
+            404: ErrorDetailSerializer,
+        },
+    )
+    @action(
+        detail=True,
+        methods=["get", "patch"],
+        url_path="references",
+        serializer_class=SuggestionReferenceUpdateSerializer,
+    )
+    def references(self, request: Request, pk: int) -> Response:
+        if request.method == "GET":
+            instance = self.get_object()
+            instance.ensure_fresh_cache()
+            data = instance.cached.payload["categorized_url_references"]
+            return Response(SuggestionCategorizedUrlReferencesSerializer(data).data)
+        elif request.method == "PATCH":
+            serializer = self.get_serializer(data=request.data)
+            serializer.is_valid(raise_exception=True)
+            instance = self.get_object()
+            instance.ensure_fresh_cache()
+            try:
+                if serializer.validated_data["ignored"]:
+                    instance.ignore_reference(
+                        serializer.validated_data["reference_url"]
+                    )
+                else:
+                    instance.restore_reference(
+                        serializer.validated_data["reference_url"]
+                    )
+            except ValidationError as e:
+                raise DRFValidationError(e.message_dict)
+            return Response(status=204)
         else:
             raise MethodNotAllowed(request.method)

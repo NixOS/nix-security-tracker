@@ -23,7 +23,7 @@ from shared.models.nix_evaluation import (
 )
 from shared.models.package import PackageAttrpath
 
-DEFAULT_CUTOFF_DAYS = 365
+DEFAULT_CUTOFF_DAYS = 365 // 2
 
 
 class Command(BaseCommand):

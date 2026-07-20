@@ -1,0 +1,62 @@
+/* Functional plumbing required by Ark UI for the toast to position/animate
+ * correctly (driven by runtime custom properties). Not look-and-feel —
+ * see https://ark-ui.com/react/docs/components/toast#styling */
+.root {
+  position: relative;
+  width: 24em;
+  max-width: calc(100vw - 2em);
+  /* Not using the `.box` utility class here: it sets `overflow: auto`, which
+   * clashes with Ark UI's internal `data-ghost` helper elements (used for
+   * the stacking animation) — their transformed bounding boxes exceed the
+   * root's own box, so `overflow: auto` produces a spurious scrollbar. */
+  padding: 1em;
+  padding-right: 2.2em;
+  translate: var(--x) var(--y);
+  scale: var(--scale);
+  z-index: var(--z-index);
+  height: var(--height);
+  opacity: var(--opacity);
+  will-change: translate, opacity, scale;
+  transition:
+    translate 400ms,
+    scale 400ms,
+    opacity 400ms,
+    height 400ms,
+    box-shadow 200ms;
+  transition-timing-function: cubic-bezier(0.21, 1.02, 0.73, 1);
+}
+
+.root[data-state="closed"] {
+  transition:
+    translate 400ms,
+    scale 400ms,
+    opacity 200ms;
+  transition-timing-function: cubic-bezier(0.06, 0.71, 0.55, 1);
+}
+
+@media (max-width: 640px) {
+  .group {
+    width: 100%;
+  }
+
+  .root {
+    inset-inline: 0;
+    width: calc(100% - var(--gap) * 2);
+  }
+}
+
+.closeTrigger {
+  position: absolute;
+  top: 0.6em;
+  right: 0.6em;
+  background: none;
+  border: none;
+  padding: 0.2em;
+  color: inherit;
+  cursor: pointer;
+  opacity: 0.8;
+}
+
+.closeTrigger:hover {
+  opacity: 1;
+}

@@ -13,6 +13,18 @@ from shared.logs.batches import (
 from shared.models.linkage import CVEDerivationClusterProposal
 
 
+class SuggestionReferenceUpdateSerializer(serializers.Serializer):
+    """Request body for ignore/restore reference PATCH operations."""
+
+    reference_url = serializers.URLField(
+        max_length=2048,
+        help_text="URL of the reference to ignore or restore.",
+    )
+    ignored = serializers.BooleanField(
+        help_text="Set to true to ignore the reference, false to restore it.",
+    )
+
+
 class SuggestionCommentSerializer(serializers.Serializer):
     """Serializer for reading or updating a suggestion comment."""
 

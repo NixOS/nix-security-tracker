@@ -11,8 +11,16 @@ import {
 } from "lucide-preact";
 import { useGetSuggestionActivityLog } from "@/api/generated/endpoints";
 import { type ActivityLogEntry, StatusEnum } from "@/api/generated/models";
+import { Skeleton } from "@/components/ui/Skeleton";
+import { Spinner } from "@/components/ui/Spinner";
+import { useTick } from "@/hooks/useTick";
 import { formatTime } from "@/utils/date";
 import { SuggestionStatusIcon } from "./SuggestionStatusIcon";
+
+// Re-render frequency for relative-time displays updates
+const TICK_INTERVAL_MS = 10_000;
+// Time during which a recent update is shown as "just now"
+const JUST_NOW_MS = 5_000;
 
 type Props = {
   suggestionId: number;
@@ -158,31 +166,50 @@ function entryDescription(entry: ActivityLogEntry) {
 }
 
 function Timestamp({ iso }: { iso: string }) {
+  const date = new Date(iso);
+  const msAgo = Date.now() - date.getTime();
+
   return (
     <time datetime={iso} title={formatTime(iso)}>
-      <FormatRelativeTime value={new Date(iso)} />
+      {msAgo < JUST_NOW_MS ? (
+        "just now"
+      ) : msAgo < 60_000 ? (
+        "less than a minute ago"
+      ) : (
+        <FormatRelativeTime value={date} />
+      )}
     </time>
   );
 }
 
 export function ActivityLog({ suggestionId }: Props) {
-  const { data, isLoading } = useGetSuggestionActivityLog(suggestionId);
+  const { data, isLoading, isFetching } = useGetSuggestionActivityLog(suggestionId);
+  // Single shared tick driving re-renders for every Timestamp in this log,
+  // instead of each Timestamp instance running its own interval.
+  useTick(TICK_INTERVAL_MS);
 
-  if (isLoading || !data || data.length === 0) return null;
+  if (isLoading) {
+    return <Skeleton width="12em" height="1.2em" />;
+  }
+
+  if (!data || data.length === 0) return null;
 
   const last = data[data.length - 1];
   const summaryVerb = last.action === "create" ? "created" : "updated";
 
   return (
-    <details className="column gap-small align-end">
+    <details
+      className="column gap-small align-end"
+      data-testid={`suggestion-${suggestionId}-activity-log`}
+    >
       <summary>
-        <span className="details-closed">
-          <span className="activity-log-timestamp">
+        <span className="details-closed inline-row gap-small baseline">
+          {isFetching && <Spinner />}
+          <span>
             {summaryVerb} <Timestamp iso={last.timestamp} />
           </span>
           {last.username && (
             <>
-              {" "}
               by&nbsp;<strong>@{last.username}</strong>
             </>
           )}
