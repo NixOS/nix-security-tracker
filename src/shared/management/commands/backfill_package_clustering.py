@@ -1,4 +1,3 @@
-from argparse import ArgumentParser
 from typing import Any
 
 from django.core.management.base import BaseCommand
@@ -11,16 +10,7 @@ from shared.package_clustering import cluster_packages
 class Command(BaseCommand):
     help = "Backfill package assignments for existing derivations."
 
-    def add_arguments(self, parser: ArgumentParser) -> None:
-        parser.add_argument(
-            "--batch-size",
-            type=int,
-            default=10_000,
-            help="Number of rows to process per batch.",
-        )
-
     def handle(self, *args: Any, **options: Any) -> None:
-        batch_size: int = options["batch_size"]
         # Snapshot the cutoff before any work begins.
         # Evaluations that complete after this moment are left to the post-eval listener.
         # Evaluations completed at or before the cutoff are the backfill's domain
@@ -41,9 +31,7 @@ class Command(BaseCommand):
         # The backfill never updates existing package metadata, that is the listener's job.
         # update_packages=False ensures we only assign derivations to packages without
         # touching homepage/description, regardless of channel type.
-        result = cluster_packages(
-            unmatched, update_packages=False, batch_size=batch_size
-        )
+        result = cluster_packages(unmatched, update_packages=False)
 
         self.stdout.write(
             self.style.SUCCESS(
