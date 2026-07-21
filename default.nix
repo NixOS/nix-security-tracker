@@ -112,7 +112,10 @@ rec {
           GH_COMMITTERS_TEAM = "sectracker-testing-committers";
           STATIC_ROOT = "${toString ./src/static}";
           BASE_URL = "http://localhost:8000";
-          ALLOWED_HOSTS = [ "localhost" ];
+          ALLOWED_HOSTS = [
+            "localhost"
+            "127.0.0.1"
+          ];
           CSRF_TRUSTED_ORIGINS = [ "http://localhost" ];
           VITE_MANIFEST_PATH = toString ./. + "frontend/dist/.vite/manifest.json";
 
