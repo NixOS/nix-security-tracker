@@ -16,6 +16,8 @@ The tool serves three audiences:
 
 Please see the [contributing guide](CONTRIBUTING.md) for more information on how to get started.
 
+Maintainers can be reached in the [Nixpkgs security tracker Matrix room](https://matrix.to/#/!XyujTzhebudBVCpRiF:matrix.org), which is the place for questions and informal discussion.
+
 ## History
 
 - **2023**
