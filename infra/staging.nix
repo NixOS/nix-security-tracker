@@ -47,7 +47,6 @@ in
   # Wire the users to have the right permissions for doing what they need.
   users.users.root.openssh.authorizedKeys.keyFiles = with config.custom.keys; [
     florentc
-    adekoder
     DarshanCode2005
   ];
 
