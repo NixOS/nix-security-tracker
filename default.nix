@@ -153,6 +153,7 @@ rec {
         pkgs.nodejs
         pkgs.biome
       ]
+      ++ package.nativeCheckInputs
       ++ git-hooks.enabledPackages;
 
       shellHook = ''

@@ -71,7 +71,6 @@ in
       django-types
       django
       djangorestframework
-      pytest-socket
       ipython
       pydantic-settings
       prometheus-client
@@ -88,20 +87,28 @@ in
       django-pghistory
       django-pglock
       django-pgtrigger
-      pytest
-      pytest-django
-      pytest-playwright
-      pytest-mock
       cvss
       cpe
-      freezegun
       django-model-utils
       drf-spectacular
       django-rest-knox
       django-vite
     ];
 
-    passthru.PLAYWRIGHT_BROWSERS_PATH = final.playwright-driver.browsers;
+    nativeCheckInputs = with final.python3.pkgs; [
+      freezegun
+      pytest
+      pytest-django
+      pytest-playwright
+      pytest-mock
+      pytest-socket
+    ];
+
+    passthru = {
+      inherit nativeCheckInputs;
+      PLAYWRIGHT_BROWSERS_PATH = final.playwright-driver.browsers;
+      pythonEnv = final.python3.withPackages (_: propagatedBuildInputs ++ nativeCheckInputs);
+    };
 
     postInstall = ''
       mkdir -p $out/bin
