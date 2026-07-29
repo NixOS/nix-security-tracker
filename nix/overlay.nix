@@ -4,10 +4,6 @@ let
   meta = with builtins; fromTOML (readFile ../src/pyproject.toml);
 in
 {
-  /*
-    XXX(@fricklerhandwerk): At the time of writing, Nixpkgs has Django 4 as default.
-    Some packages that depend on Django use that default implicitly, so we override it for everything.
-  */
   python3 = prev.python3.override {
     packageOverrides = pyfinal: _pyprev: {
       psycopg2 = pyfinal.psycopg;
