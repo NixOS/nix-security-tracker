@@ -82,18 +82,81 @@ class Command(BaseCommand):
         # Each step satisfies the cascading constraints that gate the next step.
         # `pghistory` events are never auto-deleted — each step explicitly clears relevant events first.
 
-        self.stdout.write("\n[1/5] Deleting stale matches")
+        self.stdout.write("\n[1/6] Deleting superseded evaluation matches")
+        self._delete_superseded_matches(batch_size, dry_run)
+        self.stdout.write("\n[2/6] Deleting stale matches")
         self._delete_stale_matches(cutoff, batch_size, dry_run)
-        self.stdout.write("\n[2/5] Deleting unmatched derivations")
+        self.stdout.write("\n[3/6] Deleting unmatched derivations")
         self._delete_unmatched_derivations(cutoff, batch_size, dry_run)
-        self.stdout.write("\n[3/5] Deleting empty evaluations")
+        self.stdout.write("\n[4/6] Deleting empty evaluations")
         self._delete_empty_evaluations(cutoff, batch_size, dry_run)
-        self.stdout.write("\n[4/5] Deleting inactive channels")
+        self.stdout.write("\n[5/6] Deleting inactive channels")
         self._delete_inactive_channels(batch_size, dry_run)
-        self.stdout.write("\n[5/5] Pruning stale package attrpaths")
+        self.stdout.write("\n[6/6] Pruning stale package attrpaths")
         self._prune_stale_package_attrpaths(batch_size, dry_run)
 
         self.stdout.write(self.style.SUCCESS("\nGarbage collection complete."))
+
+    def _delete_superseded_matches(self, batch_size: int, dry_run: bool) -> None:
+        candidates = (
+            DerivationClusterProposalLink.objects.filter(
+                proposal__status=CVEDerivationClusterProposal.Status.PENDING,
+                proposal__maintainer_overlays__isnull=True,
+                proposal__package_overlays__isnull=True,
+                proposal__reference_url_overlays__isnull=True,
+            )
+            .exclude(
+                derivation__parent_evaluation__in=NixEvaluation.objects.latest_completed_per_channel(),
+            )
+            .distinct()
+        )
+
+        total = candidates.count()
+        self.stdout.write(f"Found {total} eligible superseded-evaluation matches.")
+
+        if total == 0 or dry_run:
+            return
+
+        proposal_ids = list(candidates.values_list("proposal_id", flat=True).distinct())
+        link_ids = list(candidates.values_list("id", flat=True))
+        self._purge_events(
+            DerivationClusterProposalLinkEvent,
+            pgh_obj_id__in=link_ids,
+            label="derivation link events (superseded)",
+        )
+
+        self._delete_in_batches(
+            qs=candidates,
+            model=DerivationClusterProposalLink,
+            pk_field="id",
+            label="superseded proposal links",
+            batch_size=batch_size,
+            dry_run=dry_run,
+        )
+
+        orphaned_proposals = CVEDerivationClusterProposal.objects.filter(
+            id__in=proposal_ids,
+            derivations__isnull=True,
+        ).distinct()
+
+        orphaned_ids = list(orphaned_proposals.values_list("id", flat=True))
+        if not orphaned_ids:
+            return
+
+        self._purge_events(
+            CVEDerivationClusterProposalStatusEvent,
+            pgh_obj_id__in=orphaned_ids,
+            label="proposal status events (superseded)",
+        )
+
+        self._delete_in_batches(
+            qs=orphaned_proposals,
+            model=CVEDerivationClusterProposal,
+            pk_field="id",
+            label="orphaned superseded proposals",
+            batch_size=batch_size,
+            dry_run=dry_run,
+        )
 
     def _delete_stale_matches(
         self, cutoff: Any, batch_size: int, dry_run: bool
