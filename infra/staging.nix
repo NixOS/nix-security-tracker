@@ -25,22 +25,9 @@ in
   swapDevices = [ { device = "/dev/disk/by-label/swap"; } ];
 
   systemd.network.networks."10-wan" = {
-    matchConfig.MACAddress = "96:00:03:d9:7c:85";
     address = [
-      "188.245.41.195/32"
       "2a01:4f8:1c1b:b87b::1/64"
     ];
-    routes = [
-      # create default routes for both IPv6 and IPv4
-      { Gateway = "fe80::1"; }
-      # or when the gateway is not on the same network
-      {
-        Gateway = "172.31.1.1";
-        GatewayOnLink = true;
-      }
-    ];
-    # make the routes on this interface a dependency for network-online.target
-    linkConfig.RequiredForOnline = "routable";
   };
 
   # FIXME(@fricklerhandwerk): Don't give everyone root.
