@@ -1,7 +1,6 @@
 import itertools
 from collections.abc import Callable
 from datetime import timedelta
-from enum import Enum
 from io import StringIO
 
 import pytest
@@ -9,7 +8,7 @@ from django.contrib.auth.models import User
 from django.core.management import call_command
 from django.utils import timezone
 
-from shared.management.commands.garbage_collect import DEFAULT_CUTOFF_DAYS
+from shared.management.commands.garbage_collect import DEFAULT_CUTOFF_DAYS, Command
 from shared.models.cve import Container, CveRecord
 from shared.models.linkage import (
     CVEDerivationClusterProposal,
@@ -144,14 +143,6 @@ def test_preserves_proposal_with_maintainer_overlay(
     assert CVEDerivationClusterProposal.objects.count() == 1
 
 
-# FIXME(@fricklerhandwerk): Use the constraints declared here in the actual code, that would simplify it a lot.
-class GarbageCollect(Enum):
-    ALWAYS = "always"
-    WHEN_OLD = "when_old"
-    NEVER = "never"
-
-
-@pytest.mark.parametrize("old", [True, False])
 @pytest.mark.parametrize(
     ("channel_state", "keep_channel"),
     [
@@ -165,40 +156,40 @@ class GarbageCollect(Enum):
 @pytest.mark.parametrize(
     # `can_have_*` encodes invariants about code not under test here.
     # We rely on them hold true, to avoid testing uninteresting states.
-    ("eval_state", "keep_eval", "gc", "can_have_drvs", "can_have_matches"),
+    ("eval_state", "keep_eval", "keep_drvs", "can_have_drvs", "can_have_matches"),
     [
         (
             NixEvaluation.EvaluationState.WAITING,
             True,
-            GarbageCollect.NEVER,
+            True,
             False,
             False,
         ),
         (
             NixEvaluation.EvaluationState.IN_PROGRESS,
             True,
-            GarbageCollect.NEVER,
+            True,
             True,
             False,
         ),
         (
             NixEvaluation.EvaluationState.CRASHED,
             False,
-            GarbageCollect.ALWAYS,
+            False,
             True,
             False,
         ),
         (
             NixEvaluation.EvaluationState.FAILED,
             False,
-            GarbageCollect.ALWAYS,
+            False,
             True,
             False,
         ),
         (
             NixEvaluation.EvaluationState.COMPLETED,
             True,
-            GarbageCollect.WHEN_OLD,
+            True,
             True,
             True,
         ),
@@ -213,13 +204,12 @@ def test_deletes_empty_old_evaluations(
     eval_state: NixEvaluation.EvaluationState,
     keep_eval: bool,
     keep_channel: bool,
-    gc: GarbageCollect,
+    keep_drvs: bool,
     can_have_drvs: bool,
     can_have_matches: bool,
-    old: bool,
 ) -> None:
     """
-    Old unmatched Derivation and its NixDerivationMeta are both deleted; NixMaintainer survives.
+    Unmatched derivations and their metadata are both deleted; maintainers survive.
     Empty evaluations are deleted unless completed or not started.
     Empty channels are deleted.
     """
@@ -231,7 +221,6 @@ def test_deletes_empty_old_evaluations(
     evaluation = make_evaluation(
         channel=channel,
         state=eval_state,
-        age=timedelta(days=400) if old else timedelta(0),
     )
 
     assert NixEvaluation.objects.filter(pk=evaluation.pk).exists()
@@ -245,7 +234,6 @@ def test_deletes_empty_old_evaluations(
         if can_have_matches:
             make_suggestion(
                 drvs={drv: ProvenanceFlags.PACKAGE_NAME_MATCH},
-                age=timedelta(days=400) if old else timedelta(0),
             )
 
     initial_maintainer_count = NixMaintainer.objects.count()
@@ -256,9 +244,6 @@ def test_deletes_empty_old_evaluations(
     assert NixMaintainer.objects.count() == initial_maintainer_count
 
     if can_have_drvs:
-        keep_drvs = gc is GarbageCollect.NEVER or (
-            gc is GarbageCollect.WHEN_OLD and not old
-        )
         assert NixDerivation.objects.filter(pk=drv.pk).exists() is keep_drvs  # type: ignore[reportPossiblyUnbound]
         assert NixDerivationMeta.objects.filter(pk=meta_pk).exists() is keep_drvs  # type: ignore[reportPossiblyUnbound]
 
@@ -624,3 +609,89 @@ def test_stale_proposal_deletion_cascades_to_notifications(
     assert SuggestionNotification.objects.count() == 0
     user.profile.refresh_from_db()
     assert user.profile.unread_notifications_count == 0
+
+
+def test_gc_deletes_unlinked_derivation_from_stale_eval(
+    make_evaluation: Callable[..., NixEvaluation],
+    make_drv: Callable[..., NixDerivation],
+) -> None:
+    """
+    Unlinked derivations from non-latest completed evaluations are deleted.
+    The now-empty evaluation itself is kept: empty-evaluation cleanup only
+    targets crashed/failed evaluations, not completed ones.
+    """
+    eval_old = make_evaluation(age=timedelta(days=1))
+    drv_old = make_drv(evaluation=eval_old)
+
+    eval_new = make_evaluation()
+    drv_new = make_drv(evaluation=eval_new)
+
+    call_command("garbage_collect", stdout=StringIO())
+
+    assert not NixDerivation.objects.filter(pk=drv_old.pk).exists()
+    assert NixEvaluation.objects.filter(pk=eval_old.pk).exists()
+
+    assert NixDerivation.objects.filter(pk=drv_new.pk).exists()
+    assert NixEvaluation.objects.filter(pk=eval_new.pk).exists()
+
+
+def test_gc_preserves_linked_derivation_from_stale_eval(
+    make_evaluation: Callable[..., NixEvaluation],
+    make_drv: Callable[..., NixDerivation],
+    make_suggestion: Callable[..., CVEDerivationClusterProposal],
+) -> None:
+    """
+    Linked derivations from non-latest completed evaluations are preserved.
+    """
+    eval_old = make_evaluation(age=timedelta(days=1))
+    drv = make_drv(evaluation=eval_old)
+    make_suggestion(
+        drvs={drv: ProvenanceFlags.PACKAGE_NAME_MATCH},
+        status=CVEDerivationClusterProposal.Status.ACCEPTED,
+    )
+
+    make_evaluation()
+
+    call_command("garbage_collect", stdout=StringIO())
+
+    assert NixDerivation.objects.filter(pk=drv.pk).exists()
+
+
+def test_gc_preserves_unlinked_derivation_from_latest_eval(
+    drv: NixDerivation,
+    evaluation: NixEvaluation,
+) -> None:
+    """
+    Unlinked derivations from the latest completed evaluation are preserved.
+    """
+    call_command("garbage_collect", stdout=StringIO())
+
+    assert NixDerivation.objects.filter(pk=drv.pk).exists()
+
+
+def test_gc_skips_batch_with_protected_derivation(
+    make_drv: Callable[..., NixDerivation],
+    make_suggestion: Callable[..., CVEDerivationClusterProposal],
+) -> None:
+    """
+    A batch containing a derivation protected by a FK constraint is skipped with a warning, not a crash.
+    This covers the race where a CVE match creates a link after the protected set was materialised during garbage collection.
+    """
+    drv = make_drv()
+    make_suggestion(
+        drvs={drv: ProvenanceFlags.PACKAGE_NAME_MATCH},
+        status=CVEDerivationClusterProposal.Status.ACCEPTED,
+    )
+
+    out = StringIO()
+    cmd = Command(stdout=out)
+    cmd._delete_in_batches(
+        qs=NixDerivation.objects.filter(pk=drv.pk),
+        model=NixDerivation,
+        pk_field="id",
+        label="test",
+        batch_size=1,
+    )
+
+    assert NixDerivation.objects.filter(pk=drv.pk).exists()
+    assert "skipped" in out.getvalue()

@@ -82,7 +82,7 @@ class Command(BaseCommand):
         self.stdout.write("\n[2/6] Purging obsolete channel links")
         self._purge_obsolete_channel_links(batch_size)
         self.stdout.write("\n[3/6] Deleting unmatched derivations")
-        self._delete_unmatched_derivations(cutoff, batch_size)
+        self._delete_unmatched_derivations(batch_size)
         self.stdout.write("\n[4/6] Deleting empty evaluations")
         self._delete_empty_evaluations(cutoff, batch_size)
         self.stdout.write("\n[5/6] Deleting inactive channels")
@@ -191,7 +191,7 @@ class Command(BaseCommand):
             event_model=DerivationClusterProposalLinkEvent,
         )
 
-    def _delete_unmatched_derivations(self, cutoff: Any, batch_size: int) -> None:
+    def _delete_unmatched_derivations(self, batch_size: int) -> None:
         failed_crashed = NixDerivation.objects.filter(
             parent_evaluation__state__in=[
                 NixEvaluation.EvaluationState.FAILED,
@@ -199,33 +199,39 @@ class Command(BaseCommand):
             ],
         )
 
-        completed_unmatched = NixDerivation.objects.filter(
-            parent_evaluation__updated_at__lt=cutoff,
-            parent_evaluation__state=NixEvaluation.EvaluationState.COMPLETED,
-            cve_links_proposals__isnull=True,
-        )
-
-        candidates = failed_crashed | completed_unmatched
-
-        # Deleting metadata cascades to derivations
         self._delete_in_batches(
-            qs=NixDerivationMeta.objects.filter(
-                pk__in=candidates.filter(metadata__isnull=False).values_list(
-                    "metadata_id", flat=True
-                )
-            ),
-            model=NixDerivationMeta,
+            qs=failed_crashed,
+            model=NixDerivation,
             pk_field="id",
-            label="derivations with metadata",
+            label="derivations from failed evaluations",
             batch_size=batch_size,
         )
 
-        # Delete whatever derivations without metadata remain
+        # This set is O(500k), not great but still faster than a subquery.
+        linked_ids = set(
+            NixDerivation.objects.filter(
+                cve_links_proposals__isnull=False,
+            ).values_list("id", flat=True)
+        )
+        stale_evaluations = NixEvaluation.objects.filter(
+            state=NixEvaluation.EvaluationState.COMPLETED,
+        ).exclude(pk__in=NixEvaluation.objects.latest_completed_per_channel())
+
         self._delete_in_batches(
-            qs=candidates,
+            qs=NixDerivation.objects.filter(
+                parent_evaluation__in=stale_evaluations,
+            ).exclude(id__in=linked_ids),
             model=NixDerivation,
             pk_field="id",
-            label="derivations without metadata",
+            label="unmatched derivations from stale evaluations",
+            batch_size=batch_size,
+        )
+
+        self._delete_in_batches(
+            qs=NixDerivationMeta.objects.filter(derivation__isnull=True),
+            model=NixDerivationMeta,
+            pk_field="id",
+            label="orphaned derivation metadata",
             batch_size=batch_size,
         )
 
@@ -313,9 +319,13 @@ class Command(BaseCommand):
     ) -> None:
         totals: dict[str, int] = {}
         batch_num = 1
+        skipped_pks: set[Any] = set()
 
         while True:
-            batch_pks = list(qs.values_list(pk_field, flat=True)[:batch_size])
+            batch_qs = qs
+            if skipped_pks:
+                batch_qs = batch_qs.exclude(**{f"{pk_field}__in": skipped_pks})
+            batch_pks = batch_qs.values_list(pk_field, flat=True)[:batch_size]
             if not batch_pks:
                 break
 
@@ -328,7 +338,18 @@ class Command(BaseCommand):
                     )
                 )
 
-            _, details = model.objects.filter(**{f"{pk_field}__in": batch_pks}).delete()
+            try:
+                _, details = model.objects.filter(
+                    **{f"{pk_field}__in": batch_pks}
+                ).delete()
+            except models.ProtectedError:
+                self.stdout.write(
+                    self.style.WARNING(
+                        f"Batch {batch_num} skipped for {label}: protected by a concurrent write"
+                    )
+                )
+                skipped_pks.update(batch_pks)
+                continue
             for model_label, count in details.items():
                 batch_details[model_label] = batch_details.get(model_label, 0) + count
             for model_label, count in batch_details.items():
