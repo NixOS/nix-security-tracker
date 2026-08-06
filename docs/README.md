@@ -64,4 +64,4 @@ Ideally we will eventually get rid of the cache, but it requires incremental rew
 
 ## Further documentation
 
-- [Design Documents](./design/): Detailed design specifications for individual feature.
+- [Design documents](./design/README.md): Detailed design specifications for individual features

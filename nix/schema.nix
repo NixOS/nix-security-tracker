@@ -45,6 +45,8 @@ runCommand "nix-security-tracker-openapi-schema"
       GH_SECURITY_TEAM = "dummy-security";
       GH_COMMITTERS_TEAM = "dummy-committers";
       BASE_URL = "http://localhost:8000";
+      ALLOWED_HOSTS = [ ];
+      CSRF_TRUSTED_ORIGINS = [ ];
     };
   }
   ''

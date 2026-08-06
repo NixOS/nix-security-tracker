@@ -4,10 +4,6 @@ let
   meta = with builtins; fromTOML (readFile ../src/pyproject.toml);
 in
 {
-  /*
-    XXX(@fricklerhandwerk): At the time of writing, Nixpkgs has Django 4 as default.
-    Some packages that depend on Django use that default implicitly, so we override it for everything.
-  */
   python3 = prev.python3.override {
     packageOverrides = pyfinal: _pyprev: {
       psycopg2 = pyfinal.psycopg;
@@ -75,7 +71,6 @@ in
       django-types
       django
       djangorestframework
-      pytest-socket
       ipython
       pydantic-settings
       prometheus-client
@@ -92,20 +87,28 @@ in
       django-pghistory
       django-pglock
       django-pgtrigger
-      pytest
-      pytest-django
-      pytest-playwright
-      pytest-mock
       cvss
       cpe
-      freezegun
       django-model-utils
       drf-spectacular
       django-rest-knox
       django-vite
     ];
 
-    passthru.PLAYWRIGHT_BROWSERS_PATH = final.playwright-driver.browsers;
+    nativeCheckInputs = with final.python3.pkgs; [
+      freezegun
+      pytest
+      pytest-django
+      pytest-playwright
+      pytest-mock
+      pytest-socket
+    ];
+
+    passthru = {
+      inherit nativeCheckInputs;
+      PLAYWRIGHT_BROWSERS_PATH = final.playwright-driver.browsers;
+      pythonEnv = final.python3.withPackages (_: propagatedBuildInputs ++ nativeCheckInputs);
+    };
 
     postInstall = ''
       mkdir -p $out/bin

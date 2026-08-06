@@ -5,6 +5,11 @@
   transition: background-color 0.2s ease;
 }
 
+.compact {
+  min-height: 0;
+  resize: none;
+}
+
 .pending {
   background-color: var(--light-yellow);
 }

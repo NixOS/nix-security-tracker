@@ -25,6 +25,29 @@ class SuggestionReferenceUpdateSerializer(serializers.Serializer):
     )
 
 
+class SuggestionMaintainerUpdateSerializer(serializers.Serializer):
+    """Request body for ignore/restore maintainer PATCH operations."""
+
+    github_id = serializers.IntegerField(
+        help_text="GitHub ID of the maintainer to ignore or restore.",
+    )
+    ignored = serializers.BooleanField(
+        help_text="Set to true to ignore the maintainer, false to restore it.",
+    )
+
+
+class SuggestionPackageUpdateSerializer(serializers.Serializer):
+    """Request body for ignore/restore package PATCH operations."""
+
+    package_attribute = serializers.CharField(
+        max_length=255,
+        help_text="Attribute name of the package to ignore or restore.",
+    )
+    ignored = serializers.BooleanField(
+        help_text="Set to true to ignore the package, false to restore it.",
+    )
+
+
 class SuggestionCommentSerializer(serializers.Serializer):
     """Serializer for reading or updating a suggestion comment."""
 
@@ -83,6 +106,12 @@ class SuggestionPackageSerializer(serializers.Serializer):
     description = serializers.CharField(allow_null=True)
 
 
+class SuggestionCategorizedPackagesSerializer(serializers.Serializer):
+    original = serializers.DictField(child=SuggestionPackageSerializer())
+    active = serializers.DictField(child=SuggestionPackageSerializer())
+    ignored = serializers.DictField(child=SuggestionPackageSerializer())
+
+
 class SuggestionAffectedProductSerializer(serializers.Serializer):
     name = serializers.CharField()
     version_constraints = serializers.ListField(
@@ -108,6 +137,7 @@ class SuggestionCategorizedMaintainersSerializer(serializers.Serializer):
     active = MaintainerSerializer(many=True)
     ignored = MaintainerSerializer(many=True)
     added = MaintainerSerializer(many=True)
+    orphan = MaintainerSerializer(many=True)
 
 
 class SuggestionSerializer(serializers.Serializer):

@@ -1,29 +1,8 @@
-/* FIXME(@florentc): Styling of the menu trigger should be decoupled from the menu itself */
-
 .trigger {
-  background: none;
-  border: none;
-  padding: 0;
-  cursor: pointer;
-  color: inherit;
-  display: flex;
   outline: none;
 }
 
-.trigger:hover > *,
-.trigger[data-state="open"] > * {
-  outline: 2px solid white;
-  border-radius: 99999px;
-}
-
 .content {
-  background: white;
-  color: black;
-  border: 1px solid var(--gray);
-  border-radius: 0.4em;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
-  padding: 0.25em 0;
-  min-width: 12em;
   z-index: 100;
   outline: none;
 }
@@ -38,6 +17,11 @@
   padding: 0.5em 1em;
   cursor: pointer;
   outline: none;
+}
+
+.item[data-disabled] {
+  cursor: not-allowed;
+  color: var(--gray);
 }
 
 .item[data-highlighted] {

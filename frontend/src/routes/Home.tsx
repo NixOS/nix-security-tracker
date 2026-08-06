@@ -1,4 +1,5 @@
 import { CircleCheckBigIcon } from "lucide-preact";
+import { Link } from "wouter-preact";
 
 const doneFeatures = [
   "Main framework",
@@ -14,21 +15,25 @@ const doneFeatures = [
   "Viewing suggestion info: comments",
   "Suggestions: comment edit",
   "Suggestions: reference ignore/restore",
-];
-
-const pendingFeatures = [
-  "Suggestions: package ignore/restore",
   "Suggestions: maintainer ignore/restore",
-  "Suggestions: maintainer add/delete",
-  "Suggestions: status change",
-  "Notification center",
-  "Notification pill (in navbar)",
-  "Notification polling",
-  "Suggestion lists: pagination / infinite scroll",
-  "Suggestion lists: compact view",
+  "Suggestions: status change (publication excluded)",
+  "Suggestion lists: pagination",
   "Suggestion lists: per status",
   "Suggestion lists: by package",
   "Suggestion lists: draft issue",
+  "Suggestion lists: compact view",
+  "Suggestion lists: collapsed view",
+  "Suggestion lists: tabs view",
+  "Suggestion lists: list and per-suggestion override view modes",
+  "Suggestion lists: visual feedback for 'out of search critera' suggestions",
+];
+
+const pendingFeatures = [
+  "Suggestions: maintainer add/delete",
+  "Notification center",
+  "Notification pill (in navbar)",
+  "Suggestion lists: optimized batch activity log queries",
+  "Suggestions: publication and batch publication",
   "Navigation bar",
   "Published issues list",
   "Published issues individual page",
@@ -51,6 +56,9 @@ export function Home() {
   return (
     <div className="column gap-big">
       <h1 className="text-xl bold">Nixpkgs security tracker</h1>
+      <p>
+        <Link href="/ui-v2/suggestions">Browse suggestions</Link>
+      </p>
       <p>
         New UI under construction. Features are gradually ported and improved from the legacy UI.
         You may continue to use the <a href="/">legacy UI</a>.

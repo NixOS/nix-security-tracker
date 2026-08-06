@@ -30,22 +30,9 @@ in
   };
 
   systemd.network.networks."10-wan" = {
-    matchConfig.MACAddress = "96:00:04:64:8e:77";
     address = [
-      "91.99.31.214/32"
       "2a01:4f8:1c1b:6921::1/64"
     ];
-    routes = [
-      # create default routes for both IPv6 and IPv4
-      { Gateway = "fe80::1"; }
-      # or when the gateway is not on the same network
-      {
-        Gateway = "172.31.1.1";
-        GatewayOnLink = true;
-      }
-    ];
-    # make the routes on this interface a dependency for network-online.target
-    linkConfig.RequiredForOnline = "routable";
   };
 
   nixpkgs.overlays = sectracker.overlays;

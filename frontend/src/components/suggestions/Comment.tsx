@@ -8,12 +8,13 @@ type Props = {
   suggestionId: number;
   comment: string | null;
   canEdit: boolean;
+  compact?: boolean;
 };
 
 const DEBOUNCE_SAVE_MS = 500;
 const DEBOUNCE_CLEAR_SAVED_FEEDBACK_MS = 2000;
 
-export function Comment({ suggestionId, comment, canEdit }: Props) {
+export function Comment({ suggestionId, comment, canEdit, compact = false }: Props) {
   const [value, setValue] = useState(comment ?? "");
   const [saveState, setSaveState] = useState<SaveState>("idle");
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -58,13 +59,16 @@ export function Comment({ suggestionId, comment, canEdit }: Props) {
 
   return (
     <textarea
-      className={`box rounded border monospace ${styles.textarea} ${stateClass}`}
+      className={`box rounded border monospace ${styles.textarea} ${compact && "compact"} ${compact ? styles.compact : ""} ${stateClass}`}
       value={value}
       onInput={handleChange}
-      placeholder="Free comment: context, additional info, dismissal reason, etc."
+      placeholder={
+        compact ? "Comment…" : "Free comment: context, additional info, dismissal reason, etc."
+      }
       disabled={!canEdit}
       maxLength={1000}
       data-save-state={saveState}
+      rows={compact ? 1 : 3}
     />
   );
 }

@@ -112,6 +112,11 @@ rec {
           GH_COMMITTERS_TEAM = "sectracker-testing-committers";
           STATIC_ROOT = "${toString ./src/static}";
           BASE_URL = "http://localhost:8000";
+          ALLOWED_HOSTS = [
+            "localhost"
+            "127.0.0.1"
+          ];
+          CSRF_TRUSTED_ORIGINS = [ "http://localhost" ];
           VITE_MANIFEST_PATH = toString ./. + "frontend/dist/.vite/manifest.json";
 
           REVISION =
@@ -148,6 +153,7 @@ rec {
         pkgs.nodejs
         pkgs.biome
       ]
+      ++ package.nativeCheckInputs
       ++ git-hooks.enabledPackages;
 
       shellHook = ''
@@ -168,9 +174,6 @@ rec {
 
         mkdir -p $CREDENTIALS_DIRECTORY
         mkdir -p ${toString ./.}/prometheus-metrics
-        # TODO(@fricklerhandwerk): move all configuration over to pydantic-settings
-        touch .settings.py
-        export USER_SETTINGS_FILE=${builtins.toString ./.settings.py}
 
         # Frontend: install npm dependencies if needed
         if [ -f frontend/package.json ] && [ ! -d frontend/node_modules ]; then

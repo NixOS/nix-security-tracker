@@ -76,13 +76,17 @@ def create_gh_issue(
 
     def maintainers(suggestion: CVEDerivationClusterProposal) -> str:
         raw = suggestion.cached.payload["categorized_maintainers"]
+        # Orphan maintainers no longer maintain any active package, don't ping them.
+        orphan_github_ids = {m["github_id"] for m in raw.get("orphan", [])}
         # We need to query for the latest username of each maintainer, because
         # those might have changed since they were written out in Nixpkgs; since
         # we have the user id (which is stable), we can ask the GitHub API
         maintainers_list = [
             get_maintainer_username(maintainer, github)
             for maintainer in (raw["active"] + raw["added"])
-            if "github_id" in maintainer and "github" in maintainer
+            if "github_id" in maintainer
+            and "github" in maintainer
+            and maintainer["github_id"] not in orphan_github_ids
         ]
         if maintainers_list:
             maintainers_joined = ", ".join(mention(m) for m in maintainers_list)

@@ -2,11 +2,16 @@ import { useQueryClient } from "@tanstack/react-query";
 import { ApiError } from "@/api/client";
 import {
   getGetSuggestionActivityLogQueryKey,
-  getGetSuggestionQueryKey,
   useUpdateSuggestionReference,
 } from "@/api/generated/endpoints";
 import type { PatchedSuggestionReferenceUpdate, Suggestion } from "@/api/generated/models";
 import { getApiErrorMessage } from "@/utils/apiError";
+import {
+  cancelCachedSuggestionQueries,
+  getCachedSuggestion,
+  invalidateCachedSuggestion,
+  setCachedSuggestion,
+} from "@/utils/suggestionCache";
 import { toaster } from "@/utils/toaster";
 
 type MutationVars = { id: number; data: PatchedSuggestionReferenceUpdate };
@@ -14,16 +19,14 @@ type MutationContext = { previous?: Suggestion };
 
 export function useReferenceMutation(suggestionId: number) {
   const queryClient = useQueryClient();
-  const queryKey = getGetSuggestionQueryKey(suggestionId);
 
   return useUpdateSuggestionReference({
     mutation: {
       onMutate: async ({ data }: MutationVars): Promise<MutationContext> => {
-        await queryClient.cancelQueries({ queryKey });
-        const previous = queryClient.getQueryData<Suggestion>(queryKey);
+        await cancelCachedSuggestionQueries(queryClient, suggestionId);
+        const previous = getCachedSuggestion(queryClient, suggestionId);
 
-        queryClient.setQueryData<Suggestion>(queryKey, (prev) => {
-          if (!prev) return prev;
+        setCachedSuggestion(queryClient, suggestionId, (prev) => {
           const { reference_url, ignored } = data;
           const refs = prev.categorized_url_references;
           const fromKey = ignored ? "active" : "ignored";
@@ -53,13 +56,14 @@ export function useReferenceMutation(suggestionId: number) {
             : "Reference already restored";
           const description =
             "The suggestion might have been stale. It has been re-synchronized with the server.";
-          queryClient.invalidateQueries({ queryKey });
+          invalidateCachedSuggestion(queryClient, suggestionId);
           toaster.warning({ title, description });
         } else if (context?.previous) {
           const title = vars.data.ignored
             ? "Failed to ignore reference"
             : "Failed to restore reference";
-          queryClient.setQueryData(queryKey, context.previous);
+          const snapshot = context.previous;
+          setCachedSuggestion(queryClient, suggestionId, () => snapshot);
           toaster.error({ title, description });
         }
       },

@@ -10,7 +10,8 @@ Resources to help you get started:
 - [**Manual data ingestion and matching**](./docs/data_ingestion_and_matching.md): Ingest Nixpkgs metadata and CVEs into your local instance.
 - [**Architecture Overview**](docs/README.md): High-level system design and component interaction.
 - [**Architecture Diagram**](docs/architecture.mermaid): Visual representation of the system (Mermaid source).
-- [**Design Documents**](docs/design/): Detailed design specifications for individual features (E.g., linkage).
+- [**Design Documents**](docs/design/): Detailed design specifications for individual features.
+- [**CVE records**](./docs/cve_records.md): What the tracker stores for each CVE.
 
 Other directories in this repository have additional `README.md` files with more specific information relevant to their sibling files.
 

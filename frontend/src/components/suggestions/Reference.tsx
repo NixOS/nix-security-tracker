@@ -1,4 +1,4 @@
-import { Link2Icon, Link2OffIcon } from "lucide-preact";
+import { LinkIcon, UnlinkIcon } from "lucide-preact";
 import type { SuggestionUrlReference } from "@/api/generated/models";
 import { useReferenceMutation } from "@/hooks/useReference";
 import { ReferenceTag } from "./ReferenceTag";
@@ -34,7 +34,7 @@ export function Reference({ reference, suggestionId, editable, isIgnored }: Prop
           onClick={handleClick}
           disabled={mutation.isPending}
         >
-          {isIgnored ? <Link2Icon size="1em" /> : <Link2OffIcon size="1em" />}
+          {isIgnored ? <LinkIcon size="1em" /> : <UnlinkIcon size="1em" />}
           {isIgnored ? "Restore" : "Ignore"}
         </button>
       )}

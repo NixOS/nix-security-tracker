@@ -97,6 +97,9 @@ class CachedSuggestion(BaseModel):
         ]  # Maintainers of original packages
         active: list["CachedSuggestion.Maintainer"]  # Non ignored original maintainers
         ignored: list["CachedSuggestion.Maintainer"]  # Ignored original maintainers
+        orphan: list[
+            "CachedSuggestion.Maintainer"
+        ]  # Maintainers of original packages who no longer have any *active* package
         added: list[
             "CachedSuggestion.Maintainer"
         ]  # Additional maintainers (not part of original maintainers)
@@ -267,7 +270,9 @@ def cache_new_suggestions(suggestion: CVEDerivationClusterProposal) -> None:
         original_packages=original_packages,
         packages=packages,
         metrics=[to_dict(m) for m in prefetched_metrics],
-        categorized_maintainers=categorize_maintainers(packages, maintainer_overlays),
+        categorized_maintainers=categorize_maintainers(
+            original_packages, packages, maintainer_overlays
+        ),
         categorized_url_references=categorize_url_references(
             suggestion.references, list(suggestion.reference_url_overlays.all())
         ),
@@ -508,19 +513,34 @@ def categorize_url_references(
 
 
 def categorize_maintainers(
-    packages: dict[str, CachedSuggestion.Package],
+    original_packages: dict[str, CachedSuggestion.Package],
+    active_packages: dict[str, CachedSuggestion.Package],
     maintainer_overlays: list[MaintainerOverlay],
 ) -> CachedSuggestion.CategorizedMaintainers:
     """
     Categorize maintainers associated to the packages of a suggestion.
+
+    `original_packages` is the full set of packages the suggestion ever had
+    (ignoring package overlays); `active_packages` is the subset that is
+    currently active (package overlays applied). `original`/`active`/`ignored`
+    are derived from `original_packages` and the maintainer overlays only, so
+    they never shrink when a package is ignored. `orphan` tracks maintainers
+    who no longer have any currently active package.
     """
-    # Collect all original maintainers from packages (deduplicated by github_id)
+    # Collect all original maintainers from all original packages (deduplicated by github_id)
     original_maintainers_dict: dict[int, CachedSuggestion.Maintainer] = {}
-    for package in packages.values():
+    for package in original_packages.values():
         for maintainer in package.maintainers:
             original_maintainers_dict[maintainer.github_id] = maintainer
 
     original_maintainers = list(original_maintainers_dict.values())
+
+    # Maintainers of currently active packages
+    active_package_maintainer_ids = {
+        maintainer.github_id
+        for package in active_packages.values()
+        for maintainer in package.maintainers
+    }
 
     # Process edits to categorize maintainers
     ignored_github_ids = set()
@@ -537,16 +557,20 @@ def categorize_maintainers(
     # Categorize original maintainers into active and ignored
     active_maintainers = []
     ignored_maintainers = []
+    orphan_maintainers = []
 
     for maintainer in original_maintainers:
         if maintainer.github_id in ignored_github_ids:
             ignored_maintainers.append(maintainer)
         else:
             active_maintainers.append(maintainer)
+        if maintainer.github_id not in active_package_maintainer_ids:
+            orphan_maintainers.append(maintainer)
 
     return CachedSuggestion.CategorizedMaintainers(
         original=original_maintainers,
         active=active_maintainers,
         ignored=ignored_maintainers,
         added=additional_maintainers,
+        orphan=orphan_maintainers,
     )

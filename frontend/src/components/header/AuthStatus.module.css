@@ -1,0 +1,11 @@
+.avatar {
+  outline-width: 2px;
+  outline-color: white;
+  width: 2em;
+  height: 2em;
+}
+
+.menuTrigger:hover .avatar,
+*[data-state="open"] .avatar {
+  outline-style: solid;
+}

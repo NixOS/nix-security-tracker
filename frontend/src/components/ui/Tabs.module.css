@@ -1,5 +1,5 @@
 .tab {
-  padding: 0.5em 1em;
+  padding: 0 1em 0.5em 1em;
   background: none;
   border: none;
   border-bottom: 0.2em solid transparent;
@@ -16,7 +16,6 @@
 }
 
 .tab[data-selected] {
-  color: black;
-  border-color: black;
+  border-color: var(--nixos-blue);
   font-weight: bold;
 }

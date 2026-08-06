@@ -3,7 +3,8 @@ import { useLocation } from "wouter-preact";
 import { Avatar } from "@/components/ui/Avatar";
 import { Menu } from "@/components/ui/Menu";
 import { Skeleton } from "@/components/ui/Skeleton";
-import { LOGIN_URL, logout, useAuth } from "@/hooks/useAuth";
+import { login, logout, useAuth } from "@/hooks/useAuth";
+import styles from "./AuthStatus.module.css";
 
 export function AuthStatus() {
   const { user, isAuthenticated, isLoading } = useAuth();
@@ -20,22 +21,30 @@ export function AuthStatus() {
 
   if (!isAuthenticated || !user) {
     return (
-      <div className="row gap-small centered">
+      <button
+        type="button"
+        className="row gap-small centered text-white cursor-pointer"
+        onClick={login}
+      >
         <LogInIcon />
-        <a href={LOGIN_URL}>Login with GitHub</a>
-      </div>
+        Login with GitHub
+      </button>
     );
   }
 
   return (
     <Menu
       trigger={
-        <div className="row box compact centered gap-small">
+        <button
+          className={`row centered gap-small cursor-pointer text-white ${styles.menuTrigger}`}
+          type="button"
+        >
           <div>User settings</div>
-          <Avatar avatarUrl={user.avatar_url} username={user.username} />
-        </div>
+          <div className={`circle ${styles.avatar}`}>
+            <Avatar size="2em" avatarUrl={user.avatar_url} username={user.username} />
+          </div>
+        </button>
       }
-      label={user.username}
       items={[
         {
           value: "subscriptions",

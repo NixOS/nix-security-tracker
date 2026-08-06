@@ -1,11 +1,11 @@
 import { FormatRelativeTime } from "@ark-ui/react";
 import {
-  FolderMinusIcon,
-  FolderPlusIcon,
   InboxIcon,
-  Link2Icon,
-  Link2OffIcon,
+  LinkIcon,
+  PackageMinusIcon,
+  PackagePlusIcon,
   Trash2Icon,
+  UnlinkIcon,
   UserMinusIcon,
   UserPlusIcon,
 } from "lucide-preact";
@@ -33,17 +33,13 @@ function entryIcon(entry: ActivityLogEntry) {
   }
   if (entry.action.startsWith("package.")) {
     return entry.action.includes("restore") ? (
-      <FolderPlusIcon size={size} />
+      <PackagePlusIcon size={size} />
     ) : (
-      <FolderMinusIcon size={size} />
+      <PackageMinusIcon size={size} />
     );
   }
   if (entry.action.startsWith("reference.")) {
-    return entry.action.includes("restore") ? (
-      <Link2Icon size={size} />
-    ) : (
-      <Link2OffIcon size={size} />
-    );
+    return entry.action.includes("restore") ? <LinkIcon size={size} /> : <UnlinkIcon size={size} />;
   }
   if (entry.action.startsWith("maintainer.")) {
     return entry.action.includes("add") ? (

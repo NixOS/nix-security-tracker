@@ -1,9 +1,14 @@
+import { PackageMinusIcon, PackagePlusIcon } from "lucide-preact";
 import type { SuggestionPackage } from "@/api/generated/models";
+import { usePackageMutation } from "@/hooks/usePackage";
 import styles from "./Package.module.css";
 
 type Props = {
   attr: string;
   pkg: SuggestionPackage;
+  suggestionId: number;
+  editable: boolean;
+  isIgnored: boolean;
 };
 
 function versionStatusClass(status: string | null): string {
@@ -12,9 +17,29 @@ function versionStatusClass(status: string | null): string {
   return "";
 }
 
-export function Package({ attr, pkg }: Props) {
+export function Package({ attr, pkg, suggestionId, editable, isIgnored }: Props) {
+  const mutation = usePackageMutation(suggestionId);
+
+  function handleClick() {
+    mutation.mutate({
+      id: suggestionId,
+      data: { package_attribute: attr, ignored: !isIgnored },
+    });
+  }
+
   return (
     <div className={`row gap align-start wrap`}>
+      {editable && (
+        <button
+          type="button"
+          className={`btn ${isIgnored ? "btn-green" : "btn-gray"} row gap-small centered`}
+          onClick={handleClick}
+          disabled={mutation.isPending}
+        >
+          {isIgnored ? <PackagePlusIcon size="1em" /> : <PackageMinusIcon size="1em" />}
+          {isIgnored ? "Restore" : "Ignore"}
+        </button>
+      )}
       <div className="column">
         <h3 className={`bold ${styles.packageTitle}`}>{attr}</h3>
         <p className={`${styles.packageTitle}`}>{pkg.description}</p>

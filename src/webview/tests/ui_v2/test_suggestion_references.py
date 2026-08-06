@@ -7,7 +7,7 @@ from pytest_django.live_server_helper import LiveServer
 from shared.models.cve import Container
 from shared.models.linkage import CVEDerivationClusterProposal
 
-from .routes import SUGGESTION_DETAIL
+from .routes import SUGGESTION_DETAIL, SUGGESTION_LIST
 
 REFERENCE_URL = "https://example.com/advisory"
 REFERENCE_NAME = "Advisory"
@@ -148,3 +148,23 @@ def test_reference_ignore_shows_error_toast_on_backend_mismatch(
 
     # The suggestion is supposed to have been refreshed so the reference should be ignored now
     expect(references.get_by_text("Ignored references", exact=False)).to_be_visible()
+
+
+@pytest.mark.django_db
+def test_reference_ignore_from_list_updates_the_list_card(
+    live_server: LiveServer,
+    as_committer: Page,
+    suggestion_with_reference: Callable[..., CVEDerivationClusterProposal],
+) -> None:
+    suggestion = suggestion_with_reference(
+        status=CVEDerivationClusterProposal.Status.PENDING
+    )
+    as_committer.goto(live_server.url + SUGGESTION_LIST)
+    card = as_committer.get_by_test_id(f"suggestion-{suggestion.pk}")
+    references = card.get_by_test_id(f"suggestion-{suggestion.pk}-references")
+
+    references.get_by_role("button", name="Ignore").click()
+
+    expect(references.get_by_text("Ignored references", exact=False)).to_be_visible()
+    references.get_by_text("Ignored references", exact=False).click()
+    expect(references.get_by_role("button", name="Restore")).to_be_visible()

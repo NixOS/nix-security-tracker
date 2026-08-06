@@ -1,0 +1,36 @@
+.item {
+  padding: 0.3em 0.8em;
+  background: var(--light-gray);
+}
+
+.item:hover {
+  border-color: var(--nixos-blue);
+}
+
+.item[data-state="on"] {
+  background: var(--nixos-blue);
+  border-color: var(--nixos-blue);
+  color: white;
+  font-weight: bold;
+}
+
+/* Segmented variant: single connected control instead of separate pills */
+
+.segmentedRoot {
+  gap: 0;
+  flex-wrap: nowrap;
+  border: 1px solid var(--gray);
+  border-radius: 0.4em;
+  overflow: hidden;
+  width: fit-content;
+}
+
+.segmentedItem {
+  border: none;
+  border-radius: 0;
+  padding: 0.35em 0.6em;
+}
+
+.segmentedItem:not(:first-child) {
+  border-left: 1px solid var(--gray);
+}

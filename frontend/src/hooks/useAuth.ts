@@ -22,28 +22,43 @@ export function useAuth() {
   };
 }
 
-export const LOGIN_URL = "/accounts/github/login/?process=login&next=/ui-v2/";
-
-export function logout(): void {
-  const csrfToken = getCsrfToken() ?? "";
-
-  // Form submission to allauth's logout endpoint (handles redirect server-side)
+/** Builds and submits a hidden POST form (handles the CSRF token + server-side redirect). */
+function submitForm(action: string, fields: Record<string, string>): void {
   const form = document.createElement("form");
   form.method = "POST";
-  form.action = "/accounts/logout/";
+  form.action = action;
 
   const csrfInput = document.createElement("input");
   csrfInput.type = "hidden";
   csrfInput.name = "csrfmiddlewaretoken";
-  csrfInput.value = csrfToken;
+  csrfInput.value = getCsrfToken() ?? "";
   form.appendChild(csrfInput);
 
-  const nextInput = document.createElement("input");
-  nextInput.type = "hidden";
-  nextInput.name = "next";
-  nextInput.value = "/ui-v2/";
-  form.appendChild(nextInput);
+  for (const [name, value] of Object.entries(fields)) {
+    const input = document.createElement("input");
+    input.type = "hidden";
+    input.name = name;
+    input.value = value;
+    form.appendChild(input);
+  }
 
   document.body.appendChild(form);
   form.submit();
+}
+
+/**
+ * Initiates GitHub login via allauth's headless API.
+ * https://docs.allauth.org/en/latest/headless/index.html
+ */
+export function login(): void {
+  submitForm("/_allauth/browser/v1/auth/provider/redirect", {
+    provider: "github",
+    process: "login",
+    callback_url: "/ui-v2/",
+  });
+}
+
+export function logout(): void {
+  // Form submission to allauth's logout endpoint (handles redirect server-side)
+  submitForm("/accounts/logout/", { next: "/ui-v2/" });
 }

@@ -10,7 +10,6 @@ For the full list of settings and their values, see
 https://docs.djangoproject.com/en/4.2/ref/settings/
 """
 
-import importlib.util
 import sys
 from datetime import timedelta
 from os import environ as env
@@ -22,6 +21,7 @@ import sentry_sdk
 from pydantic import (
     AnyUrl,
     BaseModel,
+    ConfigDict,
     DirectoryPath,
     Field,
     HttpUrl,
@@ -74,10 +74,16 @@ get_secret = secrets.model_dump().get
 class Settings(BaseSettings):
     # https://docs.pydantic.dev/latest/concepts/pydantic_settings/
     class DjangoSettings(BaseModel):
+        model_config = ConfigDict(extra="forbid")
+
         # SECURITY WARNING: don't run with debug turned on in production!
         DEBUG: bool = False
         # TODO(@fricklerhandwerk): once we go live, remove this and use only `DEBUG` as the toggle for development mode
         PRODUCTION: bool = True
+        # https://docs.djangoproject.com/en/5.2/ref/settings/#allowed-hosts
+        ALLOWED_HOSTS: list[str]
+        # https://docs.djangoproject.com/en/5.2/ref/settings/#csrf-trusted-origins
+        CSRF_TRUSTED_ORIGINS: list[str]
         REVISION: str = Field(
             description="""
             Git revision of the deployed security tracker.
@@ -100,11 +106,26 @@ class Settings(BaseSettings):
             By default, in the root of this Git repository.
             """
         )
+        CVE_CACHE_DIR: str = Field(
+            description="""
+            Directory for caching CVE data fetched from upstream.
+            """,
+            default=str(Path(__file__).resolve().parent.parent.parent / "cve-cache"),
+        )
         METRICS_TEXTFILE_DIR: DirectoryPath | None = Field(
             description="""
             Directory for Prometheus textfile metrics consumed by node_exporter.
             """,
             default=None,
+        )
+        EVALUATION_LOGS_DIRECTORY: str = Field(
+            description="""
+            Directory for storing per-evaluation `nix-eval-jobs` stderr output.
+            """,
+            default=str(
+                Path(__file__).resolve().parent.parent.parent
+                / "nixpkgs-evaluation-logs"
+            ),
         )
         CHANNEL_MONITORING_URL: HttpUrl = Field(
             description="""
@@ -113,6 +134,12 @@ class Settings(BaseSettings):
             default=HttpUrl(
                 "https://monitoring.nixos.org/prometheus/api/v1/query?query=channel_revision"
             ),
+        )
+        NETWORK_REQUEST_TIMEOUT: int = Field(
+            description="""
+            Timeout in seconds for outbound network requests.
+            """,
+            default=60,
         )
         SYNC_GITHUB_STATE_AT_STARTUP: bool = Field(
             description="""
@@ -238,6 +265,8 @@ class Settings(BaseSettings):
             default="vite",
         )
 
+        ACCOUNT_DEFAULT_HTTP_PROTOCOL: str = "http"
+
         class SocialAccountProviders(BaseModel):
             class GitHub(BaseModel):
                 SCOPE: list[str] = Field(
@@ -358,11 +387,6 @@ LOGGING = {
 # The more cores you have, the more RAM you will consume.
 # TODO(raitobezarius): implement fine-grained tuning on `nix-eval-jobs`.
 MAX_PARALLEL_EVALUATION = 3
-# Where are the stderr of each `nix-eval-jobs` stored.
-EVALUATION_LOGS_DIRECTORY: str = str(
-    Path(BASE_DIR / ".." / "nixpkgs-evaluation-logs").resolve()
-)
-CVE_CACHE_DIR: str = str(Path(BASE_DIR / ".." / "cve-cache").resolve())
 # This can be tuned for your specific deployment,
 # this is used to wait for an evaluation slot to be available
 # It should be around the average evaluation time on your machine.
@@ -375,8 +399,6 @@ DEFAULT_SLEEP_WAITING_FOR_EVALUATION_SLOT = 25 * 60
 
 # SECURITY WARNING: keep the secret key used in production secret!
 SECRET_KEY = get_secret("SECRET_KEY")
-
-ALLOWED_HOSTS = []
 
 # Application definition
 ASGI_APPLICATION = "project.asgi.application"
@@ -396,6 +418,7 @@ INSTALLED_APPS = [
     "allauth.account",
     "allauth.socialaccount",
     "allauth.socialaccount.providers.github",
+    "allauth.headless",
     "channels",
     "pgpubsub",
     "pgtrigger",
@@ -503,10 +526,17 @@ SITE_ID = 1
 
 # Disable regular signup but allow GitHub auth
 SOCIALACCOUNT_ONLY = True
-# Skip intermediate "Continue" page, redirect to GitHub immediately
-SOCIALACCOUNT_LOGIN_ON_GET = True
 ACCOUNT_ALLOW_REGISTRATION = False
 ACCOUNT_EMAIL_VERIFICATION = "none"
+
+# allauth headless API (see frontend/src/hooks/useAuth.ts)
+HEADLESS_ONLY = False  # Keep classic `allauth.urls` views for Django webviews
+HEADLESS_CLIENTS = ("browser",)
+HEADLESS_FRONTEND_URLS = {
+    # Fallback if the OAuth handshake state is lost (e.g. denied access, expired session mid-flow).
+    # We set login_error for the frontend to recognize it and display an error message
+    "socialaccount_login_error": "/ui-v2/?login_error=1",
+}
 
 # TODO: make configurable so one can log in locally
 LOGIN_REDIRECT_URL = "webview:home"
@@ -585,21 +615,10 @@ TEST_RUNNER = "pytest_django.runner.TestRunner"
 PGHISTORY_APPEND_ONLY = True
 PGHISTORY_ADMIN_MODEL = "pghistory.MiddlewareEvents"
 
-# Customization via user settings
-# This must be at the end, as it must be able to override the above
-user_settings_file = env.get("USER_SETTINGS_FILE", None)
-if user_settings_file is not None:
-    spec = importlib.util.spec_from_file_location("user_settings", user_settings_file)
-    if spec is None or spec.loader is None:
-        raise RuntimeError("User settings specification failed!")
-    module = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(module)
-    sys.modules["user_settings"] = module
-    from user_settings import *  # noqa: F403 # pyright: ignore [reportMissingImports]
 
 # Settings side-effect, must be after the loading of ALL settings, including user ones.
 
-SESSION_COOKIE_SECURE = not DEBUG  # noqa: F405 # pyright: ignore [reportUndefinedVariable]
-CSRF_COOKIE_SECURE = not DEBUG  # noqa: F405 # pyright: ignore [reportUndefinedVariable]
+SESSION_COOKIE_SECURE = not DEBUG  # noqa: F821 # pyright: ignore [reportUndefinedVariable]
+CSRF_COOKIE_SECURE = not DEBUG  # noqa: F821 # pyright: ignore [reportUndefinedVariable]
 
-Path(EVALUATION_LOGS_DIRECTORY).mkdir(exist_ok=True)
+Path(EVALUATION_LOGS_DIRECTORY).mkdir(exist_ok=True)  # noqa: F821 # pyright: ignore [reportUndefinedVariable]

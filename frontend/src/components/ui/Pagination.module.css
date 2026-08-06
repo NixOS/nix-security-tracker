@@ -1,0 +1,12 @@
+.item {
+  min-width: 2em;
+}
+
+.item:hover:not([data-selected]) {
+  background-color: var(--light-gray);
+  cursor: pointer;
+}
+
+.item[data-selected] {
+  font-weight: bold;
+}

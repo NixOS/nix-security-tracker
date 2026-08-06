@@ -182,20 +182,68 @@ class CVEDerivationClusterProposal(TimeStampMixin):
             cache_new_suggestions(self)
             self.refresh_from_db()
 
-    def ignore_package(self, package: str) -> None:
-        edit, created = self.package_overlays.get_or_create(
-            package_attribute=package,
-            defaults={"type": PackageOverlay.Type.IGNORED},
-        )
-        if not created and edit.type != PackageOverlay.Type.IGNORED:
-            edit.type = PackageOverlay.Type.IGNORED
-            edit.save()
-
-    def restore_package(self, package: str) -> None:
-        self.package_overlays.filter(
-            package_attribute=package,
+    def ignore_package(self, package_attribute: str) -> None:
+        """Ignore a package, updating the overlay and the cache."""
+        original_packages = self.cached.payload["original_packages"]
+        if package_attribute not in original_packages:
+            raise ValidationError(
+                {"package_attribute": "Package not found in the suggestion"}
+            )
+        if self.package_overlays.filter(
+            package_attribute=package_attribute,
             type=PackageOverlay.Type.IGNORED,
-        ).delete()
+        ).exists():
+            raise ValidationError({"package_attribute": "Package is already ignored"})
+
+        with transaction.atomic():
+            self.package_overlays.get_or_create(
+                package_attribute=package_attribute,
+                defaults={"type": PackageOverlay.Type.IGNORED},
+            )
+            self._recompute_package_cache()
+
+    def restore_package(self, package_attribute: str) -> None:
+        """Restore a previously ignored package."""
+        overlay = self.package_overlays.filter(
+            package_attribute=package_attribute,
+            type=PackageOverlay.Type.IGNORED,
+        ).first()
+        if not overlay:
+            raise ValidationError(
+                {"package_attribute": "No ignore overlay found for this package"}
+            )
+
+        with transaction.atomic():
+            overlay.delete()
+            self._recompute_package_cache()
+
+    def _recompute_package_cache(self) -> None:
+        """Recompute the cached `packages` and `categorized_maintainers` from
+        the current set of package overlays."""
+        from shared.cache_suggestions import (
+            CachedSuggestion,
+            apply_package_overlays,
+            categorize_maintainers,
+        )
+
+        self.cached.payload["packages"] = apply_package_overlays(
+            self.cached.payload["original_packages"],
+            self.package_overlays.all(),
+        )
+        original_packages = {
+            k: CachedSuggestion.Package.model_validate(v)
+            for k, v in self.cached.payload["original_packages"].items()
+        }
+        active_packages = {
+            k: CachedSuggestion.Package.model_validate(v)
+            for k, v in self.cached.payload["packages"].items()
+        }
+        self.cached.payload["categorized_maintainers"] = categorize_maintainers(
+            original_packages,
+            active_packages,
+            self.maintainer_overlays.all(),
+        ).model_dump()
+        self.cached.save()
 
     def ignore_reference(self, reference_url: str) -> None:
         """Ignore a URL reference, updating the overlay and the cache."""
@@ -249,6 +297,66 @@ class CVEDerivationClusterProposal(TimeStampMixin):
             cat_refs["active"].append(ref)
             self.cached.save()
 
+    def ignore_maintainer(self, github_id: int) -> None:
+        """Ignore a maintainer, updating the overlay and the cache."""
+        cat_maintainers = self.cached.payload["categorized_maintainers"]
+        maintainer_data = next(
+            (m for m in cat_maintainers["original"] if m["github_id"] == github_id),
+            None,
+        )
+        if maintainer_data is None:
+            raise ValidationError(
+                {"github_id": "Maintainer not found in original maintainers"}
+            )
+        if self.maintainer_overlays.filter(
+            maintainer__github_id=github_id, type=MaintainerOverlay.Type.IGNORED
+        ).exists():
+            raise ValidationError({"github_id": "Maintainer is already ignored"})
+
+        maintainer = NixMaintainer.objects.get(github_id=github_id)
+
+        with transaction.atomic():
+            edit, created = self.maintainer_overlays.get_or_create(
+                maintainer=maintainer,
+                defaults={"type": MaintainerOverlay.Type.IGNORED},
+            )
+            if not created and edit.type != MaintainerOverlay.Type.IGNORED:
+                edit.type = MaintainerOverlay.Type.IGNORED
+                edit.save()
+            cat_maintainers["active"] = [
+                m for m in cat_maintainers["active"] if m["github_id"] != github_id
+            ]
+            cat_maintainers["ignored"].append(maintainer_data)
+            self.cached.save()
+
+    def restore_maintainer(self, github_id: int) -> None:
+        """Restore a previously ignored maintainer."""
+        cat_maintainers = self.cached.payload["categorized_maintainers"]
+        maintainer_data = next(
+            (m for m in cat_maintainers["ignored"] if m["github_id"] == github_id),
+            None,
+        )
+        if maintainer_data is None:
+            raise ValidationError(
+                {"github_id": "Maintainer not found in ignored maintainers"}
+            )
+
+        overlay = self.maintainer_overlays.filter(
+            maintainer__github_id=github_id, type=MaintainerOverlay.Type.IGNORED
+        ).first()
+        if not overlay:
+            raise ValidationError(
+                {"github_id": "No ignore overlay found for this maintainer"}
+            )
+
+        with transaction.atomic():
+            overlay.delete()
+            cat_maintainers["ignored"] = [
+                m for m in cat_maintainers["ignored"] if m["github_id"] != github_id
+            ]
+            cat_maintainers["active"].append(maintainer_data)
+            self.cached.save()
+
     def set_comment(self, comment: str | None) -> None:
         """Update the free-text comment independently of status changes."""
         self.comment = comment or None
@@ -262,6 +370,10 @@ class CVEDerivationClusterProposal(TimeStampMixin):
     ) -> None:
         if status == self.status:
             raise ValidationError({"status": f"Already in status '{self.status}'"})
+
+        # Automatically remove from issue draft when changing status away from accepted
+        if status != SuggestionStatus.ACCEPTED:
+            self.in_issue_draft = False
 
         self.status = status
         self.rejection_reason = rejection_reason

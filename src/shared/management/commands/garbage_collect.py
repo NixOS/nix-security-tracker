@@ -82,9 +82,9 @@ class Command(BaseCommand):
         # Each step satisfies the cascading constraints that gate the next step.
         # `pghistory` events are never auto-deleted — each step explicitly clears relevant events first.
 
-        self.stdout.write("\n[1/6] Deleting stale matches")
+        self.stdout.write("\n[1/5] Deleting stale matches")
         self._delete_stale_matches(cutoff, batch_size, dry_run)
-        self.stdout.write("\n[2/6] Deleting unmatched derivations")
+        self.stdout.write("\n[2/5] Deleting unmatched derivations")
         self._delete_unmatched_derivations(cutoff, batch_size, dry_run)
         self.stdout.write("\n[3/5] Deleting empty evaluations")
         self._delete_empty_evaluations(cutoff, batch_size, dry_run)

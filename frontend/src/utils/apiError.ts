@@ -1,6 +1,13 @@
 import { ApiError } from "@/api/client";
 
 /**
+ * Whether an error thrown by `apiFetch` is a 429 (rate limited) response.
+ */
+export function isRateLimited(error: unknown): boolean {
+  return error instanceof ApiError && error.status === 429;
+}
+
+/**
  * Extracts a human-readable message from an error thrown by `apiFetch`.
  */
 export function getApiErrorMessage(error: unknown): string {

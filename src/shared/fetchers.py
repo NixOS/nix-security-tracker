@@ -1,12 +1,16 @@
 import json
+import logging
 import re
 from datetime import datetime
 from typing import Any
 
+from django.core.exceptions import ValidationError
 from django.utils.timezone import make_aware
 from requests import get
 
 from shared import models
+
+logger = logging.getLogger(__name__)
 
 
 def make_organization(
@@ -152,9 +156,14 @@ def make_version(data: dict[str, Any]) -> models.Version:
     return models.Version.objects.create(**ctx)
 
 
-def make_cpe(name: str) -> models.Cpe:
-    obj, _ = models.Cpe.objects.get_or_create(name=name)
+def make_cpe(name: str) -> models.Cpe | None:
+    try:
+        models.Cpe(name=name).full_clean()
+    except ValidationError as e:
+        logger.warning("Discarding malformed CPE %r: %s", name, e)
+        return None
 
+    obj, _ = models.Cpe.objects.get_or_create(name=name)
     return obj
 
 
@@ -190,7 +199,9 @@ def make_affected_product(data: dict[str, Any]) -> models.AffectedProduct:
     obj = models.AffectedProduct.objects.create(**ctx)
     obj.platforms.set(map(make_platform, data.get("platforms", [])))
     obj.versions.set(map(make_version, data.get("versions", [])))
-    obj.cpes.set(map(make_cpe, data.get("cpes", [])))
+    obj.cpes.set(
+        cpe for name in data.get("cpes", []) if (cpe := make_cpe(name)) is not None
+    )
     obj.modules.set(map(make_module, data.get("modules", [])))
     obj.program_files.set(map(make_program_file, data.get("programFiles", [])))
     obj.program_routines.set(map(make_program_routine, data.get("programRoutines", [])))

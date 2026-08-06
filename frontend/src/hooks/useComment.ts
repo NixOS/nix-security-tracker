@@ -1,6 +1,6 @@
 import { useQueryClient } from "@tanstack/react-query";
-import { getGetSuggestionQueryKey, useUpdateSuggestionComment } from "@/api/generated/endpoints";
-import type { Suggestion } from "@/api/generated/models";
+import { useUpdateSuggestionComment } from "@/api/generated/endpoints";
+import { setCachedSuggestion } from "@/utils/suggestionCache";
 
 export function useCommentMutation(suggestionId: number) {
   const queryClient = useQueryClient();
@@ -8,11 +8,10 @@ export function useCommentMutation(suggestionId: number) {
   return useUpdateSuggestionComment({
     mutation: {
       onSuccess: (data) => {
-        const queryKey = getGetSuggestionQueryKey(suggestionId);
-        queryClient.setQueryData<Suggestion>(queryKey, (prev) => {
-          if (!prev) return prev;
-          return { ...prev, comment: data.comment ?? null };
-        });
+        setCachedSuggestion(queryClient, suggestionId, (prev) => ({
+          ...prev,
+          comment: data.comment ?? null,
+        }));
       },
     },
   });

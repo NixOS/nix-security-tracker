@@ -2,7 +2,6 @@ import {
   MenuContent,
   MenuItem,
   MenuItemGroup,
-  MenuItemGroupLabel,
   MenuPositioner,
   MenuRoot,
   MenuSeparator,
@@ -16,29 +15,25 @@ export type MenuItemConfig = {
   label: string;
   icon?: ComponentChildren;
   onSelect: () => void;
+  disabled?: boolean;
 };
 
 export type MenuEntry = MenuItemConfig | { type: "separator" };
 
 type MenuProps = {
   trigger: ComponentChildren;
-  label?: string;
   items: MenuEntry[];
 };
 
-export function Menu({ trigger, label, items }: MenuProps) {
+export function Menu({ trigger, items }: MenuProps) {
   return (
     <MenuRoot>
       <MenuTrigger className={styles.trigger}>{trigger}</MenuTrigger>
       <MenuPositioner>
-        <MenuContent className={styles.content}>
+        <MenuContent
+          className={`rounded border box compact shadow bg-white text-black ${styles.content}`}
+        >
           <MenuItemGroup>
-            {label && (
-              <>
-                <MenuItemGroupLabel className={styles.groupLabel}>{label}</MenuItemGroupLabel>
-                <MenuSeparator className={styles.separator} />
-              </>
-            )}
             {items.map((entry, i) =>
               "type" in entry ? (
                 <MenuSeparator key={i} className={styles.separator} />
@@ -46,8 +41,9 @@ export function Menu({ trigger, label, items }: MenuProps) {
                 <MenuItem
                   key={entry.value}
                   value={entry.value}
-                  className={`row centered gap-small ${styles.item}`}
+                  className={`row centered gap-small ${!entry.disabled && "cursor-pointer"} ${styles.item}`}
                   onSelect={entry.onSelect}
+                  disabled={entry.disabled}
                 >
                   {entry.icon}
                   {entry.label}

@@ -1,13 +1,7 @@
 from abc import ABC, abstractmethod
 
-from django.db import transaction
 from django.http import HttpRequest, HttpResponse
 
-from shared.cache_suggestions import (
-    CachedSuggestion,
-    apply_package_overlays,
-    categorize_maintainers,
-)
 from shared.models.linkage import (
     CVEDerivationClusterProposal,
 )
@@ -30,31 +24,12 @@ class PackageOperationBaseView(SuggestionContentEditBaseView, ABC):
         except self.ForbiddenOperationError as e:
             return e.response
 
-        # Validate that the package exists in the suggestion
-        if package_attr not in suggestion.cached.payload.get("original_packages", {}):
-            return self._handle_error(
-                request, suggestion_context, "Package not found in this suggestion"
-            )
-
-        # Perform the specific operation (to be implemented by subclasses)
+        # Perform the specific operation (to be implemented by subclasses).
+        # The model method validates the package exists and updates the cache
+        # (packages + categorized_maintainers) in one go.
         try:
-            with transaction.atomic():
-                self._perform_operation(suggestion, package_attr)
-                suggestion.cached.payload["packages"] = apply_package_overlays(
-                    suggestion.cached.payload["original_packages"],
-                    suggestion.package_overlays.all(),
-                )
-                suggestion.cached.payload["categorized_maintainers"] = (
-                    categorize_maintainers(
-                        {
-                            k: CachedSuggestion.Package.model_validate(v)
-                            for k, v in suggestion.cached.payload["packages"].items()
-                        },
-                        suggestion.maintainer_overlays.all(),
-                    ).model_dump()
-                )
-                suggestion.cached.save()
-                suggestion_context.suggestion.cached = suggestion.cached
+            self._perform_operation(suggestion, package_attr)
+            suggestion_context.suggestion.cached = suggestion.cached
         except Exception:
             return self._handle_error(
                 request,

@@ -19,7 +19,7 @@ export function UserSettings() {
   const activeTab = getTabFromLocation(location);
 
   return (
-    <div className="column gap">
+    <div className="column gap-big">
       {isLoading ? (
         <>
           <div className="row gap centered">

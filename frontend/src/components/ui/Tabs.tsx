@@ -2,7 +2,7 @@ import { TabContent, TabList, TabsRoot, TabTrigger } from "@ark-ui/react";
 import type { ComponentChildren } from "preact";
 import styles from "./Tabs.module.css";
 
-type Tab = {
+export type Tab = {
   value: string;
   label: string;
   icon?: ComponentChildren;
@@ -13,16 +13,17 @@ type TabsProps = {
   value: string;
   onValueChange: (value: string) => void;
   tabs: Tab[];
+  compact?: boolean;
   lazyMount?: boolean;
 };
 
-export function Tabs({ value, onValueChange, tabs, lazyMount }: TabsProps) {
+export function Tabs({ value, onValueChange, tabs, lazyMount, compact = false }: TabsProps) {
   return (
     <TabsRoot
       value={value}
       onValueChange={({ value }) => onValueChange(value)}
       lazyMount={lazyMount}
-      className="column gap-big"
+      className={`column ${compact ? "gap" : "gap-big"}`}
     >
       <TabList className={`row ${styles.tabList}`}>
         {tabs.map((tab) => (

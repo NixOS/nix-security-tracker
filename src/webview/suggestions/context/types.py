@@ -170,6 +170,12 @@ class SuggestionContext:
         ]
         frozen = self.suggestion.is_frozen
 
+        # Orphan maintainers (no longer associated with any active package)
+        # are kept in the cached data but hidden from this view.
+        orphan_github_ids = {
+            m["github_id"] for m in categorized_maintainers.get("orphan", [])
+        }
+
         active_contexts = [
             MaintainerContext(
                 maintainer=maintainer,
@@ -179,6 +185,7 @@ class SuggestionContext:
                 suggestion_id=self.suggestion.pk,
             )
             for maintainer in categorized_maintainers["active"]
+            if maintainer["github_id"] not in orphan_github_ids
         ]
 
         ignored_contexts = [
@@ -190,6 +197,7 @@ class SuggestionContext:
                 suggestion_id=self.suggestion.pk,
             )
             for maintainer in categorized_maintainers["ignored"]
+            if maintainer["github_id"] not in orphan_github_ids
         ]
 
         additional_contexts = [

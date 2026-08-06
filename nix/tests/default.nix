@@ -44,6 +44,8 @@ pkgs.testers.runNixOSTest {
             git init --initial-branch=master
             git add -A
             git -c user.name=test -c user.email=test@test commit -m "test"
+            git branch release-25.11
+            git branch release-25.05
             git rev-parse HEAD > REVISION
           '';
     in
@@ -138,8 +140,10 @@ pkgs.testers.runNixOSTest {
       with subtest("Check that channels are fetched and only small ones get enqueued for evaluation"):
         server.succeed("wst-manage fetch_all_channels")
         ${in-shell "succeed" ''
-          from shared.models import NixChannel
-          assert NixChannel.objects.count() == 6
+          from shared.models import NixChannel, NixpkgsBranch
+
+          assert NixpkgsBranch.objects.count() == 3, f"expected 3 branches, got {NixpkgsBranch.objects.count()}"
+          assert NixChannel.objects.count() == 6, f"expected 6 channels, got {NixChannel.objects.count()}"
         ''}
         ${
           # Give it some time to queue up the evaluations...
