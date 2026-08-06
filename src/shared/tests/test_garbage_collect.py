@@ -481,3 +481,102 @@ def test_stale_proposal_deletion_cascades_to_notifications(
     assert SuggestionNotification.objects.count() == 0
     user.profile.refresh_from_db()
     assert user.profile.unread_notifications_count == 0
+
+
+def test_deletes_pending_match_on_superseded_evaluation(
+    make_channel: Callable[..., NixChannel],
+    make_evaluation: Callable[..., NixEvaluation],
+    make_drv: Callable[..., NixDerivation],
+    make_suggestion: Callable[..., CVEDerivationClusterProposal],
+) -> None:
+    """A recent (well within cutoff) PENDING match on a non-latest evaluation is purged
+    immediately, since that evaluation can never be matched again. The now-unmatched
+    derivation itself survives — it's still within the unmatched-derivation cutoff."""
+    channel = make_channel(channel_branch="nixos-unstable")
+    superseded_eval = make_evaluation(channel=channel, age=timedelta(hours=2))
+    latest_eval = make_evaluation(channel=channel, age=timedelta(0))
+
+    superseded_drv = make_drv(evaluation=superseded_eval)
+    latest_drv = make_drv(evaluation=latest_eval)
+
+    make_suggestion(
+        drvs={superseded_drv: ProvenanceFlags.PACKAGE_NAME_MATCH},
+        status=CVEDerivationClusterProposal.Status.PENDING,
+    )
+
+    call_command("garbage_collect", stdout=StringIO())
+
+    assert CVEDerivationClusterProposal.objects.count() == 0
+    assert DerivationClusterProposalLink.objects.count() == 0
+    assert NixDerivation.objects.filter(pk=superseded_drv.pk).exists()
+    assert NixDerivation.objects.filter(pk=latest_drv.pk).exists()
+
+
+@pytest.mark.parametrize(
+    "status, rejection_reason",
+    [
+        (CVEDerivationClusterProposal.Status.ACCEPTED, None),
+        (CVEDerivationClusterProposal.Status.PUBLISHED, None),
+        (
+            CVEDerivationClusterProposal.Status.REJECTED,
+            CVEDerivationClusterProposal.RejectionReason.NOT_IN_NIXPKGS,
+        ),
+    ],
+)
+def test_preserves_reviewed_match_on_superseded_evaluation(
+    make_channel: Callable[..., NixChannel],
+    make_evaluation: Callable[..., NixEvaluation],
+    make_drv: Callable[..., NixDerivation],
+    make_suggestion: Callable[..., CVEDerivationClusterProposal],
+    status: CVEDerivationClusterProposal.Status,
+    rejection_reason: CVEDerivationClusterProposal.RejectionReason | None,
+) -> None:
+    """ACCEPTED/PUBLISHED/REJECTED matches survive even on a superseded evaluation — only
+    PENDING (never reviewed) matches are purged."""
+    channel = make_channel(channel_branch="nixos-unstable")
+    superseded_eval = make_evaluation(channel=channel, age=timedelta(hours=2))
+    make_evaluation(channel=channel, age=timedelta(0))
+
+    superseded_drv = make_drv(evaluation=superseded_eval)
+    make_suggestion(
+        drvs={superseded_drv: ProvenanceFlags.PACKAGE_NAME_MATCH},
+        status=status,
+        rejection_reason=rejection_reason,
+    )
+
+    call_command("garbage_collect", stdout=StringIO())
+
+    assert NixDerivation.objects.filter(pk=superseded_drv.pk).exists()
+    assert CVEDerivationClusterProposal.objects.count() == 1
+
+
+def test_preserves_proposal_still_linked_two_latest_evaluation(
+    make_channel: Callable[..., NixChannel],
+    make_evaluation: Callable[..., NixEvaluation],
+    make_drv: Callable[..., NixDerivation],
+    make_suggestion: Callable[..., CVEDerivationClusterProposal],
+) -> None:
+    """A proposal linking one derivation on a superseded evaluation and one on the latest
+    evaluation loses only the superseded link; it is not orphaned."""
+    channel = make_channel(channel_branch="nixos-unstable")
+    superseded_eval = make_evaluation(channel=channel, age=timedelta(hours=2))
+    latest_eval = make_evaluation(channel=channel, age=timedelta(0))
+
+    superseded_drv = make_drv(evaluation=superseded_eval, attribute="shared-attr")
+    latest_drv = make_drv(evaluation=latest_eval, attribute="shared-attr")
+
+    suggestion = make_suggestion(
+        drvs={
+            superseded_drv: ProvenanceFlags.PACKAGE_NAME_MATCH,
+            latest_drv: ProvenanceFlags.PACKAGE_NAME_MATCH,
+        },
+        status=CVEDerivationClusterProposal.Status.PENDING,
+    )
+
+    call_command("garbage_collect", stdout=StringIO())
+
+    assert NixDerivation.objects.filter(pk=latest_drv.pk).exists()
+    assert CVEDerivationClusterProposal.objects.filter(pk=suggestion.pk).exists()
+    assert DerivationClusterProposalLink.objects.filter(
+        proposal=suggestion, derivation=latest_drv
+    ).exists()
