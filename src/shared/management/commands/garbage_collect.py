@@ -48,12 +48,6 @@ class Command(BaseCommand):
 
     def add_arguments(self, parser: ArgumentParser) -> None:
         parser.add_argument(
-            "--dry-run",
-            action="store_true",
-            default=False,
-            help="Report what would be deleted without making any changes",
-        )
-        parser.add_argument(
             "--batch-size",
             type=int,
             default=50000,
@@ -68,36 +62,26 @@ class Command(BaseCommand):
 
     def handle(self, *args: Any, **options: Any) -> None:
         cutoff = timezone.now() - timedelta(days=options["cutoff_days"])
-        dry_run: bool = options["dry_run"]
         batch_size: int = options["batch_size"]
-
-        if dry_run:
-            self.stdout.write(
-                self.style.WARNING(
-                    f"Dry run — no data will be deleted. Cutoff date: {cutoff.date()}"
-                )
-            )
 
         # The order here is intentional and required.
         # Each step satisfies the cascading constraints that gate the next step.
         # `pghistory` events are never auto-deleted — each step explicitly clears relevant events first.
 
         self.stdout.write("\n[1/5] Deleting stale matches")
-        self._delete_stale_matches(cutoff, batch_size, dry_run)
+        self._delete_stale_matches(cutoff, batch_size)
         self.stdout.write("\n[2/5] Deleting unmatched derivations")
-        self._delete_unmatched_derivations(cutoff, batch_size, dry_run)
+        self._delete_unmatched_derivations(cutoff, batch_size)
         self.stdout.write("\n[3/5] Deleting empty evaluations")
-        self._delete_empty_evaluations(cutoff, batch_size, dry_run)
+        self._delete_empty_evaluations(cutoff, batch_size)
         self.stdout.write("\n[4/5] Deleting inactive channels")
-        self._delete_inactive_channels(batch_size, dry_run)
+        self._delete_inactive_channels(batch_size)
         self.stdout.write("\n[5/5] Pruning stale package attrpaths")
-        self._prune_stale_package_attrpaths(batch_size, dry_run)
+        self._prune_stale_package_attrpaths(batch_size)
 
         self.stdout.write(self.style.SUCCESS("\nGarbage collection complete."))
 
-    def _delete_stale_matches(
-        self, cutoff: Any, batch_size: int, dry_run: bool
-    ) -> None:
+    def _delete_stale_matches(self, cutoff: Any, batch_size: int) -> None:
         candidates = (
             CVEDerivationClusterProposal.objects.filter(
                 Q(created_at__lt=cutoff)
@@ -116,12 +100,6 @@ class Command(BaseCommand):
             )
             .distinct()
         )
-
-        total = candidates.count()
-        self.stdout.write(f"Found {total} eligible proposals.")
-
-        if total == 0 or dry_run:
-            return
 
         proposal_ids = list(candidates.values_list("id", flat=True))
         link_ids = list(
@@ -149,9 +127,7 @@ class Command(BaseCommand):
             batch_size=batch_size,
         )
 
-    def _delete_unmatched_derivations(
-        self, cutoff: Any, batch_size: int, dry_run: bool
-    ) -> None:
+    def _delete_unmatched_derivations(self, cutoff: Any, batch_size: int) -> None:
         failed_crashed = NixDerivation.objects.filter(
             parent_evaluation__state__in=[
                 NixEvaluation.EvaluationState.FAILED,
@@ -178,7 +154,6 @@ class Command(BaseCommand):
             pk_field="id",
             label="derivations with metadata",
             batch_size=batch_size,
-            dry_run=dry_run,
         )
 
         # Delete whatever derivations without metadata remain
@@ -188,12 +163,9 @@ class Command(BaseCommand):
             pk_field="id",
             label="derivations without metadata",
             batch_size=batch_size,
-            dry_run=dry_run,
         )
 
-    def _delete_empty_evaluations(
-        self, cutoff: Any, batch_size: int, dry_run: bool
-    ) -> None:
+    def _delete_empty_evaluations(self, cutoff: Any, batch_size: int) -> None:
         candidates = NixEvaluation.objects.filter(
             state__in=[
                 NixEvaluation.EvaluationState.FAILED,
@@ -208,10 +180,9 @@ class Command(BaseCommand):
             pk_field="id",
             label="evaluations",
             batch_size=batch_size,
-            dry_run=dry_run,
         )
 
-    def _delete_inactive_channels(self, batch_size: int, dry_run: bool) -> None:
+    def _delete_inactive_channels(self, batch_size: int) -> None:
         candidates = (
             NixChannel.objects.filter(
                 state__in=[
@@ -230,12 +201,6 @@ class Command(BaseCommand):
             .distinct()
         )
 
-        total = candidates.count()
-        self.stdout.write(f"Found {total} eligible inactive channels.")
-
-        if total == 0 or dry_run:
-            return
-
         self._delete_in_batches(
             qs=candidates,
             model=NixChannel,
@@ -244,14 +209,13 @@ class Command(BaseCommand):
             batch_size=batch_size,
         )
 
-    def _prune_stale_package_attrpaths(self, batch_size: int, dry_run: bool) -> None:
+    def _prune_stale_package_attrpaths(self, batch_size: int) -> None:
         self._delete_in_batches(
             qs=PackageAttrpath.objects.stale(),
             model=PackageAttrpath,
             pk_field="attrpath",
             label="stale package attrpaths",
             batch_size=batch_size,
-            dry_run=dry_run,
         )
 
     def _purge_events(
@@ -282,14 +246,7 @@ class Command(BaseCommand):
         pk_field: str,
         label: str,
         batch_size: int,
-        dry_run: bool = False,
     ) -> None:
-        total = qs.count()
-        self.stdout.write(f"Found {total} eligible {label}.")
-
-        if total == 0 or dry_run:
-            return
-
         deleted_total = 0
         batch_num = 1
 
@@ -300,9 +257,7 @@ class Command(BaseCommand):
 
             deleted, _ = model.objects.filter(**{f"{pk_field}__in": batch_pks}).delete()
             deleted_total += deleted
-            self.stdout.write(
-                f"Batch {batch_num}: deleted {deleted_total}/{total} {label}."
-            )
+            self.stdout.write(f"Batch {batch_num}: deleted {deleted_total} {label}.")
             batch_num += 1
 
         self.stdout.write(self.style.SUCCESS(f"Done. Deleted {deleted_total} {label}."))

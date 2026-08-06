@@ -25,7 +25,7 @@ from shared.models.nix_evaluation import (
     NixEvaluation,
     NixMaintainer,
 )
-from shared.models.package import Package, PackageAttrpath, PackageDerivation
+from shared.models.package import PackageAttrpath, PackageDerivation
 from shared.package_clustering import cluster_packages
 
 
@@ -140,20 +140,6 @@ def test_preserves_proposal_with_maintainer_overlay(
     call_command("garbage_collect", stdout=StringIO())
 
     assert CVEDerivationClusterProposal.objects.count() == 1
-
-
-def test_dry_run_preserves_stale_proposal(
-    make_drv: Callable[..., NixDerivation],
-    make_suggestion: Callable[..., CVEDerivationClusterProposal],
-) -> None:
-    """--dry-run reports the count but makes no deletions."""
-    make_suggestion(age=timedelta(days=400))
-
-    out = StringIO()
-    call_command("garbage_collect", "--dry-run", stdout=out)
-
-    assert CVEDerivationClusterProposal.objects.count() == 1
-    assert "Dry run" in out.getvalue()
 
 
 # FIXME(@fricklerhandwerk): Use the constraints declared here in the actual code, that would simplify it a lot.
@@ -384,20 +370,6 @@ def test_garbage_collect_preserves_attrpath_with_live_link(
     assert NixDerivation.objects.filter(pk=drv_linked.pk).exists()
     assert PackageDerivation.objects.filter(derivation=drv_linked).exists()
     assert PackageAttrpath.objects.filter(attrpath="shared-attr").exists()
-
-
-def test_garbage_collect_dry_run_preserves_stale_package_attrpaths(
-    drv: NixDerivation,
-    make_package: Callable[..., Package],
-) -> None:
-    make_package(drv)
-    assert PackageAttrpath.objects.filter(attrpath=drv.attribute).exists()
-
-    out = StringIO()
-    call_command("garbage_collect", "--dry-run", stdout=out)
-
-    assert PackageAttrpath.objects.filter(attrpath=drv.attribute).exists()
-    assert "stale package attrpath" in out.getvalue().lower()
 
 
 @pytest.mark.parametrize(
