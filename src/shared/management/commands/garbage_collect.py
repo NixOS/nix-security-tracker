@@ -4,14 +4,25 @@ from typing import Any
 
 from django.core.management.base import BaseCommand, CommandParser, DjangoHelpFormatter
 from django.db import connection, models
-from django.db.models import Q, QuerySet
+from django.db.models import (
+    Case,
+    IntegerField,
+    OuterRef,
+    Q,
+    QuerySet,
+    Subquery,
+    When,
+)
 from django.utils import timezone
 
 from shared.models import (  # type: ignore
     CVEDerivationClusterProposalStatusEvent,
     DerivationClusterProposalLinkEvent,
 )
-from shared.models.linkage import CVEDerivationClusterProposal
+from shared.models.linkage import (
+    CVEDerivationClusterProposal,
+    DerivationClusterProposalLink,
+)
 from shared.models.nix_evaluation import (
     NixChannel,
     NixDerivation,
@@ -66,15 +77,17 @@ class Command(BaseCommand):
         # `pghistory` events are never auto-deleted — each step explicitly clears relevant events first.
 
         # FIXME(@fricklerhandwerk): Make the numbering implicit, otherwise we'll have noisy diffs every time something changes here.
-        self.stdout.write("\n[1/5] Deleting stale matches")
+        self.stdout.write("\n[1/6] Deleting stale matches")
         self._delete_stale_matches(cutoff, batch_size)
-        self.stdout.write("\n[2/5] Deleting unmatched derivations")
+        self.stdout.write("\n[2/6] Purging obsolete channel links")
+        self._purge_obsolete_channel_links(batch_size)
+        self.stdout.write("\n[3/6] Deleting unmatched derivations")
         self._delete_unmatched_derivations(cutoff, batch_size)
-        self.stdout.write("\n[3/5] Deleting empty evaluations")
+        self.stdout.write("\n[4/6] Deleting empty evaluations")
         self._delete_empty_evaluations(cutoff, batch_size)
-        self.stdout.write("\n[4/5] Deleting inactive channels")
+        self.stdout.write("\n[5/6] Deleting inactive channels")
         self._delete_inactive_channels(batch_size)
-        self.stdout.write("\n[5/5] Pruning stale package attrpaths")
+        self.stdout.write("\n[6/6] Pruning stale package attrpaths")
         self._prune_stale_package_attrpaths(batch_size)
 
         self.stdout.write(self.style.SUCCESS("\nGarbage collection complete."))
@@ -116,6 +129,59 @@ class Command(BaseCommand):
             label="stale suggestions",
             batch_size=batch_size,
             event_model=CVEDerivationClusterProposalStatusEvent,
+        )
+
+    def _purge_obsolete_channel_links(self, batch_size: int) -> None:
+        """
+        For each `(suggestion, attribute)`, keep only the derivatons from the most current channel.
+        Links to derivations from older channels with the same attribute count as obsolete if a more current channel is present.
+
+        This procedure can be removed once we evaluate the tip of each release branch once and match only against those.
+        """
+
+        # This priority corresponds to how far evaluated commits are behind `master`.
+        priority = Case(
+            When(
+                derivation__parent_evaluation__channel__channel_branch__endswith="-small",
+                then=0,
+            ),
+            When(
+                derivation__parent_evaluation__channel__channel_branch__startswith="nixos-",
+                then=1,
+            ),
+            # Stable releases can be considered even older and ordered lexicographically.
+            default=2,
+            output_field=IntegerField(),
+        )
+
+        # We only need the latest version of a "package" at matching time.
+        # A "package" currently merely constsists of derivations grouped by attribute path.
+        latest_link = (
+            DerivationClusterProposalLink.objects.filter(
+                proposal_id=OuterRef("proposal_id"),
+                derivation__attribute=OuterRef("derivation__attribute"),
+                derivation__parent_evaluation__channel__release_branch=OuterRef(
+                    "derivation__parent_evaluation__channel__release_branch"
+                ),
+            )
+            .annotate(prio=priority)
+            # Some channels in old suggestions appear multiple times, we take only the latest evaluation for each.
+            # We only introduced taking the latest evaluation at some point after going live.
+            .order_by("prio", "-derivation__parent_evaluation__created_at")
+            .values("pk")[:1]
+        )
+
+        candidates = DerivationClusterProposalLink.objects.exclude(
+            pk=Subquery(latest_link)
+        )
+
+        self._delete_in_batches(
+            qs=candidates,
+            model=DerivationClusterProposalLink,
+            pk_field="id",
+            label="obsolete channel links",
+            batch_size=batch_size,
+            event_model=DerivationClusterProposalLinkEvent,
         )
 
     def _delete_unmatched_derivations(self, cutoff: Any, batch_size: int) -> None:
