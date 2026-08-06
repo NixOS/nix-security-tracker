@@ -6,11 +6,11 @@ from django.core.management.base import BaseCommand, CommandParser, DjangoHelpFo
 from django.db import connection, models
 from django.db.models import (
     Case,
+    Exists,
     IntegerField,
     OuterRef,
     Q,
     QuerySet,
-    Subquery,
     When,
 )
 from django.utils import timezone
@@ -156,24 +156,31 @@ class Command(BaseCommand):
 
         # We only need the latest version of a "package" at matching time.
         # A "package" currently merely constsists of derivations grouped by attribute path.
+        # Some channels in old suggestions appear multiple times, we take only the latest evaluation for each.
+        # We only introduced taking the latest evaluation at some point after going live.
         latest_link = (
-            DerivationClusterProposalLink.objects.filter(
+            DerivationClusterProposalLink.objects.annotate(priority=priority)
+            .filter(
                 proposal_id=OuterRef("proposal_id"),
                 derivation__attribute=OuterRef("derivation__attribute"),
                 derivation__parent_evaluation__channel__release_branch=OuterRef(
                     "derivation__parent_evaluation__channel__release_branch"
                 ),
             )
-            .annotate(prio=priority)
-            # Some channels in old suggestions appear multiple times, we take only the latest evaluation for each.
-            # We only introduced taking the latest evaluation at some point after going live.
-            .order_by("prio", "-derivation__parent_evaluation__created_at")
-            .values("pk")[:1]
+            .filter(
+                Q(priority__lt=OuterRef("priority"))
+                | Q(
+                    priority=OuterRef("priority"),
+                    derivation__parent_evaluation__created_at__gt=OuterRef(
+                        "derivation__parent_evaluation__created_at"
+                    ),
+                )
+            )
         )
 
-        candidates = DerivationClusterProposalLink.objects.exclude(
-            pk=Subquery(latest_link)
-        )
+        candidates = DerivationClusterProposalLink.objects.annotate(
+            priority=priority
+        ).filter(Exists(latest_link))
 
         self._delete_in_batches(
             qs=candidates,
