@@ -11,10 +11,7 @@ from shared.models import (  # type: ignore
     CVEDerivationClusterProposalStatusEvent,
     DerivationClusterProposalLinkEvent,
 )
-from shared.models.linkage import (
-    CVEDerivationClusterProposal,
-    DerivationClusterProposalLink,
-)
+from shared.models.linkage import CVEDerivationClusterProposal
 from shared.models.nix_evaluation import (
     NixChannel,
     NixDerivation,
@@ -68,6 +65,7 @@ class Command(BaseCommand):
         # Each step satisfies the cascading constraints that gate the next step.
         # `pghistory` events are never auto-deleted — each step explicitly clears relevant events first.
 
+        # FIXME(@fricklerhandwerk): Make the numbering implicit, otherwise we'll have noisy diffs every time something changes here.
         self.stdout.write("\n[1/5] Deleting stale matches")
         self._delete_stale_matches(cutoff, batch_size)
         self.stdout.write("\n[2/5] Deleting unmatched derivations")
@@ -101,30 +99,23 @@ class Command(BaseCommand):
             .distinct()
         )
 
-        proposal_ids = list(candidates.values_list("id", flat=True))
-        link_ids = list(
-            DerivationClusterProposalLink.objects.filter(
-                proposal_id__in=proposal_ids
-            ).values_list("id", flat=True)
-        )
-
-        self._purge_events(
-            CVEDerivationClusterProposalStatusEvent,
-            pgh_obj_id__in=proposal_ids,
-            label="proposal status events",
-        )
-        self._purge_events(
+        deleted = self._purge_events(
             DerivationClusterProposalLinkEvent,
-            pgh_obj_id__in=link_ids,
-            label="derivation link events",
+            pgh_obj__proposal_id__in=candidates.values_list("id", flat=True),
+        )
+        self.stdout.write(
+            self.style.SUCCESS(
+                f"Deleted for link events on stale suggestions: {deleted}"
+            )
         )
 
         self._delete_in_batches(
             qs=candidates,
             model=CVEDerivationClusterProposal,
             pk_field="id",
-            label="proposals",
+            label="stale suggestions",
             batch_size=batch_size,
+            event_model=CVEDerivationClusterProposalStatusEvent,
         )
 
     def _delete_unmatched_derivations(self, cutoff: Any, batch_size: int) -> None:
@@ -221,9 +212,8 @@ class Command(BaseCommand):
     def _purge_events(
         self,
         event_model: type[models.Model],
-        label: str,
         **filter_kwargs: Any,
-    ) -> None:
+    ) -> dict[str, int]:
         table_name = event_model._meta.db_table
 
         try:
@@ -233,8 +223,8 @@ class Command(BaseCommand):
                 # let temporarily disable it.
                 cursor.execute(f"ALTER TABLE {table_name} DISABLE TRIGGER ALL")
 
-            deleted, _ = event_model.objects.filter(**filter_kwargs).delete()
-            self.stdout.write(f"Purged {deleted} {label}.")
+            _, details = event_model.objects.filter(**filter_kwargs).delete()
+            return details
         finally:
             with connection.cursor() as cursor:
                 cursor.execute(f"ALTER TABLE {table_name} ENABLE TRIGGER ALL")
@@ -246,8 +236,9 @@ class Command(BaseCommand):
         pk_field: str,
         label: str,
         batch_size: int,
+        event_model: type[models.Model] | None = None,
     ) -> None:
-        deleted_total = 0
+        totals: dict[str, int] = {}
         batch_num = 1
 
         while True:
@@ -255,9 +246,21 @@ class Command(BaseCommand):
             if not batch_pks:
                 break
 
-            deleted, _ = model.objects.filter(**{f"{pk_field}__in": batch_pks}).delete()
-            deleted_total += deleted
-            self.stdout.write(f"Batch {batch_num}: deleted {deleted_total} {label}.")
+            batch_details: dict[str, int] = {}
+            if event_model is not None:
+                batch_details.update(
+                    self._purge_events(
+                        event_model,
+                        pgh_obj_id__in=batch_pks,
+                    )
+                )
+
+            _, details = model.objects.filter(**{f"{pk_field}__in": batch_pks}).delete()
+            for model_label, count in details.items():
+                batch_details[model_label] = batch_details.get(model_label, 0) + count
+            for model_label, count in batch_details.items():
+                totals[model_label] = totals.get(model_label, 0) + count
+            self.stdout.write(f"Batch {batch_num} deleted for {label}: {batch_details}")
             batch_num += 1
 
-        self.stdout.write(self.style.SUCCESS(f"Done. Deleted {deleted_total} {label}."))
+        self.stdout.write(self.style.SUCCESS(f"Deleted for {label}: {totals}"))
