@@ -50,6 +50,12 @@ let
   };
   credentials = mapAttrsToList (name: secretPath: "${name}:${secretPath}") cfg.secrets;
   databaseUrl = "postgres:///nix-security-tracker";
+  # FIXME(@fricklerhandwerk): Use the explicit names everywhere.
+  # Maybe implement them as options so they have explicit documentation and can be overridden.
+  app = "nix-security-tracker";
+  user = app;
+  socket-group = "${app}-socket-group";
+  socket = config.systemd.sockets."${app}-server".socketConfig;
 
   # This script has access to the credentials, no matter where it is.
   wstExternalManageScript = writeScriptBin "wst-manage" ''
@@ -98,6 +104,11 @@ in
     wsgi-port = mkOption {
       type = types.port;
       default = 8000;
+    };
+    unix-socket = mkOption {
+      description = "Connect reverse proxy and application through Unix socket";
+      type = types.bool;
+      default = true;
     };
     env = mkOption rec {
       description = ''
@@ -207,7 +218,11 @@ in
         };
         ${cfg.domain} = {
           locations = {
-            "/".proxyPass = "http://127.0.0.1:${toString cfg.wsgi-port}";
+            "/".proxyPass =
+              if cfg.unix-socket then
+                "http://unix:${socket.ListenStream}:/"
+              else
+                "http://127.0.0.1:${toString cfg.wsgi-port}";
             "/static/".alias = cfg.settings.STATIC_ROOT;
             # Vite-built frontend assets (hashed filenames → immutable cache)
             "/static/vite/" = {
@@ -257,12 +272,18 @@ in
       };
     };
 
-    users.users.nix-security-tracker = {
-      isSystemUser = true;
-      group = "nix-security-tracker";
-      home = config.systemd.services.nix-security-tracker-server.serviceConfig.WorkingDirectory;
+    users.users = {
+      nix-security-tracker = {
+        isSystemUser = true;
+        group = "nix-security-tracker";
+        home = config.systemd.services.nix-security-tracker-server.serviceConfig.WorkingDirectory;
+      };
+      nginx.extraGroups = lib.optionals cfg.unix-socket [ socket-group ];
     };
-    users.groups.nix-security-tracker = { };
+    users.groups = {
+      nix-security-tracker = { };
+      ${socket-group} = lib.mkIf cfg.unix-socket { };
+    };
 
     systemd.services =
       let
@@ -327,9 +348,17 @@ in
               Restart = cfg.restart;
               TimeoutStartSec = lib.mkDefault "10m";
             };
-            script = ''
-              daphne -b 127.0.0.1 -p ${toString cfg.wsgi-port} project.asgi:application
-            '';
+            script =
+              let
+                networking =
+                  if cfg.unix-socket then
+                    "--endpoint systemd:domain=UNIX:name=${socket.FileDescriptorName}"
+                  else
+                    "--bind 127.0.0.1 --port ${toString cfg.wsgi-port}";
+              in
+              ''
+                exec daphne ${networking} project.asgi:application
+              '';
           }
           // optionalAttrs cfg.enablePgbouncer {
             # When PgBouncer is enabled, the ASGI server connects through it over
@@ -539,5 +568,18 @@ in
           };
         })
       ];
+
+    systemd.sockets."${app}-server" = lib.mkIf cfg.unix-socket {
+      wantedBy = [ "sockets.target" ];
+      socketConfig = rec {
+        User = user;
+        Group = socket-group;
+        RuntimeDirectory = "${app}-socket";
+        RuntimeDirectoryMode = "0710";
+        SocketUser = user;
+        ListenStream = "/run/${RuntimeDirectory}/server.sock";
+        FileDescriptorName = app;
+      };
+    };
   };
 }
