@@ -99,10 +99,6 @@ in
       type = types.port;
       default = 8000;
     };
-    unixSocket = mkOption {
-      type = types.nullOr types.str;
-      default = null;
-    };
     env = mkOption rec {
       description = ''
         Environment variables for the service
@@ -183,9 +179,6 @@ in
       nix-security-tracker.settings = {
         ALLOWED_HOSTS = mkDefault [
           (with cfg; if production then domain else "*")
-          "localhost"
-          "127.0.0.1"
-          "[::1]"
         ];
         CSRF_TRUSTED_ORIGINS = mkDefault [ "https://${cfg.domain}" ];
         EVALUATION_LOGS_DIRECTORY = mkDefault "/var/log/nix-security-tracker/evaluation";
@@ -204,7 +197,7 @@ in
         };
         ${cfg.domain} = {
           locations = {
-            "/".proxyPass = "http://localhost:${toString cfg.wsgi-port}";
+            "/".proxyPass = "http://127.0.0.1:${toString cfg.wsgi-port}";
             "/static/".alias = cfg.settings.STATIC_ROOT;
             # Vite-built frontend assets (hashed filenames → immutable cache)
             "/static/vite/" = {
@@ -323,17 +316,9 @@ in
               Restart = cfg.restart;
               TimeoutStartSec = lib.mkDefault "10m";
             };
-            script =
-              let
-                networking =
-                  if cfg.unixSocket != null then
-                    "-u ${cfg.unixSocket}"
-                  else
-                    "-b 127.0.0.1 -p ${toString cfg.wsgi-port}";
-              in
-              ''
-                daphne ${networking} project.asgi:application
-              '';
+            script = ''
+              daphne -b 127.0.0.1 -p ${toString cfg.wsgi-port} project.asgi:application
+            '';
           }
           // optionalAttrs cfg.enablePgbouncer {
             # When PgBouncer is enabled, the ASGI server connects through it over
