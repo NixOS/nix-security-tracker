@@ -304,6 +304,19 @@ in
       in
       mkMerge [
         (mapAttrs (_: recursiveUpdate defaults) {
+          nix-security-tracker-checkout = {
+            description = "Web security tracker - Nixpkgs initial checkout";
+            after = [ "network.target" ];
+            wantedBy = [ "multi-user.target" ];
+            serviceConfig = {
+              Type = "oneshot";
+              StateDirectory = [
+                "nix-security-tracker"
+                (lib.removePrefix "/var/lib/" cfg.settings.LOCAL_NIXPKGS_CHECKOUT)
+              ];
+            };
+            script = "${manage.name} initiate_checkout";
+          };
           nix-security-tracker-migrations = {
             description = "Web security tracker - database migrations";
             after = [
@@ -372,10 +385,12 @@ in
             after = [
               "network.target"
               "postgresql.service"
+              "nix-security-tracker-checkout.service"
               "nix-security-tracker-worker.service"
             ];
             requires = [
               "postgresql.service"
+              "nix-security-tracker-checkout.service"
               "nix-security-tracker-worker.service"
             ];
 
