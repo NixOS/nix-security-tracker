@@ -1,12 +1,12 @@
 import { PenToolIcon, Trash2Icon } from "lucide-preact";
 import type { ComponentChild } from "preact";
-import type { StatusEnum, SuggestionStatusRejectionReason } from "@/api/generated/models";
+import type { SuggestionStatusEnum, SuggestionStatusRejectionReason } from "@/api/generated/models";
 import { Menu } from "@/components/ui/Menu";
 import { useSuggestionStatusMutation } from "@/hooks/useSuggestionStatus";
 
 type Props = {
   suggestionId: number;
-  status: StatusEnum;
+  status: SuggestionStatusEnum;
   comment?: string | null;
   children?: ComponentChild; // Component to insert between the status change buttons: e.g. comment in compact mode
 };

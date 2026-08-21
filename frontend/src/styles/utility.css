@@ -549,3 +549,14 @@ details.details-marker-outside > summary {
 .bg-nixos-blue {
   background-color: var(--nixos-blue);
 }
+
+/* Breakpoints
+ *
+ * .hide-below-breakpoint - hide when the screen width is below the breakpoint (a.k.a mobile mode)
+ */
+
+@media (max-width: 60rem) {
+  .hide-below-breakpoint {
+    display: none;
+  }
+}

@@ -154,6 +154,9 @@ class SuggestionSerializer(serializers.Serializer):
     )
     comment = serializers.CharField(allow_null=True, required=False)
     in_issue_draft = serializers.BooleanField()
+    issue_code = serializers.CharField(
+        source="nixpkgs_issue.code", allow_null=True, required=False
+    )
 
     # Fields from the cached payload
     cve_id = serializers.SerializerMethodField()
@@ -245,6 +248,8 @@ class SuggestionSerializer(serializers.Serializer):
         result = super().to_representation(instance)
         if instance.status != CVEDerivationClusterProposal.Status.REJECTED:
             result.pop("rejection_reason", None)
+        if instance.status != CVEDerivationClusterProposal.Status.PUBLISHED:
+            result.pop("issue_code", None)
         if not instance.comment:
             result.pop("comment", None)
         return result

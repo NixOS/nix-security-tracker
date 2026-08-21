@@ -61,6 +61,23 @@ class CVEDerivationClusterProposalQuerySet(models.QuerySet):
             | ~Q(status=CVEDerivationClusterProposal.Status.PENDING)
         )
 
+    def untouched(self) -> "CVEDerivationClusterProposalQuerySet":
+        """Proposals not yet touched by users or auto-triage (still pending).
+
+        Complement of :meth:`user_curated`. Useful for GC and similar code that
+        should only act on suggestions that have never left pending
+        (see also the discussion on #1211).
+        """
+        return self.filter(status=CVEDerivationClusterProposal.Status.PENDING)
+
+    def user_curated(self) -> "CVEDerivationClusterProposalQuerySet":
+        """Proposals touched by users or auto-triage (everything except pending).
+
+        Complement of :meth:`untouched`. Includes accepted, rejected (manual and
+        auto), and published suggestions used as matching training labels.
+        """
+        return self.exclude(status=CVEDerivationClusterProposal.Status.PENDING)
+
 
 @pghistory.track(
     fields=["status", "rejection_reason"],

@@ -4,9 +4,10 @@ import pytest
 from playwright.sync_api import Page, expect
 from pytest_django.live_server_helper import LiveServer
 
+from shared.models.issue import NixpkgsIssue
 from shared.models.linkage import CVEDerivationClusterProposal
 
-from .routes import SUGGESTION_DETAIL, SUGGESTION_LIST
+from .routes import ISSUE_DETAIL, SUGGESTION_DETAIL, SUGGESTION_LIST
 
 
 @pytest.mark.django_db
@@ -87,6 +88,23 @@ def test_no_status_actions_when_published(
     as_committer.goto(live_server.url + SUGGESTION_DETAIL + f"/{suggestion.pk}")
     actions = as_committer.get_by_test_id(f"suggestion-{suggestion.pk}-status-actions")
     expect(actions).to_be_hidden()
+
+
+@pytest.mark.django_db
+def test_published_status_links_to_issue(
+    live_server: LiveServer,
+    page: Page,
+    make_issue: Callable[..., NixpkgsIssue],
+) -> None:
+    """A published suggestion's status shows an "Issue" link to its issue detail page."""
+    issue = make_issue()
+    suggestion = issue.suggestions.get()
+    page.goto(live_server.url + SUGGESTION_DETAIL + f"/{suggestion.pk}")
+
+    expect(page.get_by_text("Published")).to_be_visible()
+    link = page.get_by_role("link", name="Issue")
+    expect(link).to_be_visible()
+    expect(link).to_have_attribute("href", ISSUE_DETAIL + f"/{issue.code}")
 
 
 @pytest.mark.django_db

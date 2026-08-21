@@ -1,64 +1,88 @@
-from django.shortcuts import get_object_or_404
-from django_filters import rest_framework as filters
-from rest_framework import serializers, viewsets
-from rest_framework.decorators import action
+from django.db.models import Prefetch
+from django.db.models.query import QuerySet
+from drf_spectacular.utils import OpenApiParameter, extend_schema
+from rest_framework import viewsets
+from rest_framework.mixins import ListModelMixin, RetrieveModelMixin
+from rest_framework.pagination import PageNumberPagination
 from rest_framework.permissions import AllowAny
 from rest_framework.request import Request
 from rest_framework.response import Response
 
-from shared.models import NixpkgsIssue
+from api.issues.serializers import IssueSerializer
+from api.serializers import ErrorDetailSerializer
+from shared.models import (
+    NIXPKGS_ISSUE_CODE_REGEX,
+    EventType,
+    NixpkgsEvent,
+    NixpkgsIssue,
+)
 
-# FIXME(@florentc): The inline Serializer class causes drf-spectacular to generate a schema
-# named "_" (unusable in generated clients). It should be renamed to NixpkgsIssueSerializer
-# at module level with an explicit component_name or @extend_schema_serializer decorator.
-# The `status` field also uses get_status_display (returns a string) instead of a ChoiceField
-# (which would generate a proper enum type in the OpenAPI spec).
-# The `cve` field should become `cves` (plural) per the existing FIXME.
+EXPAND_PARAMETER = OpenApiParameter(
+    name="expand",
+    type=str,
+    location=OpenApiParameter.QUERY,
+    required=False,
+    description=(
+        "Comma-separated list of fields to inline instead of returning ids. "
+        "Currently only `suggestions` is supported: when included, the "
+        "`suggestions` field contains full suggestion objects instead of ids."
+    ),
+)
 
 
-class StringInFilter(filters.BaseInFilter, filters.CharFilter):
-    pass
+class IssuePagination(PageNumberPagination):
+    page_size = 10  # TODO(@florentc): Allow the user to change it within limits
 
 
-class NixpkgsIssueViewSet(viewsets.ReadOnlyModelViewSet):
-    class Filter(filters.FilterSet):
-        cve = StringInFilter(
-            label="Filter by CVEs referenced",
-            field_name="suggestions__cve__cve_id",
-            lookup_expr="in",
+class IssueViewSet(ListModelMixin, RetrieveModelMixin, viewsets.GenericViewSet):
+    queryset = NixpkgsIssue.objects.all()
+    serializer_class = IssueSerializer
+    pagination_class = IssuePagination
+    permission_classes = [AllowAny]
+    lookup_field = "code"
+    lookup_value_regex = NIXPKGS_ISSUE_CODE_REGEX
+
+    def get_queryset(self) -> QuerySet[NixpkgsIssue]:  # pyright: ignore[reportIncompatibleMethodOverride]
+        return (
+            NixpkgsIssue.objects.prefetch_related(
+                "suggestions__cached",
+                "suggestions__cve__container__references__tags",
+                Prefetch(
+                    "events",
+                    queryset=NixpkgsEvent.objects.filter(
+                        event_type=EventType.ISSUE | EventType.OPENED,
+                    ),
+                ),
+            )
+            .order_by("-created_at")
+            .distinct()
         )
 
-        class Meta:
-            model = NixpkgsIssue
-            fields = ["cve"]
+    def get_serializer_context(self) -> dict:
+        context = super().get_serializer_context()
+        expand = self.request.query_params.get("expand", "")
+        expand_fields = {field.strip() for field in expand.split(",") if field.strip()}
+        context["expand_suggestions"] = "suggestions" in expand_fields
+        return context
 
-    class Serializer(serializers.ModelSerializer):
-        status = serializers.CharField(source="get_status_display")
-        cve = serializers.SerializerMethodField()
-
-        # FIXME(@florentc): Issues may now have several suggestions, hence several cves.
-        # This should be turned into a cves (plural) field
-        def get_cve(self, obj: NixpkgsIssue) -> str | None:
-            first = obj.suggestions.select_related("cve").first()
-            return first.cve.cve_id if first else None
-
-        class Meta:
-            model = NixpkgsIssue
-            fields = ["code", "cve", "status"]
-
-    filterset_class = Filter
-
-    permission_classes = [AllowAny]
-    queryset = NixpkgsIssue.objects.prefetch_related(
-        "suggestions__cve",
-    ).distinct()
-    serializer_class = Serializer
-
-    @action(
-        detail=False,
-        methods=["get"],
-        url_path=r"by-code/(?P<code>NIXPKGS-[0-9]{4}-[0-9]{4,19})",
+    @extend_schema(
+        operation_id="listIssues",
+        description="List all Nixpkgs security issues, sorted by most recently created first.",
+        parameters=[EXPAND_PARAMETER],
+        responses={200: IssueSerializer(many=True)},
     )
-    def by_code(self, request: Request, code: str) -> Response:
-        issue = get_object_or_404(self.get_queryset(), code=code)
-        return Response(self.get_serializer(issue).data)
+    def list(self, request: Request) -> Response:
+        return super().list(request)
+
+    @extend_schema(
+        operation_id="getIssue",
+        description="Get full details of a Nixpkgs security issue.",
+        parameters=[EXPAND_PARAMETER],
+        responses={200: IssueSerializer, 404: ErrorDetailSerializer},
+    )
+    def retrieve(self, request: Request, code: str) -> Response:
+        instance = self.get_object()
+        if self.get_serializer_context()["expand_suggestions"]:
+            for suggestion in instance.suggestions.all():
+                suggestion.ensure_fresh_cache()
+        return Response(self.get_serializer(instance).data)

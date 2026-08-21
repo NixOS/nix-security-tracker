@@ -10,7 +10,7 @@ import {
   UserPlusIcon,
 } from "lucide-preact";
 import { useGetSuggestionActivityLog } from "@/api/generated/endpoints";
-import { type ActivityLogEntry, StatusEnum } from "@/api/generated/models";
+import { type ActivityLogEntry, SuggestionStatusEnum } from "@/api/generated/models";
 import { Skeleton } from "@/components/ui/Skeleton";
 import { Spinner } from "@/components/ui/Spinner";
 import { useTick } from "@/hooks/useTick";
@@ -50,9 +50,9 @@ function entryIcon(entry: ActivityLogEntry) {
   }
   // Status events
   const sv = entry.status_value ?? "";
-  const statusValues = Object.values(StatusEnum) as readonly StatusEnum[];
-  if (statusValues.includes(sv as StatusEnum)) {
-    return <SuggestionStatusIcon status={sv as StatusEnum} size="1em" />;
+  const statusValues = Object.values(SuggestionStatusEnum) as readonly SuggestionStatusEnum[];
+  if (statusValues.includes(sv as SuggestionStatusEnum)) {
+    return <SuggestionStatusIcon status={sv as SuggestionStatusEnum} size="1em" />;
   }
   return null;
 }

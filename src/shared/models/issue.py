@@ -28,6 +28,9 @@ class IssueStatus(models.TextChoices):
     WONTFIX = "W", _("wontfix")
 
 
+NIXPKGS_ISSUE_CODE_REGEX = r"NIXPKGS-[0-9]{4}-[0-9]{4,19}"
+
+
 class NixpkgsIssue(TimeStampMixin):
     """The Nixpkgs version of a cve."""
 
@@ -45,6 +48,11 @@ class NixpkgsIssue(TimeStampMixin):
 
     def __str__(self) -> str:
         return self.code
+
+    @property
+    def github_issue_url(self) -> str | None:
+        event = next(iter(self.events.all()), None)
+        return event.url if event else None
 
     @property
     def status_string(self) -> str:

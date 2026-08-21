@@ -8,6 +8,7 @@ let
   inherit (lib)
     types
     mkIf
+    mkMerge
     mkEnableOption
     mkPackageOption
     mkOption
@@ -16,6 +17,7 @@ let
     mkDefault
     concatStringsSep
     recursiveUpdate
+    optionalAttrs
     optionalString
     ;
   inherit (pkgs) writeScriptBin writeShellApplication stdenv;
@@ -97,10 +99,6 @@ in
       type = types.port;
       default = 8000;
     };
-    unixSocket = mkOption {
-      type = types.nullOr types.str;
-      default = null;
-    };
     env = mkOption rec {
       description = ''
         Environment variables for the service
@@ -165,6 +163,14 @@ in
       type = types.int;
       default = 2;
     };
+
+    enablePgbouncer = mkEnableOption ''
+      PgBouncer connection pooling in front of PostgreSQL for the ASGI web server.
+
+      When enabled, only `nix-security-tracker-server` connects through
+      PgBouncer. The pgpubsub workers and management commands keep direct database
+      connections, which is required for PostgreSQL LISTEN/NOTIFY.
+    '';
   };
 
   config = mkIf cfg.enable {
@@ -173,9 +179,6 @@ in
       nix-security-tracker.settings = {
         ALLOWED_HOSTS = mkDefault [
           (with cfg; if production then domain else "*")
-          "localhost"
-          "127.0.0.1"
-          "[::1]"
         ];
         CSRF_TRUSTED_ORIGINS = mkDefault [ "https://${cfg.domain}" ];
         EVALUATION_LOGS_DIRECTORY = mkDefault "/var/log/nix-security-tracker/evaluation";
@@ -194,7 +197,7 @@ in
         };
         ${cfg.domain} = {
           locations = {
-            "/".proxyPass = "http://localhost:${toString cfg.wsgi-port}";
+            "/".proxyPass = "http://127.0.0.1:${toString cfg.wsgi-port}";
             "/static/".alias = cfg.settings.STATIC_ROOT;
             # Vite-built frontend assets (hashed filenames → immutable cache)
             "/static/vite/" = {
@@ -220,6 +223,27 @@ in
           }
         ];
         ensureDatabases = [ "nix-security-tracker" ];
+      };
+
+      # PgBouncer fronts only the ASGI web server. Workers and management
+      # commands bypass it.
+      pgbouncer = mkIf cfg.enablePgbouncer {
+        enable = true;
+        settings = {
+          pgbouncer = {
+            pool_mode = "transaction";
+            auth_type = "trust";
+            auth_file = toString (
+              pkgs.writeText "pgbouncer-userlist" ''
+                "nix-security-tracker" ""
+              ''
+            );
+            ignore_startup_parameters = "extra_float_digits";
+          };
+          databases = {
+            nix-security-tracker = "host=/run/postgresql dbname=nix-security-tracker";
+          };
+        };
       };
     };
 
@@ -251,237 +275,256 @@ in
           };
         };
       in
-      mapAttrs (_: recursiveUpdate defaults) {
-        nix-security-tracker-migrations = {
-          description = "Web security tracker - database migrations";
-          after = [
-            "network.target"
-            "postgresql.service"
-          ];
-          requires = [ "postgresql.service" ];
-          wantedBy = [ "multi-user.target" ];
+      mkMerge [
+        (mapAttrs (_: recursiveUpdate defaults) {
+          nix-security-tracker-migrations = {
+            description = "Web security tracker - database migrations";
+            after = [
+              "network.target"
+              "postgresql.service"
+            ];
+            requires = [ "postgresql.service" ];
+            wantedBy = [ "multi-user.target" ];
 
-          serviceConfig.Type = "oneshot";
+            serviceConfig.Type = "oneshot";
 
-          # Auto-migrate on first run or if the package has changed
-          script = ''
-            versionFile="/var/lib/nix-security-tracker/package-version"
-            if [[ $(cat "$versionFile" 2>/dev/null) != ${cfg.package} ]]; then
-              wst-manage migrate --no-input
-              wst-manage collectstatic --no-input --clear
-              echo ${cfg.package} > "$versionFile"
-            fi
-          '';
-        };
-        nix-security-tracker-server = {
-          description = "Web security tracker ASGI server";
-          after = [
-            "network.target"
-            "postgresql.service"
-            "nix-security-tracker-migrations.service"
-          ];
-          requires = [
-            "postgresql.service"
-            "nix-security-tracker-migrations.service"
-          ];
-          wantedBy = [ "multi-user.target" ];
-          serviceConfig = {
-            Restart = cfg.restart;
-            TimeoutStartSec = lib.mkDefault "10m";
-          };
-          script =
-            let
-              networking =
-                if cfg.unixSocket != null then
-                  "-u ${cfg.unixSocket}"
-                else
-                  "-b 127.0.0.1 -p ${toString cfg.wsgi-port}";
-            in
-            ''
-              daphne ${networking} project.asgi:application
+            # Auto-migrate on first run or if the package has changed
+            script = ''
+              versionFile="/var/lib/nix-security-tracker/package-version"
+              if [[ $(cat "$versionFile" 2>/dev/null) != ${cfg.package} ]]; then
+                wst-manage migrate --no-input
+                wst-manage collectstatic --no-input --clear
+                echo ${cfg.package} > "$versionFile"
+              fi
             '';
-        };
-
-        nix-security-tracker-evaluator = {
-          description = "Web security tracker - Nixpkgs evaluation worker";
-          after = [
-            "network.target"
-            "postgresql.service"
-            "nix-security-tracker-worker.service"
-          ];
-          requires = [
-            "postgresql.service"
-            "nix-security-tracker-worker.service"
-          ];
-          wantedBy = [ "multi-user.target" ];
-
-          script = ''
-            # Before starting, crash all the in-progress evaluations.
-            # This will prevent them from being stalled forever, since workers would not pick up evaluations marked as in-progress.
-            wst-manage crash_all_evaluations
-            wst-manage listen --recover \
-              --processes ${toString cfg.maxJobProcessors} \
-              --channels \
-                shared.channels.NixEvaluationChannel
-          '';
-        };
-
-        nix-security-tracker-caching = {
-          description = "Web security tracker - cache regeneration";
-          after = [
-            "network.target"
-            "postgresql.service"
-            "nix-security-tracker-migrations.service"
-          ];
-          requires = [
-            "postgresql.service"
-            "nix-security-tracker-migrations.service"
-          ];
-          wantedBy = [ "multi-user.target" ];
-
-          serviceConfig = {
-            Type = "oneshot";
-            # Make performance metrics file, produced as a side effect, readable by Prometheus node exporter
-            UMask = "0027";
           };
-          script = ''
-            wst-manage backfill_package_clustering
-            wst-manage regenerate_cached_suggestions
-          '';
-        };
+          nix-security-tracker-server = {
+            description = "Web security tracker ASGI server";
+            after = [
+              "network.target"
+              "postgresql.service"
+              "nix-security-tracker-migrations.service"
+            ]
+            ++ lib.optionals cfg.enablePgbouncer [ "pgbouncer.service" ];
+            requires = [
+              "postgresql.service"
+              "nix-security-tracker-migrations.service"
+            ]
+            ++ lib.optionals cfg.enablePgbouncer [ "pgbouncer.service" ];
+            wantedBy = [ "multi-user.target" ];
+            serviceConfig = {
+              Restart = cfg.restart;
+              TimeoutStartSec = lib.mkDefault "10m";
+            };
+            script = ''
+              daphne -b 127.0.0.1 -p ${toString cfg.wsgi-port} project.asgi:application
+            '';
+          }
+          // optionalAttrs cfg.enablePgbouncer {
+            # When PgBouncer is enabled, the ASGI server connects through it over
+            # its unix socket on port 6432
+            environment.DATABASE_URL =
+              let
+                port = config.services.pgbouncer.settings.pgbouncer.listen_port;
+              in
+              "postgres:///nix-security-tracker?host=/run/pgbouncer&port=${toString port}";
+            # The ASGI server should not hold Django-level persistent connections
+            # when PgBouncer multiplexes server connections. Setting
+            # CONN_MAX_AGE=0 lets PgBouncer do the pooling. Other services
+            # (workers and management commands) keep the value from
+            # `cfg.settings` so their direct connections persist.
+            environment.DJANGO_SETTINGS = builtins.toJSON (cfg.settings // { DATABASE_CONN_MAX_AGE = 0; });
+          };
 
-        # FIXME(@fricklerhandwerk): This only needs to run once, since new suggestions get the data automatically.
-        # Remove before the next deployment to production.
-        nix-security-tracker-backfill-package-links = {
-          description = "Web security tracker - backfill package links for existing proposals";
-          after = [
-            "network.target"
-            "postgresql.service"
-            "nix-security-tracker-migrations.service"
-            "nix-security-tracker-caching.service"
-          ];
-          requires = [
-            "postgresql.service"
-            "nix-security-tracker-migrations.service"
-          ];
-          wantedBy = [ "multi-user.target" ];
+          nix-security-tracker-evaluator = {
+            description = "Web security tracker - Nixpkgs evaluation worker";
+            after = [
+              "network.target"
+              "postgresql.service"
+              "nix-security-tracker-worker.service"
+            ];
+            requires = [
+              "postgresql.service"
+              "nix-security-tracker-worker.service"
+            ];
+            wantedBy = [ "multi-user.target" ];
 
-          serviceConfig.Type = "oneshot";
-          script = ''
-            wst-manage backfill_proposal_package_links
-          '';
-        };
+            script = ''
+              # Before starting, crash all the in-progress evaluations.
+              # This will prevent them from being stalled forever, since workers would not pick up evaluations marked as in-progress.
+              wst-manage crash_all_evaluations
+              wst-manage listen --recover \
+                --processes ${toString cfg.maxJobProcessors} \
+                --channels \
+                  shared.channels.NixEvaluationChannel
+            '';
+          };
 
-        nix-security-tracker-worker = {
-          description = "Web security tracker - background job processor";
-          after = [
-            "network.target"
-            "postgresql.service"
-            "nix-security-tracker-migrations.service"
-          ];
-          requires = [
-            "postgresql.service"
-            "nix-security-tracker-migrations.service"
-          ];
-          wantedBy = [ "multi-user.target" ];
+          nix-security-tracker-caching = {
+            description = "Web security tracker - cache regeneration";
+            after = [
+              "network.target"
+              "postgresql.service"
+              "nix-security-tracker-migrations.service"
+            ];
+            requires = [
+              "postgresql.service"
+              "nix-security-tracker-migrations.service"
+            ];
+            wantedBy = [ "multi-user.target" ];
 
-          script = ''
-            wst-manage listen --recover \
-              --channels \
-                shared.channels.NixChannelInsertChannel \
-                shared.channels.NixChannelUpdateChannel \
-                shared.channels.ContainerChannel \
-                shared.channels.CVEDerivationClusterProposalChannel \
-          '';
-        };
+            serviceConfig = {
+              Type = "oneshot";
+              # Make performance metrics file, produced as a side effect, readable by Prometheus node exporter
+              UMask = "0027";
+            };
+            script = ''
+              wst-manage backfill_package_clustering
+              wst-manage regenerate_cached_suggestions
+            '';
+          };
 
-        nix-security-tracker-worker-rematching = {
-          description = "Web security tracker - post-evaluation suggestion rematching";
-          after = [
-            "network.target"
-            "postgresql.service"
-            "nix-security-tracker-migrations.service"
-          ];
-          requires = [
-            "postgresql.service"
-            "nix-security-tracker-migrations.service"
-          ];
-          wantedBy = [ "multi-user.target" ];
+          # FIXME(@fricklerhandwerk): This only needs to run once, since new suggestions get the data automatically.
+          # Remove before the next deployment to production.
+          nix-security-tracker-backfill-package-links = {
+            description = "Web security tracker - backfill package links for existing proposals";
+            after = [
+              "network.target"
+              "postgresql.service"
+              "nix-security-tracker-migrations.service"
+              "nix-security-tracker-caching.service"
+            ];
+            requires = [
+              "postgresql.service"
+              "nix-security-tracker-migrations.service"
+            ];
+            wantedBy = [ "multi-user.target" ];
 
-          script = ''
-            wst-manage listen --recover \
-              --channels \
-                shared.channels.NixEvaluationUpdateChannel \
-          '';
-        };
+            serviceConfig.Type = "oneshot";
+            script = ''
+              wst-manage backfill_proposal_package_links
+            '';
+          };
 
-        nix-security-tracker-fetch-all-channels = {
-          description = "Web security tracker - fetch channel branches to trigger evaluation";
+          nix-security-tracker-worker = {
+            description = "Web security tracker - background job processor";
+            after = [
+              "network.target"
+              "postgresql.service"
+              "nix-security-tracker-migrations.service"
+            ];
+            requires = [
+              "postgresql.service"
+              "nix-security-tracker-migrations.service"
+            ];
+            wantedBy = [ "multi-user.target" ];
 
-          after = [
-            "network.target"
-            "postgresql.service"
-            "nix-security-tracker-worker.service"
-          ];
-          requires = [
-            "postgresql.service"
-            "nix-security-tracker-worker.service"
-          ];
+            script = ''
+              wst-manage listen --recover \
+                --channels \
+                  shared.channels.NixChannelInsertChannel \
+                  shared.channels.NixChannelUpdateChannel \
+                  shared.channels.ContainerChannel \
+                  shared.channels.CVEDerivationClusterProposalChannel \
+            '';
+          };
 
-          serviceConfig.Type = "oneshot";
+          nix-security-tracker-worker-rematching = {
+            description = "Web security tracker - post-evaluation suggestion rematching";
+            after = [
+              "network.target"
+              "postgresql.service"
+              "nix-security-tracker-migrations.service"
+            ];
+            requires = [
+              "postgresql.service"
+              "nix-security-tracker-migrations.service"
+            ];
+            wantedBy = [ "multi-user.target" ];
 
-          script = ''
-            wst-manage fetch_all_channels
-          '';
+            script = ''
+              wst-manage listen --recover \
+                --channels \
+                  shared.channels.NixEvaluationUpdateChannel \
+            '';
+          };
 
-          # Ideally, start at whatever night means.
-          startAt = "*-*-* 04:00:00";
-        };
+          nix-security-tracker-fetch-all-channels = {
+            description = "Web security tracker - fetch channel branches to trigger evaluation";
 
-        nix-security-tracker-delta = {
-          description = "Web security tracker - catch up with CVEs";
-          after = [
-            "network.target"
-            "postgresql.service"
-            "nix-security-tracker-worker.service"
-          ];
-          requires = [
-            "postgresql.service"
-            "nix-security-tracker-worker.service"
-          ];
-          serviceConfig.Type = "oneshot";
+            after = [
+              "network.target"
+              "postgresql.service"
+              "nix-security-tracker-worker.service"
+            ];
+            requires = [
+              "postgresql.service"
+              "nix-security-tracker-worker.service"
+            ];
 
-          script = ''
-            wst-manage ingest_delta_cve "$(date --date='yesterday' --iso)" ${
-              optionalString (cfg.cve.startDate != null) "--default-start-ingestion ${cfg.cve.startDate}"
-            }
-          '';
+            serviceConfig.Type = "oneshot";
 
-          # Start at 03h so that the data will have been published
-          startAt = "*-*-* 03:00:00";
-        };
+            script = ''
+              wst-manage fetch_all_channels
+            '';
 
-        nix-security-tracker-garbage-collection = {
-          description = "Web security tracker - garbage collection";
-          after = [
-            "network.target"
-            "postgresql.service"
-            "nix-security-tracker-migrations.service"
-          ];
-          requires = [
-            "postgresql.service"
-            "nix-security-tracker-migrations.service"
-          ];
+            # Ideally, start at whatever night means.
+            startAt = "*-*-* 04:00:00";
+          };
 
-          serviceConfig.Type = "oneshot";
-          script = ''
-            wst-manage garbage_collect
-          '';
+          nix-security-tracker-delta = {
+            description = "Web security tracker - catch up with CVEs";
+            after = [
+              "network.target"
+              "postgresql.service"
+              "nix-security-tracker-worker.service"
+            ];
+            requires = [
+              "postgresql.service"
+              "nix-security-tracker-worker.service"
+            ];
+            serviceConfig.Type = "oneshot";
 
-          # Weekly cleanup.
-          # The time is almost arbitrary, just keep it out of the way of ingestions and peak traffic.
-          startAt = "Fri *-*-* 20:00:00";
-        };
-      };
+            script = ''
+              wst-manage ingest_delta_cve "$(date --date='yesterday' --iso)" ${
+                optionalString (cfg.cve.startDate != null) "--default-start-ingestion ${cfg.cve.startDate}"
+              }
+            '';
+
+            # Start at 03h so that the data will have been published
+            startAt = "*-*-* 03:00:00";
+          };
+
+          nix-security-tracker-garbage-collection = {
+            description = "Web security tracker - garbage collection";
+            after = [
+              "network.target"
+              "postgresql.service"
+              "nix-security-tracker-migrations.service"
+            ];
+            requires = [
+              "postgresql.service"
+              "nix-security-tracker-migrations.service"
+            ];
+
+            serviceConfig.Type = "oneshot";
+            script = ''
+              wst-manage garbage_collect
+            '';
+
+            # Weekly cleanup.
+            # The time is almost arbitrary, just keep it out of the way of ingestions and peak traffic.
+            startAt = "Fri *-*-* 20:00:00";
+          };
+        })
+        (optionalAttrs cfg.enablePgbouncer {
+          # Make PgBouncer wait for PostgreSQL so the web server can rely on
+          # the `pgbouncer.service` ordering declared above.
+          pgbouncer = {
+            after = [ "postgresql.service" ];
+            requires = [ "postgresql.service" ];
+          };
+        })
+      ];
   };
 }

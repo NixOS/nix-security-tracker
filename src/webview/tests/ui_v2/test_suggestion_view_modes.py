@@ -38,7 +38,7 @@ def test_list_wide_toggle_switches_to_collapsed(
     expect(collapsed).to_be_visible()
     expect(collapsed).to_contain_text(cached_suggestion.cve.cve_id)
     expect(page.get_by_test_id(f"suggestion-{cached_suggestion.pk}")).to_have_count(0)
-    expect(page).to_have_url(re.compile(r"[?&]view=collapsed"))
+    expect(page).to_have_url(re.compile(r"[?&]suggestionView=collapsed"))
 
 
 def test_list_wide_toggle_switches_to_compact(

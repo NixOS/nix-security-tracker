@@ -1,17 +1,20 @@
+import { Link } from "wouter-preact";
 import type {
   RejectionReasonEnum,
-  StatusEnum,
   SuggestionRejectionReason,
+  SuggestionStatusEnum,
 } from "@/api/generated/models";
 import { SuggestionStatusIcon } from "./SuggestionStatusIcon";
 
 type Props = {
-  status: StatusEnum;
+  status: SuggestionStatusEnum;
   rejectionReason?: SuggestionRejectionReason;
+  /** @nullable */
+  issueCode?: string | null;
   iconOnly?: boolean;
 };
 
-export function statusLabel(status: StatusEnum): string {
+export function statusLabel(status: SuggestionStatusEnum): string {
   switch (status) {
     case "pending":
       return "Untriaged";
@@ -45,7 +48,7 @@ export function rejectionReasonLabel(rejection_reason: RejectionReasonEnum): str
   }
 }
 
-export function SuggestionStatus({ status, rejectionReason, iconOnly = false }: Props) {
+export function SuggestionStatus({ status, rejectionReason, issueCode, iconOnly = false }: Props) {
   return iconOnly ? (
     <SuggestionStatusIcon status={status} size="1em" />
   ) : (
@@ -53,6 +56,11 @@ export function SuggestionStatus({ status, rejectionReason, iconOnly = false }: 
       <SuggestionStatusIcon status={status} size="1em" />
       <span>{statusLabel(status)}</span>
       {rejectionReason && <span>({rejectionReasonLabel(rejectionReason)})</span>}
+      {status === "published" && issueCode && (
+        <span>
+          (<Link href={`/ui-v2/issues/${issueCode}`}>Issue</Link>)
+        </span>
+      )}
     </div>
   );
 }

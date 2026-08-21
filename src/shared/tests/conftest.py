@@ -203,7 +203,8 @@ def make_evaluation(
 
         if age > timedelta(0):
             NixEvaluation.objects.filter(pk=evaluation.pk).update(
-                updated_at=timezone.now() - age
+                created_at=timezone.now() - age,
+                updated_at=timezone.now() - age,
             )
             evaluation.refresh_from_db()
 

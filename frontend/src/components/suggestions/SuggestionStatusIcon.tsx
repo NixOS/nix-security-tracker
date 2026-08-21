@@ -1,8 +1,8 @@
 import { GlobeCheckIcon, InboxIcon, PenToolIcon, Trash2Icon } from "lucide-preact";
-import type { StatusEnum } from "@/api/generated/models";
+import type { SuggestionStatusEnum } from "@/api/generated/models";
 
 type Props = {
-  status: StatusEnum;
+  status: SuggestionStatusEnum;
   size?: string;
 };
 

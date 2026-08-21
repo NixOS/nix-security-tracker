@@ -1,5 +1,4 @@
 import { CircleCheckBigIcon } from "lucide-preact";
-import { Link } from "wouter-preact";
 
 const doneFeatures = [
   "Main framework",
@@ -26,6 +25,9 @@ const doneFeatures = [
   "Suggestion lists: tabs view",
   "Suggestion lists: list and per-suggestion override view modes",
   "Suggestion lists: visual feedback for 'out of search critera' suggestions",
+  "Published issues list",
+  "Published issues individual page",
+  "Navigation bar",
 ];
 
 const pendingFeatures = [
@@ -34,9 +36,9 @@ const pendingFeatures = [
   "Notification pill (in navbar)",
   "Suggestion lists: optimized batch activity log queries",
   "Suggestions: publication and batch publication",
-  "Navigation bar",
-  "Published issues list",
-  "Published issues individual page",
+  "Suggestions: section icons (like in tab view)",
+  "Homepage",
+  "Help messages (tooltip info about statuses, view modes)",
 ];
 
 function DoneItem({ label }: { label: string }) {
@@ -56,9 +58,6 @@ export function Home() {
   return (
     <div className="column gap-big">
       <h1 className="text-xl bold">Nixpkgs security tracker</h1>
-      <p>
-        <Link href="/ui-v2/suggestions">Browse suggestions</Link>
-      </p>
       <p>
         New UI under construction. Features are gradually ported and improved from the legacy UI.
         You may continue to use the <a href="/">legacy UI</a>.

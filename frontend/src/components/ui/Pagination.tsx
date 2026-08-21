@@ -24,7 +24,7 @@ function PaginationPages() {
       {pages.map((page, index) =>
         page.type === "page" ? (
           <PaginationItem
-            key={page.value}
+            key={`page-${page.value}`}
             type="page"
             value={page.value}
             className={`rounded ${styles.item}`}
@@ -32,7 +32,7 @@ function PaginationPages() {
             {page.value}
           </PaginationItem>
         ) : (
-          <PaginationEllipsis key={index} index={index} className="row centered">
+          <PaginationEllipsis key={`ellipsis-${index}`} index={index} className="row centered">
             <EllipsisIcon size="1em" />
           </PaginationEllipsis>
         ),

@@ -3,7 +3,7 @@ import logging
 import time
 from collections.abc import Callable, Generator
 from dataclasses import dataclass, field
-from typing import Any, TypeVar
+from typing import Any, NamedTuple, TypeVar
 
 from dataclass_wizard import JSONWizard, LoadMixin
 from django.db.models import Model
@@ -60,6 +60,13 @@ class MetadataAttribute(JSONWizard, LoadMixin):
     known_vulnerabilities: list[str] = field(default_factory=list)
 
 
+class DerivationKey(NamedTuple):
+    drv_path: str
+    attr: str
+    name: str
+    meta_name: str | None
+
+
 @dataclass
 class EvaluatedAttribute(JSONWizard):
     """
@@ -74,27 +81,44 @@ class EvaluatedAttribute(JSONWizard):
     outputs: dict[str, str]
     system: str
 
-    def as_key(self) -> tuple[str, str, str, str | None]:
-        """
-        Unique dictionary key for a derivation
-
-        These are the actual degrees of freedom for a derivation, judging from the data.
-        """
-        # FIXME(@fricklerhandwerk): We should only need the derivation path!
-        # Extract the extra fields to save more space.
-        # A `NixPackage` could indeed consist of just `pname` (parsed from `name`, validate against `attribute` and `drv_metadata.name`).
-        # Then we'd describe all occurrences of a `NixPackage` with
-        # - NixDerivation
-        # - attribute_name
-        # - metadata__name
-        # - parent_evaluation (also extracted since derivation paths of close-to-root packages can be the same across evaluations)
-        # - version (also parsed from `name`, for easier querying)
-        return (
-            self.drv_path,
-            self.attr,
-            self.name,
-            self.meta.name or None if self.meta else None,
+    def as_key(self) -> DerivationKey:
+        """Unique dictionary key for a derivation (see :func:`derivation_as_key`)."""
+        return derivation_as_key(
+            drv_path=self.drv_path,
+            attr=self.attr,
+            name=self.name,
+            meta_name=self.meta.name or None if self.meta else None,
         )
+
+
+def derivation_as_key(
+    *,
+    drv_path: str,
+    attr: str,
+    name: str,
+    meta_name: str | None,
+) -> DerivationKey:
+    """
+    Unique dictionary key for a derivation.
+
+    These are the actual degrees of freedom for a derivation, judging from the data.
+    Shared by evaluation ingestion and matching training-data import.
+    """
+    # FIXME(@fricklerhandwerk): We should only need the derivation path!
+    # Extract the extra fields to save more space.
+    # A `NixPackage` could indeed consist of just `pname` (parsed from `name`, validate against `attribute` and `drv_metadata.name`).
+    # Then we'd describe all occurrences of a `NixPackage` with
+    # - NixDerivation
+    # - attribute_name
+    # - metadata__name
+    # - parent_evaluation (also extracted since derivation paths of close-to-root packages can be the same across evaluations)
+    # - version (also parsed from `name`, for easier querying)
+    return DerivationKey(
+        drv_path=drv_path,
+        attr=attr,
+        name=name,
+        meta_name=meta_name,
+    )
 
 
 @dataclass
@@ -159,7 +183,7 @@ def parse_evaluation_result(line: str) -> PartialEvaluatedAttribute:
 
 def by_drv_key[T](
     gen: Generator[tuple[EvaluatedAttribute, list[T]]],
-) -> dict[tuple[str, str, str, str | None], list[T]]:
+) -> dict[DerivationKey, list[T]]:
     return dict((origin.as_key(), elements) for origin, elements in gen)
 
 
@@ -288,7 +312,7 @@ class SyncBatchAttributeIngester:
 
     def ingest(self) -> list[NixDerivation]:
         start = time.time()
-        bulk_derivations: dict[tuple[str, str, str, str | None], NixDerivation] = {}
+        bulk_derivations: dict[DerivationKey, NixDerivation] = {}
         bulk_maintainers: dict[int, NixMaintainer] = {}
         bulk_licenses: dict[str, NixLicense] = {}
         metadata = []

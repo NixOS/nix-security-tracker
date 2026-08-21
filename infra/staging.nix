@@ -88,6 +88,9 @@ in
     enable = true;
     production = true;
     domain = "tracker-staging.security.nixos.org";
+
+    enablePgbouncer = true;
+
     settings = {
       SHOW_DEMO_DISCLAIMER = true;
       SYNC_GITHUB_STATE_AT_STARTUP = true;

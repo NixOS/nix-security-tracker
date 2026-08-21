@@ -1,6 +1,6 @@
+import itertools
 from collections.abc import Callable
 from datetime import timedelta
-from enum import Enum
 from io import StringIO
 
 import pytest
@@ -8,7 +8,7 @@ from django.contrib.auth.models import User
 from django.core.management import call_command
 from django.utils import timezone
 
-from shared.management.commands.garbage_collect import DEFAULT_CUTOFF_DAYS
+from shared.management.commands.garbage_collect import DEFAULT_CUTOFF_DAYS, Command
 from shared.models.cve import Container, CveRecord
 from shared.models.linkage import (
     CVEDerivationClusterProposal,
@@ -24,8 +24,9 @@ from shared.models.nix_evaluation import (
     NixDerivationMeta,
     NixEvaluation,
     NixMaintainer,
+    NixpkgsBranch,
 )
-from shared.models.package import Package, PackageAttrpath, PackageDerivation
+from shared.models.package import PackageAttrpath, PackageDerivation
 from shared.package_clustering import cluster_packages
 
 
@@ -142,28 +143,6 @@ def test_preserves_proposal_with_maintainer_overlay(
     assert CVEDerivationClusterProposal.objects.count() == 1
 
 
-def test_dry_run_preserves_stale_proposal(
-    make_drv: Callable[..., NixDerivation],
-    make_suggestion: Callable[..., CVEDerivationClusterProposal],
-) -> None:
-    """--dry-run reports the count but makes no deletions."""
-    make_suggestion(age=timedelta(days=400))
-
-    out = StringIO()
-    call_command("garbage_collect", "--dry-run", stdout=out)
-
-    assert CVEDerivationClusterProposal.objects.count() == 1
-    assert "Dry run" in out.getvalue()
-
-
-# FIXME(@fricklerhandwerk): Use the constraints declared here in the actual code, that would simplify it a lot.
-class GarbageCollect(Enum):
-    ALWAYS = "always"
-    WHEN_OLD = "when_old"
-    NEVER = "never"
-
-
-@pytest.mark.parametrize("old", [True, False])
 @pytest.mark.parametrize(
     ("channel_state", "keep_channel"),
     [
@@ -177,40 +156,40 @@ class GarbageCollect(Enum):
 @pytest.mark.parametrize(
     # `can_have_*` encodes invariants about code not under test here.
     # We rely on them hold true, to avoid testing uninteresting states.
-    ("eval_state", "keep_eval", "gc", "can_have_drvs", "can_have_matches"),
+    ("eval_state", "keep_eval", "keep_drvs", "can_have_drvs", "can_have_matches"),
     [
         (
             NixEvaluation.EvaluationState.WAITING,
             True,
-            GarbageCollect.NEVER,
+            True,
             False,
             False,
         ),
         (
             NixEvaluation.EvaluationState.IN_PROGRESS,
             True,
-            GarbageCollect.NEVER,
+            True,
             True,
             False,
         ),
         (
             NixEvaluation.EvaluationState.CRASHED,
             False,
-            GarbageCollect.ALWAYS,
+            False,
             True,
             False,
         ),
         (
             NixEvaluation.EvaluationState.FAILED,
             False,
-            GarbageCollect.ALWAYS,
+            False,
             True,
             False,
         ),
         (
             NixEvaluation.EvaluationState.COMPLETED,
             True,
-            GarbageCollect.WHEN_OLD,
+            True,
             True,
             True,
         ),
@@ -225,13 +204,12 @@ def test_deletes_empty_old_evaluations(
     eval_state: NixEvaluation.EvaluationState,
     keep_eval: bool,
     keep_channel: bool,
-    gc: GarbageCollect,
+    keep_drvs: bool,
     can_have_drvs: bool,
     can_have_matches: bool,
-    old: bool,
 ) -> None:
     """
-    Old unmatched Derivation and its NixDerivationMeta are both deleted; NixMaintainer survives.
+    Unmatched derivations and their metadata are both deleted; maintainers survive.
     Empty evaluations are deleted unless completed or not started.
     Empty channels are deleted.
     """
@@ -243,7 +221,6 @@ def test_deletes_empty_old_evaluations(
     evaluation = make_evaluation(
         channel=channel,
         state=eval_state,
-        age=timedelta(days=400) if old else timedelta(0),
     )
 
     assert NixEvaluation.objects.filter(pk=evaluation.pk).exists()
@@ -257,7 +234,6 @@ def test_deletes_empty_old_evaluations(
         if can_have_matches:
             make_suggestion(
                 drvs={drv: ProvenanceFlags.PACKAGE_NAME_MATCH},
-                age=timedelta(days=400) if old else timedelta(0),
             )
 
     initial_maintainer_count = NixMaintainer.objects.count()
@@ -268,9 +244,6 @@ def test_deletes_empty_old_evaluations(
     assert NixMaintainer.objects.count() == initial_maintainer_count
 
     if can_have_drvs:
-        keep_drvs = gc is GarbageCollect.NEVER or (
-            gc is GarbageCollect.WHEN_OLD and not old
-        )
         assert NixDerivation.objects.filter(pk=drv.pk).exists() is keep_drvs  # type: ignore[reportPossiblyUnbound]
         assert NixDerivationMeta.objects.filter(pk=meta_pk).exists() is keep_drvs  # type: ignore[reportPossiblyUnbound]
 
@@ -386,20 +359,6 @@ def test_garbage_collect_preserves_attrpath_with_live_link(
     assert PackageAttrpath.objects.filter(attrpath="shared-attr").exists()
 
 
-def test_garbage_collect_dry_run_preserves_stale_package_attrpaths(
-    drv: NixDerivation,
-    make_package: Callable[..., Package],
-) -> None:
-    make_package(drv)
-    assert PackageAttrpath.objects.filter(attrpath=drv.attribute).exists()
-
-    out = StringIO()
-    call_command("garbage_collect", "--dry-run", stdout=out)
-
-    assert PackageAttrpath.objects.filter(attrpath=drv.attribute).exists()
-    assert "stale package attrpath" in out.getvalue().lower()
-
-
 @pytest.mark.parametrize(
     "date_published_age, date_reserved_age, expected_count",
     [
@@ -459,6 +418,175 @@ def test_stale_proposal_deletion_cascades_to_cache(
     assert CachedSuggestions.objects.count() == 0
 
 
+@pytest.mark.parametrize(
+    "winner_branch, loser_branch",
+    list(
+        itertools.combinations(
+            ["nixos-unstable-small", "nixos-unstable", "nixpkgs-unstable"], 2
+        )
+    )
+    + [("nixos-25.05-small", "nixos-25.05")],
+)
+def test_gc_channel_priority_order(
+    make_channel: Callable[..., NixChannel],
+    make_evaluation: Callable[..., NixEvaluation],
+    make_drv: Callable[..., NixDerivation],
+    make_suggestion: Callable[..., CVEDerivationClusterProposal],
+    winner_branch: str,
+    loser_branch: str,
+) -> None:
+    """
+    The higher-priority channel link is kept; the lower-priority one is removed.
+    """
+    drv_winner = make_drv(
+        attribute="foo",
+        evaluation=make_evaluation(channel=make_channel(channel_branch=winner_branch)),
+    )
+    drv_loser = make_drv(
+        attribute="foo",
+        evaluation=make_evaluation(channel=make_channel(channel_branch=loser_branch)),
+    )
+    make_suggestion(
+        drvs={
+            drv_winner: ProvenanceFlags.PACKAGE_NAME_MATCH,
+            drv_loser: ProvenanceFlags.PACKAGE_NAME_MATCH,
+        }
+    )
+
+    call_command("garbage_collect", stdout=StringIO())
+
+    assert DerivationClusterProposalLink.objects.filter(derivation=drv_winner).exists()
+    assert not DerivationClusterProposalLink.objects.filter(
+        derivation=drv_loser
+    ).exists()
+
+
+def test_gc_preserves_links_from_different_release_branches(
+    make_branch: Callable[..., NixpkgsBranch],
+    make_channel: Callable[..., NixChannel],
+    make_evaluation: Callable[..., NixEvaluation],
+    make_drv: Callable[..., NixDerivation],
+    make_suggestion: Callable[..., CVEDerivationClusterProposal],
+) -> None:
+    """
+    Links for the same attribute on different release branches are both preserved.
+    """
+    branch_stable = make_branch(name="release-25.05")
+    drv_unstable = make_drv(
+        attribute="foo",
+        evaluation=make_evaluation(
+            channel=make_channel(channel_branch="nixos-unstable")
+        ),
+    )
+    drv_stable = make_drv(
+        attribute="foo",
+        evaluation=make_evaluation(
+            channel=make_channel(
+                channel_branch="nixos-25.05", release_branch=branch_stable
+            )
+        ),
+    )
+    make_suggestion(
+        drvs={
+            drv_unstable: ProvenanceFlags.PACKAGE_NAME_MATCH,
+            drv_stable: ProvenanceFlags.PACKAGE_NAME_MATCH,
+        }
+    )
+
+    call_command("garbage_collect", stdout=StringIO())
+
+    assert DerivationClusterProposalLink.objects.filter(
+        derivation=drv_unstable
+    ).exists()
+    assert DerivationClusterProposalLink.objects.filter(derivation=drv_stable).exists()
+
+
+def test_gc_preserves_sole_link(
+    make_channel: Callable[..., NixChannel],
+    make_evaluation: Callable[..., NixEvaluation],
+    make_drv: Callable[..., NixDerivation],
+    make_suggestion: Callable[..., CVEDerivationClusterProposal],
+) -> None:
+    """A single link per (suggestion, attribute) is never removed."""
+    drv = make_drv(
+        attribute="foo",
+        evaluation=make_evaluation(channel=make_channel(channel_branch="nixos-24.11")),
+    )
+    make_suggestion(drvs={drv: ProvenanceFlags.PACKAGE_NAME_MATCH})
+
+    call_command("garbage_collect", stdout=StringIO())
+
+    assert DerivationClusterProposalLink.objects.filter(derivation=drv).exists()
+
+
+def test_gc_channel_priority_independent_per_attribute(
+    make_channel: Callable[..., NixChannel],
+    make_evaluation: Callable[..., NixEvaluation],
+    make_drv: Callable[..., NixDerivation],
+    make_suggestion: Callable[..., CVEDerivationClusterProposal],
+) -> None:
+    """Deduplication is scoped per (suggestion, attribute); each attribute keeps its own best link."""
+    eval_small = make_evaluation(
+        channel=make_channel(channel_branch="nixos-unstable-small")
+    )
+    eval_unstable = make_evaluation(
+        channel=make_channel(channel_branch="nixos-unstable")
+    )
+    drv_foo_small = make_drv(attribute="foo", evaluation=eval_small)
+    drv_foo_unstable = make_drv(attribute="foo", evaluation=eval_unstable)
+    drv_bar_small = make_drv(pname="bar", evaluation=eval_small)
+    drv_bar_unstable = make_drv(pname="bar", evaluation=eval_unstable)
+    make_suggestion(
+        drvs={
+            drv_foo_small: ProvenanceFlags.PACKAGE_NAME_MATCH,
+            drv_foo_unstable: ProvenanceFlags.PACKAGE_NAME_MATCH,
+            drv_bar_small: ProvenanceFlags.PACKAGE_NAME_MATCH,
+            drv_bar_unstable: ProvenanceFlags.PACKAGE_NAME_MATCH,
+        }
+    )
+
+    call_command("garbage_collect", stdout=StringIO())
+
+    assert DerivationClusterProposalLink.objects.filter(
+        derivation=drv_foo_small
+    ).exists()
+    assert not DerivationClusterProposalLink.objects.filter(
+        derivation=drv_foo_unstable
+    ).exists()
+    assert DerivationClusterProposalLink.objects.filter(
+        derivation=drv_bar_small
+    ).exists()
+    assert not DerivationClusterProposalLink.objects.filter(
+        derivation=drv_bar_unstable
+    ).exists()
+
+
+def test_gc_prefers_latest_evaluation_for_same_channel(
+    make_channel: Callable[..., NixChannel],
+    make_evaluation: Callable[..., NixEvaluation],
+    make_drv: Callable[..., NixDerivation],
+    make_suggestion: Callable[..., CVEDerivationClusterProposal],
+) -> None:
+    """When the same attribute appears in two evaluations of the same channel, the link to the newer evaluation is kept."""
+    channel = make_channel(channel_branch="nixos-unstable")
+    eval_old = make_evaluation(channel=channel, age=timedelta(days=1))
+    eval_new = make_evaluation(channel=channel)
+
+    drv_old = make_drv(attribute="foo", evaluation=eval_old)
+    drv_new = make_drv(attribute="foo", evaluation=eval_new)
+    make_suggestion(
+        drvs={
+            drv_old: ProvenanceFlags.PACKAGE_NAME_MATCH,
+            drv_new: ProvenanceFlags.PACKAGE_NAME_MATCH,
+        }
+    )
+
+    call_command("garbage_collect", stdout=StringIO())
+
+    assert DerivationClusterProposalLink.objects.filter(derivation=drv_new).exists()
+    assert not DerivationClusterProposalLink.objects.filter(derivation=drv_old).exists()
+
+
 def test_stale_proposal_deletion_cascades_to_notifications(
     make_container: Callable[..., Container],
     make_suggestion: Callable[..., CVEDerivationClusterProposal],
@@ -481,3 +609,89 @@ def test_stale_proposal_deletion_cascades_to_notifications(
     assert SuggestionNotification.objects.count() == 0
     user.profile.refresh_from_db()
     assert user.profile.unread_notifications_count == 0
+
+
+def test_gc_deletes_unlinked_derivation_from_stale_eval(
+    make_evaluation: Callable[..., NixEvaluation],
+    make_drv: Callable[..., NixDerivation],
+) -> None:
+    """
+    Unlinked derivations from non-latest completed evaluations are deleted.
+    The now-empty evaluation itself is kept: empty-evaluation cleanup only
+    targets crashed/failed evaluations, not completed ones.
+    """
+    eval_old = make_evaluation(age=timedelta(days=1))
+    drv_old = make_drv(evaluation=eval_old)
+
+    eval_new = make_evaluation()
+    drv_new = make_drv(evaluation=eval_new)
+
+    call_command("garbage_collect", stdout=StringIO())
+
+    assert not NixDerivation.objects.filter(pk=drv_old.pk).exists()
+    assert NixEvaluation.objects.filter(pk=eval_old.pk).exists()
+
+    assert NixDerivation.objects.filter(pk=drv_new.pk).exists()
+    assert NixEvaluation.objects.filter(pk=eval_new.pk).exists()
+
+
+def test_gc_preserves_linked_derivation_from_stale_eval(
+    make_evaluation: Callable[..., NixEvaluation],
+    make_drv: Callable[..., NixDerivation],
+    make_suggestion: Callable[..., CVEDerivationClusterProposal],
+) -> None:
+    """
+    Linked derivations from non-latest completed evaluations are preserved.
+    """
+    eval_old = make_evaluation(age=timedelta(days=1))
+    drv = make_drv(evaluation=eval_old)
+    make_suggestion(
+        drvs={drv: ProvenanceFlags.PACKAGE_NAME_MATCH},
+        status=CVEDerivationClusterProposal.Status.ACCEPTED,
+    )
+
+    make_evaluation()
+
+    call_command("garbage_collect", stdout=StringIO())
+
+    assert NixDerivation.objects.filter(pk=drv.pk).exists()
+
+
+def test_gc_preserves_unlinked_derivation_from_latest_eval(
+    drv: NixDerivation,
+    evaluation: NixEvaluation,
+) -> None:
+    """
+    Unlinked derivations from the latest completed evaluation are preserved.
+    """
+    call_command("garbage_collect", stdout=StringIO())
+
+    assert NixDerivation.objects.filter(pk=drv.pk).exists()
+
+
+def test_gc_skips_batch_with_protected_derivation(
+    make_drv: Callable[..., NixDerivation],
+    make_suggestion: Callable[..., CVEDerivationClusterProposal],
+) -> None:
+    """
+    A batch containing a derivation protected by a FK constraint is skipped with a warning, not a crash.
+    This covers the race where a CVE match creates a link after the protected set was materialised during garbage collection.
+    """
+    drv = make_drv()
+    make_suggestion(
+        drvs={drv: ProvenanceFlags.PACKAGE_NAME_MATCH},
+        status=CVEDerivationClusterProposal.Status.ACCEPTED,
+    )
+
+    out = StringIO()
+    cmd = Command(stdout=out)
+    cmd._delete_in_batches(
+        qs=NixDerivation.objects.filter(pk=drv.pk),
+        model=NixDerivation,
+        pk_field="id",
+        label="test",
+        batch_size=1,
+    )
+
+    assert NixDerivation.objects.filter(pk=drv.pk).exists()
+    assert "skipped" in out.getvalue()

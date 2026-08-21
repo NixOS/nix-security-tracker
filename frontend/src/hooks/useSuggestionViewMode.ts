@@ -24,25 +24,32 @@ function isValidViewMode(value: string | null): value is SuggestionViewMode {
 }
 
 /**
- * URL-search-param-backed list-wide default view mode (`view`).
+ * URL-search-param-backed list-wide default view mode (`suggestionView`).
  * Suggestions may locally override.
+ *
+ * @param defaultMode - Fallback when the param is absent/invalid, and the value at which the
+ * param is dropped from the URL entirely. Callers embedding this in another list (e.g. issue
+ * lists, which want their nested suggestions collapsed by default) may pass a different default
+ * than the standalone suggestion list.
  */
-export function useSuggestionListViewMode(): {
+export function useSuggestionListViewMode(
+  defaultMode: SuggestionViewMode = DEFAULT_SUGGESTION_VIEW_MODE,
+): {
   viewMode: SuggestionViewMode;
   setViewMode: (viewMode: SuggestionViewMode) => void;
 } {
   const [searchParams, setSearchParams] = useSearchParams();
-  const raw = searchParams.get("view");
-  const viewMode = isValidViewMode(raw) ? raw : DEFAULT_SUGGESTION_VIEW_MODE;
+  const raw = searchParams.get("suggestionView");
+  const viewMode = isValidViewMode(raw) ? raw : defaultMode;
 
   const setViewMode = (next: SuggestionViewMode) => {
     setSearchParams(
       (prev) => {
         const nextParams = new URLSearchParams(prev);
-        if (next === DEFAULT_SUGGESTION_VIEW_MODE) {
-          nextParams.delete("view");
+        if (next === defaultMode) {
+          nextParams.delete("suggestionView");
         } else {
-          nextParams.set("view", next);
+          nextParams.set("suggestionView", next);
         }
         return nextParams;
       },

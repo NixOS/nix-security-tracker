@@ -1,15 +1,12 @@
-import { useState } from "preact/hooks";
 import { useParams } from "wouter-preact";
 import { ApiError } from "@/api/client";
 import { useGetSuggestion } from "@/api/generated/endpoints";
 import { Suggestion } from "@/components/suggestions/Suggestion";
 import { Skeleton } from "@/components/ui/Skeleton";
-import { DEFAULT_SUGGESTION_VIEW_MODE } from "@/hooks/useSuggestionViewMode";
 
 export function SuggestionDetail() {
   const params = useParams<{ id: string }>();
   const id = Number(params.id);
-  const [viewMode, setViewMode] = useState(DEFAULT_SUGGESTION_VIEW_MODE);
 
   const { data, isLoading, isError, error } = useGetSuggestion(id, {
     query: { enabled: !Number.isNaN(id) },
@@ -38,11 +35,5 @@ export function SuggestionDetail() {
     return null;
   }
 
-  return (
-    <Suggestion
-      suggestion={data}
-      viewMode={viewMode}
-      onViewModeChange={(mode) => mode && setViewMode(mode)}
-    />
-  );
+  return <Suggestion suggestion={data} />;
 }

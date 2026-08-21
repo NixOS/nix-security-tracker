@@ -7,6 +7,8 @@ import { Disclaimer } from "@/components/header/Disclaimer";
 import { HeaderBar } from "@/components/header/HeaderBar";
 import { Toaster } from "@/components/ui/Toaster";
 import { Home } from "@/routes/Home";
+import { IssueDetail } from "@/routes/IssueDetail";
+import { IssueList } from "@/routes/IssueList";
 import { SuggestionDetail } from "@/routes/SuggestionDetail";
 import { SuggestionList } from "@/routes/SuggestionList";
 import { UserSettings } from "@/routes/UserSettings";
@@ -29,12 +31,14 @@ export function App() {
 
   return (
     <QueryClientProvider client={queryClient}>
-      <HeaderBar />
       <Disclaimer />
+      <HeaderBar />
       <main>
         <Switch>
           <Route path="/ui-v2/suggestions/by-id/:id" component={SuggestionDetail} />
           <Route path="/ui-v2/suggestions" component={SuggestionList} />
+          <Route path="/ui-v2/issues/:code" component={IssueDetail} />
+          <Route path="/ui-v2/issues" component={IssueList} />
           <Route path="/ui-v2/" component={Home} />
           <Route path="/ui-v2/user">
             <Redirect to="/ui-v2/user/subscriptions" />

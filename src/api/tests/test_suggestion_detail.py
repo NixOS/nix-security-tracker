@@ -4,6 +4,7 @@ import pytest
 from rest_framework.reverse import reverse
 from rest_framework.test import APIClient
 
+from shared.models.issue import NixpkgsIssue
 from shared.models.linkage import CVEDerivationClusterProposal
 
 
@@ -76,6 +77,31 @@ def test_suggestion_retrieve_no_rejection_reason_when_not_rejected(
     response = client.get(url(suggestion.pk))
     assert response.status_code == 200
     assert "rejection_reason" not in response.data
+
+
+def test_suggestion_retrieve_published_includes_issue_code(
+    make_issue: Callable[..., NixpkgsIssue],
+    url: Callable[[int], str],
+) -> None:
+    client = APIClient()
+    issue = make_issue()
+    suggestion = issue.suggestions.get()
+    response = client.get(url(suggestion.pk))
+    assert response.status_code == 200
+    assert response.data["issue_code"] == issue.code
+
+
+def test_suggestion_retrieve_no_issue_code_when_not_published(
+    make_cached_suggestion: Callable[..., CVEDerivationClusterProposal],
+    url: Callable[[int], str],
+) -> None:
+    client = APIClient()
+    suggestion = make_cached_suggestion(
+        status=CVEDerivationClusterProposal.Status.ACCEPTED
+    )
+    response = client.get(url(suggestion.pk))
+    assert response.status_code == 200
+    assert "issue_code" not in response.data
 
 
 def test_suggestion_retrieve_includes_comment_when_set(

@@ -27,7 +27,7 @@ export function AuthStatus() {
         onClick={login}
       >
         <LogInIcon />
-        Login with GitHub
+        <span className="hide-below-breakpoint">Login with GitHub</span>
       </button>
     );
   }
@@ -35,15 +35,12 @@ export function AuthStatus() {
   return (
     <Menu
       trigger={
-        <button
-          className={`row centered gap-small cursor-pointer text-white ${styles.menuTrigger}`}
-          type="button"
-        >
-          <div>User settings</div>
+        <div className={`row centered gap-small cursor-pointer text-white ${styles.menuTrigger}`}>
+          <div className="hide-below-breakpoint">User settings</div>
           <div className={`circle ${styles.avatar}`}>
             <Avatar size="2em" avatarUrl={user.avatar_url} username={user.username} />
           </div>
-        </button>
+        </div>
       }
       items={[
         {
