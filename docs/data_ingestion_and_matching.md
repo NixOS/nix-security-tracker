@@ -8,7 +8,7 @@ This document shows how to fetch channels, run evaluations, ingest CVEs and prod
 
 ### Ingest Nixpkgs metadata
 
-1. Fetch the tips of all [channel branches](https://nix.dev/concepts/faq#channel-branches).
+Fetch the tips of all [channel branches](https://nix.dev/concepts/faq#channel-branches):
 
 ```console
 manage fetch_all_channels
@@ -29,13 +29,13 @@ The output will look like this:
  'variant': NixChannel.Variant.DARWIN}
 ```
 
-2. Select a `head_sha1_commit` from the output of `fetch_all_channels` command and run evaluation on that:
+Select a `head_sha1_commit` from the output of `fetch_all_channels` command and run evaluation on that:
 
 ```console
 manage run_evaluation <commit>
 ```
 
-This would take `6-7`G of memory and `20-30` min on reasonably modern machine.
+This would take 6-7G of memory and 20-30 min on reasonably modern machine.
 
 This command _evaluates_ the Nix expression describing the Nixpkgs package collection at that commit, extracting their versions, maintainers, licenses, etc. into your local database.
 
@@ -68,8 +68,8 @@ DEBUG 2026-06-19 15:50:08,652 evaluation 62141 130663090386624 Ingested 0 mainta
 
 ### Start matching listeners and ingest CVEs for matching
 
-1. Matching CVEs against Nixpkgs metadata is triggered by `pgpubsub` notifications internally as CVEs are ingested.
-   To test this dataflow locally, start the listeners:
+Matching CVEs against Nixpkgs metadata is triggered by `pgpubsub` notifications internally as CVEs are ingested.
+To test this dataflow locally, start the listeners:
 
 ```console
 manage listen -v3 --recover
@@ -77,7 +77,7 @@ manage listen -v3 --recover
 
 This will run in foreground and block this terminal.
 
-2. Open a second terminal, enter development shell and Ingest some CVEs:
+Open a second terminal, enter development shell and Ingest some CVEs:
 
 > [!NOTE]
 > `ingest_bulk_cve` requires a configured GitHub App with access to `CVEProject/cvelistV5`.
