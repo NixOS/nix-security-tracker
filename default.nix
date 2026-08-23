@@ -16,7 +16,6 @@ rec {
   package = pkgs.nix-security-tracker;
   frontend = pkgs.callPackage ./nix/frontend.nix { };
   module = import ./nix/configuration.nix;
-  dev-container = import ./infra/container.nix;
   dev-setup = import ./nix/dev-setup.nix;
 
   git-hooks = pkgs.pre-commit-hooks {

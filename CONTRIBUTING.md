@@ -268,24 +268,6 @@ To configure the GitHub app and the webhook in the GitHub organisation settings:
 
 </details>
 
-## Running the service in a container
-
-On NixOS, you can run the service in a [`systemd-nspawn` container](https://search.nixos.org/options?show=containers) to preview a deployment.
-
-Assuming you have a local checkout of this repository at `~/src/nix-security-tracker`, in your NixOS configuration, add the following entry to `imports` and rebuild your system:
-
-```nix
-{ ... }:
-{
-  imports = [
-    (import ~/src/nix-security-tracker { }).dev-container
-    # ...
-   ];
-}
-```
-
-The service will be accessible at <http://172.31.100.1>.
-
 ## Running tests
 
 Run integration tests:
