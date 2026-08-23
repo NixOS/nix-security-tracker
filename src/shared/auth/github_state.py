@@ -61,7 +61,7 @@ class GithubState:
         }
 
         for user in User.objects.prefetch_related("socialaccount_set").iterator(
-            # XXX(@fricklerhandwerk): `chunk_size` must be set in presence of `prefetch_related`
+            # NOTE(@fricklerhandwerk): `chunk_size` must be set in presence of `prefetch_related`
             # https://docs.djangoproject.com/en/5.2/ref/models/querysets/#iterator
             # This is probably totally okay, but consider choosing a non-arbitrary value.
             chunk_size=2000

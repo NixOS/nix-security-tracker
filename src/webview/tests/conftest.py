@@ -19,7 +19,7 @@ from pytest_django.live_server_helper import LiveServer
 
 pytest_plugins = ["shared.tests.conftest"]
 
-# XXX(@fricklerhandwerk): Allows mixing async `live_server` with sync `db` fixtures.
+# NOTE(@fricklerhandwerk): Allows mixing async `live_server` with sync `db` fixtures.
 # There seems to be no better way to make that work.
 os.environ["DJANGO_ALLOW_ASYNC_UNSAFE"] = "true"
 
@@ -81,7 +81,7 @@ def logged_in_as(
     @contextmanager
     def wrapped(user: User) -> Generator[Page]:
         with mock_oauth_login(user):
-            # XXX(@fricklerhandwerk): Login URLs are "{provider.id}_login":
+            # NOTE(@fricklerhandwerk): Login URLs are "{provider.id}_login":
             # https://github.com/pennersr/django-allauth/blob/main/allauth/socialaccount/providers/oauth/urls.py#L11
             page.goto(live_server.url + reverse(f"{GitHubProvider.id}_login"))
             yield page

@@ -52,7 +52,7 @@ class MonitoredChannel(BaseModel):
 
 def fetch_from_monitoring() -> list[MonitoredChannel]:
     resp = requests.get(
-        # XXX(@fricklerhandwerk): The sources for this are declared in the `NixOS/infra` repo. [tag:channel-structure]
+        # NOTE(@fricklerhandwerk): The sources for this are declared in the `NixOS/infra` repo. [tag:channel-structure]
         # exporter logic:
         # https://github.com/NixOS/infra/blob/795508213eb35eee099b1b8d12dd46a9f7b03697/build/pluto/prometheus/exporters/channel-exporter.py#L13-L17
         # systemd service:

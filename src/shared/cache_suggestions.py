@@ -88,7 +88,7 @@ class CachedSuggestion(BaseModel):
     affected_products: dict[str, "CachedSuggestion.AffectedProduct"]
     original_packages: dict[str, Package]
     packages: dict[str, Package]
-    # XXX(@fricklerhandwerk): These are converted with `to_dict()` naively, we're not doing anything interesting to them here.
+    # NOTE(@fricklerhandwerk): These are converted with `to_dict()` naively, we're not doing anything interesting to them here.
     metrics: list[dict]
 
     class CategorizedMaintainers(BaseModel):
@@ -215,7 +215,7 @@ def cache_new_suggestions(suggestion: CVEDerivationClusterProposal) -> None:
     for affected_product in prefetched_affected_products:
         # FIXME(@fricklerhandwerk): We should have a more sophisticated data structure that allows displaying what exactly we're matching.
         package_name = affected_product.package_name or affected_product.product
-        # XXX(@fricklerhandwerk): Satisfy the static typecheck that doesn't know we already filtered those out...
+        # NOTE(@fricklerhandwerk): Satisfy the static typecheck that doesn't know we already filtered those out...
         assert package_name is not None
         versions = list(affected_product.versions.all())
         all_versions.extend(versions)
@@ -355,14 +355,14 @@ def channel_structure(
         major_channel = get_major_channel(branch_name)
         # FIXME This quietly drops unfamiliar branch names
         if major_channel:
-            # XXX(@fricklerhandwerk): Here we assign package information to channel names in iteration order, which in the query we have established to be oldest-first by evaluation time.
+            # NOTE(@fricklerhandwerk): Here we assign package information to channel names in iteration order, which in the query we have established to be oldest-first by evaluation time.
             channels = packages[attribute_path].channels
             if major_channel not in channels:
                 channels[major_channel] = CachedSuggestion.PackageOnPrimaryChannel(
                     major_version=None,
                     status=None,
                     src_position=None,
-                    # XXX(@fricklerhandwerk): If this is not replaced in subsequent processing, it will display "-"
+                    # NOTE(@fricklerhandwerk): If this is not replaced in subsequent processing, it will display "-"
                     uniform_versions=None,
                     sub_branches=dict(),
                     updated=None,

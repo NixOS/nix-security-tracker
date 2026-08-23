@@ -43,7 +43,7 @@ def start_evaluation_jobs_upon_insertion(old: None, new: NixChannel) -> None:
         enqueue_evaluation_job(new)
 
 
-# XXX(@fricklerhandwerk): We can't reuse the same channel for different events
+# NOTE(@fricklerhandwerk): We can't reuse the same channel for different events
 # https://github.com/PaulGilmartin/django-pgpubsub/issues/86
 @pgpubsub.post_update_listener(NixChannelUpdateChannel)
 def start_evaluation_jobs_upon_updates(old: NixChannel, new: NixChannel) -> None:

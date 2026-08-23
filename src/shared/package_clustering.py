@@ -115,7 +115,7 @@ def _cluster_batch(
             # `xact=True` releases the lock when the surrounding transaction ends.
             pglock.advisory(attribute, xact=True).acquire()
 
-        # XXX(@fricklerhandwerk): Extracted query into procedure to instrument testing against race conditions.
+        # NOTE(@fricklerhandwerk): Extracted query into procedure to instrument testing against race conditions.
         attrpath_to_pkg = package_from_attrs(drvs)
 
         new_links: list[PackageDerivation] = []
