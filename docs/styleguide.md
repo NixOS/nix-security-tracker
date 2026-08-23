@@ -47,6 +47,50 @@ To minimise turnaround time for getting your contribution merged:
 
   This allows for last-minute changes or resolving merge conflicts without your involvement.
 
+## Code comments
+
+- Comment sparingly.
+
+  Only add comments if names in the code aren't sufficient to explain to readers proficient with Python what's going on and why it's needed.
+
+- Don't mention code tokens in comments.
+  - Bad: mentions the token directly
+
+    ```
+    # Increment `RetryCounter` on each update to `RemoteProcess`.
+    ```
+
+  - Good: describes the concept
+
+    ```
+    # Track how often the remote process was restarted.
+    ```
+
+  Code among prose, all displayed in the same monospace font, is hard to distinguish from the prose itself.
+  And any markup would add noise that makes the prose harder to parse.
+
+  Comments are for prose conveying ideas about high-level concepts.
+  Call these concepts by their real-world names: CVE, package, suggestion, issue, ...
+
+- Write [docstrings](https://docs.python.org/3/glossary.html#term-docstring) with opening and closing `"""` on their own lines.
+
+  Example:
+
+  ```python
+  def foo():
+     """
+     This is a bit easier to read and work with.
+     """
+     pass
+  ```
+
+  Other than that, we're following [PEP 257](https://peps.python.org/pep-0257/).
+
+- Write comments one line per sentence, just like documentation.
+
+  Comment phrasing is changed once in a while, and rewrapping lines will make for noisy diffs.
+  If lines get too long, write shorter sentences.
+
 ## Tagged comments
 
 We use these tagged comments inspired by and loosely following [PEP 350](https://peps.python.org/pep-0350/#mnemonics):
