@@ -81,6 +81,7 @@ pkgs.testers.runNixOSTest {
         env = {
           inherit (cfg.package.passthru) PLAYWRIGHT_BROWSERS_PATH;
         };
+        manage-prefix = "test-";
         secrets =
           let
             dummy-str = pkgs.writeText "dummy" "hello";
@@ -126,7 +127,7 @@ pkgs.testers.runNixOSTest {
       in-shell = command: python-lines: ''
         server.${command}("""echo '
         ${python-lines}
-        ' | wst-manage shell 2>&1 | tee /dev/ttyS0""", timeout=60)
+        ' | test-manage shell 2>&1 | tee /dev/ttyS0""", timeout=60)
       '';
     in
     ''
@@ -135,10 +136,10 @@ pkgs.testers.runNixOSTest {
       server.wait_for_unit("mock-channels.service")
 
       with subtest("Check that no migrations were missed"):
-        server.succeed("wst-manage makemigrations --check --dry-run")
+        server.succeed("test-manage makemigrations --check --dry-run")
 
       with subtest("Check that channels are fetched and only small ones get enqueued for evaluation"):
-        server.succeed("wst-manage fetch_all_channels")
+        server.succeed("test-manage fetch_all_channels")
         ${in-shell "succeed" ''
           from shared.models import NixChannel, NixpkgsBranch
 
@@ -163,7 +164,7 @@ pkgs.testers.runNixOSTest {
             In this environment it can't discover what's needed on its own.
             It's easiest to list the modules under test explicitly, which are found through `$PYTHONPATH`.
           */
-        }server.succeed("wst-manage test -- --pyargs shared -v | tee /dev/ttyS0")
+        }server.succeed("test-manage test -- --pyargs shared -v | tee /dev/ttyS0")
         ${
           ""
           /*
@@ -171,8 +172,8 @@ pkgs.testers.runNixOSTest {
             Importing fixtures from one module in another doesn't work in one invocation of `pytest`.
             This is because `conftest.py` files are discovered from the provided module names and registered globally.
           */
-        }server.succeed("wst-manage test -- --pyargs api -v | tee /dev/ttyS0")
-        server.succeed("wst-manage test -- --pyargs webview -v | tee /dev/ttyS0")
+        }server.succeed("test-manage test -- --pyargs api -v | tee /dev/ttyS0")
+        server.succeed("test-manage test -- --pyargs webview -v | tee /dev/ttyS0")
 
       with subtest("Check that stylesheet is served"):
         machine.succeed("curl --fail -H 'Host: example.org' http://localhost/static/reset.css")

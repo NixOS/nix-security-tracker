@@ -29,8 +29,11 @@ let
       daphne
     ]
   );
-  wstManageScript = writeShellApplication {
-    name = "wst-manage";
+
+  manage-script-name = "${cfg.manage-prefix}manage";
+
+  manage = writeShellApplication {
+    name = manage-script-name;
 
     runtimeInputs = [ pkgs.git ];
     runtimeEnv = cfg.env;
@@ -52,7 +55,7 @@ let
   databaseUrl = "postgres:///nix-security-tracker";
 
   # This script has access to the credentials, no matter where it is.
-  wstExternalManageScript = writeScriptBin "wst-manage" ''
+  external-manage = writeScriptBin manage-script-name ''
     #!${stdenv.shell}
     echo "${concatStringsSep " " credentials}"
     if [ -t 0 ]; then
@@ -64,7 +67,7 @@ let
       --wait \
       --collect \
       --service-type=exec \
-      --unit "wst-manage.service" \
+      --unit "${manage-script-name}.service" \
       --property "User=nix-security-tracker" \
       --property "Group=nix-security-tracker" \
       --property "WorkingDirectory=/var/lib/nix-security-tracker" \
@@ -72,7 +75,7 @@ let
       --property 'Environment=${
         toString (lib.mapAttrsToList (name: value: "${name}=${value}") cfg.env)
       }' \
-      "${wstManageScript}/bin/wst-manage" "$@"
+      "${lib.getExe manage}" "$@"
   '';
 in
 {
@@ -111,7 +114,13 @@ in
       # only override defaults with explicit values
       apply = lib.recursiveUpdate default;
     };
-
+    manage-prefix = mkOption {
+      description = ''
+        Prefix for the `manage` script command name, to differentiate from other Django services deployed on the same machine.
+      '';
+      type = types.str;
+      default = "";
+    };
     settings = mkOption rec {
       description = ''
         Django configuration via environment variables, see `settings.py` for options.
@@ -184,7 +193,7 @@ in
   };
 
   config = mkIf cfg.enable {
-    environment.systemPackages = [ wstExternalManageScript ];
+    environment.systemPackages = [ external-manage ];
     services = {
       nix-security-tracker.settings = {
         ALLOWED_HOSTS = mkDefault [
@@ -269,7 +278,7 @@ in
         defaults = {
           path = [
             pythonEnv
-            wstManageScript
+            manage
             pkgs.nix-eval-jobs
           ];
           serviceConfig = {
@@ -303,8 +312,8 @@ in
             script = ''
               versionFile="/var/lib/nix-security-tracker/package-version"
               if [[ $(cat "$versionFile" 2>/dev/null) != ${cfg.package} ]]; then
-                wst-manage migrate --no-input
-                wst-manage collectstatic --no-input --clear
+                ${manage.name} migrate --no-input
+                ${manage.name} collectstatic --no-input --clear
                 echo ${cfg.package} > "$versionFile"
               fi
             '';
@@ -363,8 +372,8 @@ in
             script = ''
               # Before starting, crash all the in-progress evaluations.
               # This will prevent them from being stalled forever, since workers would not pick up evaluations marked as in-progress.
-              wst-manage crash_all_evaluations
-              wst-manage listen --recover \
+              ${manage.name} crash_all_evaluations
+              ${manage.name} listen --recover \
                 --processes ${toString cfg.maxJobProcessors} \
                 --channels \
                   shared.channels.NixEvaluationChannel
@@ -390,8 +399,8 @@ in
               UMask = "0027";
             };
             script = ''
-              wst-manage backfill_package_clustering
-              wst-manage regenerate_cached_suggestions
+              ${manage.name} backfill_package_clustering
+              ${manage.name} regenerate_cached_suggestions
             '';
           };
 
@@ -413,7 +422,7 @@ in
 
             serviceConfig.Type = "oneshot";
             script = ''
-              wst-manage backfill_proposal_package_links
+              ${manage.name} backfill_proposal_package_links
             '';
           };
 
@@ -431,7 +440,7 @@ in
             wantedBy = [ "multi-user.target" ];
 
             script = ''
-              wst-manage listen --recover \
+              ${manage.name} listen --recover \
                 --channels \
                   shared.channels.NixChannelInsertChannel \
                   shared.channels.NixChannelUpdateChannel \
@@ -454,7 +463,7 @@ in
             wantedBy = [ "multi-user.target" ];
 
             script = ''
-              wst-manage listen --recover \
+              ${manage.name} listen --recover \
                 --processes ${toString cfg.suggestionRefreshProcesses} \
                 --channels \
                   shared.channels.NixEvaluationUpdateChannel \
@@ -478,7 +487,7 @@ in
             serviceConfig.Type = "oneshot";
 
             script = ''
-              wst-manage fetch_all_channels
+              ${manage.name} fetch_all_channels
             '';
 
             # Ideally, start at whatever night means.
@@ -499,7 +508,7 @@ in
             serviceConfig.Type = "oneshot";
 
             script = ''
-              wst-manage ingest_delta_cve "$(date --date='yesterday' --iso)" ${
+              ${manage.name} ingest_delta_cve "$(date --date='yesterday' --iso)" ${
                 optionalString (cfg.cve.startDate != null) "--default-start-ingestion ${cfg.cve.startDate}"
               }
             '';
@@ -522,7 +531,7 @@ in
 
             serviceConfig.Type = "oneshot";
             script = ''
-              wst-manage garbage_collect
+              ${manage.name} garbage_collect
             '';
 
             # Weekly cleanup.
