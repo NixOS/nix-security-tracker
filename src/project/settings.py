@@ -232,6 +232,13 @@ class Settings(BaseSettings):
             """,
             default=600,
         )
+        DATABASE_DISABLE_SERVER_SIDE_CURSORS: bool = Field(
+            description="""
+            Disable server side cursors. To be used when we're fronting postgres by pgbouncer.
+            https://docs.djangoproject.com/en/6.1/ref/databases/#transaction-pooling-server-side-cursors
+            """,
+            default=False,
+        )
         EMAIL_BACKEND: str = "django.core.mail.backends.console.EmailBackend"
         EMAIL_HOST: str = "localhost"
         EMAIL_PORT: int = 25
@@ -488,6 +495,9 @@ DATABASES = {}
 DATABASES["default"] = dj_database_url.config(
     conn_max_age=DATABASE_CONN_MAX_AGE,  # noqa: F821 # pyright: ignore [reportUndefinedVariable]
     conn_health_checks=True,
+)
+DATABASES["default"]["DISABLE_SERVER_SIDE_CURSORS"] = (
+    DATABASE_DISABLE_SERVER_SIDE_CURSORS  # noqa: F821 # pyright: ignore [reportUndefinedVariable]
 )
 
 # Password validation

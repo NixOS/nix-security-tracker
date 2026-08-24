@@ -333,7 +333,13 @@ in
             # CONN_MAX_AGE=0 lets PgBouncer do the pooling. Other services
             # (workers and management commands) keep the value from
             # `cfg.settings` so their direct connections persist.
-            environment.DJANGO_SETTINGS = builtins.toJSON (cfg.settings // { DATABASE_CONN_MAX_AGE = 0; });
+            environment.DJANGO_SETTINGS = builtins.toJSON (
+              cfg.settings
+              // {
+                DATABASE_CONN_MAX_AGE = 0;
+                DATABASE_DISABLE_SERVER_SIDE_CURSORS = true;
+              }
+            );
           };
 
           nix-security-tracker-evaluator = {
