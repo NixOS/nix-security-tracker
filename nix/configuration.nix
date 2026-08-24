@@ -250,6 +250,7 @@ in
     users.users.nix-security-tracker = {
       isSystemUser = true;
       group = "nix-security-tracker";
+      home = config.systemd.services.nix-security-tracker-server.serviceConfig.WorkingDirectory;
     };
     users.groups.nix-security-tracker = { };
 
