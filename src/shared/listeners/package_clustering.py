@@ -19,11 +19,10 @@ def cluster_after_evaluation(old: NixEvaluation, new: NixEvaluation) -> None:
         return
     if new.state != NixEvaluation.EvaluationState.COMPLETED:
         return
-    evaluation = NixEvaluation.objects.select_related("channel").get(pk=new.pk)
-    logger.info("Clustering derivations from evaluation %s", evaluation)
+    logger.info("Clustering derivations from evaluation %s", new)
     result = cluster_packages(
         NixDerivation.objects.filter(parent_evaluation_id=new.pk),
-        update_packages=evaluation.channel.is_tracking_branch,
+        update_packages=new.channel.is_tracking_branch,
     )
     logger.info(
         f"Done. Clustered {result.derivations_processed} derivations: "
@@ -31,14 +30,11 @@ def cluster_after_evaluation(old: NixEvaluation, new: NixEvaluation) -> None:
         f"updated {result.attrpaths_updated}, created {result.attrpaths_created} attrpaths."
     )
 
-    # Schedules a refresh of derivation links and suggestion caches for every
-    # suggestion affected by this evaluation's clustering.
-    channel_id = evaluation.channel_id
-
+    # Schedule a refresh of derivation links and suggestion caches for every suggestion affected by this evaluation's clustering.
     def _run_after_commit() -> None:
         suggestion_pks = (
             CVEDerivationClusterProposal.objects.filter(
-                derivations__parent_evaluation__channel_id=channel_id,
+                derivations__parent_evaluation__channel_id=new.channel_id,
                 status__in=[
                     CVEDerivationClusterProposal.Status.PENDING,
                     CVEDerivationClusterProposal.Status.ACCEPTED,
