@@ -71,7 +71,7 @@ class MockGithubRepo:
 
     def create_issue(self, title: str, body: str, labels: list[str]) -> MockGithubIssue:
         # FIXME(@fricklerhandwerk): We shouldn't do assertions here, but it's too much to tear apart now. [ref:todo-github-connection]
-        # XXX(@fricklerhandwerk): This unfortunately does part of the testing for [ref:test-github-create_issue-title] and [ref:test-github-create_issue-description].
+        # NOTE(@fricklerhandwerk): This unfortunately does part of the testing for [ref:test-github-create_issue-title] and [ref:test-github-create_issue-description].
         if self.expected_issue_title:
             assert title == self.expected_issue_title, (
                 f"Expected issue title '{self.expected_issue_title}', got '{title}'"

@@ -162,7 +162,7 @@ def severity_badge(metrics: list[dict]) -> dict:
                 }
 
                 result["human_readable"] = {
-                    # XXX(@fricklerhandwerk): Yes, the *value* description is also indexed by *key*, not by the value itself!
+                    # NOTE(@fricklerhandwerk): Yes, the *value* description is also indexed by *key*, not by the value itself!
                     f"{abbreviations[k]} ({k})": f"{parsed.get_value_description(k)} ({v})"
                     for k, v in parsed.metrics.items()
                 }

@@ -624,6 +624,8 @@ INTERNAL_IPS = [
 DB_COMMITTERS_TEAM = "committers"
 # This will be synced with GH_SECURITY_TEAM in GH_ORGANIZATION
 DB_SECURITY_TEAM = "security_team"
+# Manually assigned not synced from GitHub
+DB_MATCHING_TRAINING_DATA_GROUP = "matching_training_data"
 
 GH_WEBHOOK_SECRET = get_secret("GH_WEBHOOK_SECRET")
 

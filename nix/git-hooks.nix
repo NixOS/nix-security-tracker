@@ -13,7 +13,7 @@ rec {
   ];
   hooks =
     let
-      # XXX(@fricklerhandwerk): due to implementation details of pre-commit.nix this is
+      # NOTE(@fricklerhandwerk): due to implementation details of pre-commit.nix this is
       # required for running in CI when building the hooks as a derivation
       stages = [ "manual" ];
     in

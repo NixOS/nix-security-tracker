@@ -3,7 +3,7 @@ from django.db import migrations, models
 
 
 def migrate_notifications_to_text(apps, schema_editor):
-    # XXX(@fricklerhandwerk): Raw SQL here because moving data to a subclass calls `save()` on the parent, expecting parent fields on the child object.
+    # NOTE(@fricklerhandwerk): Raw SQL here because moving data to a subclass calls `save()` on the parent, expecting parent fields on the child object.
     # Those aren't populated when we create a new `TextNotification()` though, and instead of copying them manually we can just set the fields in SQL directly.
     with schema_editor.connection.cursor() as cursor:
         cursor.execute("""

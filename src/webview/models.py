@@ -65,7 +65,7 @@ class SuggestionNotification(Notification):
 
     @property
     def title(self) -> str:
-        # XXX(@fricklerhandwerk): This is hard to be more precise about without tracking or carefully extracting more data.
+        # NOTE(@fricklerhandwerk): This is hard to be more precise about without tracking or carefully extracting more data.
         # Ideally we'd always say the matching was automatic, and also why it happened.
         # For example, show the package that corresponds to subscribed attribute name or auto-subscription by maintainer.
         # But a suggestion can be edited after the match was made and the notification created.

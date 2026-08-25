@@ -15,6 +15,11 @@ def iscommitter(user: Any) -> bool:
     return user.groups.filter(name=settings.DB_COMMITTERS_TEAM).exists()
 
 
+def can_access_matching_training_data(user: Any) -> bool:
+    """Membership in the manually curated matching_training_data group."""
+    return user.groups.filter(name=settings.DB_MATCHING_TRAINING_DATA_GROUP).exists()
+
+
 def ismaintainer(user: Any) -> bool:
     return NixMaintainer.objects.filter(
         github_id=user.socialaccount_set.get(provider="github").uid,

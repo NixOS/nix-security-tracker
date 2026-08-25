@@ -3,6 +3,7 @@ from drf_spectacular.views import SpectacularAPIView
 from rest_framework import routers
 
 from api.issues.views import IssueViewSet
+from api.matching.views import MatchingTrainingDataView
 from api.me import CurrentUserView
 from api.server_info import ServerInfoView
 from api.subscriptions.views import SubscriptionsViewSet
@@ -19,5 +20,10 @@ urlpatterns = [
     path("v1/me", CurrentUserView.as_view(), name="current-user"),
     path("v1/server-info", ServerInfoView.as_view(), name="server-info"),
     path("v1/tokens/me", TokenManagementView.as_view(), name="token-management"),
+    path(
+        "v1/matching-training-data",
+        MatchingTrainingDataView.as_view(),
+        name="matching-training-data",
+    ),
     path("schema/", SpectacularAPIView.as_view(), name="schema"),
 ]

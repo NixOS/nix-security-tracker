@@ -159,7 +159,7 @@ pkgs.testers.runNixOSTest {
         ${
           ""
           /*
-            XXX(@fricklerhandwerk): `pytest` searches in the working directory.
+            NOTE(@fricklerhandwerk): `pytest` searches in the working directory.
             In this environment it can't discover what's needed on its own.
             It's easiest to list the modules under test explicitly, which are found through `$PYTHONPATH`.
           */
@@ -167,7 +167,7 @@ pkgs.testers.runNixOSTest {
         ${
           ""
           /*
-            XXX(@fricklerhandwerk): We must test modules in separate invocations.
+            NOTE(@fricklerhandwerk): We must test modules in separate invocations.
             Importing fixtures from one module in another doesn't work in one invocation of `pytest`.
             This is because `conftest.py` files are discovered from the provided module names and registered globally.
           */
@@ -196,7 +196,7 @@ pkgs.testers.runNixOSTest {
 
       with subtest("Check that evaluations succeed"):
           ${
-            # XXX(@fricklerhandwerk): We do this at the end since it takes a while and would otherwise stall the Django tests.
+            # NOTE(@fricklerhandwerk): We do this at the end since it takes a while and would otherwise stall the Django tests.
             in-shell "wait_until_succeeds" ''
               from shared.models import (
                 NixChannel,

@@ -189,9 +189,16 @@ class CVEDerivationClusterProposal(serializers.ModelSerializer):
     kept_derivations = serializers.SerializerMethodField()
     ignored_packages = serializers.SerializerMethodField()
     comment = serializers.CharField(allow_null=True, allow_blank=True, required=False)
+    # CharField (not ChoiceField): a nullable ChoiceField makes spectacular emit
+    # oneOf[Enum, NullEnum], and orval names both the enum and the allOf wrapper
+    # ``MatchingTrainingRecordRejectionReason``.
+    rejection_reason = serializers.CharField(
+        allow_null=True, allow_blank=True, required=False
+    )
 
     class Meta:
         model = models.CVEDerivationClusterProposal
+        ref_name = "MatchingTrainingRecord"
         fields = (
             "schema_version",
             "cve_id",
@@ -214,6 +221,16 @@ class CVEDerivationClusterProposal(serializers.ModelSerializer):
             raise serializers.ValidationError(
                 f"Unsupported matching training-data schema_version={value}; "
                 f"expected {SCHEMA_VERSION}"
+            )
+        return value
+
+    def validate_rejection_reason(self, value: str | None) -> str | None:
+        if value in (None, ""):
+            return None
+        valid = set(models.CVEDerivationClusterProposal.RejectionReason.values)
+        if value not in valid:
+            raise serializers.ValidationError(
+                f"Invalid rejection_reason={value!r}; expected one of {sorted(valid)}"
             )
         return value
 
