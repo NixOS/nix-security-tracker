@@ -46,7 +46,8 @@ def cluster_and_process_refreshes(
 
     def run(old: NixEvaluation, new: NixEvaluation) -> None:
         for pk in mock_cluster_after_evaluation_trigger(old=old, new=new):
-            refresh_and_cache_suggestion(pk=pk)
+            with transaction.atomic():
+                refresh_and_cache_suggestion(pk=pk)
 
     return run
 
@@ -211,11 +212,12 @@ def test_suggestion_refresh_failure_does_not_block_others(
         new=maybe_fail,
     ):
         for pk in pks:
-            if pk == failing_pk:
-                with pytest.raises(RuntimeError, match="simulated failure"):
+            with transaction.atomic():
+                if pk == failing_pk:
+                    with pytest.raises(RuntimeError, match="simulated failure"):
+                        refresh_and_cache_suggestion(pk=pk)
+                else:
                     refresh_and_cache_suggestion(pk=pk)
-            else:
-                refresh_and_cache_suggestion(pk=pk)
 
     for suggestion in suggestions:
         cached_after = CachedSuggestions.objects.get(proposal=suggestion)
@@ -225,6 +227,75 @@ def test_suggestion_refresh_failure_does_not_block_others(
         else:
             assert cached_after.updated_at > cached_befores[suggestion.pk]
             assert cached_after.proposal.derivations.get() == new_drvs[suggestion.pk]
+
+
+@pytest.mark.django_db(transaction=True)
+def test_refresh_skips_published_suggestion_on_match(
+    make_evaluation: Callable[..., NixEvaluation],
+    make_drv: Callable[..., NixDerivation],
+    make_suggestion: Callable[..., CVEDerivationClusterProposal],
+    mock_cluster_after_evaluation_trigger: Callable[..., list[int]],
+) -> None:
+    """
+    When a suggestion is published while refresh is running, its derivation links
+    must not be replaced even when newer matching derivations exist.
+    """
+    old_eval = make_evaluation()
+    new_eval = make_evaluation()
+
+    old_drv = make_drv(pname="foo", evaluation=old_eval)
+    make_drv(pname="foo", evaluation=new_eval, attribute=old_drv.attribute)
+
+    suggestion = make_suggestion(drvs={old_drv: ProvenanceFlags.PACKAGE_NAME_MATCH})
+
+    pks = mock_cluster_after_evaluation_trigger(
+        old=NixEvaluation(state=NixEvaluation.EvaluationState.IN_PROGRESS),
+        new=new_eval,
+    )
+
+    # Suggestion was published between notification dispatch and processing.
+    suggestion.status = CVEDerivationClusterProposal.Status.ACCEPTED
+    suggestion.save(update_fields=["status"])
+    suggestion.status = CVEDerivationClusterProposal.Status.PUBLISHED
+    suggestion.save(update_fields=["status"])
+
+    for pk in pks:
+        with transaction.atomic():
+            refresh_and_cache_suggestion(pk=pk)
+
+    link = DerivationClusterProposalLink.objects.get(proposal=suggestion)
+    assert link.derivation == old_drv
+
+
+@pytest.mark.django_db(transaction=True)
+def test_refresh_skips_published_suggestion_on_rejection(
+    evaluation: NixEvaluation,
+    suggestion: CVEDerivationClusterProposal,
+    mock_cluster_after_evaluation_trigger: Callable[..., list[int]],
+) -> None:
+    """
+    When a suggestion is published while refresh is running, the status must not
+    be overwritten to REJECTED and its links must not be deleted.
+    """
+
+    pks = mock_cluster_after_evaluation_trigger(
+        old=NixEvaluation(state=NixEvaluation.EvaluationState.IN_PROGRESS),
+        new=evaluation,
+    )
+
+    # Suggestion was published between notification dispatch and processing.
+    suggestion.status = CVEDerivationClusterProposal.Status.ACCEPTED
+    suggestion.save(update_fields=["status"])
+    suggestion.status = CVEDerivationClusterProposal.Status.PUBLISHED
+    suggestion.save(update_fields=["status"])
+
+    for pk in pks:
+        with transaction.atomic():
+            refresh_and_cache_suggestion(pk=pk)
+
+    suggestion.refresh_from_db()
+    assert suggestion.status == CVEDerivationClusterProposal.Status.PUBLISHED
+    assert DerivationClusterProposalLink.objects.filter(proposal=suggestion).exists()
 
 
 @pytest.mark.django_db(transaction=True)

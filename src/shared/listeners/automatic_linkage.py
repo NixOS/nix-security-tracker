@@ -317,45 +317,33 @@ def refresh_suggestion_derivation_links(
 
     outcome = resolve_linkage_candidates(container)
 
-    with transaction.atomic():
-        try:
-            suggestion = CVEDerivationClusterProposal.objects.select_for_update().get(
-                pk=suggestion.pk,
-                status__in=[
-                    CVEDerivationClusterProposal.Status.PENDING,
-                    CVEDerivationClusterProposal.Status.ACCEPTED,
-                ],
-            )
-        except CVEDerivationClusterProposal.DoesNotExist:
-            return
+    update_fields = ["algorithm_version"]
+    suggestion.algorithm_version = (
+        CVEDerivationClusterProposal.CURRENT_ALGORITHM_VERSION
+    )
 
-        update_fields = ["algorithm_version"]
-        suggestion.algorithm_version = (
-            CVEDerivationClusterProposal.CURRENT_ALGORITHM_VERSION
+    if outcome.rejection is not None:
+        suggestion.status = CVEDerivationClusterProposal.Status.REJECTED
+        suggestion.rejection_reason = outcome.rejection.reason
+        suggestion.rejection_match_count = outcome.rejection.match_count or None
+        suggestion.rejection_max_matches_limit = (
+            outcome.rejection.max_matches_limit or None
         )
+        update_fields += [
+            "status",
+            "rejection_reason",
+            "rejection_match_count",
+            "rejection_max_matches_limit",
+        ]
 
-        if outcome.rejection is not None:
-            suggestion.status = CVEDerivationClusterProposal.Status.REJECTED
-            suggestion.rejection_reason = outcome.rejection.reason
-            suggestion.rejection_match_count = outcome.rejection.match_count or None
-            suggestion.rejection_max_matches_limit = (
-                outcome.rejection.max_matches_limit or None
-            )
-            update_fields += [
-                "status",
-                "rejection_reason",
-                "rejection_match_count",
-                "rejection_max_matches_limit",
-            ]
+    suggestion.save(update_fields=update_fields)
 
-        suggestion.save(update_fields=update_fields)
+    DerivationClusterProposalLink.objects.filter(proposal=suggestion).delete()
 
-        DerivationClusterProposalLink.objects.filter(proposal=suggestion).delete()
-
-        if outcome.derivations:
-            DerivationClusterProposalLink.objects.bulk_create(
-                build_derivation_links(suggestion, outcome.derivations)
-            )
+    if outcome.derivations:
+        DerivationClusterProposalLink.objects.bulk_create(
+            build_derivation_links(suggestion, outcome.derivations)
+        )
 
     logger.info(
         "Refreshed derivation links for suggestion %d (rejection_reason=%s, derivations=%s).",

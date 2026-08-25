@@ -57,16 +57,15 @@ def refresh_and_cache_suggestion(pk: int) -> None:
     caching depends on the refreshed links.
     """
     try:
-        with transaction.atomic():
-            suggestion = CVEDerivationClusterProposal.objects.select_for_update().get(
-                pk=pk,
-                status__in=[
-                    CVEDerivationClusterProposal.Status.PENDING,
-                    CVEDerivationClusterProposal.Status.ACCEPTED,
-                ],
-            )
-            refresh_suggestion_derivation_links(suggestion)
-            cache_new_suggestions(suggestion)
+        suggestion = CVEDerivationClusterProposal.objects.select_for_update().get(
+            pk=pk,
+            status__in=[
+                CVEDerivationClusterProposal.Status.PENDING,
+                CVEDerivationClusterProposal.Status.ACCEPTED,
+            ],
+        )
+        refresh_suggestion_derivation_links(suggestion)
+        cache_new_suggestions(suggestion)
     except CVEDerivationClusterProposal.DoesNotExist:
         # We don't want to try again! If we crash here, the work is put back on the queue.
         logger.info("Suggestion %d no longer pending/accepted, skipping refresh", pk)

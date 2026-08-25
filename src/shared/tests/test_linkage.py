@@ -418,60 +418,6 @@ def test_refresh_suggestion_rejected_when_derivation_has_known_vulnerability(
     assert DerivationClusterProposalLink.objects.filter(proposal=suggestion).exists()
 
 
-def test_refresh_skips_published_suggestion_on_rejection(
-    make_evaluation: Callable[..., NixEvaluation],
-    drv: NixDerivation,
-    make_suggestion: Callable[..., CVEDerivationClusterProposal],
-) -> None:
-    """
-    When a suggestion is published while refresh is running, the status must not
-    be overwritten to REJECTED and its links must not be deleted.
-    """
-    suggestion = make_suggestion(
-        drvs={drv: ProvenanceFlags.PACKAGE_NAME_MATCH},
-        status=CVEDerivationClusterProposal.Status.PUBLISHED,
-    )
-    # Simulate the stale in-memory object the worker would hold.
-    suggestion.status = CVEDerivationClusterProposal.Status.ACCEPTED
-    # A new evaluation with no matching derivation makes the resolver return NO_MATCHES.
-    make_evaluation()
-
-    refresh_suggestion_derivation_links(suggestion)
-
-    suggestion.refresh_from_db()
-    assert suggestion.status == CVEDerivationClusterProposal.Status.PUBLISHED
-    assert DerivationClusterProposalLink.objects.filter(proposal=suggestion).exists()
-
-
-def test_refresh_skips_published_suggestion_on_match(
-    make_evaluation: Callable[..., NixEvaluation],
-    make_drv: Callable[..., NixDerivation],
-    make_suggestion: Callable[..., CVEDerivationClusterProposal],
-) -> None:
-    """
-    When a suggestion is published while refresh is running, its derivation links
-    must not be replaced even when newer matching derivations exist.
-    """
-    old_eval = make_evaluation()
-    new_eval = make_evaluation()
-
-    old_drv = make_drv(pname="foo", evaluation=old_eval)
-    make_drv(pname="foo", evaluation=new_eval, attribute=old_drv.attribute)
-
-    suggestion = make_suggestion(
-        drvs={old_drv: ProvenanceFlags.PACKAGE_NAME_MATCH},
-        status=CVEDerivationClusterProposal.Status.PUBLISHED,
-    )
-    # Simulate the stale in-memory object the worker would hold.
-    suggestion.status = CVEDerivationClusterProposal.Status.ACCEPTED
-
-    refresh_suggestion_derivation_links(suggestion)
-
-    links = DerivationClusterProposalLink.objects.filter(proposal=suggestion)
-    assert links.count() == 1
-    assert links.get().derivation == old_drv
-
-
 def test_package_links_populated_alongside_drv_links(
     make_container: Callable[..., Container],
     make_drv: Callable[..., NixDerivation],
