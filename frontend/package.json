@@ -8,10 +8,7 @@
     "build": "tsc --noEmit && vite build",
     "preview": "vite preview",
     "generate-api": "orval --project api",
-    "generate-api:local": "orval --project api-local",
-    "lint": "biome check .",
-    "lint:fix": "biome check --write .",
-    "format": "biome format --write ."
+    "generate-api:local": "orval --project api-local"
   },
   "dependencies": {
     "@ark-ui/react": "5.37.2",
