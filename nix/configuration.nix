@@ -264,6 +264,11 @@ in
     };
     users.groups.nix-security-tracker = { };
 
+    systemd.targets.nix-security-tracker = {
+      description = "Web security tracker services";
+      wantedBy = [ "multi-user.target" ];
+    };
+
     systemd.services =
       let
         defaults = {
@@ -272,6 +277,8 @@ in
             wstManageScript
             pkgs.nix-eval-jobs
           ];
+          wantedBy = [ "nix-security-tracker.target" ];
+          partOf = [ "nix-security-tracker.target" ];
           serviceConfig = {
             User = "nix-security-tracker";
             WorkingDirectory = "/var/lib/nix-security-tracker";
@@ -295,7 +302,6 @@ in
               "postgresql.service"
             ];
             requires = [ "postgresql.service" ];
-            wantedBy = [ "multi-user.target" ];
 
             serviceConfig.Type = "oneshot";
 
@@ -322,7 +328,6 @@ in
               "nix-security-tracker-migrations.service"
             ]
             ++ lib.optionals cfg.enablePgbouncer [ "pgbouncer.service" ];
-            wantedBy = [ "multi-user.target" ];
             serviceConfig = {
               Restart = cfg.restart;
               TimeoutStartSec = lib.mkDefault "10m";
@@ -358,7 +363,6 @@ in
               "postgresql.service"
               "nix-security-tracker-worker.service"
             ];
-            wantedBy = [ "multi-user.target" ];
 
             script = ''
               # Before starting, crash all the in-progress evaluations.
@@ -382,7 +386,6 @@ in
               "postgresql.service"
               "nix-security-tracker-migrations.service"
             ];
-            wantedBy = [ "multi-user.target" ];
 
             serviceConfig = {
               Type = "oneshot";
@@ -409,7 +412,6 @@ in
               "postgresql.service"
               "nix-security-tracker-migrations.service"
             ];
-            wantedBy = [ "multi-user.target" ];
 
             serviceConfig.Type = "oneshot";
             script = ''
@@ -428,7 +430,6 @@ in
               "postgresql.service"
               "nix-security-tracker-migrations.service"
             ];
-            wantedBy = [ "multi-user.target" ];
 
             script = ''
               wst-manage listen --recover \
@@ -451,7 +452,6 @@ in
               "postgresql.service"
               "nix-security-tracker-migrations.service"
             ];
-            wantedBy = [ "multi-user.target" ];
 
             script = ''
               wst-manage listen --recover \
