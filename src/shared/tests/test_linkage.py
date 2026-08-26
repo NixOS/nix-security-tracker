@@ -498,6 +498,114 @@ def test_package_link_provenance_flags_merged_across_drvs(
     )
 
 
+def test_refresh_creates_package_links_alongside_drv_links(
+    cve: Container,
+    make_evaluation: Callable[..., NixEvaluation],
+    make_drv: Callable[..., NixDerivation],
+    make_package: Callable[..., Package],
+    make_suggestion: Callable[..., CVEDerivationClusterProposal],
+) -> None:
+    """Refreshing a suggestion (re)creates its package links, not just derivation links."""
+    old_eval = make_evaluation()
+    new_eval = make_evaluation()
+
+    old_drv = make_drv(pname="foo", evaluation=old_eval)
+    new_drv = make_drv(pname="foo", evaluation=new_eval, attribute=old_drv.attribute)
+    pkg = make_package(new_drv)
+    PackageDerivation.objects.create(derivation=new_drv, package=pkg)
+
+    suggestion = make_suggestion(
+        container=cve, drvs={old_drv: ProvenanceFlags.PACKAGE_NAME_MATCH}
+    )
+    assert not PackageClusterProposalLink.objects.filter(proposal=suggestion).exists()
+
+    refresh_suggestion_derivation_links(suggestion)
+
+    drv_link = DerivationClusterProposalLink.objects.get(proposal=suggestion)
+    assert drv_link.derivation == new_drv
+
+    pkg_link = PackageClusterProposalLink.objects.get(proposal=suggestion)
+    assert pkg_link.package == pkg
+    assert pkg_link.provenance_flags == ProvenanceFlags.PACKAGE_NAME_MATCH
+
+
+def test_refresh_replaces_stale_package_links(
+    cve: Container,
+    make_evaluation: Callable[..., NixEvaluation],
+    make_drv: Callable[..., NixDerivation],
+    make_package: Callable[..., Package],
+    make_suggestion: Callable[..., CVEDerivationClusterProposal],
+) -> None:
+    """
+    A package link from a previous match is removed and replaced by refresh,
+    not left stacked alongside the newly matched one.
+    """
+    old_eval = make_evaluation()
+    new_eval = make_evaluation()
+
+    old_drv = make_drv(pname="foo", evaluation=old_eval)
+    new_drv = make_drv(pname="foo", evaluation=new_eval, attribute=old_drv.attribute)
+    stale_pkg = make_package(
+        old_drv, homepage="https://example.com/foo-old", attrpath="old-attr"
+    )
+    PackageDerivation.objects.create(derivation=old_drv, package=stale_pkg)
+    fresh_pkg = make_package(
+        new_drv, homepage="https://example.com/foo-new", attrpath="new-attr"
+    )
+    PackageDerivation.objects.create(derivation=new_drv, package=fresh_pkg)
+
+    suggestion = make_suggestion(
+        container=cve, drvs={old_drv: ProvenanceFlags.PACKAGE_NAME_MATCH}
+    )
+    PackageClusterProposalLink.objects.create(
+        proposal=suggestion,
+        package=stale_pkg,
+        provenance_flags=ProvenanceFlags.PACKAGE_NAME_MATCH,
+    )
+
+    refresh_suggestion_derivation_links(suggestion)
+
+    drv_links = DerivationClusterProposalLink.objects.filter(proposal=suggestion)
+    assert drv_links.count() == 1
+    assert drv_links.get().derivation == new_drv
+
+    pkg_links = PackageClusterProposalLink.objects.filter(proposal=suggestion)
+    assert pkg_links.count() == 1
+    assert pkg_links.get().package == fresh_pkg
+
+
+def test_refresh_clears_package_links_when_rejected(
+    cve: Container,
+    make_evaluation: Callable[..., NixEvaluation],
+    drv: NixDerivation,
+    make_package: Callable[..., Package],
+    make_suggestion: Callable[..., CVEDerivationClusterProposal],
+) -> None:
+    """When a package no longer appears in the latest evaluation, stale derivation and package links are both cleared."""
+    pkg = make_package(drv)
+    PackageDerivation.objects.create(derivation=drv, package=pkg)
+
+    suggestion = make_suggestion(
+        container=cve, drvs={drv: ProvenanceFlags.PACKAGE_NAME_MATCH}
+    )
+    PackageClusterProposalLink.objects.create(
+        proposal=suggestion,
+        package=pkg,
+        provenance_flags=ProvenanceFlags.PACKAGE_NAME_MATCH,
+    )
+
+    make_evaluation()
+
+    refresh_suggestion_derivation_links(suggestion)
+
+    suggestion.refresh_from_db()
+    assert suggestion.status == CVEDerivationClusterProposal.Status.REJECTED
+    assert not DerivationClusterProposalLink.objects.filter(
+        proposal=suggestion
+    ).exists()
+    assert not PackageClusterProposalLink.objects.filter(proposal=suggestion).exists()
+
+
 def test_build_new_links_is_atomic(
     make_container: Callable[..., Container],
     make_drv: Callable[..., NixDerivation],

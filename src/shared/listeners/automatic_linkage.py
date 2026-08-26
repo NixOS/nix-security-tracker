@@ -339,10 +339,14 @@ def refresh_suggestion_derivation_links(
     suggestion.save(update_fields=update_fields)
 
     DerivationClusterProposalLink.objects.filter(proposal=suggestion).delete()
+    PackageClusterProposalLink.objects.filter(proposal=suggestion).delete()
 
     if outcome.derivations:
         DerivationClusterProposalLink.objects.bulk_create(
             build_derivation_links(suggestion, outcome.derivations)
+        )
+        PackageClusterProposalLink.objects.bulk_create(
+            build_package_links(suggestion, outcome.derivations)
         )
 
     logger.info(
