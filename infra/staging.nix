@@ -30,9 +30,7 @@ in
     ];
   };
 
-  # FIXME(@fricklerhandwerk): Don't give everyone root.
-  # Wire the users to have the right permissions for doing what they need.
-  users.users.root.openssh.authorizedKeys.keyFiles = with config.custom.keys; [
+  custom.dump-db.authorizedKeyFiles = with config.custom.keys; [
     florentc
     DarshanCode2005
   ];

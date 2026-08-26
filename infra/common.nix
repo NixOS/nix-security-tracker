@@ -10,6 +10,7 @@ in
   imports = [
     "${sources.agenix}/modules/age.nix"
     ./keys.nix
+    ./dump-db.nix
   ];
 
   boot = {

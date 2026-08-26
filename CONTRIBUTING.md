@@ -84,14 +84,14 @@ To replicate this on a traditional Unix-like system:
 
 ### Resetting the database
 
-In order to start over you need SSH [access to the staging environment](./infra/README.md#adding-ssh-keys).
+In order to get a fully populated database without running ingestion locally, you need [SSH access to a public instance](./infra/README.md#adding-ssh-keys).
 Tools for the following are available in the development shell.
 Delete the database and recreate it, then restore it from a dump, and (just in case the dump is behind the code) run migrations:
 
 ```bash
 dropdb nix-security-tracker
 createdb nix-security-tracker
-ssh root@tracker-staging.security.nixos.org "sudo -u postgres pg_dump --create nix-security-tracker | zstd" | zstdcat | pv | psql
+ssh dump-db@tracker-staging.security.nixos.org | zstdcat | pv | psql
 manage migrate
 ```
 
