@@ -1,6 +1,7 @@
 import logging
 from enum import STRICT, IntFlag, auto
 from typing import Any
+from urllib.parse import urljoin
 
 from django.core.exceptions import ValidationError
 from django.db import IntegrityError, models
@@ -97,7 +98,7 @@ class NixpkgsIssue(TimeStampMixin):
             raise ValueError("Cannot publish a NixpkgsIssue with no title")
 
         tracker_issue_path = reverse("webview:issue_detail", args=[self.code])
-        tracker_issue_link = f"{settings.BASE_URL}{tracker_issue_path}"
+        tracker_issue_link = urljoin(str(settings.BASE_URL), tracker_issue_path)
 
         suggestions = list(self.suggestions.select_related("cached").all())
         if not suggestions:
