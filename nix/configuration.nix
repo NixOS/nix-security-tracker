@@ -403,6 +403,7 @@ in
             };
             script = ''
               ${manage.name} backfill_package_clustering
+              ${manage.name} rematch_stale_suggestions
               ${manage.name} regenerate_cached_suggestions
             '';
           };
