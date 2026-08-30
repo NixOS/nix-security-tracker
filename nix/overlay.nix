@@ -7,24 +7,6 @@ in
   python3 = prev.python3.override {
     packageOverrides = pyfinal: _pyprev: {
       psycopg2 = pyfinal.psycopg;
-      django-rest-knox = pyfinal.buildPythonPackage rec {
-        pname = "django-rest-knox";
-        version = "5.0.4";
-        format = "setuptools";
-
-        src = pyfinal.fetchPypi {
-          pname = "django_rest_knox";
-          inherit version;
-          hash = "sha256-AVXA3z1fZoENmOFtImYD/MoiTBzEwSg/r1abcrcmyTw=";
-        };
-
-        propagatedBuildInputs = with pyfinal; [
-          django
-          djangorestframework
-        ];
-
-        doCheck = false;
-      };
       cpe = pyfinal.buildPythonPackage {
         pname = "cpe";
         version = "1.3.1";
