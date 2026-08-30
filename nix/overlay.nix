@@ -18,13 +18,6 @@ in
       };
     };
   };
-  /*
-    FIXME(@fricklerhandwerk): `commitizen` tests fail upstream.
-    Python 3.14 changed argparse's error message format for invalid choices (values are now quoted).
-    This breaks `commitizen`'s snapshot tests.
-    Skip them until commitizen updates its fixtures.
-  */
-  commitizen = prev.commitizen.overrideAttrs { doInstallCheck = false; };
   # go through the motions to make a flake-incompat project use the build
   # inputs we want
   pre-commit-hooks = final.callPackage "${sources.pre-commit-hooks}/nix/run.nix" {
