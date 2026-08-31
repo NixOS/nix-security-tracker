@@ -1,3 +1,4 @@
+from concurrent.futures import ThreadPoolExecutor
 from datetime import date
 from typing import Any
 from unittest.mock import MagicMock, patch
@@ -12,13 +13,19 @@ from django.core.management.base import CommandError
 @patch("shared.management.commands.ingest_bulk_cve.CveIngestion")
 @patch("shared.management.commands.ingest_bulk_cve.glob")
 @patch("shared.management.commands.ingest_bulk_cve.get_gh")
-@patch("shared.management.commands.ingest_bulk_cve.make_cve")
+@patch("shared.management.commands.ingest_bulk_cve.prepare_cve")
+@patch("shared.management.commands.ingest_bulk_cve.flush")
+@patch("shared.management.commands.ingest_bulk_cve.update_search_vectors")
+@patch("shared.management.commands.ingest_bulk_cve.ProcessPoolExecutor")
 @patch("builtins.open")
 class TestIngestBulkCve:
     def test_filtering_logic(
         self,
         mock_open: MagicMock,
-        mock_make_cve: MagicMock,
+        mock_pool: MagicMock,
+        mock_update_search_vectors: MagicMock,
+        mock_flush: MagicMock,
+        mock_prepare_cve: MagicMock,
         mock_get_gh: MagicMock,
         mock_glob: MagicMock,
         mock_cve_ingestion: MagicMock,
@@ -26,6 +33,9 @@ class TestIngestBulkCve:
         mock_path: MagicMock,
     ) -> None:
         # Setup mocks
+        mock_pool.return_value.__enter__.return_value = ThreadPoolExecutor(
+            max_workers=1
+        )
         mock_path.exists.return_value = True
         mock_path.basename.side_effect = lambda x: x.split("/")[-1]
         mock_release = MagicMock()
@@ -74,8 +84,8 @@ class TestIngestBulkCve:
 
             # Full range (should ingest all)
             call_command("ingest_bulk_cve")
-            assert mock_make_cve.call_count == len(cve_data)
-            mock_make_cve.reset_mock()
+            assert mock_prepare_cve.call_count == len(cve_data)
+            mock_prepare_cve.reset_mock()
 
             # Specific date range
             call_command(
@@ -84,8 +94,8 @@ class TestIngestBulkCve:
                 to_date=date.fromisoformat("2024-01-31"),
             )
             # CVE-2024-0001.json fits
-            assert mock_make_cve.call_count == 1
-            mock_make_cve.reset_mock()
+            assert mock_prepare_cve.call_count == 1
+            mock_prepare_cve.reset_mock()
 
             # Year range (fast-path)
             call_command(
@@ -94,8 +104,8 @@ class TestIngestBulkCve:
                 to_date=date.fromisoformat("2024-12-31"),
             )
             # Both 2024 CVEs fit
-            assert mock_make_cve.call_count == 2
-            mock_make_cve.reset_mock()
+            assert mock_prepare_cve.call_count == 2
+            mock_prepare_cve.reset_mock()
 
             # Test 4: Invalid date range (from > to)
             with pytest.raises(CommandError, match="is after"):
