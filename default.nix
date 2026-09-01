@@ -17,6 +17,18 @@ rec {
   frontend = pkgs.callPackage ./nix/frontend.nix { };
   module = import ./nix/configuration.nix;
   dev-setup = import ./nix/dev-setup.nix;
+  vm-runner = pkgs.callPackage ./nix/vm-runner.nix {
+    nixos-module = {
+      imports = [ ./nix/vm.nix ];
+    };
+  };
+  vm = pkgs.writeShellApplication {
+    name = "vm";
+    text = ''
+      runner=$(nix-build "${toString ./.}" -A vm-runner --no-out-link)
+      exec "$runner/bin/run-vm"
+    '';
+  };
 
   git-hooks = pkgs.pre-commit-hooks {
     src =
@@ -131,6 +143,7 @@ rec {
       };
 
       packages = [
+        vm
         shell-config-placeholder
         manage
         package
