@@ -14,9 +14,7 @@ Resources to help you get started:
 - [**Design Documents**](docs/design/): Detailed design specifications for individual features.
 - [**CVE records**](./docs/cve_records.md): What the tracker stores for each CVE.
 
-Other directories in this repository have additional `README.md` files with more specific information relevant to their sibling files.
-
-Service definitions are in [`nix/configuration.nix`](nix/configuration.nix).
+## Directory structure
 
 Application logic lives in the [`src/`](src/) directory.
 From here, it follows standard Django patterns:
@@ -25,6 +23,10 @@ From here, it follows standard Django patterns:
 - [`src/shared/`](src/shared/): [application](https://docs.djangoproject.com/en/6.0/ref/applications/) with data models and business logic
 - [`src/api`](src/api): application for the REST API
 - [`src/webview/`](src/webview/): application for the web frontend
+
+Service definitions are in [`nix/configuration.nix`](nix/configuration.nix).
+
+Other directories in this repository have additional `README.md` files with more specific information relevant to their sibling files.
 
 # Hacking
 
