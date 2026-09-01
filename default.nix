@@ -19,7 +19,12 @@ rec {
   dev-setup = import ./nix/dev-setup.nix;
   vm-runner = pkgs.callPackage ./nix/vm-runner.nix {
     nixos-module = {
-      imports = [ ./nix/vm.nix ];
+      imports = [
+        ./nix/vm.nix
+      ]
+      ++ pkgs.lib.optional (builtins.pathExists ./.local) (
+        pkgs.lib.warn "using configuration extension from ${toString ./.local}" ./.local
+      );
     };
   };
   vm = pkgs.writeShellApplication {

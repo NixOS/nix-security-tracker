@@ -64,6 +64,26 @@ Start it from the development shell:
 vm
 ```
 
+## Local configuration extensions
+
+You may want to adjust the development VM, such as by adding your own tools for debugging.
+
+The directory `.local` is not tracked by version control, so you can use it for local customisations.
+The VM configuration automatically imports `.local/default.nix` if it exists.
+That file is expected to contain a NixOS module.
+
+For example, to add programs to the environment:
+
+```nix
+# .local/default.nix
+{ pkgs, ... }: {
+  environment.systemPackages = with pkgs; [
+    htop
+    neovim
+  ];
+}
+```
+
 ## Working with the database
 
 You will need a local instance of the database to run tests and experiment manually.
