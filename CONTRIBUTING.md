@@ -23,6 +23,7 @@ From here, it follows standard Django patterns:
 
 - [`src/project/`](src/project/): global project configuration
 - [`src/shared/`](src/shared/): [application](https://docs.djangoproject.com/en/6.0/ref/applications/) with data models and business logic
+- [`src/api`](src/api): application for the REST API
 - [`src/webview/`](src/webview/): application for the web frontend
 
 # Hacking
