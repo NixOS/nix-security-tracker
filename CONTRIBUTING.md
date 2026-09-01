@@ -55,6 +55,15 @@ List all available [management commands](https://docs.djangoproject.com/en/6.0/r
 manage help
 ```
 
+## Interacting with the system
+
+A [NixOS virtual machine](https://nix.dev/tutorials/nixos/nixos-configuration-on-vm) is provided for local development.
+Start it from the development shell:
+
+```console
+vm
+```
+
 ## Working with the database
 
 You will need a local instance of the database to run tests and experiment manually.
