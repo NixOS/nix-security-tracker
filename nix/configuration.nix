@@ -194,6 +194,10 @@ in
 
   config = mkIf cfg.enable {
     environment.systemPackages = [ external-manage ];
+    networking.firewall.allowedTCPPorts = [
+      config.services.nginx.defaultHTTPListenPort
+    ]
+    ++ lib.optionals cfg.production [ config.services.nginx.defaultSSLListenPort ];
     services = {
       nix-security-tracker.settings = {
         ALLOWED_HOSTS = mkDefault [

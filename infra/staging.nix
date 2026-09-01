@@ -80,10 +80,6 @@ in
   };
   security.acme.acceptTerms = true;
   security.acme.defaults.email = "infra@nixos.org";
-  networking.firewall.allowedTCPPorts = [
-    80
-    443
-  ];
   services.nix-security-tracker = {
     enable = true;
     production = true;
