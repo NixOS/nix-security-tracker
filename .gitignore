@@ -23,5 +23,6 @@ nixpkgs/
 nixpkgs-gc-roots/
 # Never checkout local versions of .envrc
 .envrc-local
+.local
 # Frontend build output (node_modules and dist are in frontend/.gitignore)
 frontend/dist/
