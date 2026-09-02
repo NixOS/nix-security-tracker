@@ -51,6 +51,14 @@
 
 .btn:disabled {
   cursor: not-allowed;
+  --btn-disabled-stripe: rgba(0, 0, 0, 0.12);
+  background-image: repeating-linear-gradient(
+    -45deg,
+    var(--btn-disabled-stripe) 0,
+    var(--btn-disabled-stripe) 4px,
+    transparent 4px,
+    transparent 8px
+  );
 }
 
 .btn:not(:disabled):hover,

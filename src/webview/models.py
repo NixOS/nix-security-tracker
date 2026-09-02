@@ -30,9 +30,19 @@ class Notification(TimeStampMixin):
 
         Returns the new unread counter.
         """
+        return self.mark_read(not self.is_read)
+
+    def mark_read(self, is_read: bool) -> int:
+        """
+        Explicitly set a notification's read status and update user's unread counter.
+
+        Idempotent: setting the same status twice in a row only updates the
+        counter once. Returns the new unread counter.
+        """
         profile = self.user.profile
         with transaction.atomic():
-            self.is_read = not self.is_read
+            was_read = self.is_read
+            self.is_read = is_read
             self.save(update_fields=["is_read"])
 
             # FIXME(@fricklerhandwerk): [tag:count-notifications]: We may want to simply `.count()` on every full page instead of risking permanent inconsistency arising from unforseen edge cases.
@@ -40,13 +50,14 @@ class Notification(TimeStampMixin):
             # - the difference will likely not be noticeable with <100 users
             # - it needs measurement in any case
             # - may resolve itself eventually as we increasingly avoid page reloads
-            if not self.is_read:
-                profile.unread_notifications_count += 1
-            else:
-                profile.unread_notifications_count = max(
-                    0, profile.unread_notifications_count - 1
-                )
-            profile.save(update_fields=["unread_notifications_count"])
+            if was_read != is_read:
+                if not is_read:
+                    profile.unread_notifications_count += 1
+                else:
+                    profile.unread_notifications_count = max(
+                        0, profile.unread_notifications_count - 1
+                    )
+                profile.save(update_fields=["unread_notifications_count"])
 
         return profile.unread_notifications_count
 
