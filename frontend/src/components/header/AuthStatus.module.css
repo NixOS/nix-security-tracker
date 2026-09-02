@@ -5,7 +5,25 @@
   height: 2em;
 }
 
+.menuTrigger {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+}
+
 .menuTrigger:hover .avatar,
 *[data-state="open"] .avatar {
   outline-style: solid;
+}
+
+.settingsBadge {
+  position: absolute;
+  top: +1.2em;
+  right: -0.5em;
+  width: 1.4em;
+  height: 1.4em;
+  padding: 0.05em;
+  font-size: 0.9em;
+  text-align: center;
+  background-color: var(--nixos-blue);
 }

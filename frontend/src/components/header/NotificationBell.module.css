@@ -1,0 +1,44 @@
+.bell {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+}
+
+.badge {
+  position: absolute;
+  top: -0.5em;
+  right: -0.5em;
+  width: 1.3em;
+  height: 1.3em;
+  padding: 0.1 0.1em;
+  font-size: 0.9em;
+  text-align: center;
+  background-color: red;
+}
+
+@keyframes ring {
+  0%,
+  100% {
+    transform: rotate(0deg);
+  }
+  15% {
+    transform: rotate(-15deg);
+  }
+  30% {
+    transform: rotate(15deg);
+  }
+  45% {
+    transform: rotate(-15deg);
+  }
+  60% {
+    transform: rotate(15deg);
+  }
+  75% {
+    transform: rotate(-5deg);
+  }
+}
+
+.ringing {
+  animation: ring 1s ease-in-out;
+  transform-origin: top center;
+}
