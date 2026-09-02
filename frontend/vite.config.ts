@@ -7,7 +7,7 @@ export default defineConfig({
   base: "/static/vite/",
   resolve: {
     alias: {
-      "@": path.resolve(__dirname, "src"),
+      "@": path.resolve(import.meta.dirname, "src"),
       react: "preact/compat",
       "react-dom/test-utils": "preact/test-utils",
       "react-dom": "preact/compat",
@@ -19,10 +19,5 @@ export default defineConfig({
     rollupOptions: {
       input: "src/main.tsx",
     },
-  },
-  server: {
-    port: 5173,
-    // Absolute origin so HMR asset URLs work when Django serves the HTML from :8000
-    origin: "http://localhost:5173",
   },
 });
