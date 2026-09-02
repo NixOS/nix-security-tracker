@@ -281,6 +281,13 @@ class Settings(BaseSettings):
             default="vite",
         )
 
+        VITE_DEV_SERVER_PORT: int | None = Field(
+            description="""
+            Development only: port at which the browser can reach the Vite server.
+            """,
+            default=None,
+        )
+
         ACCOUNT_DEFAULT_HTTP_PROTOCOL: str = "http"
 
         class SocialAccountProviders(BaseModel):
@@ -597,9 +604,13 @@ STATIC_URL = "static/"
 # rather than re-declaring the config.
 DJANGO_VITE = {
     "default": {
-        "dev_mode": DEBUG,  # noqa: F821 # pyright: ignore [reportUndefinedVariable]
+        "dev_mode": VITE_DEV_SERVER_PORT is not None,  # noqa: F821 # pyright: ignore [reportUndefinedVariable]
         "dev_server_host": "localhost",
-        "dev_server_port": 5173,
+        **(
+            {"dev_server_port": VITE_DEV_SERVER_PORT}  # noqa: F821 # pyright: ignore [reportUndefinedVariable]
+            if VITE_DEV_SERVER_PORT  # noqa: F821 # pyright: ignore [reportUndefinedVariable]
+            else {}
+        ),
         "static_url_prefix": VITE_STATIC_URL_PREFIX,  # noqa: F821 # pyright: ignore [reportUndefinedVariable]
         "manifest_path": VITE_MANIFEST_PATH,  # noqa: F821 # pyright: ignore [reportUndefinedVariable]
     }
@@ -611,7 +622,7 @@ DJANGO_VITE = {
 # Django-served contexts (e.g. the test live_server's static handler) we register the
 # build output directory under the prefix so the staticfiles finders can serve it. The
 # asset dir is the manifest's grandparent (<dist>/.vite/manifest.json -> <dist>).
-if not DEBUG:  # noqa: F821 # pyright: ignore [reportUndefinedVariable]
+if VITE_DEV_SERVER_PORT is None:  # noqa: F821 # pyright: ignore [reportUndefinedVariable]
     _vite_assets_dir = VITE_MANIFEST_PATH.parent.parent  # noqa: F821 # pyright: ignore [reportUndefinedVariable]
     if _vite_assets_dir.is_dir():
         STATICFILES_DIRS = [

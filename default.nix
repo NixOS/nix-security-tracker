@@ -14,9 +14,7 @@ rec {
   # For exports.
   overlays = [ overlay ];
   package = pkgs.nix-security-tracker;
-  frontend = pkgs.callPackage ./nix/frontend.nix { };
   module = import ./nix/configuration.nix;
-  dev-setup = import ./nix/dev-setup.nix;
   vm-runner = pkgs.callPackage ./nix/vm-runner.nix {
     nixos-module = {
       imports = [
@@ -30,6 +28,18 @@ rec {
   vm = pkgs.writeShellApplication {
     name = "vm";
     text = ''
+      credentials=${pkgs.lib.escapeShellArg (toString ./.credentials)}
+      mkdir -p "$credentials"
+      (
+        cd "$credentials"
+        set +e -o noclobber
+        echo foo > SECRET_KEY
+        echo bar > GH_CLIENT_ID
+        echo baz > GH_SECRET
+        echo qux > GH_WEBHOOK_SECRET
+        echo 123 > GH_APP_INSTALLATION_ID
+        echo foo > GH_APP_PRIVATE_KEY
+      ) 2>/dev/null || true
       runner=$(nix-build "${toString ./.}" -A vm-runner --no-out-link)
       exec "$runner/bin/run-vm"
     '';
@@ -79,126 +89,27 @@ rec {
       ];
     };
 
-  shell =
-    let
-      manage = pkgs.writeScriptBin "manage" ''
-        exec "${pkgs.python3}/bin/python" "${toString ./src/manage.py}" "$@"
-      '';
-      # Run this for a quick start.
-      # Login and publishing issues requires setting up credentials properly.
-      shell-config-placeholder = pkgs.writeShellApplication {
-        name = "shell-config-placeholder";
-        runtimeInputs = [ pkgs.python3 ];
-        text = ''
-          credentialsDir="${toString ./.credentials}"
-          nixpkgsDir="${toString ./nixpkgs}"
-          mkdir -p "$credentialsDir"
-          mkdir -p "$nixpkgsDir"
-          cd "$credentialsDir"
-          {
-            set +e -o noclobber
-            python3 -c 'import secrets; print(secrets.token_hex(100))' > SECRET_KEY
-            echo bar > GH_CLIENT_ID
-            echo baz > GH_SECRET
-            echo qux > GH_WEBHOOK_SECRET
-            echo 123 > GH_APP_INSTALLATION_ID
-            echo foo > GH_APP_PRIVATE_KEY
-          } 2>/dev/null
-          set -e
-        '';
-      };
-    in
-    pkgs.mkShellNoCC {
-      env = {
-        DATABASE_URL = "postgres://nix-security-tracker@/nix-security-tracker";
-        # psql doesn't take DATABASE_URL
-        PGDATABASE = "nix-security-tracker";
-        PGUSER = "nix-security-tracker";
-        CREDENTIALS_DIRECTORY = toString ./.credentials;
-        inherit (package.passthru) PLAYWRIGHT_BROWSERS_PATH;
-        DJANGO_SETTINGS = builtins.toJSON {
-          DEBUG = true;
-          LOCAL_NIXPKGS_CHECKOUT = toString ./. + "/nixpkgs";
-          PRODUCTION = false;
-          SYNC_GITHUB_STATE_AT_STARTUP = false;
-          GH_ISSUES_PING_MAINTAINERS = false;
-          GH_ORGANIZATION = "Nix-Security-WG";
-          GH_ISSUES_REPO = "sectracker-testing";
-          GH_SECURITY_TEAM = "sectracker-testing-security";
-          GH_COMMITTERS_TEAM = "sectracker-testing-committers";
-          STATIC_ROOT = "${toString ./src/static}";
-          BASE_URL = "http://localhost:8000";
-          ALLOWED_HOSTS = [
-            "localhost"
-            "127.0.0.1"
-          ];
-          CSRF_TRUSTED_ORIGINS = [ "http://localhost" ];
-          VITE_MANIFEST_PATH = toString ./. + "frontend/dist/.vite/manifest.json";
+  shell = pkgs.mkShellNoCC {
+    packages = [
+      vm
+      pkgs.npins
+      (import sources.agenix { inherit pkgs; }).agenix
+      format
+    ]
+    ++ git-hooks.enabledPackages;
 
-          REVISION =
-            let
-              git = builtins.fetchGit {
-                url = ./.;
-                shallow = true;
-              };
-            in
-            if git ? dirtyRev then "${git.shortRev}-dirty" else git.shortRev;
-          METRICS_TEXTFILE_DIR = toString ./. + "/prometheus-metrics";
+    shellHook = ''
+      ${(pkgs.pre-commit-hooks {
+        src = ./.;
+        imports = [ ./nix/git-hooks.nix ];
+        hooks.commitizen = {
+          enable = true;
+          stages = [ "commit-msg" ];
         };
-      };
-
-      packages = [
-        vm
-        shell-config-placeholder
-        manage
-        package
-        # Explicitly pin git from nixpkgs to ensure the `fetch_all_channels` management command
-        # and the Nix evaluation pipeline (which clones and fetches Nixpkgs commits via shared/git.py)
-        # always use a known-good version. Without this, the shell falls back to the system git,
-        # which may be too old to support required flags (e.g. `git fetch --porcelain` requires git 2.41+)
-        # and can cause silent failures or broken behaviour in development.
-        pkgs.git
-        pkgs.nix-eval-jobs
-        pkgs.npins
-        pkgs.pv
-        # Runs the dev processes defined in the repo-root Procfile (Django, workers,
-        # Vite) together via a single `hivemind` invocation.
-        pkgs.hivemind
-        (import sources.agenix { inherit pkgs; }).agenix
-        format
-        # Frontend tooling (Preact/Vite UI at /ui-v2)
-        pkgs.nodejs
-        pkgs.biome
-      ]
-      ++ package.nativeCheckInputs
-      ++ git-hooks.enabledPackages;
-
-      shellHook = ''
-        ${(pkgs.pre-commit-hooks {
-          src = ./.;
-          imports = [ ./nix/git-hooks.nix ];
-          hooks.commitizen = {
-            enable = true;
-            stages = [ "commit-msg" ];
-          };
-        }).shellHook
-        }
-
-        shell-config-placeholder
-
-        ln -sf ${sources.htmx}/dist/htmx.js src/webview/static/htmx.min.js
-        ln -sf ${sources.nixos-logo} src/webview/static/nixos-logo.svg
-
-        mkdir -p $CREDENTIALS_DIRECTORY
-        mkdir -p ${toString ./.}/prometheus-metrics
-
-        # Frontend: install npm dependencies if needed
-        if [ -f frontend/package.json ] && [ ! -d frontend/node_modules ]; then
-          echo "Installing frontend dependencies..."
-          (cd frontend && npm ci --prefer-offline 2>/dev/null || npm install)
-        fi
-      '';
-    };
+      }).shellHook
+      }
+    '';
+  };
 
   tests = pkgs.callPackage ./nix/tests { inherit module; };
 }

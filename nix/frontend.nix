@@ -17,9 +17,7 @@ buildNpmPackage {
   # Biome is used by the build scripts (lint check before build)
   nativeBuildInputs = [ biome ];
 
-  # Generate the Orval API client from the OpenAPI schema before `npm run build`.
-  # The generated client (src/api/generated/) is git-ignored, so it must be
-  # produced here for `tsc`/`vite build` to resolve its imports.
+  # Generate the Orval API client from the OpenAPI schema before building.
   preBuild = ''
     cp ${schema} schema.yaml
     npm run generate-api:local

@@ -24,10 +24,13 @@ let
   cfg = config.services.nix-security-tracker;
 
   pythonEnv = pkgs.python3.withPackages (
-    ps: with ps; [
+    ps:
+    with ps;
+    [
       cfg.package
       daphne
     ]
+    ++ cfg.extra-python-packages
   );
 
   manage-script-name = "${cfg.manage-prefix}manage";
@@ -35,7 +38,10 @@ let
   manage = writeShellApplication {
     name = manage-script-name;
 
-    runtimeInputs = [ pkgs.git ];
+    runtimeInputs = [
+      pkgs.git
+      pythonEnv
+    ];
     runtimeEnv = cfg.env;
     excludeShellChecks = [
       "SC2089"
@@ -47,8 +53,10 @@ let
       if [[ "$USER" != "nix-security-tracker" ]]; then
         sudo='exec /run/wrappers/bin/sudo -u nix-security-tracker --preserve-env --preserve-env=PYTHONPATH'
       fi
-      export PYTHONPATH=${toString cfg.package.pythonPath}
-      $sudo ${cfg.package}/bin/manage.py "$@"
+      export PYTHONPATH=${
+        lib.optionalString (cfg.env ? PYTHONPATH) "${cfg.env.PYTHONPATH}:"
+      }${toString cfg.package.pythonPath}
+      $sudo ${cfg.manage} "$@"
     '';
   };
   credentials = mapAttrsToList (name: secretPath: "${name}:${secretPath}") cfg.secrets;
@@ -83,6 +91,10 @@ in
     enable = mkEnableOption "web security tracker for Nixpkgs and similar monorepos";
 
     package = mkPackageOption pkgs "nix-security-tracker" { };
+    extra-python-packages = mkOption {
+      type = types.listOf types.package;
+      default = [ ];
+    };
     frontend = mkOption {
       type = types.package;
       default = pkgs.callPackage ./frontend.nix { };
@@ -120,6 +132,14 @@ in
       '';
       type = types.str;
       default = "";
+    };
+    manage = mkOption {
+      description = ''
+        Path to the Django `manage.py` entrypoint.
+        Override to use a different source tree without rebuilding the package.
+      '';
+      type = types.path;
+      default = "${cfg.package}/bin/manage.py";
     };
     settings = mkOption rec {
       description = ''
@@ -277,9 +297,15 @@ in
     };
     users.groups.nix-security-tracker = { };
 
-    systemd.targets.nix-security-tracker = {
-      description = "Web security tracker services";
-      wantedBy = [ "multi-user.target" ];
+    systemd.targets = {
+      nix-security-tracker = {
+        description = "Web security tracker services";
+        wantedBy = [ "multi-user.target" ];
+      };
+      nix-security-tracker-workers = {
+        description = "Web security tracker background workers";
+        wantedBy = [ "nix-security-tracker.target" ];
+      };
     };
 
     systemd.services =
@@ -386,6 +412,11 @@ in
 
           nix-security-tracker-evaluator = {
             description = "Web security tracker - Nixpkgs evaluation worker";
+            requiredBy = [ "nix-security-tracker-workers.target" ];
+            partOf = [
+              "nix-security-tracker-workers.target"
+              "nix-security-tracker.target"
+            ];
             after = [
               "network.target"
               "postgresql.service"
@@ -456,6 +487,11 @@ in
 
           nix-security-tracker-worker = {
             description = "Web security tracker - background job processor";
+            requiredBy = [ "nix-security-tracker-workers.target" ];
+            partOf = [
+              "nix-security-tracker-workers.target"
+              "nix-security-tracker.target"
+            ];
             after = [
               "network.target"
               "postgresql.service"
@@ -478,6 +514,11 @@ in
 
           nix-security-tracker-worker-rematching = {
             description = "Web security tracker - post-evaluation suggestion rematching";
+            requiredBy = [ "nix-security-tracker-workers.target" ];
+            partOf = [
+              "nix-security-tracker-workers.target"
+              "nix-security-tracker.target"
+            ];
             after = [
               "network.target"
               "postgresql.service"
@@ -509,7 +550,7 @@ in
               "postgresql.service"
               "nix-security-tracker-worker.service"
             ];
-
+            wantedBy = [ ];
             serviceConfig.Type = "oneshot";
 
             script = ''
@@ -531,6 +572,7 @@ in
               "postgresql.service"
               "nix-security-tracker-worker.service"
             ];
+            wantedBy = [ ];
             serviceConfig.Type = "oneshot";
 
             script = ''
@@ -554,8 +596,9 @@ in
               "postgresql.service"
               "nix-security-tracker-migrations.service"
             ];
-
+            wantedBy = [ ];
             serviceConfig.Type = "oneshot";
+
             script = ''
               ${manage.name} garbage_collect
             '';

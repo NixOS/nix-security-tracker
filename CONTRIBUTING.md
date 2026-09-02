@@ -8,6 +8,7 @@ Resources to help you get started:
 
 - [**Quickstart guide**](./docs/quickstart.md): Set up a database, run the service locally.
 - [**Manual data ingestion and matching**](./docs/data_ingestion_and_matching.md): Ingest Nixpkgs metadata and CVEs into your local instance.
+- [**Hacking guide**](./docs/hacking.md): Common workflows for interacting with the development environment.
 - [**Style guide**](./docs/styleguide.md): Tips for getting your change merged
 - [**Architecture Overview**](docs/README.md): High-level system design and component interaction.
 - [**Architecture Diagram**](docs/architecture.mermaid): Visual representation of the system (Mermaid source).
@@ -55,35 +56,6 @@ List all available [management commands](https://docs.djangoproject.com/en/6.0/r
 manage help
 ```
 
-## Interacting with the system
-
-A [NixOS virtual machine](https://nix.dev/tutorials/nixos/nixos-configuration-on-vm) is provided for local development.
-Start it from the development shell:
-
-```console
-vm
-```
-
-## Local configuration extensions
-
-You may want to adjust the development VM, such as by adding your own tools for debugging.
-
-The directory `.local` is not tracked by version control, so you can use it for local customisations.
-The VM configuration automatically imports `.local/default.nix` if it exists.
-That file is expected to contain a NixOS module.
-
-For example, to add programs to the environment:
-
-```nix
-# .local/default.nix
-{ pkgs, ... }: {
-  environment.systemPackages = with pkgs; [
-    htop
-    neovim
-  ];
-}
-```
-
 ## Working with the database
 
 You will need a local instance of the database to run tests and experiment manually.
@@ -125,7 +97,7 @@ Delete the database and recreate it, then restore it from a dump, and (just in c
 ```bash
 dropdb nix-security-tracker
 createdb nix-security-tracker
-ssh dump-db@tracker-staging.security.nixos.org | zstdcat | pv | psql
+ssh dump-db@tracker-staging.security.nixos.org | zstdcat | pv | psql -U postgres
 manage migrate
 ```
 
@@ -218,46 +190,6 @@ To configure the GitHub app and the webhook in the GitHub organisation settings:
 
 </details>
 
-## Running tests
-
-Run integration tests:
-
-```console
-nix-build -A tests
-```
-
-Interact with the involved virtual machines in a test:
-
-```
-$(nix-build -A tests.driverInteractive)/bin/nixos-test-driver
-```
-
-## Formatting
-
-A formatter is run [on each pull request](./.github/workflows/builds.yaml) and as one of the [pre-push Git hooks](./nix/git-hooks.nix).
-
-Run the formatter manually with:
-
-```console
-nix-shell --run format
-```
-
-## Changing the database schema
-
-Whenever you add a field in the database schema, run:
-
-```console
-manage makemigrations
-```
-
-Then before starting the server again, run:
-
-```
-manage migrate
-```
-
-This is the default Django workflow.
-
 ## `pgpubsub` listener registration pattern
 
 The application uses [`django-pgpubsub`](https://github.com/PaulGilmartin/django-pgpubsub) to react to database changes asynchronously.
@@ -278,16 +210,6 @@ We use the following pattern:
 
 > [!WARNING]
 > If you create a new listener module but forget to add its import to [`src/shared/listeners/__init__.py`](src/shared/listeners/__init__.py), your listener will fail to run silently!
-
-## Re-caching suggestions
-
-Suggestion contents are displayed from a cache to avoid latency from complex database queries.
-
-To compute or re-compute the cached information from scratch:
-
-```console
-manage regenerate_cached_suggestions
-```
 
 ## Staging deployment
 

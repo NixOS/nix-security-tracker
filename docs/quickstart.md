@@ -4,10 +4,13 @@ This document shows how to run the Nixpkgs security tracker running locally.
 
 ## Prerequisites
 
-- [Install Nix](https://nix.dev/install-nix)
-- [Clone this repository](#clone-this-repository)
-- [Set up a local database](../CONTRIBUTING.md#set-up-a-local-database)
-- [Verify your setup](#verify-your-setup)
+[Install Nix](https://nix.dev/install-nix) on your machine.
+
+To run the service locally, your machine will need available at least:
+
+- 2 cores
+- 10G RAM
+- 40G disk space
 
 ## Clone this repository
 
@@ -24,53 +27,18 @@ Enter the development shell:
 nix-shell
 ```
 
-Apply database migrations:
+Start the system in a virtual machine:
 
 ```console
-manage migrate
+vm
 ```
 
-Start the development server:
+On login all web services accessible from your host will be displayed.
 
-```console
-manage runserver
-```
-
-Check that the service has started:
-
-```console
-open http://127.0.0.1:8000
-```
-
-## Experimental UI
-
-If you want to enable the new experimental UI, replace "Start the development server" with the following steps:
-
-Install the dependencies:
-
-```console
-# From the `frontend` directory:
-npm install
-```
-
-Start the development servers (Django and Vite):
-
-```console
-# From the root directory
-hivemind
-```
-
-Generate the API client:
-
-```console
-# From the `frontend` directory:
-npm run generate-api
-```
-
-The new UI is available at `http://127.0.0.1:8000/ui-v2`
+Exit the virtual machine with the `poweroff` command.
 
 ## Next steps
 
-In order to log in to the service with your GitHub account, [set up credentials](../CONTRIBUTING.md#setting-up-credentials).
-
-Then try it out with real data by running [manual data ingestion and matching](./data_ingestion_and_matching.md).
+- In order to log in to the service with your GitHub account, [set up credentials](../CONTRIBUTING.md#setting-up-credentials).
+- Try working with real data by running [manual data ingestion and matching](./data_ingestion_and_matching.md).
+- [Start hacking](./hacking.md) by making and testing local changes in your virtual machine

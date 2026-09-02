@@ -1,28 +1,8 @@
 result
 result-*
-.direnv
 .pre-commit-config.yaml
 __pycache__
 .credentials
-*.jsonl
-cve-cache
-prometheus-metrics
-nixpkgs
-nixpkgs-gc-roots/*
-nixpkgs-evaluation-logs/*.log
-result
-*.zst
-*.dump
-*.jsonl
-*.log
-src/static
-src/webview/static/htmx.min.js
-src/webview/static/nixos-logo.svg
 # A shallow checkout of nixpkgs
 nixpkgs/
-nixpkgs-gc-roots/
-# Never checkout local versions of .envrc
-.envrc-local
-.local
-# Frontend build output (node_modules and dist are in frontend/.gitignore)
-frontend/dist/
+/.local/
