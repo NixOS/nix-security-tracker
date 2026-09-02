@@ -128,6 +128,9 @@ export function ApiToken() {
           </div>
         </div>
       )}
+      <p>
+        Consult the <a href="/api/schema/">OpenAPI specification</a>.
+      </p>
     </div>
   );
 }
