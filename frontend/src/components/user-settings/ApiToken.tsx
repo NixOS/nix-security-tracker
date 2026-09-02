@@ -128,6 +128,14 @@ export function ApiToken() {
           </div>
         </div>
       )}
+      <ul className="column gap">
+        <li>
+          <a href="/api/docs/">API documentation</a> via Swagger UI
+        </li>
+        <li>
+          <a href="/api/schema/">API specification</a> as OpenAPI YAML
+        </li>
+      </ul>
     </div>
   );
 }
