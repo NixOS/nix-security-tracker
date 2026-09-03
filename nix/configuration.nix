@@ -227,6 +227,7 @@ in
         EVALUATION_LOGS_DIRECTORY = mkDefault "/var/log/nix-security-tracker/evaluation";
         LOCAL_NIXPKGS_CHECKOUT = mkDefault "/var/lib/nix-security-tracker/nixpkgs-repo";
         CVE_CACHE_DIR = mkDefault "/var/lib/nix-security-tracker/cve-cache";
+        METRICS_TEXTFILE_DIR = mkDefault "/var/lib/nix-security-tracker/metrics";
         ACCOUNT_DEFAULT_HTTP_PROTOCOL = mkDefault (with cfg; if production then "https" else "http");
         BASE_URL = mkDefault (with cfg; "http${optionalString production "s"}://${domain}");
       };
@@ -296,6 +297,42 @@ in
       home = config.systemd.services.nix-security-tracker-server.serviceConfig.WorkingDirectory;
     };
     users.groups.nix-security-tracker = { };
+
+    services.prometheus.exporters = {
+      node = {
+        enable = true;
+        openFirewall = true;
+        enabledCollectors = [ "textfile" ];
+        extraFlags = [
+          "--collector.textfile.directory=${cfg.settings.METRICS_TEXTFILE_DIR}"
+        ];
+      };
+      postgres = {
+        enable = true;
+        openFirewall = true;
+        # FIXME(@fricklerhandwerk): Remove when the fix to the upstream issue has landed in Nixpkgs:
+        # https://github.com/prometheus-community/postgres_exporter/issues/1310
+        extraFlags = [ "--no-collector.stat_replication" ];
+      };
+      sql = {
+        enable = true;
+        openFirewall = true;
+        configuration.jobs.sectracker = {
+          queries = import ../infra/sql-exporter-queries.nix;
+          connections =
+            let
+              db-name = builtins.head config.services.postgresql.ensureDatabases;
+              db-user = (builtins.head config.services.postgresql.ensureUsers).name;
+            in
+            [ "postgres://${db-user}@/${db-name}?host=/run/postgresql" ];
+          interval = "1h";
+        };
+      };
+    };
+
+    systemd.tmpfiles.rules = [
+      "d ${cfg.settings.METRICS_TEXTFILE_DIR} 2750 nix-security-tracker ${config.services.prometheus.exporters.node.user} -"
+    ];
 
     systemd.targets = {
       nix-security-tracker = {
