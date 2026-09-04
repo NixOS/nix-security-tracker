@@ -1,4 +1,5 @@
 import functools
+import re
 
 from cpe import CPE
 from django.contrib.postgres.indexes import BTreeIndex, GinIndex
@@ -9,8 +10,7 @@ from django.db import models
 from django.db.models import Index, Q
 from django.utils.translation import gettext_lazy as _
 from pgtrigger import UpdateSearchVector
-
-from shared.version_compare import compare_versions
+from univers.versions import InvalidVersion, SemverVersion
 
 
 class Organization(models.Model):
@@ -186,6 +186,20 @@ class Platform(models.Model):
     name = models.CharField(max_length=1024)
 
 
+def parse_version(version: str) -> SemverVersion | None:
+    """
+    Parse a version string for constraint checks, leniently.
+    The Nixpkgs convention for unstable versions is "<version>-unstable-<date>", so everything from the unstable marker on is dropped first.
+    Returns None for versions that even lenient semver parsing rejects.
+    """
+    cleaned = re.sub(r"-?unstable-.*$", "", version)
+    try:
+        # The attrs-generated constructor is invisible to pyright.
+        return SemverVersion(cleaned)  # pyright: ignore [reportCallIssue]
+    except InvalidVersion:
+        return None
+
+
 # TODO Maybe change this to VersionConstraint one day?
 class Version(models.Model):
     @functools.total_ordering
@@ -235,22 +249,28 @@ class Version(models.Model):
     def affects(self, version: str | None) -> "Version.Status":
         """
         Determines whether a given version string is affected by this version constraint.
-        Versions are ordered as by Nix's `builtins.compareVersions`.
+        The constraint status also applies when the bound is a wildcard.
+        Versions that cannot be parsed resolve to an unknown status.
         """
         if not version:
             return Version.Status.UNKNOWN
+        bound = self.less_equal or self.less_than or self.version
+        if not bound:
+            return Version.Status.UNKNOWN
+        if bound == "*":
+            return Version.Status(self.status)
+        parsed_version = parse_version(version)
+        parsed_bound = parse_version(bound)
+        if parsed_version is None or parsed_bound is None:
+            return Version.Status.UNKNOWN
         if self.less_equal:
-            if (
-                self.less_equal == "*"
-                or compare_versions(version, self.less_equal) <= 0
-            ):
+            if parsed_version <= parsed_bound:
                 return Version.Status(self.status)
         elif self.less_than:
-            if self.less_than == "*" or compare_versions(version, self.less_than) < 0:
+            if parsed_version < parsed_bound:
                 return Version.Status(self.status)
-        elif self.version:
-            if self.version == "*" or compare_versions(version, self.version) == 0:
-                return Version.Status(self.status)
+        elif parsed_version == parsed_bound:
+            return Version.Status(self.status)
         return Version.Status.UNKNOWN
 
 
