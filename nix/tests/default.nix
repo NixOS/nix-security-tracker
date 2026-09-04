@@ -125,7 +125,7 @@ pkgs.testers.runNixOSTest {
   testScript =
     { nodes, ... }:
     let
-      exporters = nodes.server.config.services.prometheus.exporters;
+      exporters = nodes.server.services.prometheus.exporters;
       in-shell = command: python-lines: ''
         server.${command}("""echo '
         ${python-lines}
