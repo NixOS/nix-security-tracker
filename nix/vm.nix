@@ -109,6 +109,7 @@ in
   systemd = {
     services = {
       # Don't start expensive services on boot; trigger them manually when needed.
+      nix-security-tracker-caching.wantedBy = lib.mkForce [ ];
       nix-security-tracker-backfill-package-links.wantedBy = lib.mkForce [ ];
 
       # The Nixpkgs checkout directory is shared by the host, systemd cannot chown it.
@@ -187,7 +188,6 @@ in
       };
 
       "serial-getty@ttyS0" = {
-        wants = [ "nix-security-tracker-server-ready.service" ];
         after = [ "nix-security-tracker-server-ready.service" ];
       };
     };
