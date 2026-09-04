@@ -187,8 +187,10 @@ in
       };
 
       "serial-getty@ttyS0" = {
-        wants = [ "nix-security-tracker-server-ready.service" ];
-        after = [ "nix-security-tracker-server-ready.service" ];
+        after = [
+          "nix-security-tracker-server-ready.service"
+          "nix-security-tracker-caching.service"
+        ];
       };
     };
 
