@@ -123,6 +123,7 @@ pkgs.testers.runNixOSTest {
       };
     };
   testScript =
+    { nodes, ... }:
     let
       exporters = nodes.server.config.services.prometheus.exporters;
       in-shell = command: python-lines: ''
