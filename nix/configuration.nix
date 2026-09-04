@@ -40,6 +40,8 @@ let
 
     runtimeInputs = [
       pkgs.git
+      # The tests use `nix-instantiate` as a version comparison oracle.
+      pkgs.nix
       pythonEnv
     ];
     runtimeEnv = cfg.env;
