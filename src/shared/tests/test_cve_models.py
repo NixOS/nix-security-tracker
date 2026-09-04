@@ -42,6 +42,16 @@ def test_version_affects_less_than() -> None:
     assert v.affects("1.5.0") == Version.Status.UNKNOWN
 
 
+def test_version_affects_uses_nix_version_ordering() -> None:
+    # String comparison would order both of these wrong.
+    v = Version(status=Version.Status.AFFECTED, less_than="1.10")
+    assert v.affects("1.9") == Version.Status.AFFECTED
+
+    v = Version(status=Version.Status.AFFECTED, less_than="2.3")
+    assert v.affects("2.3pre1") == Version.Status.AFFECTED
+    assert v.affects("2.3") == Version.Status.UNKNOWN
+
+
 def test_version_affects_exact_version() -> None:
     v = Version(status=Version.Status.AFFECTED, version="1.5.0")
     assert v.affects("1.5.0") == Version.Status.AFFECTED

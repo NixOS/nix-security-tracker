@@ -10,6 +10,8 @@ from django.db.models import Index, Q
 from django.utils.translation import gettext_lazy as _
 from pgtrigger import UpdateSearchVector
 
+from shared.version_compare import compare_versions
+
 
 class Organization(models.Model):
     """Class representing an organization, use for assigners and requesters."""
@@ -230,22 +232,25 @@ class Version(models.Model):
         else:
             return None
 
-    def affects(self, version: str | None) -> str:
+    def affects(self, version: str | None) -> "Version.Status":
         """
-        Determines wether a given version string is affected by this version constraint
-        FIXME(kerstin): We currently compare versions by comparing strings, which is really wrong.
+        Determines whether a given version string is affected by this version constraint.
+        Versions are ordered as by Nix's `builtins.compareVersions`.
         """
         if not version:
             return Version.Status.UNKNOWN
         if self.less_equal:
-            if self.less_equal == "*" or version <= self.less_equal:
-                return self.status
+            if (
+                self.less_equal == "*"
+                or compare_versions(version, self.less_equal) <= 0
+            ):
+                return Version.Status(self.status)
         elif self.less_than:
-            if self.less_than == "*" or version < self.less_than:
-                return self.status
+            if self.less_than == "*" or compare_versions(version, self.less_than) < 0:
+                return Version.Status(self.status)
         elif self.version:
-            if self.version == "*" or version == self.version:
-                return self.status
+            if self.version == "*" or compare_versions(version, self.version) == 0:
+                return Version.Status(self.status)
         return Version.Status.UNKNOWN
 
 
