@@ -107,38 +107,5 @@ in
     };
   };
 
-  services.prometheus.exporters.node = {
-    enable = true;
-    openFirewall = true;
-    enabledCollectors = [ "textfile" ];
-    extraFlags = [
-      "--collector.textfile.directory=${config.services.nix-security-tracker.settings.METRICS_TEXTFILE_DIR}"
-    ];
-  };
-
-  services.nix-security-tracker.settings.METRICS_TEXTFILE_DIR = "/var/lib/nix-security-tracker/metrics";
-
-  systemd.tmpfiles.rules = [
-    "d ${config.services.nix-security-tracker.settings.METRICS_TEXTFILE_DIR} 2750 nix-security-tracker ${config.services.prometheus.exporters.node.user} -"
-  ];
-
-  services.prometheus.exporters.postgres = {
-    enable = true;
-    openFirewall = true;
-    # FIXME(@fricklerhandwerk): Remove when the fix to the upstream issue has landed in Nixpkgs:
-    # https://github.com/prometheus-community/postgres_exporter/issues/1310
-    extraFlags = [ "--no-collector.stat_replication" ];
-  };
-
-  services.prometheus.exporters.sql = {
-    enable = true;
-    openFirewall = true;
-    configuration.jobs.sectracker = {
-      queries = import ./sql-exporter-queries.nix;
-      connections = [ "postgres://postgres@/nix-security-tracker?host=/run/postgresql" ];
-      interval = "1h";
-    };
-  };
-
   system.stateVersion = "24.05";
 }

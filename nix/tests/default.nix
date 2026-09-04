@@ -123,7 +123,9 @@ pkgs.testers.runNixOSTest {
       };
     };
   testScript =
+    { nodes, ... }:
     let
+      exporters = nodes.server.services.prometheus.exporters;
       in-shell = command: python-lines: ''
         server.${command}("""echo '
         ${python-lines}
@@ -174,6 +176,17 @@ pkgs.testers.runNixOSTest {
           */
         }server.succeed("test-manage test -- --pyargs api -v | tee /dev/ttyS0")
         server.succeed("test-manage test -- --pyargs webview -v | tee /dev/ttyS0")
+
+      with subtest("Check that Prometheus exporters are running"):
+        server.wait_for_unit("prometheus-node-exporter.service")
+        server.wait_for_unit("prometheus-postgres-exporter.service")
+        server.wait_for_unit("prometheus-sql-exporter.service")
+        server.wait_for_open_port(${toString exporters.node.port})
+        server.wait_for_open_port(${toString exporters.postgres.port})
+        server.wait_for_open_port(${toString exporters.sql.port})
+        server.succeed("curl --fail http://localhost:${toString exporters.node.port}/metrics | grep -q textfile")
+        server.succeed("curl --fail http://localhost:${toString exporters.postgres.port}/metrics")
+        server.succeed("curl --fail http://localhost:${toString exporters.sql.port}/metrics")
 
       with subtest("Check that stylesheet is served"):
         machine.succeed("curl --fail -H 'Host: example.org' http://localhost/static/reset.css")
