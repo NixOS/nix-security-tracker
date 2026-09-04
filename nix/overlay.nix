@@ -64,6 +64,7 @@ in
       django-pgtrigger
       cvss
       cpe
+      univers
       django-model-utils
       drf-spectacular
       django-rest-knox
