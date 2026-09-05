@@ -55,6 +55,33 @@ def test_version_affects_pre_releases() -> None:
     assert v.affects("2.3") == Version.Status.UNKNOWN
 
 
+def test_version_affects_patch_suffixes() -> None:
+    # OpenSSH and OpenSSL style suffixes are patch releases, not pre-releases.
+    v = Version(status=Version.Status.AFFECTED, less_equal="9.8")
+    assert v.affects("9.8p1") == Version.Status.UNKNOWN
+
+    v = Version(status=Version.Status.AFFECTED, less_than="1.1.1w")
+    assert v.affects("1.1.1") == Version.Status.AFFECTED
+    assert v.affects("1.1.1w") == Version.Status.UNKNOWN
+
+
+def test_version_affects_four_component_versions() -> None:
+    # Chromium-family bounds are four-part and must compare in the last component.
+    v = Version(status=Version.Status.AFFECTED, less_than="152.0.7977.82")
+    assert v.affects("152.0.7977.60") == Version.Status.AFFECTED
+    assert v.affects("152.0.7977.82") == Version.Status.UNKNOWN
+
+
+def test_version_affects_numbered_suffixes() -> None:
+    v = Version(status=Version.Status.AFFECTED, less_than="3.0.2-r10")
+    assert v.affects("3.0.2-r2") == Version.Status.AFFECTED
+
+
+def test_version_affects_v_prefix() -> None:
+    v = Version(status=Version.Status.AFFECTED, less_than="v19.24.9")
+    assert v.affects("1.2.0") == Version.Status.AFFECTED
+
+
 def test_version_affects_unparsable_version() -> None:
     v = Version(status=Version.Status.AFFECTED, less_than="1.5.0")
     assert v.affects("not a version") == Version.Status.UNKNOWN
@@ -68,6 +95,10 @@ def test_parse_version_strips_unstable_suffix() -> None:
     assert parse_version("0-unstable-2026-01-01") == parse_version("0")
     # A date-only unstable version carries no comparable version at all.
     assert parse_version("unstable-2026-01-01") is None
+
+
+def test_parse_version_treats_underscore_as_separator() -> None:
+    assert parse_version("0.8.0_3") == parse_version("0.8.0.3")
 
 
 def test_parse_version_rejects_garbage() -> None:
