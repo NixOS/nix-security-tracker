@@ -10,7 +10,7 @@ from django.db import models
 from django.db.models import Index, Q
 from django.utils.translation import gettext_lazy as _
 from pgtrigger import UpdateSearchVector
-from univers.versions import InvalidVersion, SemverVersion
+from univers.versions import DebianVersion, InvalidVersion
 
 
 class Organization(models.Model):
@@ -186,16 +186,19 @@ class Platform(models.Model):
     name = models.CharField(max_length=1024)
 
 
-def parse_version(version: str) -> SemverVersion | None:
+def parse_version(version: str) -> DebianVersion | None:
     """
-    Parse a version string for constraint checks, leniently.
-    The Nixpkgs convention for unstable versions is "<version>-unstable-<date>", so everything from the unstable marker on is dropped first.
-    Returns None for versions that even lenient semver parsing rejects.
+    Parse a version string into a Debian version for constraint checks.
+    Common decorations are normalized away first, and pre-release markers are rewritten to sort before the release.
+    Returns None for versions that do not parse.
     """
-    cleaned = re.sub(r"-?unstable-.*$", "", version)
+    cleaned = re.sub(r"^v", "", version)
+    cleaned = re.sub(r"-?unstable-.*$", "", cleaned)
+    cleaned = cleaned.replace("_", ".")
+    cleaned = re.sub(r"[-._]?(pre|rc|alpha|beta|dev)(?=[0-9.]|$)", r"~\1", cleaned)
     try:
         # The attrs-generated constructor is invisible to pyright.
-        return SemverVersion(cleaned)  # pyright: ignore [reportCallIssue]
+        return DebianVersion(cleaned)  # pyright: ignore [reportCallIssue]
     except InvalidVersion:
         return None
 
@@ -249,7 +252,6 @@ class Version(models.Model):
     def affects(self, version: str | None) -> "Version.Status":
         """
         Determines whether a given version string is affected by this version constraint.
-        The constraint status also applies when the bound is a wildcard.
         Versions that cannot be parsed resolve to an unknown status.
         """
         if not version:
