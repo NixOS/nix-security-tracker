@@ -1,0 +1,54 @@
+{
+  "version": "1.2.3",
+  "name": "perfect-freehand",
+  "description": "Draw perfect pressure-sensitive freehand strokes.",
+  "author": {
+    "name": "Steve Ruiz",
+    "url": "https://twitter.com/steveruizok"
+  },
+  "repository": "https://github.com/steveruizok/perfect-freehand",
+  "keywords": [
+    "ink",
+    "draw",
+    "paint",
+    "signature",
+    "handwriting",
+    "text",
+    "drawing",
+    "painting"
+  ],
+  "files": [
+    "dist/**/*"
+  ],
+  "exports": {
+    ".": {
+      "types": "./dist/types/index.d.ts",
+      "require": "./dist/cjs/index.js",
+      "import": "./dist/esm/index.mjs"
+    }
+  },
+  "license": "MIT",
+  "main": "./dist/cjs/index.js",
+  "module": "./dist/esm/index.mjs",
+  "types": "./dist/types/index.d.ts",
+  "typings": "./dist/types/index.d.ts",
+  "scripts": {
+    "start": "rolldown --config rolldown.config.mjs --watch & tsc --watch --incremental --emitDeclarationOnly --declarationMap --outDir dist/types",
+    "build": "yarn clean && rolldown --config rolldown.config.mjs && tsc --project tsconfig.build.json --emitDeclarationOnly --outDir dist/types",
+    "lint": "eslint src/",
+    "bench": "vitest bench",
+    "clean": "rm -rf dist",
+    "ts-node": "ts-node",
+    "docs": "typedoc"
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.19.0",
+    "@types/node": "^20.11.0",
+    "eslint": "^9.19.0",
+    "eslint-config-prettier": "^10.0.1",
+    "rolldown": "^1.0.0-beta.1",
+    "typedoc": "^0.28.0",
+    "typescript": "^5.7.0",
+    "typescript-eslint": "^8.23.0"
+  }
+}

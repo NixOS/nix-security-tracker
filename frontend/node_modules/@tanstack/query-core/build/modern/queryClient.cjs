@@ -1,0 +1,284 @@
+Object.defineProperty(exports, Symbol.toStringTag, { value: "Module" });
+const require_utils = require("./utils.cjs");
+const require_focusManager = require("./focusManager.cjs");
+const require_notifyManager = require("./notifyManager.cjs");
+const require_onlineManager = require("./onlineManager.cjs");
+const require_mutationCache = require("./mutationCache.cjs");
+const require_queryCache = require("./queryCache.cjs");
+//#region src/queryClient.ts
+var QueryClient = class {
+	#queryCache;
+	#mutationCache;
+	#defaultOptions;
+	#queryDefaults;
+	#mutationDefaults;
+	#mountCount;
+	#unsubscribeFocus;
+	#unsubscribeOnline;
+	constructor(config = {}) {
+		this.#queryCache = config.queryCache || new require_queryCache.QueryCache();
+		this.#mutationCache = config.mutationCache || new require_mutationCache.MutationCache();
+		this.#defaultOptions = config.defaultOptions || {};
+		this.#queryDefaults = /* @__PURE__ */ new Map();
+		this.#mutationDefaults = /* @__PURE__ */ new Map();
+		this.#mountCount = 0;
+	}
+	mount() {
+		this.#mountCount++;
+		if (this.#mountCount !== 1) return;
+		this.#unsubscribeFocus = require_focusManager.focusManager.subscribe(async (focused) => {
+			if (focused) {
+				await this.resumePausedMutations();
+				this.#queryCache.onFocus();
+			}
+		});
+		this.#unsubscribeOnline = require_onlineManager.onlineManager.subscribe(async (online) => {
+			if (online) {
+				await this.resumePausedMutations();
+				this.#queryCache.onOnline();
+			}
+		});
+	}
+	unmount() {
+		this.#mountCount--;
+		if (this.#mountCount !== 0) return;
+		this.#unsubscribeFocus?.();
+		this.#unsubscribeFocus = void 0;
+		this.#unsubscribeOnline?.();
+		this.#unsubscribeOnline = void 0;
+	}
+	isFetching(filters) {
+		return this.#queryCache.findAll({
+			...filters,
+			fetchStatus: "fetching"
+		}).length;
+	}
+	isMutating(filters) {
+		return this.#mutationCache.findAll({
+			...filters,
+			status: "pending"
+		}).length;
+	}
+	/**
+	* Imperative (non-reactive) way to retrieve data for a QueryKey.
+	* Should only be used in callbacks or functions where reading the latest data is necessary, e.g. for optimistic updates.
+	*
+	* Hint: Do not use this function inside a component, because it won't receive updates.
+	* Use `useQuery` to create a `QueryObserver` that subscribes to changes.
+	*/
+	getQueryData(queryKey) {
+		const options = this.defaultQueryOptions({ queryKey });
+		return this.#queryCache.get(options.queryHash)?.state.data;
+	}
+	/**
+	* @deprecated Use queryClient.query({ ...options, staleTime: 'static' }) instead. This method will be removed in the next major version.
+	*/
+	ensureQueryData(options) {
+		const defaultedOptions = this.defaultQueryOptions(options);
+		const query = this.#queryCache.build(this, defaultedOptions);
+		const cachedData = query.state.data;
+		if (cachedData === void 0) return this.fetchQuery(options);
+		if (options.revalidateIfStale && query.isStaleByTime(require_utils.resolveQueryValue(defaultedOptions.staleTime, query))) this.prefetchQuery(defaultedOptions);
+		return Promise.resolve(cachedData);
+	}
+	getQueriesData(filters) {
+		return this.#queryCache.findAll(filters).map(({ queryKey, state }) => {
+			return [queryKey, state.data];
+		});
+	}
+	setQueryData(queryKey, updater, options) {
+		const defaultedOptions = this.defaultQueryOptions({ queryKey });
+		const prevData = this.#queryCache.get(defaultedOptions.queryHash)?.state.data;
+		const data = require_utils.functionalUpdate(updater, prevData);
+		if (data === void 0) return;
+		return this.#queryCache.build(this, defaultedOptions).setData(data, {
+			...options,
+			manual: true
+		});
+	}
+	setQueriesData(filters, updater, options) {
+		return require_notifyManager.notifyManager.batch(() => this.#queryCache.findAll(filters).map(({ queryKey }) => [queryKey, this.setQueryData(queryKey, updater, options)]));
+	}
+	getQueryState(queryKey) {
+		const options = this.defaultQueryOptions({ queryKey });
+		return this.#queryCache.get(options.queryHash)?.state;
+	}
+	removeQueries(filters) {
+		const queryCache = this.#queryCache;
+		require_notifyManager.notifyManager.batch(() => {
+			queryCache.findAll(filters).forEach((query) => {
+				queryCache.remove(query);
+			});
+		});
+	}
+	resetQueries(filters, options) {
+		const queryCache = this.#queryCache;
+		return require_notifyManager.notifyManager.batch(() => {
+			const matched = queryCache.findAll(filters);
+			const queriesToRefetch = new Set(matched);
+			matched.forEach((query) => {
+				query.reset();
+			});
+			return this.refetchQueries({
+				type: "active",
+				predicate: (query) => queriesToRefetch.has(query)
+			}, options);
+		});
+	}
+	cancelQueries(filters, cancelOptions = {}) {
+		const defaultedCancelOptions = {
+			revert: true,
+			...cancelOptions
+		};
+		const promises = require_notifyManager.notifyManager.batch(() => this.#queryCache.findAll(filters).map((query) => query.cancel(defaultedCancelOptions)));
+		return Promise.all(promises).then(require_utils.noop).catch(require_utils.noop);
+	}
+	invalidateQueries(filters, options = {}) {
+		return require_notifyManager.notifyManager.batch(() => {
+			this.#queryCache.findAll(filters).forEach((query) => {
+				query.invalidate();
+			});
+			if (filters?.refetchType === "none") return Promise.resolve();
+			return this.refetchQueries({
+				...filters,
+				type: filters?.refetchType ?? filters?.type ?? "active"
+			}, options);
+		});
+	}
+	refetchQueries(filters, options = {}) {
+		const fetchOptions = {
+			...options,
+			cancelRefetch: options.cancelRefetch ?? true
+		};
+		const promises = require_notifyManager.notifyManager.batch(() => this.#queryCache.findAll(filters).filter((query) => !query.isDisabled() && !query.isStatic()).map((query) => {
+			let promise = query.fetch(void 0, fetchOptions);
+			if (!fetchOptions.throwOnError) promise = promise.catch(require_utils.noop);
+			return query.state.fetchStatus === "paused" ? Promise.resolve() : promise;
+		}));
+		return Promise.all(promises).then(require_utils.noop);
+	}
+	async query(options) {
+		const defaultedOptions = this.defaultQueryOptions(options);
+		if (defaultedOptions.retry === void 0) defaultedOptions.retry = false;
+		const query = this.#queryCache.build(this, defaultedOptions);
+		const queryData = query.isStaleByTime(require_utils.resolveQueryValue(defaultedOptions.staleTime, query)) ? await query.fetch(defaultedOptions) : query.state.data;
+		const select = defaultedOptions.select;
+		if (select) return select(queryData);
+		return queryData;
+	}
+	/**
+	* @deprecated Use queryClient.query(options) instead. This method will be removed in the next major version.
+	*/
+	fetchQuery(options) {
+		const defaultedOptions = this.defaultQueryOptions(options);
+		if (defaultedOptions.retry === void 0) defaultedOptions.retry = false;
+		const query = this.#queryCache.build(this, defaultedOptions);
+		return query.isStaleByTime(require_utils.resolveQueryValue(defaultedOptions.staleTime, query)) ? query.fetch(defaultedOptions) : Promise.resolve(query.state.data);
+	}
+	/**
+	* @deprecated Use queryClient.query(options) instead. You can swallow errors with `.catch(noop)`. This method will be removed in the next major version.
+	*/
+	prefetchQuery(options) {
+		return this.fetchQuery(options).then(require_utils.noop).catch(require_utils.noop);
+	}
+	infiniteQuery(options) {
+		options._type = "infinite";
+		return this.query(options);
+	}
+	/**
+	* @deprecated Use queryClient.infiniteQuery(options) instead. This method will be removed in the next major version.
+	*/
+	fetchInfiniteQuery(options) {
+		options._type = "infinite";
+		return this.fetchQuery(options);
+	}
+	/**
+	* @deprecated Use queryClient.infiniteQuery(options) instead. You can swallow errors with `.catch(noop)`. This method will be removed in the next major version.
+	*/
+	prefetchInfiniteQuery(options) {
+		return this.fetchInfiniteQuery(options).then(require_utils.noop).catch(require_utils.noop);
+	}
+	/**
+	* @deprecated Use queryClient.infiniteQuery({ ...options, staleTime: 'static' }) instead. This method will be removed in the next major version.
+	*/
+	ensureInfiniteQueryData(options) {
+		options._type = "infinite";
+		return this.ensureQueryData(options);
+	}
+	resumePausedMutations() {
+		if (require_onlineManager.onlineManager.isOnline()) return this.#mutationCache.resumePausedMutations();
+		return Promise.resolve();
+	}
+	getQueryCache() {
+		return this.#queryCache;
+	}
+	getMutationCache() {
+		return this.#mutationCache;
+	}
+	getDefaultOptions() {
+		return this.#defaultOptions;
+	}
+	setDefaultOptions(options) {
+		this.#defaultOptions = options;
+	}
+	setQueryDefaults(queryKey, options) {
+		this.#queryDefaults.set(require_utils.hashKey(queryKey), {
+			queryKey,
+			defaultOptions: options
+		});
+	}
+	getQueryDefaults(queryKey) {
+		const defaults = [...this.#queryDefaults.values()];
+		const result = {};
+		defaults.forEach((queryDefault) => {
+			if (require_utils.partialMatchKey(queryKey, queryDefault.queryKey)) Object.assign(result, queryDefault.defaultOptions);
+		});
+		return result;
+	}
+	setMutationDefaults(mutationKey, options) {
+		this.#mutationDefaults.set(require_utils.hashKey(mutationKey), {
+			mutationKey,
+			defaultOptions: options
+		});
+	}
+	getMutationDefaults(mutationKey) {
+		const defaults = [...this.#mutationDefaults.values()];
+		const result = {};
+		defaults.forEach((queryDefault) => {
+			if (require_utils.partialMatchKey(mutationKey, queryDefault.mutationKey)) Object.assign(result, queryDefault.defaultOptions);
+		});
+		return result;
+	}
+	defaultQueryOptions(options) {
+		if (options._defaulted) return options;
+		const defaultedOptions = {
+			...this.#defaultOptions.queries,
+			...this.getQueryDefaults(options.queryKey),
+			...options,
+			_defaulted: true
+		};
+		if (!defaultedOptions.queryHash) defaultedOptions.queryHash = require_utils.hashQueryKeyByOptions(defaultedOptions.queryKey, defaultedOptions);
+		if (defaultedOptions.refetchOnReconnect === void 0) defaultedOptions.refetchOnReconnect = defaultedOptions.networkMode !== "always";
+		if (defaultedOptions.throwOnError === void 0) defaultedOptions.throwOnError = !!defaultedOptions.suspense;
+		if (!defaultedOptions.networkMode && defaultedOptions.persister) defaultedOptions.networkMode = "offlineFirst";
+		if (defaultedOptions.queryFn === require_utils.skipToken) defaultedOptions.enabled = false;
+		return defaultedOptions;
+	}
+	defaultMutationOptions(options) {
+		if (options?._defaulted) return options;
+		return {
+			...this.#defaultOptions.mutations,
+			...options?.mutationKey && this.getMutationDefaults(options.mutationKey),
+			...options,
+			_defaulted: true
+		};
+	}
+	clear() {
+		this.#queryCache.clear();
+		this.#mutationCache.clear();
+	}
+};
+//#endregion
+exports.QueryClient = QueryClient;
+
+//# sourceMappingURL=queryClient.cjs.map

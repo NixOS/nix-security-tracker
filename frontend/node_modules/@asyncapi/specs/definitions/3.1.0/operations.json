@@ -1,0 +1,19 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "http://asyncapi.com/definitions/3.1.0/operations.json",
+  "description": "Holds a dictionary with all the operations this application MUST implement.",
+  "type": "object",
+  "additionalProperties": {
+    "oneOf": [
+      {
+        "$ref": "http://asyncapi.com/definitions/3.1.0/Reference.json"
+      },
+      {
+        "$ref": "http://asyncapi.com/definitions/3.1.0/operation.json"
+      }
+    ]
+  },
+  "example": {
+    "$ref": "http://asyncapi.com/examples/3.1.0/operations.json"
+  }
+}

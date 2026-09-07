@@ -1,0 +1,487 @@
+"use strict";
+var __create = Object.create;
+var __defProp = Object.defineProperty;
+var __getOwnPropDesc = Object.getOwnPropertyDescriptor;
+var __getOwnPropNames = Object.getOwnPropertyNames;
+var __getProtoOf = Object.getPrototypeOf;
+var __hasOwnProp = Object.prototype.hasOwnProperty;
+var __export = (target, all) => {
+  for (var name in all)
+    __defProp(target, name, { get: all[name], enumerable: true });
+};
+var __copyProps = (to, from, except, desc) => {
+  if (from && typeof from === "object" || typeof from === "function") {
+    for (let key of __getOwnPropNames(from))
+      if (!__hasOwnProp.call(to, key) && key !== except)
+        __defProp(to, key, { get: () => from[key], enumerable: !(desc = __getOwnPropDesc(from, key)) || desc.enumerable });
+  }
+  return to;
+};
+var __toESM = (mod, isNodeMode, target) => (target = mod != null ? __create(__getProtoOf(mod)) : {}, __copyProps(
+  // If the importer is in node compatibility mode or this is not an ESM
+  // file that has been converted to a CommonJS file using a Babel-
+  // compatible transform (i.e. "__esModule" has not been set), then set
+  // "default" to the CommonJS "module.exports" for node compatibility.
+  isNodeMode || !mod || !mod.__esModule ? __defProp(target, "default", { value: mod, enumerable: true }) : target,
+  mod
+));
+var __toCommonJS = (mod) => __copyProps(__defProp({}, "__esModule", { value: true }), mod);
+
+// src/scroll-area.machine.ts
+var scroll_area_machine_exports = {};
+__export(scroll_area_machine_exports, {
+  machine: () => machine
+});
+module.exports = __toCommonJS(scroll_area_machine_exports);
+var import_core = require("@zag-js/core");
+var import_dom_query = require("@zag-js/dom-query");
+var import_utils = require("@zag-js/utils");
+var dom = __toESM(require("./scroll-area.dom.js"));
+var import_scroll_offset = require("./utils/scroll-offset.js");
+var import_scroll_sides = require("./utils/scroll-sides.js");
+var import_timeout = require("./utils/timeout.js");
+var MIN_THUMB_SIZE = 20;
+var SCROLL_TIMEOUT = 1e3;
+var machine = (0, import_core.createMachine)({
+  props({ props }) {
+    (0, import_utils.ensureProps)(props, ["id"]);
+    return props;
+  },
+  context({ bindable }) {
+    return {
+      scrollingX: bindable(() => ({ defaultValue: false })),
+      scrollingY: bindable(() => ({ defaultValue: false })),
+      hovering: bindable(() => ({ defaultValue: false })),
+      dragging: bindable(() => ({ defaultValue: false })),
+      touchModality: bindable(() => ({ defaultValue: false })),
+      atSides: bindable(() => ({
+        defaultValue: { top: true, right: false, bottom: false, left: true }
+      })),
+      cornerSize: bindable(() => ({
+        defaultValue: { width: 0, height: 0 }
+      })),
+      thumbSize: bindable(() => ({
+        defaultValue: { width: 0, height: 0 }
+      })),
+      hiddenState: bindable(() => ({
+        defaultValue: {
+          scrollbarYHidden: false,
+          scrollbarXHidden: false,
+          cornerHidden: false
+        },
+        hash(a) {
+          return `Y:${a.scrollbarYHidden} X:${a.scrollbarXHidden} C:${a.cornerHidden}`;
+        }
+      }))
+    };
+  },
+  refs() {
+    return {
+      orientation: "vertical",
+      scrollPosition: { x: 0, y: 0 },
+      scrollYTimeout: new import_timeout.Timeout(),
+      scrollXTimeout: new import_timeout.Timeout(),
+      scrollEndTimeout: new import_timeout.Timeout(),
+      startX: 0,
+      startY: 0,
+      startScrollTop: 0,
+      startScrollLeft: 0,
+      programmaticScroll: true
+    };
+  },
+  initialState() {
+    return "idle";
+  },
+  watch({ track, prop, context, send }) {
+    track([() => prop("dir"), () => context.hash("hiddenState")], () => {
+      send({ type: "thumb.measure" });
+    });
+  },
+  effects: ["trackContentResize", "trackViewportVisibility", "trackWheelEvent"],
+  entry: ["checkHovering"],
+  exit: ["clearTimeouts"],
+  on: {
+    "thumb.measure": {
+      actions: ["setThumbSize"]
+    },
+    "viewport.scroll": {
+      actions: ["setThumbSize", "setScrolling", "setProgrammaticScroll"]
+    },
+    "root.pointerenter": {
+      actions: ["setTouchModality", "setHovering"]
+    },
+    "root.pointerdown": {
+      actions: ["setTouchModality"]
+    },
+    "root.pointerleave": {
+      actions: ["clearHovering"]
+    }
+  },
+  states: {
+    idle: {
+      on: {
+        "scrollbar.pointerdown": {
+          target: "dragging",
+          actions: ["scrollToPointer", "startDragging"]
+        },
+        "thumb.pointerdown": {
+          target: "dragging",
+          actions: ["startDragging"]
+        }
+      }
+    },
+    dragging: {
+      effects: ["trackPointerMove"],
+      on: {
+        "thumb.pointermove": {
+          actions: ["setDraggingScroll"]
+        },
+        "scrollbar.pointerup": {
+          target: "idle",
+          actions: ["stopDragging"]
+        },
+        "thumb.pointerup": {
+          target: "idle",
+          actions: ["clearScrolling", "stopDragging"]
+        }
+      }
+    }
+  },
+  implementations: {
+    actions: {
+      setTouchModality({ context, event }) {
+        context.set("touchModality", event.pointerType === "touch");
+      },
+      setHovering({ context }) {
+        context.set("hovering", true);
+      },
+      clearHovering({ context }) {
+        context.set("hovering", false);
+      },
+      setProgrammaticScroll({ refs }) {
+        const scrollEndTimeout = refs.get("scrollEndTimeout");
+        scrollEndTimeout.start(100, () => {
+          refs.set("programmaticScroll", true);
+        });
+      },
+      clearScrolling({ context, event }) {
+        context.set(event.orientation === "vertical" ? "scrollingY" : "scrollingX", false);
+      },
+      setThumbSize({ context, scope, prop }) {
+        const viewportEl = dom.getViewportEl(scope);
+        if (!viewportEl) return;
+        const scrollableContentHeight = viewportEl.scrollHeight;
+        const scrollableContentWidth = viewportEl.scrollWidth;
+        if (scrollableContentHeight === 0 || scrollableContentWidth === 0) return;
+        const scrollbarYEl = dom.getScrollbarYEl(scope);
+        const scrollbarXEl = dom.getScrollbarXEl(scope);
+        const thumbYEl = dom.getThumbYEl(scope);
+        const thumbXEl = dom.getThumbXEl(scope);
+        const viewportHeight = viewportEl.clientHeight;
+        const viewportWidth = viewportEl.clientWidth;
+        const scrollTop = viewportEl.scrollTop;
+        const scrollLeft = viewportEl.scrollLeft;
+        const scrollbarYHidden = viewportHeight >= scrollableContentHeight;
+        const scrollbarXHidden = viewportWidth >= scrollableContentWidth;
+        const ratioX = viewportWidth / scrollableContentWidth;
+        const ratioY = viewportHeight / scrollableContentHeight;
+        const nextWidth = scrollbarXHidden ? 0 : viewportWidth;
+        const nextHeight = scrollbarYHidden ? 0 : viewportHeight;
+        const scrollbarXOffset = (0, import_scroll_offset.getScrollOffset)(scrollbarXEl, "padding", "x");
+        const scrollbarYOffset = (0, import_scroll_offset.getScrollOffset)(scrollbarYEl, "padding", "y");
+        const thumbXOffset = (0, import_scroll_offset.getScrollOffset)(thumbXEl, "margin", "x");
+        const thumbYOffset = (0, import_scroll_offset.getScrollOffset)(thumbYEl, "margin", "y");
+        const idealNextWidth = nextWidth - scrollbarXOffset - thumbXOffset;
+        const idealNextHeight = nextHeight - scrollbarYOffset - thumbYOffset;
+        const maxNextWidth = scrollbarXEl ? Math.min(scrollbarXEl.offsetWidth, idealNextWidth) : idealNextWidth;
+        const maxNextHeight = scrollbarYEl ? Math.min(scrollbarYEl.offsetHeight, idealNextHeight) : idealNextHeight;
+        const clampedNextWidth = Math.max(MIN_THUMB_SIZE, maxNextWidth * ratioX);
+        const clampedNextHeight = Math.max(MIN_THUMB_SIZE, maxNextHeight * ratioY);
+        context.set("thumbSize", (prevSize) => {
+          if (prevSize.height === clampedNextHeight && prevSize.width === clampedNextWidth) {
+            return prevSize;
+          }
+          return {
+            width: clampedNextWidth,
+            height: clampedNextHeight
+          };
+        });
+        if (scrollbarYEl && thumbYEl) {
+          const maxThumbOffsetY = scrollbarYEl.offsetHeight - clampedNextHeight - scrollbarYOffset - thumbYOffset;
+          const scrollRatioY = scrollTop / (scrollableContentHeight - viewportHeight);
+          const thumbOffsetY = Math.min(maxThumbOffsetY, Math.max(0, scrollRatioY * maxThumbOffsetY));
+          thumbYEl.style.transform = `translate3d(0,${thumbOffsetY}px,0)`;
+        }
+        if (scrollbarXEl && thumbXEl) {
+          const maxThumbOffsetX = scrollbarXEl.offsetWidth - clampedNextWidth - scrollbarXOffset - thumbXOffset;
+          const scrollRatioX = scrollLeft / (scrollableContentWidth - viewportWidth);
+          const thumbOffsetX = prop("dir") === "rtl" ? (0, import_utils.clampValue)(scrollRatioX * maxThumbOffsetX, -maxThumbOffsetX, 0) : (0, import_utils.clampValue)(scrollRatioX * maxThumbOffsetX, 0, maxThumbOffsetX);
+          thumbXEl.style.transform = `translate3d(${thumbOffsetX}px,0,0)`;
+        }
+        const cornerEl = dom.getCornerEl(scope);
+        if (cornerEl) {
+          if (scrollbarXHidden || scrollbarYHidden) {
+            context.set("cornerSize", { width: 0, height: 0 });
+          } else if (!scrollbarXHidden && !scrollbarYHidden) {
+            const width = scrollbarYEl?.offsetWidth || 0;
+            const height = scrollbarXEl?.offsetHeight || 0;
+            context.set("cornerSize", { width, height });
+          }
+        }
+        context.set("hiddenState", (prevState) => {
+          const cornerHidden = scrollbarYHidden || scrollbarXHidden;
+          if (prevState.scrollbarYHidden === scrollbarYHidden && prevState.scrollbarXHidden === scrollbarXHidden && prevState.cornerHidden === cornerHidden) {
+            return prevState;
+          }
+          return {
+            scrollbarYHidden,
+            scrollbarXHidden,
+            cornerHidden
+          };
+        });
+        context.set("atSides", (prev) => {
+          const next = (0, import_scroll_sides.getScrollSides)(viewportEl, prop("dir"));
+          if ((0, import_utils.isEqual)(prev, next)) return prev;
+          return next;
+        });
+        const maxScrollTop = Math.max(0, scrollableContentHeight - viewportHeight);
+        const maxScrollLeft = Math.max(0, scrollableContentWidth - viewportWidth);
+        let scrollLeftFromStart = 0;
+        let scrollLeftFromEnd = 0;
+        if (!scrollbarXHidden) {
+          if (prop("dir") === "rtl") {
+            scrollLeftFromStart = (0, import_utils.clampValue)(-scrollLeft, 0, maxScrollLeft);
+          } else {
+            scrollLeftFromStart = (0, import_utils.clampValue)(scrollLeft, 0, maxScrollLeft);
+          }
+          scrollLeftFromEnd = maxScrollLeft - scrollLeftFromStart;
+        }
+        const scrollTopFromStart = !scrollbarYHidden ? (0, import_utils.clampValue)(scrollTop, 0, maxScrollTop) : 0;
+        const scrollTopFromEnd = !scrollbarYHidden ? maxScrollTop - scrollTopFromStart : 0;
+        (0, import_dom_query.setStyleProperty)(viewportEl, "--scroll-area-overflow-x-start", `${scrollLeftFromStart}px`);
+        (0, import_dom_query.setStyleProperty)(viewportEl, "--scroll-area-overflow-x-end", `${scrollLeftFromEnd}px`);
+        (0, import_dom_query.setStyleProperty)(viewportEl, "--scroll-area-overflow-y-start", `${scrollTopFromStart}px`);
+        (0, import_dom_query.setStyleProperty)(viewportEl, "--scroll-area-overflow-y-end", `${scrollTopFromEnd}px`);
+      },
+      checkHovering({ scope, context }) {
+        const viewportEl = dom.getViewportEl(scope);
+        if (viewportEl?.matches(":hover")) {
+          context.set("hovering", true);
+        }
+      },
+      setScrolling({ event, refs, context, prop }) {
+        const scrollPosition = {
+          x: event.target.scrollLeft,
+          y: event.target.scrollTop
+        };
+        const scrollPositionRef = refs.get("scrollPosition");
+        const offsetX = scrollPosition.x - scrollPositionRef.x;
+        const offsetY = scrollPosition.y - scrollPositionRef.y;
+        refs.set("scrollPosition", scrollPosition);
+        context.set("atSides", (prev) => {
+          const next = (0, import_scroll_sides.getScrollSides)(event.target, prop("dir"));
+          if ((0, import_utils.isEqual)(prev, next)) return prev;
+          return next;
+        });
+        if (offsetY !== 0) {
+          context.set("scrollingY", true);
+          refs.get("scrollYTimeout").start(SCROLL_TIMEOUT, () => {
+            context.set("scrollingY", false);
+          });
+        }
+        if (offsetX !== 0) {
+          context.set("scrollingX", true);
+          refs.get("scrollXTimeout").start(SCROLL_TIMEOUT, () => {
+            context.set("scrollingX", false);
+          });
+        }
+      },
+      scrollToPointer({ event, scope, prop }) {
+        const viewportEl = dom.getViewportEl(scope);
+        if (!viewportEl) return;
+        const thumbYRef = dom.getThumbYEl(scope);
+        const scrollbarYRef = dom.getScrollbarYEl(scope);
+        const thumbXRef = dom.getThumbXEl(scope);
+        const scrollbarXRef = dom.getScrollbarXEl(scope);
+        const client = event.point;
+        if (thumbYRef && scrollbarYRef && event.orientation === "vertical") {
+          const thumbYOffset = (0, import_scroll_offset.getScrollOffset)(thumbYRef, "margin", "y");
+          const scrollbarYOffset = (0, import_scroll_offset.getScrollOffset)(scrollbarYRef, "padding", "y");
+          const thumbHeight = thumbYRef.offsetHeight;
+          const trackRectY = scrollbarYRef.getBoundingClientRect();
+          const clickY = client.y - trackRectY.top - thumbHeight / 2 - scrollbarYOffset + thumbYOffset / 2;
+          const scrollableContentHeight = viewportEl.scrollHeight;
+          const viewportHeight = viewportEl.clientHeight;
+          const maxThumbOffsetY = scrollbarYRef.offsetHeight - thumbHeight - scrollbarYOffset - thumbYOffset;
+          const scrollRatioY = clickY / maxThumbOffsetY;
+          const newScrollTop = scrollRatioY * (scrollableContentHeight - viewportHeight);
+          viewportEl.scrollTop = newScrollTop;
+        }
+        if (thumbXRef && scrollbarXRef && event.orientation === "horizontal") {
+          const thumbXOffset = (0, import_scroll_offset.getScrollOffset)(thumbXRef, "margin", "x");
+          const scrollbarXOffset = (0, import_scroll_offset.getScrollOffset)(scrollbarXRef, "padding", "x");
+          const thumbWidth = thumbXRef.offsetWidth;
+          const trackRectX = scrollbarXRef.getBoundingClientRect();
+          const clickX = client.x - trackRectX.left - thumbWidth / 2 - scrollbarXOffset + thumbXOffset / 2;
+          const scrollableContentWidth = viewportEl.scrollWidth;
+          const viewportWidth = viewportEl.clientWidth;
+          const maxThumbOffsetX = scrollbarXRef.offsetWidth - thumbWidth - scrollbarXOffset - thumbXOffset;
+          const scrollRatioX = clickX / maxThumbOffsetX;
+          let newScrollLeft;
+          if (prop("dir") === "rtl") {
+            newScrollLeft = (1 - scrollRatioX) * (scrollableContentWidth - viewportWidth);
+            if (viewportEl.scrollLeft <= 0) {
+              newScrollLeft = -newScrollLeft;
+            }
+          } else {
+            newScrollLeft = scrollRatioX * (scrollableContentWidth - viewportWidth);
+          }
+          viewportEl.scrollLeft = newScrollLeft;
+        }
+      },
+      startDragging({ event, refs, scope }) {
+        refs.set("startX", event.point.x);
+        refs.set("startY", event.point.y);
+        refs.set("orientation", event.orientation);
+        const viewportEl = dom.getViewportEl(scope);
+        if (!viewportEl) return;
+        refs.set("startScrollTop", viewportEl.scrollTop);
+        refs.set("startScrollLeft", viewportEl.scrollLeft);
+      },
+      setDraggingScroll({ event, refs, scope, context }) {
+        const startY = refs.get("startY");
+        const startX = refs.get("startX");
+        const startScrollTop = refs.get("startScrollTop");
+        const startScrollLeft = refs.get("startScrollLeft");
+        const client = event.point;
+        const deltaY = client.y - startY;
+        const deltaX = client.x - startX;
+        const viewportEl = dom.getViewportEl(scope);
+        if (!viewportEl) return;
+        const scrollableContentHeight = viewportEl.scrollHeight;
+        const viewportHeight = viewportEl.clientHeight;
+        const scrollableContentWidth = viewportEl.scrollWidth;
+        const viewportWidth = viewportEl.clientWidth;
+        const orientation = refs.get("orientation");
+        const thumbYEl = dom.getThumbYEl(scope);
+        const scrollbarYEl = dom.getScrollbarYEl(scope);
+        if (thumbYEl && scrollbarYEl && orientation === "vertical") {
+          const scrollbarYOffset = (0, import_scroll_offset.getScrollOffset)(scrollbarYEl, "padding", "y");
+          const thumbYOffset = (0, import_scroll_offset.getScrollOffset)(thumbYEl, "margin", "y");
+          const thumbHeight = thumbYEl.offsetHeight;
+          const maxThumbOffsetY = scrollbarYEl.offsetHeight - thumbHeight - scrollbarYOffset - thumbYOffset;
+          const scrollRatioY = deltaY / maxThumbOffsetY;
+          viewportEl.scrollTop = startScrollTop + scrollRatioY * (scrollableContentHeight - viewportHeight);
+          context.set("scrollingY", true);
+          refs.get("scrollYTimeout").start(SCROLL_TIMEOUT, () => {
+            context.set("scrollingY", false);
+          });
+        }
+        const thumbXEl = dom.getThumbXEl(scope);
+        const scrollbarXEl = dom.getScrollbarXEl(scope);
+        if (thumbXEl && scrollbarXEl && orientation === "horizontal") {
+          const scrollbarXOffset = (0, import_scroll_offset.getScrollOffset)(scrollbarXEl, "padding", "x");
+          const thumbXOffset = (0, import_scroll_offset.getScrollOffset)(thumbXEl, "margin", "x");
+          const thumbWidth = thumbXEl.offsetWidth;
+          const maxThumbOffsetX = scrollbarXEl.offsetWidth - thumbWidth - scrollbarXOffset - thumbXOffset;
+          const scrollRatioX = deltaX / maxThumbOffsetX;
+          viewportEl.scrollLeft = startScrollLeft + scrollRatioX * (scrollableContentWidth - viewportWidth);
+          context.set("scrollingX", true);
+          refs.get("scrollXTimeout").start(SCROLL_TIMEOUT, () => {
+            context.set("scrollingX", false);
+          });
+        }
+      },
+      stopDragging({ refs }) {
+        refs.set("orientation", null);
+      },
+      clearTimeouts({ refs }) {
+        refs.get("scrollYTimeout").clear();
+        refs.get("scrollXTimeout").clear();
+        refs.get("scrollEndTimeout").clear();
+      }
+    },
+    effects: {
+      trackContentResize({ scope, send }) {
+        const contentEl = dom.getContentEl(scope);
+        const rootEl = dom.getRootEl(scope);
+        if (!contentEl || !rootEl) return;
+        const win = scope.getWin();
+        const obs = new win.ResizeObserver(() => {
+          setTimeout(() => {
+            send({ type: "thumb.measure" });
+          }, 1);
+        });
+        obs.observe(contentEl);
+        obs.observe(rootEl);
+        return () => {
+          obs.disconnect();
+        };
+      },
+      trackViewportVisibility({ scope, send }) {
+        const win = scope.getWin();
+        const viewportEl = dom.getViewportEl(scope);
+        if (!viewportEl) return;
+        const observer = new win.IntersectionObserver((entries) => {
+          entries.forEach((entry) => {
+            if (entry.intersectionRatio > 0) {
+              send({ type: "thumb.measure" });
+              observer.disconnect();
+            }
+          });
+        });
+        observer.observe(viewportEl);
+        return () => {
+          observer.disconnect();
+        };
+      },
+      trackWheelEvent({ scope }) {
+        const scrollbarYEl = dom.getScrollbarYEl(scope);
+        const scrollbarXEl = dom.getScrollbarXEl(scope);
+        if (!scrollbarYEl && !scrollbarXEl) return;
+        const onWheel = (event) => {
+          const viewportEl = dom.getViewportEl(scope);
+          if (!viewportEl || event.ctrlKey) return;
+          const orientation = event.currentTarget.dataset.orientation;
+          if (orientation === "vertical") {
+            const canScrollY = viewportEl.scrollHeight > viewportEl.clientHeight;
+            const atTop = viewportEl.scrollTop === 0 && event.deltaY < 0;
+            const atBottom = viewportEl.scrollTop === viewportEl.scrollHeight - viewportEl.clientHeight && event.deltaY > 0;
+            const shouldScroll = canScrollY && event.deltaY !== 0 && !(atTop || atBottom);
+            if (!shouldScroll) return;
+            event.preventDefault();
+            viewportEl.scrollTop += event.deltaY;
+          } else if (orientation === "horizontal") {
+            const canScrollX = viewportEl.scrollWidth > viewportEl.clientWidth;
+            const atLeft = viewportEl.scrollLeft === 0 && event.deltaX < 0;
+            const atRight = viewportEl.scrollLeft === viewportEl.scrollWidth - viewportEl.clientWidth && event.deltaX > 0;
+            const shouldScroll = canScrollX && event.deltaX !== 0 && !(atLeft || atRight);
+            if (!shouldScroll) return;
+            event.preventDefault();
+            viewportEl.scrollLeft += event.deltaX;
+          }
+        };
+        return (0, import_utils.callAll)(
+          scrollbarYEl && (0, import_dom_query.addDomEvent)(scrollbarYEl, "wheel", onWheel, { passive: false }),
+          scrollbarXEl && (0, import_dom_query.addDomEvent)(scrollbarXEl, "wheel", onWheel, { passive: false })
+        );
+      },
+      trackPointerMove({ scope, send, refs }) {
+        const doc = scope.getDoc();
+        const orientation = refs.get("orientation");
+        return (0, import_dom_query.trackPointerMove)(doc, {
+          onPointerMove({ point }) {
+            send({ type: "thumb.pointermove", orientation, point });
+          },
+          onPointerUp() {
+            send({ type: "thumb.pointerup", orientation });
+          }
+        });
+      }
+    }
+  }
+});
+// Annotate the CommonJS export names for ESM import in node:
+0 && (module.exports = {
+  machine
+});

@@ -1,0 +1,31 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "http://asyncapi.com/definitions/3.1.0/messageExampleObject.json",
+  "type": "object",
+  "anyOf": [
+    {
+      "required": [ "payload" ]
+    },
+    {
+      "required": [ "headers" ]
+    }
+  ],
+  "properties": {
+    "headers": {
+      "description": "Example of the application headers. It can be of any type.",
+      "type": "object"
+    },
+    "name": {
+      "description": "Machine readable name of the message example.",
+      "type": "string"
+    },
+    "payload": {
+      "description": "Example of the message payload. It can be of any type."
+    },
+    "summary": {
+      "description": "A brief summary of the message example.",
+      "type": "string"
+    }
+  },
+  "additionalProperties": false
+}

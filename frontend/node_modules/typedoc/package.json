@@ -1,0 +1,139 @@
+{
+  "name": "typedoc",
+  "description": "Create api documentation for TypeScript projects.",
+  "version": "0.28.20",
+  "homepage": "https://typedoc.org",
+  "type": "module",
+  "exports": {
+    ".": {
+      "typedoc-ts": "./src/lib/index.ts",
+      "types": "./dist/types/index.d.ts",
+      "default": "./dist/index.js"
+    },
+    "./tsdoc.json": "./tsdoc.json",
+    "./typedoc-config.schema.json": "./typedoc-config.schema.json",
+    "./package.json": "./package.json",
+    "./models": {
+      "typedoc-ts": "./src/lib/models/index.ts",
+      "types": "./dist/types/models/index.d.ts",
+      "default": "./dist/models.js"
+    },
+    "./browser": {
+      "typedoc-ts": "./src/lib/browser-utils/index.ts",
+      "types": "./dist/types/browser-utils.d.ts",
+      "default": "./dist/browser-utils.js"
+    },
+    "./browser/*": "./dist/browser-locales/*.js"
+  },
+  "bin": {
+    "typedoc": "bin/typedoc"
+  },
+  "license": "Apache-2.0",
+  "repository": {
+    "type": "git",
+    "url": "git://github.com/TypeStrong/TypeDoc.git"
+  },
+  "bugs": {
+    "url": "https://github.com/TypeStrong/TypeDoc/issues"
+  },
+  "engines": {
+    "node": ">= 18",
+    "pnpm": ">= 10"
+  },
+  "dependencies": {
+    "@gerrit0/mini-shiki": "^3.23.0",
+    "lunr": "^2.3.9",
+    "markdown-it": "^14.3.0",
+    "minimatch": "^10.2.5",
+    "yaml": "^2.9.0"
+  },
+  "peerDependencies": {
+    "typescript": "5.0.x || 5.1.x || 5.2.x || 5.3.x || 5.4.x || 5.5.x || 5.6.x || 5.7.x || 5.8.x || 5.9.x || 6.0.x"
+  },
+  "devDependencies": {
+    "@eslint/js": "^10.0.1",
+    "@types/lunr": "^2.3.7",
+    "@types/markdown-it": "^14.1.2",
+    "@types/mocha": "^10.0.10",
+    "@types/node": "^18.19.130",
+    "c8": "^11.0.0",
+    "dprint": "^0.55.1",
+    "esbuild": "^0.28.1",
+    "eslint": "^10.6.0",
+    "hereby": "^1.15.1",
+    "mocha": "12.0.0-rc.1",
+    "puppeteer": "^25.3.0",
+    "semver": "^7.8.5",
+    "tsx": "4.23.0",
+    "typescript": "6.0.3",
+    "typescript-eslint": "^8.62.1"
+  },
+  "files": [
+    "/bin",
+    "!*.map",
+    "/dist",
+    "!/dist/tmp",
+    "!/dist/.tsbuildinfo",
+    "!/dist/types/.tsbuildinfo",
+    "!/dist/test",
+    "/LICENSE",
+    "/static",
+    "/tsdoc.json",
+    "/typedoc-config.schema.json"
+  ],
+  "keywords": [
+    "typescript",
+    "documentation",
+    "generator"
+  ],
+  "c8": {
+    "extension": [
+      ".ts",
+      ".tsx"
+    ],
+    "reporter": [
+      "html-spa",
+      "text-summary"
+    ],
+    "exclude": [
+      "**/*.d.ts",
+      "src/test",
+      "tmp"
+    ]
+  },
+  "imports": {
+    "#utils": {
+      "typedoc-ts": "./src/lib/utils-common/index.ts",
+      "types": "./dist/types/utils-common.d.ts",
+      "default": "./dist/utils-common.js"
+    },
+    "#models": {
+      "typedoc-ts": "./src/lib/models/index.ts",
+      "types": "./dist/types/models.d.ts",
+      "default": "./dist/models.js"
+    },
+    "#serialization": {
+      "typedoc-ts": "./src/lib/serialization/index.ts",
+      "types": "./dist/types/serialization.d.ts",
+      "default": "./dist/serialization.js"
+    },
+    "#node-utils": {
+      "typedoc-ts": "./src/lib/utils/index.ts",
+      "types": "./dist/types/node-utils.d.ts",
+      "default": "./dist/node-utils.js"
+    }
+  },
+  "scripts": {
+    "test": "hereby test",
+    "test:cov": "hereby test:cov",
+    "doc:c": "node bin/typedoc --tsconfig src/test/converter/tsconfig.json",
+    "doc:cd": "node --inspect-brk dist/lib/cli.js --tsconfig src/test/converter/tsconfig.json",
+    "doc:c2": "node bin/typedoc --options src/test/converter2 --tsconfig src/test/converter2/tsconfig.json",
+    "doc:c2d": "node --inspect-brk dist/lib/cli.js --options src/test/converter2 --tsconfig src/test/converter2/tsconfig.json",
+    "example": "cd example && node ../bin/typedoc",
+    "test:full": "hereby test:full",
+    "build": "hereby build",
+    "build:prod": "hereby build:prod",
+    "lint": "hereby lint"
+  }
+}

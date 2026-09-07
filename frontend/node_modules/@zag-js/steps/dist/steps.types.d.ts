@@ -1,0 +1,201 @@
+import { Machine, EventObject, Service } from '@zag-js/core';
+import { PropTypes, RequiredBy, DirectionProperty, CommonProperties } from '@zag-js/types';
+
+interface StepChangeDetails {
+    step: number;
+}
+interface StepInvalidDetails {
+    step: number;
+    action: "next" | "set";
+    targetStep?: number;
+}
+interface ElementIds {
+    root?: string | undefined;
+    list?: string | undefined;
+    triggerId?: ((index: number) => string) | undefined;
+    contentId?: ((index: number) => string) | undefined;
+}
+interface StepsProps extends DirectionProperty, CommonProperties {
+    /**
+     * The custom ids for the stepper elements
+     */
+    ids?: ElementIds | undefined;
+    /**
+     * The controlled value of the stepper
+     */
+    step?: number | undefined;
+    /**
+     * The initial value of the stepper when rendered.
+     * Use when you don't need to control the value of the stepper.
+     */
+    defaultStep?: number | undefined;
+    /**
+     * Callback to be called when the value changes
+     */
+    onStepChange?: ((details: StepChangeDetails) => void) | undefined;
+    /**
+     * Callback to be called when a step is completed
+     */
+    onStepComplete?: VoidFunction | undefined;
+    /**
+     * If `true`, the stepper requires the user to complete the steps in order
+     */
+    linear?: boolean | undefined;
+    /**
+     * The orientation of the stepper
+     * @default "horizontal"
+     */
+    orientation?: "horizontal" | "vertical" | undefined;
+    /**
+     * The total number of steps
+     */
+    count?: number | undefined;
+    /**
+     * Whether a step is valid. Invalid steps block forward navigation in linear mode.
+     * @default () => true
+     */
+    isStepValid?: ((index: number) => boolean) | undefined;
+    /**
+     * Whether a step can be skipped during navigation.
+     * Skippable steps are bypassed when using next/prev.
+     * @default () => false
+     */
+    isStepSkippable?: ((index: number) => boolean) | undefined;
+    /**
+     * Called when navigation is blocked due to an invalid step.
+     */
+    onStepInvalid?: ((details: StepInvalidDetails) => void) | undefined;
+}
+type PropsWithDefault = "orientation" | "linear" | "count";
+interface PrivateContext {
+    step: number;
+}
+type ComputedContext = Readonly<{
+    percent: number;
+    hasNextStep: boolean;
+    hasPrevStep: boolean;
+    completed: boolean;
+}>;
+interface StepsSchema {
+    props: RequiredBy<StepsProps, PropsWithDefault>;
+    context: PrivateContext;
+    computed: ComputedContext;
+    state: "idle";
+    event: EventObject;
+    action: string;
+    effect: string;
+    guard: string;
+}
+type StepsService = Service<StepsSchema>;
+type StepsMachine = Machine<StepsSchema>;
+interface ItemProps {
+    index: number;
+}
+interface ItemState {
+    /**
+     * The index of the step
+     */
+    index: number;
+    /**
+     * The id of the trigger element
+     */
+    triggerId: string;
+    /**
+     * The id of the content element
+     */
+    contentId: string;
+    /**
+     * Whether the step is the current step
+     */
+    current: boolean;
+    /**
+     * Whether the step is completed (index < current step)
+     */
+    completed: boolean;
+    /**
+     * Whether the step is incomplete (index > current step)
+     */
+    incomplete: boolean;
+    /**
+     * Whether the step is the last step
+     */
+    last: boolean;
+    /**
+     * Whether the step is the first step
+     */
+    first: boolean;
+    /**
+     * Whether the step can be skipped (based on `isStepSkippable` callback)
+     */
+    skippable: boolean;
+    /**
+     * Lazy validation check - only evaluated when called
+     */
+    isValid: () => boolean;
+}
+interface StepsApi<T extends PropTypes = PropTypes> {
+    /**
+     * The value of the stepper.
+     */
+    value: number;
+    /**
+     * The percentage of the stepper.
+     */
+    percent: number;
+    /**
+     * The total number of steps.
+     */
+    count: number;
+    /**
+     * Whether the stepper has a next step.
+     */
+    hasNextStep: boolean;
+    /**
+     * Whether the stepper has a previous step.
+     */
+    hasPrevStep: boolean;
+    /**
+     * Whether the stepper is completed.
+     */
+    isCompleted: boolean;
+    /**
+     * Check if a specific step is valid (lazy evaluation)
+     */
+    isStepValid: (index: number) => boolean;
+    /**
+     * Check if a specific step can be skipped
+     */
+    isStepSkippable: (index: number) => boolean;
+    /**
+     * Function to set the value of the stepper.
+     */
+    setStep: (step: number) => void;
+    /**
+     * Function to go to the next step.
+     */
+    goToNextStep: VoidFunction;
+    /**
+     * Function to go to the previous step.
+     */
+    goToPrevStep: VoidFunction;
+    /**
+     * Function to go to reset the stepper.
+     */
+    resetStep: VoidFunction;
+    /**
+     * Returns the state of the item at the given index.
+     */
+    getItemState: (props: ItemProps) => ItemState;
+    getRootProps: () => T["element"];
+    getListProps: () => T["element"];
+    getItemProps: (props: ItemProps) => T["element"];
+    getTriggerProps: (props: ItemProps) => T["element"];
+    getContentProps: (props: ItemProps) => T["element"];
+    getNextTriggerProps: () => T["button"];
+    getPrevTriggerProps: () => T["button"];
+    getProgressProps: () => T["element"];
+    getIndicatorProps: (props: ItemProps) => T["element"];
+    getSeparatorProps: (props: ItemProps) => T["element"];
+}
+
+export type { ElementIds, ItemProps, ItemState, StepChangeDetails, StepInvalidDetails, StepsApi, StepsMachine, StepsProps, StepsSchema, StepsService };

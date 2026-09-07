@@ -1,0 +1,95 @@
+// src/clipboard.machine.ts
+import { createMachine } from "@zag-js/core";
+import { setElementValue } from "@zag-js/dom-query";
+import { setRafTimeout } from "@zag-js/utils";
+import * as dom from "./clipboard.dom.mjs";
+var machine = createMachine({
+  props({ props }) {
+    return {
+      timeout: 3e3,
+      defaultValue: "",
+      ...props
+    };
+  },
+  initialState() {
+    return "idle";
+  },
+  context({ prop, bindable }) {
+    return {
+      value: bindable(() => ({
+        defaultValue: prop("defaultValue"),
+        value: prop("value"),
+        onChange(value) {
+          prop("onValueChange")?.({ value });
+        }
+      }))
+    };
+  },
+  watch({ track, context, action }) {
+    track([() => context.get("value")], () => {
+      action(["syncInputElement"]);
+    });
+  },
+  on: {
+    "VALUE.SET": {
+      actions: ["setValue"]
+    },
+    COPY: {
+      target: "copied",
+      actions: ["copyToClipboard", "invokeOnCopy"]
+    }
+  },
+  states: {
+    idle: {
+      on: {
+        "INPUT.COPY": {
+          target: "copied",
+          actions: ["invokeOnCopy"]
+        }
+      }
+    },
+    copied: {
+      effects: ["waitForTimeout"],
+      on: {
+        "COPY.DONE": {
+          target: "idle"
+        },
+        COPY: {
+          target: "copied",
+          actions: ["copyToClipboard", "invokeOnCopy"]
+        },
+        "INPUT.COPY": {
+          actions: ["invokeOnCopy"]
+        }
+      }
+    }
+  },
+  implementations: {
+    effects: {
+      waitForTimeout({ prop, send }) {
+        return setRafTimeout(() => {
+          send({ type: "COPY.DONE" });
+        }, prop("timeout"));
+      }
+    },
+    actions: {
+      setValue({ context, event }) {
+        context.set("value", event.value);
+      },
+      copyToClipboard({ context, scope }) {
+        dom.writeToClipboard(scope, context.get("value"));
+      },
+      invokeOnCopy({ prop }) {
+        prop("onStatusChange")?.({ copied: true });
+      },
+      syncInputElement({ context, scope }) {
+        const inputEl = dom.getInputEl(scope);
+        if (!inputEl) return;
+        setElementValue(inputEl, context.get("value"));
+      }
+    }
+  }
+});
+export {
+  machine
+};

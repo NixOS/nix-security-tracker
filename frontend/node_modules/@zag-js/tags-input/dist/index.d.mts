@@ -1,0 +1,10 @@
+export { FocusOutsideEvent, InteractOutsideEvent, PointerDownOutsideEvent } from '@zag-js/interact-outside';
+export { anatomy } from './tags-input.anatomy.mjs';
+export { connect } from './tags-input.connect.mjs';
+export { machine } from './tags-input.machine.mjs';
+export { itemProps, props, splitItemProps, splitProps } from './tags-input.props.mjs';
+export { TagsInputApi as Api, ElementIds, HighlightChangeDetails, InputValueChangeDetails, IntlTranslations, ItemProps, ItemState, TagsInputMachine as Machine, TagsInputProps as Props, TagsInputService as Service, ValidateArgs, ValidityChangeDetails, ValidityState, ValueChangeDetails } from './tags-input.types.mjs';
+import '@zag-js/anatomy';
+import '@zag-js/core';
+import '@zag-js/types';
+import '@zag-js/live-region';
