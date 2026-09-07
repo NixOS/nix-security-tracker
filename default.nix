@@ -18,6 +18,7 @@ rec {
   vm-runner = pkgs.callPackage ./nix/vm-runner.nix {
     nixos-module = {
       imports = [
+        { _module.args.sources = sources; }
         ./nix/vm.nix
       ]
       ++ pkgs.lib.optional (builtins.pathExists ./.local) (
