@@ -1,0 +1,34 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "http://asyncapi.com/bindings/ros2/0.1.0/server.json",
+  "description": "This object contains information about the server representation in ROS 2.",
+  "examples": [
+    {
+      "domainId": "0",
+      "rmwImplementation": "rmw_fastrtps_cpp"
+    }
+  ],
+  "type": "object",
+  "properties": {
+    "bindingVersion": {
+      "description": "The version of this binding. If omitted, 'latest' MUST be assumed.",
+      "type": "string",
+      "enum": [ "0.1.0" ]
+    },
+    "domainId": {
+      "description": "All ROS 2 nodes use domain ID 0 by default. To prevent interference between different groups of computers running ROS 2 on the same network, a group can be set with a unique domain ID.",
+      "type": "integer",
+      "maximum": 231,
+      "minimum": 0
+    },
+    "rmwImplementation": {
+      "description": "Specifies the ROS 2 middleware implementation to be used. This determines the underlying middleware implementation that handles communication.",
+      "type": "string"
+    }
+  },
+  "patternProperties": {
+    "^x-[\\w\\d\\.\\x2d_]+$": {
+      "$ref": "http://asyncapi.com/definitions/3.1.0/specificationExtension.json"
+    }
+  }
+}

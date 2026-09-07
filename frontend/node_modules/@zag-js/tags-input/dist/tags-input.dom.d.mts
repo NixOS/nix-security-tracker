@@ -1,0 +1,36 @@
+import { Scope } from '@zag-js/core';
+import { ItemProps } from './tags-input.types.mjs';
+import '@zag-js/interact-outside';
+import '@zag-js/live-region';
+import '@zag-js/types';
+
+declare const getRootId: (ctx: Scope) => any;
+declare const getInputId: (ctx: Scope) => any;
+declare const getClearTriggerId: (ctx: Scope) => any;
+declare const getHiddenInputId: (ctx: Scope) => any;
+declare const getLabelId: (ctx: Scope) => any;
+declare const getControlId: (ctx: Scope) => any;
+declare const getItemId: (ctx: Scope, opt: ItemProps) => any;
+declare const getItemDeleteTriggerId: (ctx: Scope, opt: ItemProps) => any;
+declare const getItemInputId: (ctx: Scope, opt: ItemProps) => any;
+declare const getEditInputId: (id: string) => string;
+declare const getEditInputEl: (ctx: Scope, id: string) => HTMLInputElement | null;
+declare const getItemEls: (ctx: Scope) => HTMLElement[];
+declare const getTagInputEl: (ctx: Scope, opt: ItemProps) => HTMLInputElement | null;
+declare const getRootEl: (ctx: Scope) => HTMLDivElement | null;
+declare const getInputEl: (ctx: Scope) => HTMLInputElement | null;
+declare const getHiddenInputEl: (ctx: Scope) => HTMLInputElement | null;
+declare const getTagElements: (ctx: Scope) => HTMLElement[];
+declare const getFirstEl: (ctx: Scope) => HTMLElement;
+declare const getLastEl: (ctx: Scope) => HTMLElement;
+declare const getPrevEl: (ctx: Scope, id: string) => HTMLElement | null;
+declare const getNextEl: (ctx: Scope, id: string) => HTMLElement;
+declare const getTagElAtIndex: (ctx: Scope, index: number) => HTMLElement;
+declare const getIndexOfId: (ctx: Scope, id: string) => number;
+declare const isInputFocused: (ctx: Scope) => boolean;
+declare const getTagValue: (ctx: Scope, id: string | null) => string | null;
+declare const setHoverIntent: (el: Element) => void;
+declare const clearHoverIntent: (el: Element) => void;
+declare const dispatchInputEvent: (ctx: Scope, value: string) => void;
+
+export { clearHoverIntent, dispatchInputEvent, getClearTriggerId, getControlId, getEditInputEl, getEditInputId, getFirstEl, getHiddenInputEl, getHiddenInputId, getIndexOfId, getInputEl, getInputId, getItemDeleteTriggerId, getItemEls, getItemId, getItemInputId, getLabelId, getLastEl, getNextEl, getPrevEl, getRootEl, getRootId, getTagElAtIndex, getTagElements, getTagInputEl, getTagValue, isInputFocused, setHoverIntent };

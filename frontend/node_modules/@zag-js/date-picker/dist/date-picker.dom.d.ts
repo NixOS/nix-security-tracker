@@ -1,0 +1,37 @@
+import { DateView } from './date-picker.types.js';
+import { Scope } from '@zag-js/core';
+import '@internationalized/date';
+import '@zag-js/date-utils';
+import '@zag-js/live-region';
+import '@zag-js/popper';
+import '@zag-js/types';
+
+declare const getLabelId: (ctx: Scope, index: number) => any;
+declare const getRootId: (ctx: Scope) => any;
+declare const getTableId: (ctx: Scope, id: string) => any;
+declare const getTableHeaderId: (ctx: Scope, id: string) => any;
+declare const getTableBodyId: (ctx: Scope, id: string) => any;
+declare const getTableRowId: (ctx: Scope, id: string) => any;
+declare const getContentId: (ctx: Scope) => any;
+declare const getCellTriggerId: (ctx: Scope, id: string) => any;
+declare const getPrevTriggerId: (ctx: Scope, view: DateView) => any;
+declare const getNextTriggerId: (ctx: Scope, view: DateView) => any;
+declare const getViewTriggerId: (ctx: Scope, view: DateView) => any;
+declare const getClearTriggerId: (ctx: Scope) => any;
+declare const getControlId: (ctx: Scope) => any;
+declare const getInputId: (ctx: Scope, index: number) => any;
+declare const getTriggerId: (ctx: Scope) => any;
+declare const getPositionerId: (ctx: Scope) => any;
+declare const getMonthSelectId: (ctx: Scope) => any;
+declare const getYearSelectId: (ctx: Scope) => any;
+declare const getFocusedCell: (ctx: Scope, view: DateView) => HTMLElement | null;
+declare const getTriggerEl: (ctx: Scope) => HTMLButtonElement | null;
+declare const getContentEl: (ctx: Scope) => HTMLElement | null;
+declare const getInputEls: (ctx: Scope) => HTMLInputElement[];
+declare const getYearSelectEl: (ctx: Scope) => HTMLSelectElement | null;
+declare const getMonthSelectEl: (ctx: Scope) => HTMLSelectElement | null;
+declare const getClearTriggerEl: (ctx: Scope) => HTMLButtonElement | null;
+declare const getPositionerEl: (ctx: Scope) => HTMLElement | null;
+declare const getControlEl: (ctx: Scope) => HTMLElement | null;
+
+export { getCellTriggerId, getClearTriggerEl, getClearTriggerId, getContentEl, getContentId, getControlEl, getControlId, getFocusedCell, getInputEls, getInputId, getLabelId, getMonthSelectEl, getMonthSelectId, getNextTriggerId, getPositionerEl, getPositionerId, getPrevTriggerId, getRootId, getTableBodyId, getTableHeaderId, getTableId, getTableRowId, getTriggerEl, getTriggerId, getViewTriggerId, getYearSelectEl, getYearSelectId };

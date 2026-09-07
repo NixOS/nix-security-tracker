@@ -1,0 +1,24 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "http://asyncapi.com/definitions/3.1.0/symmetricEncryption.json",
+  "type": "object",
+  "required": [ "type" ],
+  "properties": {
+    "description": {
+      "type": "string"
+    },
+    "type": {
+      "type": "string",
+      "enum": [ "symmetricEncryption" ]
+    }
+  },
+  "patternProperties": {
+    "^x-[\\w\\d\\.\\x2d_]+$": {
+      "$ref": "http://asyncapi.com/definitions/3.1.0/specificationExtension.json"
+    }
+  },
+  "additionalProperties": false,
+  "example": {
+    "$ref": "http://asyncapi.com/examples/3.1.0/symmetricEncryption.json"
+  }
+}

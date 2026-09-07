@@ -1,0 +1,37 @@
+{
+  "name": "typedoc-plugin-coverage",
+  "version": "4.0.3",
+  "type": "module",
+  "exports": "./index.js",
+  "license": "MIT",
+  "author": "Gerrit Birkeland <gerrit@gerritbirkeland.com>",
+  "engines": {
+    "node": ">= 18"
+  },
+  "devDependencies": {
+    "@types/node": "18",
+    "dprint": "^0.54.0",
+    "typedoc": "^0.28.19",
+    "typescript": "^6.0.2",
+    "vitest": "^3.2.4"
+  },
+  "peerDependencies": {
+    "typedoc": "0.28.x"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Gerrit0/typedoc-plugin-coverage.git"
+  },
+  "files": [
+    "index.js",
+    "index.d.ts"
+  ],
+  "keywords": [
+    "typedoc-plugin"
+  ],
+  "scripts": {
+    "test": "vitest run && tsc -p test",
+    "build": "tsc",
+    "lint": "dprint check"
+  }
+}

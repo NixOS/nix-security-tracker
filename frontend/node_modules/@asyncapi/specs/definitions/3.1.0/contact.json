@@ -1,0 +1,31 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "http://asyncapi.com/definitions/3.1.0/contact.json",
+  "description": "Contact information for the exposed API.",
+  "type": "object",
+  "properties": {
+    "email": {
+      "description": "The email address of the contact person/organization.",
+      "type": "string",
+      "format": "email"
+    },
+    "name": {
+      "description": "The identifying name of the contact person/organization.",
+      "type": "string"
+    },
+    "url": {
+      "description": "The URL pointing to the contact information.",
+      "type": "string",
+      "format": "uri"
+    }
+  },
+  "patternProperties": {
+    "^x-[\\w\\d\\.\\x2d_]+$": {
+      "$ref": "http://asyncapi.com/definitions/3.1.0/specificationExtension.json"
+    }
+  },
+  "additionalProperties": false,
+  "example": {
+    "$ref": "http://asyncapi.com/examples/3.1.0/contact.json"
+  }
+}

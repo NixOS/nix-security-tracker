@@ -1,0 +1,34 @@
+{
+  "name": "@prefresh/utils",
+  "version": "1.2.1",
+  "description": "Shared utilities for the prefresh integrations.",
+  "module": "src/index.js",
+  "main": "dist/src/index.js",
+  "exports": {
+    ".": {
+      "import": "./src/index.js",
+      "require": "./dist/src/index.js"
+    },
+    "./package.json": "./package.json"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/preactjs/prefresh.git",
+    "directory": "packages/utils"
+  },
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/preactjs/prefresh/issues"
+  },
+  "homepage": "https://github.com/preactjs/prefresh#readme",
+  "devDependencies": {
+    "cjyes": "0.3.1"
+  },
+  "publishConfig": {
+    "provenance": true
+  },
+  "scripts": {
+    "build": "cjyes src/index.js",
+    "lint": "eslint src"
+  }
+}

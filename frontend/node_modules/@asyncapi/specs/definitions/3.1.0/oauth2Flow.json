@@ -1,0 +1,36 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "http://asyncapi.com/definitions/3.1.0/oauth2Flow.json",
+  "description": "Configuration details for a supported OAuth Flow",
+  "type": "object",
+  "properties": {
+    "authorizationUrl": {
+      "description": "The authorization URL to be used for this flow. This MUST be in the form of an absolute URL.",
+      "type": "string",
+      "format": "uri"
+    },
+    "availableScopes": {
+      "description": "The available scopes for the OAuth2 security scheme. A map between the scope name and a short description for it.",
+      "$ref": "http://asyncapi.com/definitions/3.1.0/oauth2Scopes.json"
+    },
+    "refreshUrl": {
+      "description": "The URL to be used for obtaining refresh tokens. This MUST be in the form of an absolute URL.",
+      "type": "string",
+      "format": "uri"
+    },
+    "tokenUrl": {
+      "description": "The token URL to be used for this flow. This MUST be in the form of an absolute URL.",
+      "type": "string",
+      "format": "uri"
+    }
+  },
+  "patternProperties": {
+    "^x-[\\w\\d\\.\\x2d_]+$": {
+      "$ref": "http://asyncapi.com/definitions/3.1.0/specificationExtension.json"
+    }
+  },
+  "additionalProperties": false,
+  "example": {
+    "$ref": "http://asyncapi.com/examples/3.1.0/oauth2Flow.json"
+  }
+}

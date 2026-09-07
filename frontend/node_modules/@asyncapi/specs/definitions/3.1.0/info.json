@@ -1,0 +1,73 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "http://asyncapi.com/definitions/3.1.0/info.json",
+  "description": "The object provides metadata about the API. The metadata can be used by the clients if needed.",
+  "allOf": [
+    {
+      "type": "object",
+      "required": [ "version", "title" ],
+      "properties": {
+        "title": {
+          "description": "A unique and precise title of the API.",
+          "type": "string"
+        },
+        "description": {
+          "description": "A longer description of the API. Should be different from the title. CommonMark is allowed.",
+          "type": "string"
+        },
+        "contact": {
+          "$ref": "http://asyncapi.com/definitions/3.1.0/contact.json"
+        },
+        "externalDocs": {
+          "oneOf": [
+            {
+              "$ref": "http://asyncapi.com/definitions/3.1.0/Reference.json"
+            },
+            {
+              "$ref": "http://asyncapi.com/definitions/3.1.0/externalDocs.json"
+            }
+          ]
+        },
+        "license": {
+          "$ref": "http://asyncapi.com/definitions/3.1.0/license.json"
+        },
+        "tags": {
+          "description": "A list of tags for application API documentation control. Tags can be used for logical grouping of applications.",
+          "type": "array",
+          "uniqueItems": true,
+          "items": {
+            "oneOf": [
+              {
+                "$ref": "http://asyncapi.com/definitions/3.1.0/Reference.json"
+              },
+              {
+                "$ref": "http://asyncapi.com/definitions/3.1.0/tag.json"
+              }
+            ]
+          }
+        },
+        "termsOfService": {
+          "description": "A URL to the Terms of Service for the API. MUST be in the format of a URL.",
+          "type": "string",
+          "format": "uri"
+        },
+        "version": {
+          "description": "A semantic version number of the API.",
+          "type": "string"
+        }
+      },
+      "patternProperties": {
+        "^x-[\\w\\d\\.\\x2d_]+$": {
+          "$ref": "http://asyncapi.com/definitions/3.1.0/specificationExtension.json"
+        }
+      },
+      "additionalProperties": false
+    },
+    {
+      "$ref": "http://asyncapi.com/definitions/3.1.0/infoExtensions.json"
+    }
+  ],
+  "example": {
+    "$ref": "http://asyncapi.com/examples/3.1.0/info.json"
+  }
+}
