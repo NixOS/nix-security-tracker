@@ -3,6 +3,7 @@
   config,
   lib,
   pkgs,
+  sources,
   ...
 }:
 
@@ -71,6 +72,117 @@ in
       authentication = "local all all trust";
     };
 
+    prometheus = {
+      enable = true;
+      scrapeConfigs =
+        let
+          job = job_name: {
+            inherit job_name;
+            static_configs = [
+              { targets = [ "localhost:${toString config.services.prometheus.exporters.${job_name}.port}" ]; }
+            ];
+          };
+        in
+        map job [
+          "node"
+          "postgres"
+          "sql"
+        ];
+      exporters.sql.configuration.jobs.sectracker.interval = lib.mkForce "1m";
+    };
+
+    grafana =
+      let
+        replace-uid =
+          with lib;
+          v:
+          if isAttrs v then
+            mapAttrs (_: replace-uid) v
+          else if isList v then
+            map replace-uid v
+          else if v == "\${DS_PROMETHEUS}" || v == "\${ds_prometheus}" then
+            "prometheus"
+          else
+            v;
+
+        pin-dashboard =
+          name: source: with builtins; toFile name (toJSON (replace-uid (fromJSON (readFile source))));
+
+        node-dashboard = pin-dashboard "node-dashboard.json" sources.grafana-dashboard-node;
+        postgres-dashboard = pin-dashboard "postgres-dashboard.json" sources.grafana-dashboard-postgres;
+
+        local-dashboard =
+          let
+            original = with builtins; fromJSON (readFile ../contrib/grafana-dashboard.json);
+            # There's only one instance, no need for a selector that would be broken anyway.
+            strip-instance-filter =
+              with lib;
+              v:
+              if isAttrs v then
+                mapAttrs (_: strip-instance-filter) v
+              else if isList v then
+                map strip-instance-filter v
+              else if isString v then
+                replaceStrings [ '', instance="$Instance"'' ] [ "" ] v
+              else
+                v;
+          in
+          builtins.toFile "grafana-dashboard.json" (
+            builtins.toJSON (
+              strip-instance-filter (
+                replace-uid (
+                  original
+                  // {
+                    refresh = "1m";
+                    # No instance selector needed with a single VM.
+                    templating = original.templating // {
+                      list = [ ];
+                    };
+                  }
+                )
+              )
+            )
+          );
+      in
+      {
+        enable = true;
+        settings = {
+          server.http_addr = "0.0.0.0";
+          security.secret_key = "dev-only-secret-key";
+          "auth.anonymous" = {
+            enabled = true;
+            org_role = "Viewer";
+          };
+          dashboards.default_home_dashboard_path = local-dashboard;
+        };
+        provision = {
+          enable = true;
+          datasources.settings.datasources = [
+            {
+              name = "Prometheus";
+              type = "prometheus";
+              uid = "prometheus";
+              url = "http://localhost:${toString config.services.prometheus.port}";
+              isDefault = true;
+            }
+          ];
+          dashboards.settings.providers = [
+            {
+              name = "sectracker";
+              options.path = local-dashboard;
+            }
+            {
+              name = "node";
+              options.path = node-dashboard;
+            }
+            {
+              name = "postgres";
+              options.path = postgres-dashboard;
+            }
+          ];
+        };
+      };
+
     nix-security-tracker = {
       enable = true;
       domain = config.networking.hostName;
@@ -98,10 +210,17 @@ in
     };
   };
 
+  networking.firewall.allowedTCPPorts = [
+    config.services.grafana.settings.server.http_port
+    config.services.prometheus.port
+  ];
+
   local = {
     port-offset = 50000;
     ports = {
       "security tracker" = config.services.nginx.defaultHTTPListenPort;
+      grafana = config.services.grafana.settings.server.http_port;
+      prometheus = config.services.prometheus.port;
     };
     mapped-users = [ "nix-security-tracker" ];
   };
@@ -203,7 +322,7 @@ in
 
   virtualisation = {
     graphics = false;
-    memorySize = 10 * 1024;
+    memorySize = 12 * 1024;
     cores = 2;
     diskSize = 40 * 1024;
     sharedDirectories = {

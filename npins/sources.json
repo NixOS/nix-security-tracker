@@ -21,6 +21,18 @@
       "url": "https://files.pythonhosted.org/packages/a4/30/9b907ff7e4af8c64d5461ab7e7beeff5dc53893dd1c70347069915c82eb1/cpe-1.3.1.tar.gz",
       "hash": "sha256-8wqXiBtut0ptYwVSrrzgPfIs3belh9YyoTtOFLZrlbA="
     },
+    "grafana-dashboard-node": {
+      "type": "Url",
+      "url": "https://grafana.com/api/dashboards/1860/revisions/latest/download",
+      "unpack": false,
+      "hash": "sha256-GExrdAnzBtp1Ul13cvcZRbEM6iOtFrXXjEaY6g6lGYY="
+    },
+    "grafana-dashboard-postgres": {
+      "type": "Url",
+      "url": "https://grafana.com/api/dashboards/9628/revisions/latest/download",
+      "unpack": false,
+      "hash": "sha256-UhusNAZbyt7fJV/DhFUK4FKOmnTpG0R15YO2r+nDnMc="
+    },
     "htmx": {
       "type": "GitRelease",
       "repository": {

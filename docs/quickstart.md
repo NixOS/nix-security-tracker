@@ -9,7 +9,7 @@ This document shows how to run the Nixpkgs security tracker running locally.
 To run the service locally, your machine will need available at least:
 
 - 2 cores
-- 10G RAM
+- 12G RAM
 - 40G disk space
 
 ## Clone this repository
