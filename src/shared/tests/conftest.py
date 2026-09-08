@@ -160,7 +160,7 @@ def make_channel(
         channel_branch: str = settings.TRACKING_BRANCH,
         release_branch: NixpkgsBranch = branch,
         state: NixChannel.ChannelState = NixChannel.ChannelState.UNSTABLE,
-        variant: NixChannel.Variant | None = None,
+        variant: NixChannel.Variant | None = NixChannel.Variant.SMALL,
     ) -> NixChannel:
         channel, _ = NixChannel.objects.get_or_create(
             channel_branch=channel_branch,
