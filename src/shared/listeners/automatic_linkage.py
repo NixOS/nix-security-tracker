@@ -206,6 +206,7 @@ def produce_linkage_candidates(
 ) -> models.QuerySet:
     latest_complete_channels = NixEvaluation.objects.filter(
         channel__state__in=NixChannel.TRACKED_STATES,
+        channel__variant=NixChannel.Variant.SMALL,
     ).latest_completed_per_channel()
 
     package_names = (
