@@ -14,7 +14,12 @@ from github import UnknownObjectException
 from github.Repository import Repository
 
 from shared import models
-from shared.fetchers import make_cve
+from shared.bulk_ingestion import (
+    CveBulkContext,
+    flush,
+    prepare_cve,
+    update_search_vectors,
+)
 from shared.github import get_gh
 from shared.models import CveIngestion
 
@@ -71,26 +76,39 @@ def ingest_day(repo: Repository, day: datetime.datetime) -> CveIngestion:
 
             z_arc.extractall(path=tmp_dir)
 
-        # Open a single transaction for the db
         # Traverse the tree and import cves
         cve_list = glob(f"{tmp_dir}/deltaCves/*.json")
         logger.info(f"{len(cve_list)} CVEs to ingest.")
 
-        for j_cve in cve_list:
-            with open(j_cve) as fc:
-                data = json.load(fc)
-                cve_id = data["cveMetadata"]["cveId"]
+        with transaction.atomic():
+            ctx = CveBulkContext()
+            batch_size = 1000
+            for i, j_cve in enumerate(cve_list):
+                with open(j_cve) as fc:
+                    data = json.load(fc)
+                    cve_id = data["cveMetadata"]["cveId"]
+                    record = models.CveRecord.objects.filter(cve_id=cve_id).first()
 
-                with transaction.atomic():
-                    make_cve(
+                    prepare_cve(
                         data,
-                        record=models.CveRecord.objects.filter(cve_id=cve_id).first(),
+                        ctx=ctx,
+                        record=record,
                     )
 
-        # Record the ingestion
-        logger.info(f"Saving the ingestion valid up to {day}")
+                if (i + 1) % batch_size == 0:
+                    flush(ctx)
+                    ctx = CveBulkContext()
 
-        return CveIngestion.objects.create(valid_to=day, delta=True)
+            if ctx.cve_records or ctx.containers:
+                flush(ctx)
+
+            logger.info("Updating search vectors for the ingested delta...")
+            update_search_vectors()
+
+            # Record the ingestion
+            logger.info(f"Saving the ingestion valid up to {day}")
+
+            return CveIngestion.objects.create(valid_to=day, delta=True)
 
 
 def process_day(repo: Repository, day: datetime.datetime) -> None:
