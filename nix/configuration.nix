@@ -208,13 +208,17 @@ in
       default = 2;
     };
 
-    enablePgbouncer = mkEnableOption ''
-      PgBouncer connection pooling in front of PostgreSQL for the ASGI web server.
+    enablePgbouncer =
+      (mkEnableOption ''
+        PgBouncer connection pooling in front of PostgreSQL for the ASGI web server.
 
-      When enabled, only `nix-security-tracker-server` connects through
-      PgBouncer. The pgpubsub workers and management commands keep direct database
-      connections, which is required for PostgreSQL LISTEN/NOTIFY.
-    '';
+        When enabled, only `nix-security-tracker-server` connects through
+        PgBouncer. The pgpubsub workers and management commands keep direct database
+        connections, which is required for PostgreSQL LISTEN/NOTIFY.
+      '')
+      // {
+        default = true;
+      };
     enable-exporters = (mkEnableOption "Prometheus metric exporters") // {
       default = true;
     };
