@@ -7,7 +7,13 @@ import pytest
 from django.contrib.auth.models import User
 from django.core.management import call_command
 from django.utils import timezone
+from pgpubsub.models import Notification as PgpubsubNotification
 
+from shared.channels import (
+    ContainerChannel,
+    NixEvaluationUpdateChannel,
+    SuggestionRefreshChannel,
+)
 from shared.management.commands.garbage_collect import DEFAULT_CUTOFF_DAYS, Command
 from shared.models.cve import Container, CveRecord
 from shared.models.linkage import (
@@ -695,3 +701,62 @@ def test_gc_skips_batch_with_protected_derivation(
 
     assert NixDerivation.objects.filter(pk=drv.pk).exists()
     assert "skipped" in out.getvalue()
+
+
+def make_trigger_notification(
+    channel_name: str, age: timedelta
+) -> PgpubsubNotification:
+    n = PgpubsubNotification.objects.create(channel=channel_name, payload={})
+    PgpubsubNotification.objects.filter(pk=n.pk).update(created_at=timezone.now() - age)
+    n.refresh_from_db()
+    return n
+
+
+@pytest.mark.parametrize(
+    "channel_name",
+    [
+        SuggestionRefreshChannel.name(),
+        SuggestionRefreshChannel.listen_safe_name(),
+        NixEvaluationUpdateChannel.name(),
+        NixEvaluationUpdateChannel.listen_safe_name(),
+    ],
+)
+@pytest.mark.django_db
+def test_gc_deletes_stale_rematching_notifications(channel_name: str) -> None:
+    """
+    `pgpubsub` records the channel identifier under two conventions depending on how the notification was emitted.
+    Both conventions must be covered so that orphans left by any producer can be reclaimed.
+    """
+    make_trigger_notification(channel_name, age=timedelta(hours=25))
+
+    call_command("garbage_collect", stdout=StringIO())
+
+    assert not PgpubsubNotification.objects.filter(channel=channel_name).exists()
+
+
+@pytest.mark.django_db
+def test_gc_keeps_recent_rematching_notifications() -> None:
+    """
+    The threshold matches the interval at which fresh notifications are emitted by the evaluator.
+    Anything younger might still be processed by the live listener.
+    """
+    make_trigger_notification(SuggestionRefreshChannel.name(), age=timedelta(hours=23))
+
+    call_command("garbage_collect", stdout=StringIO())
+
+    assert PgpubsubNotification.objects.count() == 1
+
+
+@pytest.mark.django_db
+def test_gc_keeps_notifications_on_other_channels() -> None:
+    """
+    We only garbage-collect trigger channels that leave garbage.
+    Unrelated channels stay untouched.
+    """
+    make_trigger_notification(
+        ContainerChannel.listen_safe_name(), age=timedelta(days=30)
+    )
+
+    call_command("garbage_collect", stdout=StringIO())
+
+    assert PgpubsubNotification.objects.count() == 1

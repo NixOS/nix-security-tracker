@@ -593,7 +593,7 @@ in
             ];
 
             script = ''
-              ${manage.name} listen --recover \
+              ${manage.name} listen \
                 --processes ${toString cfg.suggestionRefreshProcesses} \
                 --channels \
                   shared.channels.NixEvaluationUpdateChannel \
