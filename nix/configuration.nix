@@ -25,6 +25,7 @@ let
   # FIXME(@fricklerhandwerk): Use the explicit names everywhere.
   # Maybe implement them as options so they have explicit documentation and can be overridden.
   app = "nix-security-tracker";
+  # FIXME(@fricklerhandwerk): DRY the username, too.
   metrics-group = "${app}-metrics";
 
   pythonEnv = pkgs.python3.withPackages (
@@ -283,6 +284,7 @@ in
           ''
             map-nix-security-tracker nix-security-tracker nix-security-tracker
             map-nix-security-tracker ${exporters.sql.user} nix-security-tracker
+            ${optionalString cfg.enablePgbouncer "map-nix-security-tracker ${config.services.pgbouncer.user} nix-security-tracker"}
             postgres ${exporters.postgres.user} postgres
           '';
         authentication = ''
