@@ -5,7 +5,7 @@ from itertools import groupby
 import pglock
 from django.conf import settings
 from django.db import transaction
-from django.db.models import QuerySet
+from django.db.models import Exists, OuterRef, QuerySet
 
 from shared.cache_suggestions import parse_drv_name
 from shared.models.nix_evaluation import NixDerivation, NixDerivationMeta
@@ -180,6 +180,26 @@ def _cluster_batch(
         PackageDerivation.objects.bulk_create(new_links, ignore_conflicts=True)
 
         if to_update:
+            # Keep the current homepage where clearing it would collapse two distinct packages sharing a name.
+            # This would happen if one of them had an empty homepage, and the second one gets its homepage cleared.
+            homepage_cleared = [pk for pk, (h, _) in to_update.items() if h is None]
+            if homepage_cleared:
+                originals = (
+                    Package.objects.filter(pk__in=homepage_cleared)
+                    .annotate(
+                        has_sibling=Exists(
+                            Package.objects.filter(
+                                name=OuterRef("name"), homepage__isnull=True
+                            ).exclude(pk=OuterRef("pk"))
+                        )
+                    )
+                    .filter(has_sibling=True)
+                    .values_list("pk", "homepage")
+                )
+                for pk, current_homepage in originals:
+                    _, description = to_update[pk]
+                    to_update[pk] = (current_homepage, description)
+
             packages = list(Package.objects.filter(pk__in=to_update).only("pk"))
             for pkg in packages:
                 homepage, description = to_update[pkg.pk]

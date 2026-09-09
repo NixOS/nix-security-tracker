@@ -265,6 +265,8 @@ def make_drv(
         version: str = "1.0",
         system: str = "x86_64-linux",
         attribute: str | None = None,
+        homepage: str = "https://example.org",
+        description: str = "Dummy derivation",
         evaluation: NixEvaluation = evaluation,
         maintainer: NixMaintainer = maintainer,
         known_vulnerabilities: list[str] | None = None,
@@ -272,8 +274,8 @@ def make_drv(
         cpe_product: str | None = None,
     ) -> NixDerivation:
         meta = NixDerivationMeta.objects.create(
-            description="Dummy derivation",
-            homepage="https://example.com",
+            description=description,
+            homepage=homepage,
             insecure=False,
             available=True,
             broken=False,
