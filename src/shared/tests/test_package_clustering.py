@@ -405,3 +405,63 @@ def test_concurrent_attrpath_consistency(
     pkg = PackageAttrpath.objects.get(attrpath="shared").package
     assert PackageDerivation.objects.get(derivation=drv_a).package == pkg
     assert PackageDerivation.objects.get(derivation=drv_b).package == pkg
+
+
+def test_homepage_change_within_batch(
+    make_drv: Callable[..., NixDerivation],
+) -> None:
+    """
+    Packages are identified by (pname, homepage).
+    The following setup will produce two distinct packages, where one of them has an empty homepage.
+    If the other one's homepage gets cleared, we still don't want them to be considered equal.
+
+    The workaround in that case is not to clear the homepage.
+    """
+    drv_old = make_drv(
+        pname="foo",
+        attribute="foo",
+        description="Something",
+        homepage="https://example.org",
+    )
+
+    drv_new = make_drv(
+        pname="foo",
+        attribute="bar",
+        description="Something completely different",
+        homepage=None,
+    )
+    drv_new.derivation_path = "custom"
+    drv_new.save()
+
+    cluster_packages(
+        NixDerivation.objects.filter(pk__in=[drv_old.pk, drv_new.pk]),
+        update_packages=False,
+    )
+
+    assert Package.objects.count() == 2
+
+    # This clustering update amounts to:
+    # "Package `pkgs.foo` got its homepage removed."
+    drv_next = make_drv(
+        pname="foo",
+        attribute="foo",
+        description="Something new",
+        homepage=None,
+    )
+
+    # FIXME(@fricklerhandwerk): Handle the inverse, too, somehow:
+    # drv_next = make_drv(
+    #     pname="foo",
+    #     attribute="bar",
+    #     homepage="https://example.org",
+    # )
+
+    cluster_packages(
+        NixDerivation.objects.filter(pk=drv_next.pk),
+        update_packages=True,
+    )
+
+    assert Package.objects.count() == 2
+    pkg = PackageDerivation.objects.get(derivation=drv_next).package
+    assert pkg.homepage == "https://example.org"
+    assert pkg.description == "Something new"
