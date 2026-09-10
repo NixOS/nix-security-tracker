@@ -2,6 +2,7 @@ import { PackageMinusIcon, PackagePlusIcon } from "lucide-preact";
 import type { SuggestionPackage } from "@/api/generated/models";
 import { ExternalLink } from "@/components/ui/ExternalLink";
 import { usePackageMutation } from "@/hooks/usePackage";
+import { formatTime } from "@/utils/date";
 import styles from "./Package.module.css";
 
 type Props = {
@@ -59,6 +60,9 @@ export function Package({ attr, pkg, suggestionId, editable, isIgnored }: Props)
                         <ExternalLink
                           className={versionStatusClass(info.status)}
                           href={info.src_position}
+                          title={
+                            info.updated ? `Evaluated: ${formatTime(info.updated)}` : undefined
+                          }
                         >
                           {info.major_version}
                         </ExternalLink>
@@ -81,6 +85,7 @@ export function Package({ attr, pkg, suggestionId, editable, isIgnored }: Props)
                           <ExternalLink
                             className={versionStatusClass(binfo.status)}
                             href={binfo.src_position}
+                            title={`Evaluated: ${formatTime(binfo.updated)}`}
                           >
                             {binfo.version}
                           </ExternalLink>
