@@ -106,10 +106,12 @@ def test_suggestion_list_excludes_suggestions_without_fresh_cache(
     assert uncached.pk not in ids
 
 
-def test_suggestion_list_excludes_outdated_algorithm_version_pending_suggestions(
+def test_suggestion_list_includes_outdated_algorithm_version_pending_suggestions(
     make_cached_suggestion: Callable[..., CVEDerivationClusterProposal],
 ) -> None:
-    """Pending suggestions from an outdated matching algorithm version are excluded."""
+    """
+    Pending suggestions from any algorithm version are included in the list.
+    """
     client = APIClient()
     outdated = make_cached_suggestion(
         status=CVEDerivationClusterProposal.Status.PENDING,
@@ -120,7 +122,7 @@ def test_suggestion_list_excludes_outdated_algorithm_version_pending_suggestions
     response = client.get(url())
     assert response.status_code == 200
     ids = [item["id"] for item in response.data["results"]]
-    assert outdated.pk not in ids
+    assert outdated.pk in ids
     assert current.pk in ids
 
 
