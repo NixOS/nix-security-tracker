@@ -258,6 +258,9 @@ class Settings(BaseSettings):
             """,
             default=100 * 64 // 2,
         )
+        API_THROTTLE_ANONYMOUS: str = "30/min"
+        API_THROTTLE_AUTHENTICATED: str = "120/min"
+        API_THROTTLE_SECURITY_TEAM: str = "2000/min"
 
         @model_validator(mode="after")
         def default_server_email(self) -> Self:
@@ -535,6 +538,7 @@ REST_FRAMEWORK = {
         "knox.auth.TokenAuthentication",
         "rest_framework.authentication.SessionAuthentication",
     ],
+    "DEFAULT_THROTTLE_CLASSES": ["api.throttling.APIRateThrottle"],
 }
 
 # drf-spectacular (openapi generation) settings
