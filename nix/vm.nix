@@ -37,6 +37,18 @@ in
         "_".default = lib.mkForce false;
         ${cfg.domain} = {
           default = true;
+          listen = [
+            {
+              addr = "0.0.0.0";
+              port = config.services.nginx.defaultHTTPListenPort;
+            }
+            # Playwright runs inside the VM but the URL served in the frontend is set to the host-forwarded port.
+            # For frontend tests to run,the web server must listen on that port as well.
+            {
+              addr = "127.0.0.1";
+              port = config.local.port-offset + config.services.nginx.defaultHTTPListenPort;
+            }
+          ];
           # The QEMU host port is assigned dynamically, so the browser's origin can't be anticipated in the CSRF configuration.
           # Therefore we forward the Host header from the client as it is.
           locations = {
