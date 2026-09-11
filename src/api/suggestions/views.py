@@ -133,8 +133,7 @@ class SuggestionViewSet(ListModelMixin, RetrieveModelMixin, viewsets.GenericView
 
         # Only suggestions with fresh cache
         return (
-            CVEDerivationClusterProposal.objects.target_proposals()
-            .filter(
+            CVEDerivationClusterProposal.objects.filter(
                 cached__isnull=False,
                 cached__schema_version=CachedSuggestions.CURRENT_SCHEMA_VERSION,
             )
