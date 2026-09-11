@@ -7,6 +7,11 @@ in
   python3 = prev.python3.override {
     packageOverrides = pyfinal: _pyprev: {
       psycopg2 = pyfinal.psycopg;
+      # FIXME(@fricklerhandwerk): remove once upstream fix is merged into django-pgpubsub
+      # https://github.com/PaulGilmartin/django-pgpubsub/pull/89
+      django-pgpubsub = _pyprev.django-pgpubsub.overridePythonAttrs (old: {
+        patches = (old.patches or [ ]) ++ [ ../nix/django-pgpubsub-fix-notify.patch ];
+      });
       cpe = pyfinal.buildPythonPackage {
         pname = "cpe";
         version = "1.3.1";
