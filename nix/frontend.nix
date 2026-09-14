@@ -12,7 +12,7 @@ buildNpmPackage {
 
   src = ../frontend;
 
-  npmDepsHash = "sha256-dMHVezTeJimgUhQQmPXnCoXsy7Jz4abzYwt3XzluPaQ=";
+  npmDepsHash = "sha256-7sxnIR/OiQAZeGQ6PHOQQeFB6M/508piMet2/5U0sZc=";
 
   # Biome is used by the build scripts (lint check before build)
   nativeBuildInputs = [ biome ];
