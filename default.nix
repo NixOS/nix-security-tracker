@@ -13,6 +13,7 @@ rec {
 
   # For exports.
   overlays = [ overlay ];
+  frontend = pkgs.callPackage ./nix/frontend.nix { };
   package = pkgs.nix-security-tracker;
   module = import ./nix/configuration.nix;
   vm-runner = pkgs.callPackage ./nix/vm-runner.nix {
@@ -93,6 +94,8 @@ rec {
   shell = pkgs.mkShellNoCC {
     packages = [
       vm
+      package
+      pkgs.nodejs
       pkgs.npins
       (import sources.agenix { inherit pkgs; }).agenix
       format
@@ -109,6 +112,7 @@ rec {
         };
       }).shellHook
       }
+      ln -sfn ${frontend.passthru.dependencies} frontend/node_modules
     '';
   };
 

@@ -11,14 +11,7 @@ let
   shared = config.virtualisation.sharedDirectories;
   cfg = config.services.nix-security-tracker;
   vite-port = 5173;
-  frontend-deps = (pkgs.callPackage ./frontend.nix { }).overrideAttrs {
-    dontBuild = true;
-    installPhase = ''
-      mv node_modules $out
-      mkdir $out/.vite
-      ln -s .bin $out/bin
-    '';
-  };
+  frontend-deps = (pkgs.callPackage ./frontend.nix { }).passthru.dependencies;
   frontend-node-modules = "${shared.frontend.target}/node_modules";
 in
 {
