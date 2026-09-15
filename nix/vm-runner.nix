@@ -51,16 +51,25 @@ let
         system.activationScripts.align-host-uid = {
           deps = [ "users" ];
           text = ''
+            uid=""
+            gid=""
             for param in $(cat /proc/cmdline); do
               case $param in
-                host_uid=*)
-                  uid="''${param#host_uid=}"
-                  ${lib.concatMapStrings (user: ''
-                    usermod -u "$uid" ${lib.escapeShellArg user}
-                  '') config.local.mapped-users}
-                  ;;
+                host_uid=*) uid="''${param#host_uid=}" ;;
+                host_gid=*) gid="''${param#host_gid=}" ;;
               esac
             done
+            if [ -n "$uid" ] && [ -n "$gid" ]; then
+              ${lib.concatMapStrings (user: ''
+                usermod -u "$uid" ${lib.escapeShellArg user}
+                group=$(getent group "$gid" | cut -d: -f1)
+                if [ -n "$group" ]; then
+                  usermod -g "$group" ${lib.escapeShellArg user}
+                else
+                  groupmod -g "$gid" "$(id -gn ${lib.escapeShellArg user})"
+                fi
+              '') config.local.mapped-users}
+            fi
           '';
         };
 
@@ -101,7 +110,7 @@ writeShellApplication {
       ) cfg.virtualisation.sharedDirectories
     )}
 
-    QEMU_KERNEL_PARAMS="host_uid=$(id -u)"
+    QEMU_KERNEL_PARAMS="host_uid=$(id -u) host_gid=$(id -g)"
     export QEMU_KERNEL_PARAMS
     exec "${vm}/bin/run-${hostname}-vm"
   '';
