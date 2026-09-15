@@ -70,7 +70,6 @@ let
   # This script has access to the credentials, no matter where it is.
   external-manage = writeScriptBin manage-script-name ''
     #!${stdenv.shell}
-    echo "${concatStringsSep " " credentials}"
     if [ -t 0 ]; then
       pty_flag="--pty"
     else
