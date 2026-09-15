@@ -96,7 +96,7 @@ In your [local configuration extension](#local-configuration-extensions), enable
 # .local/default.nix
 { config, ... }: {
   services.sshd.enable = true;
-  users.users.root.openssh.authorizedKeys.keyFiles = [ ~/.ssh/id_ed25519 ];
+  users.users.root.openssh.authorizedKeys.keyFiles = [ ~/.ssh/id_ed25519.pub ];
 
   virtualisation.forwardPorts = [
     rec {
