@@ -228,7 +228,7 @@ in
   ];
 
   local = {
-    port-offset = 50000;
+    port-offset = 20000;
     ports = {
       "security tracker" = config.services.nginx.defaultHTTPListenPort;
       grafana = config.services.grafana.settings.server.http_port;
