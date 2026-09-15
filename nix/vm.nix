@@ -348,14 +348,17 @@ in
         source = toString ../nixpkgs;
         target = cfg.settings.LOCAL_NIXPKGS_CHECKOUT;
         ensure-exists = true;
+        writable = true;
       };
       src = {
         source = toString ../src;
         target = "/src";
+        writable = true;
       };
       frontend = {
         source = toString ../frontend;
         target = "/frontend";
+        writable = true;
       };
     };
   };
