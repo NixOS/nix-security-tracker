@@ -40,6 +40,9 @@ const issueDetailUrlPattern = new RegExp(`^${listIssuesUrl}/[^/]+$`);
 // Not sub-resources/actions under it (e.g. `/api/v1/notifications/mark-all-read`).
 const notificationDetailUrlPattern = new RegExp(`^${listNotificationsUrl}/\\d+$`);
 
+// Matches only the suggestion by-cve lookup endpoint (`/api/v1/suggestions/by-cve/<cve_id>`)
+const byCveUrlPattern = new RegExp(`^${listQueryKeyPrefix[0]}/by-cve/[^/]+$`);
+
 // Common query key prefix regardless of query params (e.g. activity log)
 function detailQueryKeyPrefix(id: number) {
   return getGetSuggestionQueryKey(id);
@@ -222,6 +225,9 @@ function extractEmbeddedSuggestions(queryKey: QueryKey, data: unknown): Suggesti
   if (detailUrlPattern.test(url)) {
     return [data as Suggestion];
   }
+  if (byCveUrlPattern.test(url)) {
+    return [data as Suggestion];
+  }
   if (url === listIssuesUrl) {
     const issues = (data as PaginatedIssueList).results ?? [];
     return issues.flatMap((issue) => issue.suggestions.filter(isEmbeddedSuggestion));
@@ -261,4 +267,25 @@ export function syncEmbeddedActivityLogs(
       ...suggestion.activity_log,
     ]);
   }
+}
+
+/**
+ * Seeds the by-id suggestion detail query cache from a successful by-cve lookup response.
+ *
+ * Browsing to a suggestion detail `by-cve` redirects to the `by-id` URL once it fetches the suggestion from API.
+ * Pre-populating the `by-id` cache means the redirect won't trigger a redundant `by-id` request.
+ */
+export function seedSuggestionDetailFromByCve(
+  queryClient: QueryClient,
+  queryKey: QueryKey,
+  data: unknown,
+): void {
+  const url = typeof queryKey[0] === "string" ? queryKey[0] : undefined;
+  if (!url || !data || !byCveUrlPattern.test(url)) return;
+
+  const suggestion = data as Suggestion;
+  queryClient.setQueryData(
+    getGetSuggestionQueryKey(suggestion.id, { activity_log: true }),
+    suggestion,
+  );
 }

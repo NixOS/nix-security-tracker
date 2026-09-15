@@ -2,6 +2,7 @@ from typing import cast
 
 from django.core.exceptions import ValidationError
 from django.db.models.query import QuerySet
+from django.shortcuts import get_object_or_404
 from django.template.defaultfilters import truncatewords
 from django_filters import rest_framework as filters
 from drf_spectacular.utils import (
@@ -180,6 +181,22 @@ class SuggestionViewSet(ListModelMixin, RetrieveModelMixin, viewsets.GenericView
     )
     def retrieve(self, request: Request, pk: int) -> Response:
         instance = self.get_object()
+        instance.ensure_fresh_cache()
+        context = self.get_serializer_context()
+        if context.get("include_activity_log"):
+            context["activity_logs"] = build_activity_log_map([instance.pk])
+        serializer = self.get_serializer_class()(instance, context=context)
+        return Response(serializer.data)
+
+    @extend_schema(
+        operation_id="getSuggestionByCve",
+        description="Get full details of a suggestion (proposal linking CVEs to derivations) by its CVE ID.",
+        parameters=[ACTIVITY_LOG_PARAMETER],
+        responses={200: SuggestionSerializer, 404: ErrorDetailSerializer},
+    )
+    @action(detail=False, methods=["get"], url_path="by-cve/(?P<cve_id>[^/]+)")
+    def by_cve(self, request: Request, cve_id: str) -> Response:
+        instance = get_object_or_404(CVEDerivationClusterProposal, cve__cve_id=cve_id)
         instance.ensure_fresh_cache()
         context = self.get_serializer_context()
         if context.get("include_activity_log"):

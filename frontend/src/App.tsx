@@ -11,6 +11,7 @@ import { IssueDetail } from "@/routes/IssueDetail";
 import { IssueList } from "@/routes/IssueList";
 import { NotificationCenter } from "@/routes/NotificationCenter";
 import { SuggestionDetail } from "@/routes/SuggestionDetail";
+import { SuggestionDetailByCve } from "@/routes/SuggestionDetailByCve";
 import { SuggestionList } from "@/routes/SuggestionList";
 import { UserSettings } from "@/routes/UserSettings";
 import { toaster } from "@/utils/toaster";
@@ -37,6 +38,7 @@ export function App() {
       <main>
         <Switch>
           <Route path="/ui-v2/suggestions/by-id/:id" component={SuggestionDetail} />
+          <Route path="/ui-v2/suggestions/by-cve/:cveId" component={SuggestionDetailByCve} />
           <Route path="/ui-v2/suggestions" component={SuggestionList} />
           <Route path="/ui-v2/issues/:code" component={IssueDetail} />
           <Route path="/ui-v2/issues" component={IssueList} />
