@@ -6,7 +6,7 @@
 let
   schema = callPackage ./schema.nix { };
 in
-buildNpmPackage {
+buildNpmPackage (finalAttrs: {
   pname = "nix-security-tracker-frontend";
   version = "0.1.0";
 
@@ -30,4 +30,13 @@ buildNpmPackage {
     cp -r dist $out
     runHook postInstall
   '';
-}
+
+  passthru.dependencies = finalAttrs.finalPackage.overrideAttrs {
+    dontBuild = true;
+    installPhase = ''
+      mv node_modules $out
+      mkdir $out/.vite
+      ln -s .bin $out/bin
+    '';
+  };
+})

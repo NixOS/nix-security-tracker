@@ -1,2 +1,3 @@
 src/api/generated/
 schema.yaml
+node_modules
