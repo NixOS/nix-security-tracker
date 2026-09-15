@@ -2,6 +2,7 @@
   buildNpmPackage,
   biome,
   callPackage,
+  lib,
 }:
 let
   schema = callPackage ./schema.nix { };
@@ -10,7 +11,12 @@ buildNpmPackage {
   pname = "nix-security-tracker-frontend";
   version = "0.1.0";
 
-  src = ../frontend;
+  src =
+    with lib.fileset;
+    toSource {
+      root = ../frontend;
+      fileset = intersection (gitTracked ../.) ../frontend;
+    };
 
   npmDepsHash = "sha256-7sxnIR/OiQAZeGQ6PHOQQeFB6M/508piMet2/5U0sZc=";
 
