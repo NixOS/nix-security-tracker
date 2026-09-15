@@ -178,12 +178,14 @@ Expose the keypair to the development VM through your [local configuration exten
 }
 ```
 
-Once you have access, delete the database and recreate it, then restore it from a dump, and (just in case the dump is behind the code) run migrations:
+Once you have access, stop the services, delete the database and recreate it, then restore it from a dump, and (just in case the dump is behind the code) run migrations:
 
 ```bash
 systemctl stop nix-security-tracker.target
+systemctl stop prometheus-{node,postgres,sql}-exporter
 dropdb nix-security-tracker
 ssh dump-db@tracker-staging.security.nixos.org | zstdcat | pv | psql -U postgres
 manage migrate
 systemctl start nix-security-tracker.target
+systemctl start prometheus-{node,postgres,sql}-exporter
 ```
