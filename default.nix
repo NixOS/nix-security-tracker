@@ -2,11 +2,19 @@
   system ? builtins.currentSystem,
   sources ? import ./npins,
   overlay ? import ./nix/overlay.nix,
-  pkgs ? import sources.nixpkgs {
-    config = { };
-    overlays = [ overlay ];
-    inherit system;
-  },
+  pkgs ?
+    let
+      # FIXME(@fricklerhandwerk): Remove when virtiofs passthrough policy is configurable upstream.
+      patched = (import sources.nixpkgs { }).applyPatches {
+        src = sources.nixpkgs;
+        patches = [ ./nix/virtiofs-cache.patch ];
+      };
+    in
+    import patched {
+      config = { };
+      overlays = [ overlay ];
+      inherit system;
+    },
 }:
 rec {
   inherit pkgs;

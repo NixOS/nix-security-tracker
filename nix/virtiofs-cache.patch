@@ -1,0 +1,5 @@
+--- a/nixos/modules/virtualisation/qemu-vm.nix
++++ b/nixos/modules/virtualisation/qemu-vm.nix
+@@ -337 +337 @@
+-          --cache=always \
++          --cache=auto \
