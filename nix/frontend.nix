@@ -40,9 +40,10 @@ buildNpmPackage (finalAttrs: {
   passthru.dependencies = finalAttrs.finalPackage.overrideAttrs {
     dontBuild = true;
     installPhase = ''
-      mv node_modules $out
-      mkdir $out/.vite
-      ln -s .bin $out/bin
+      mkdir $out
+      mv node_modules $out/
+      mkdir $out/node_modules/.vite
+      ln -s .bin $out/node_modules/bin
     '';
   };
 })

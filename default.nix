@@ -120,7 +120,7 @@ rec {
         };
       }).shellHook
       }
-      ln -sfn ${frontend.passthru.dependencies} frontend/node_modules
+      ln -sfn ${frontend.passthru.dependencies}/node_modules frontend/node_modules
     '';
   };
 
