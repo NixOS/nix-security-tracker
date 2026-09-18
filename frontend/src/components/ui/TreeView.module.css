@@ -1,0 +1,37 @@
+.branchControl {
+  cursor: pointer;
+  list-style: none;
+}
+
+.branchControl:focus-visible {
+  outline: 2px solid var(--nixos-blue);
+  outline-offset: 2px;
+}
+
+.branchIndicator {
+  display: inline-flex;
+  transition: transform 0.15s ease;
+}
+
+.branchIndicator[data-state="open"] {
+  transform: rotate(90deg);
+}
+
+.branchLabel {
+  font-weight: bold;
+  color: var(--gray);
+}
+
+.branchContent {
+  margin-left: 1em;
+}
+
+.item {
+  padding: 0.1em 0;
+}
+
+.tree {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35em;
+}
