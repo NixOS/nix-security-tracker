@@ -1,3 +1,4 @@
+import { ExternalLink } from "@/components/ui/ExternalLink";
 import { useServerInfo } from "@/hooks/useServerInfo";
 
 function Revision() {
@@ -11,9 +12,9 @@ function Revision() {
       <p>
         Running revision{" "}
         {production ? (
-          <a href={`https://github.com/NixOS/nix-security-tracker/commit/${revision}`}>
+          <ExternalLink href={`https://github.com/NixOS/nix-security-tracker/commit/${revision}`}>
             {shortRev}
-          </a>
+          </ExternalLink>
         ) : (
           <span>{shortRev} (development)</span>
         )}
@@ -29,10 +30,15 @@ export function Footer() {
     <footer className="bg-nixos-blue box spacious column gap text-white centered">
       <p>
         Nixpkgs security tracker is part of{" "}
-        <a href="https://nixos.org/community/teams/security/">NixOS security infrastructure</a>.
+        <ExternalLink href="https://nixos.org/community/teams/security/">
+          NixOS security infrastructure
+        </ExternalLink>
+        .
       </p>
       <div className="row gap-big">
-        <a href="https://github.com/NixOS/nix-security-tracker">Source code</a>
+        <ExternalLink href="https://github.com/NixOS/nix-security-tracker">
+          Source code
+        </ExternalLink>
         <Revision />
       </div>
     </footer>

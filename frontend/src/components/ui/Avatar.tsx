@@ -9,7 +9,7 @@ type AvatarProps = {
 export function Avatar({ avatarUrl, username, size }: AvatarProps) {
   const style = size ? { width: size, height: size } : undefined;
   return avatarUrl ? (
-    <img src={avatarUrl} alt={username ?? "avatar"} className="circle" style={style} />
+    <img src={avatarUrl} alt={username} className="circle" style={style} />
   ) : (
     <UserIcon className="circle" style={style} />
   );

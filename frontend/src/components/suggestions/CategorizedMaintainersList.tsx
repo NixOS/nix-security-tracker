@@ -1,5 +1,6 @@
 import type { SuggestionCategorizedMaintainers } from "@/api/generated/models";
 import { Maintainer } from "./Maintainer";
+import { MaintainerAddForm } from "./MaintainerAddForm";
 
 type Props = {
   suggestionId: number;
@@ -26,7 +27,7 @@ export function CategorizedMaintainersList({
               maintainer={m}
               suggestionId={suggestionId}
               editable={editable}
-              isIgnored={false}
+              kind="active"
             />
           </li>
         ))}
@@ -43,7 +44,7 @@ export function CategorizedMaintainersList({
                   maintainer={m}
                   suggestionId={suggestionId}
                   editable={editable}
-                  isIgnored={true}
+                  kind="ignored"
                 />
               </li>
             ))}
@@ -61,14 +62,15 @@ export function CategorizedMaintainersList({
                 <Maintainer
                   maintainer={m}
                   suggestionId={suggestionId}
-                  editable={false}
-                  isIgnored={false}
+                  editable={editable}
+                  kind="added"
                 />
               </li>
             ))}
           </ul>
         </details>
       )}
+      {editable && <MaintainerAddForm suggestionId={suggestionId} />}
     </div>
   );
 }

@@ -38,6 +38,7 @@ runCommand "nix-security-tracker-openapi-schema"
       SYNC_GITHUB_STATE_AT_STARTUP = false;
       REVISION = "schema";
       STATIC_ROOT = "/build/static";
+      VITE_DEV_SERVER_PORT = 1337; # Dummy, never used.
       LOCAL_NIXPKGS_CHECKOUT = "/build/nixpkgs";
       GH_ISSUES_PING_MAINTAINERS = false;
       GH_ORGANIZATION = "dummy";

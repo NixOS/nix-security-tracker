@@ -28,5 +28,5 @@ jobs:
       - uses: NixOS/nix-installer-action@62c1943b776c509394b550f3f983adc14e9212d6 # v1.0.0
       - name: Check workflow files
         run: |
-          NIXPKGS=$(nix-instantiate --eval -A pkgs.path)
+          NIXPKGS=$(nix-instantiate --eval --read-write-mode -A pkgs.path)
           nix-shell -I nixpkgs="$NIXPKGS" -p actionlint --run actionlint

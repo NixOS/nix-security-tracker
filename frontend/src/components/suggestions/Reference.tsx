@@ -1,5 +1,6 @@
 import { LinkIcon, UnlinkIcon } from "lucide-preact";
 import type { SuggestionUrlReference } from "@/api/generated/models";
+import { ExternalLink } from "@/components/ui/ExternalLink";
 import { useReferenceMutation } from "@/hooks/useReference";
 import { ReferenceTag } from "./ReferenceTag";
 
@@ -38,9 +39,7 @@ export function Reference({ reference, suggestionId, editable, isIgnored }: Prop
           {isIgnored ? "Restore" : "Ignore"}
         </button>
       )}
-      <a href={reference.url} target="_blank" rel="noreferrer">
-        {displayedLabel}
-      </a>
+      <ExternalLink href={reference.url}>{displayedLabel}</ExternalLink>
       <ul className="row gap-small">
         {reference.tags.map((tag) => (
           <li key={tag}>

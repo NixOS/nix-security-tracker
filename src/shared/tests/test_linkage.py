@@ -76,6 +76,35 @@ def test_link_only_latest_eval(
     cache_new_suggestions(suggestion)
 
 
+def test_non_small_channel_produces_no_matches(
+    make_container: Callable[..., Container],
+    make_channel: Callable[..., NixChannel],
+    make_evaluation: Callable[..., NixEvaluation],
+    make_drv: Callable[..., NixDerivation],
+) -> None:
+    """
+    Derivations on non-small channel variants must not produce matches:
+    we only evaluate small channels, so any data on other variants is stale.
+    """
+    channel = make_channel(
+        channel_branch="nixos-unstable",
+        state=NixChannel.ChannelState.UNSTABLE,
+        variant=None,
+    )
+    evaluation = make_evaluation(channel=channel)
+    make_drv(pname="foo", evaluation=evaluation)
+
+    container = make_container(package_name="foo")
+    assert build_new_links(container) is True
+    proposal = CVEDerivationClusterProposal.objects.get(cve=container.cve)
+    assert proposal.status == CVEDerivationClusterProposal.Status.REJECTED
+    assert (
+        proposal.rejection_reason
+        == CVEDerivationClusterProposal.RejectionReason.NO_MATCHES
+    )
+    assert proposal.derivations.count() == 0
+
+
 def test_eol_channel_produces_no_matches(
     make_container: Callable[..., Container],
     make_channel: Callable[..., NixChannel],
@@ -259,6 +288,116 @@ def test_mixed_cpe_parts_skips_hardware_only_affected_products(
     assert not suggestion.derivations.filter(name__startswith="some_router").exists()
 
 
+def test_cpe_vendor_product_match_without_name_overlap(
+    make_container: Callable[..., Container],
+    make_drv: Callable[..., NixDerivation],
+) -> None:
+    """CPE vendor/product matching works when derivation name does not substring-match."""
+    container = make_container(
+        package_name="unrelated-cve-name",
+        product="also-unrelated",
+        cpes=["cpe:2.3:a:gnu:hello:2.12:*:*:*:*:*:*:*"],
+    )
+    drv = make_drv(
+        pname="hello-nix",
+        attribute="hello",
+        cpe_vendor="gnu",
+        cpe_product="hello",
+    )
+
+    assert build_new_links(container)
+    link = DerivationClusterProposalLink.objects.get(derivation=drv)
+    assert link.provenance_flags == ProvenanceFlags.CPE_MATCH
+    assert link.proposal.status == CVEDerivationClusterProposal.Status.PENDING
+
+
+def test_cpe_matches_all_pairs_from_multiple_cpes(
+    make_container: Callable[..., Container],
+    make_drv: Callable[..., NixDerivation],
+) -> None:
+    """Each CPE contributes its own (vendor, product) pair — not a cross product."""
+    container = make_container(
+        package_name="unrelated",
+        product="unrelated",
+        cpes=[
+            "cpe:2.3:a:gnu:hello:2.12:*:*:*:*:*:*:*",
+            "cpe:2.3:a:openssl:openssl:3.0.0:*:*:*:*:*:*:*",
+        ],
+    )
+    hello = make_drv(
+        pname="hello-nix",
+        attribute="hello",
+        cpe_vendor="gnu",
+        cpe_product="hello",
+    )
+    openssl = make_drv(
+        pname="openssl-nix",
+        attribute="openssl",
+        cpe_vendor="openssl",
+        cpe_product="openssl",
+    )
+    # Would match a bogus cross-product (gnu, openssl) if we merged lists independently.
+    make_drv(
+        pname="cross-product-trap",
+        attribute="cross_product_trap",
+        cpe_vendor="gnu",
+        cpe_product="openssl",
+    )
+
+    assert build_new_links(container)
+    proposal = CVEDerivationClusterProposal.objects.get(cve=container.cve)
+    matched = set(proposal.derivations.values_list("attribute", flat=True))
+    assert matched == {hello.attribute, openssl.attribute}
+
+
+def test_cpe_match_rejects_wrong_vendor(
+    make_container: Callable[..., Container],
+    make_drv: Callable[..., NixDerivation],
+) -> None:
+    container = make_container(
+        package_name="unrelated",
+        product="unrelated",
+        cpes=["cpe:2.3:a:gnu:hello:2.12:*:*:*:*:*:*:*"],
+    )
+    make_drv(
+        pname="hello-nix",
+        attribute="hello",
+        cpe_vendor="wrong_vendor",
+        cpe_product="hello",
+    )
+
+    assert build_new_links(container)
+    proposal = CVEDerivationClusterProposal.objects.get(cve=container.cve)
+    assert proposal.status == CVEDerivationClusterProposal.Status.REJECTED
+    assert (
+        proposal.rejection_reason
+        == CVEDerivationClusterProposal.RejectionReason.NO_MATCHES
+    )
+
+
+def test_cpe_match_combines_with_package_name_match(
+    make_container: Callable[..., Container],
+    make_drv: Callable[..., NixDerivation],
+) -> None:
+    container = make_container(
+        package_name="hello",
+        product="other",
+        cpes=["cpe:2.3:a:gnu:hello:2.12:*:*:*:*:*:*:*"],
+    )
+    drv = make_drv(
+        pname="hello",
+        attribute="hello",
+        cpe_vendor="gnu",
+        cpe_product="hello",
+    )
+
+    assert build_new_links(container)
+    link = DerivationClusterProposalLink.objects.get(derivation=drv)
+    assert link.provenance_flags == (
+        ProvenanceFlags.PACKAGE_NAME_MATCH | ProvenanceFlags.CPE_MATCH
+    )
+
+
 def test_ignore_tests(
     cve: Container,
     make_drv: Callable[..., NixDerivation],
@@ -418,60 +557,6 @@ def test_refresh_suggestion_rejected_when_derivation_has_known_vulnerability(
     assert DerivationClusterProposalLink.objects.filter(proposal=suggestion).exists()
 
 
-def test_refresh_skips_published_suggestion_on_rejection(
-    make_evaluation: Callable[..., NixEvaluation],
-    drv: NixDerivation,
-    make_suggestion: Callable[..., CVEDerivationClusterProposal],
-) -> None:
-    """
-    When a suggestion is published while refresh is running, the status must not
-    be overwritten to REJECTED and its links must not be deleted.
-    """
-    suggestion = make_suggestion(
-        drvs={drv: ProvenanceFlags.PACKAGE_NAME_MATCH},
-        status=CVEDerivationClusterProposal.Status.PUBLISHED,
-    )
-    # Simulate the stale in-memory object the worker would hold.
-    suggestion.status = CVEDerivationClusterProposal.Status.ACCEPTED
-    # A new evaluation with no matching derivation makes the resolver return NO_MATCHES.
-    make_evaluation()
-
-    refresh_suggestion_derivation_links(suggestion)
-
-    suggestion.refresh_from_db()
-    assert suggestion.status == CVEDerivationClusterProposal.Status.PUBLISHED
-    assert DerivationClusterProposalLink.objects.filter(proposal=suggestion).exists()
-
-
-def test_refresh_skips_published_suggestion_on_match(
-    make_evaluation: Callable[..., NixEvaluation],
-    make_drv: Callable[..., NixDerivation],
-    make_suggestion: Callable[..., CVEDerivationClusterProposal],
-) -> None:
-    """
-    When a suggestion is published while refresh is running, its derivation links
-    must not be replaced even when newer matching derivations exist.
-    """
-    old_eval = make_evaluation()
-    new_eval = make_evaluation()
-
-    old_drv = make_drv(pname="foo", evaluation=old_eval)
-    make_drv(pname="foo", evaluation=new_eval, attribute=old_drv.attribute)
-
-    suggestion = make_suggestion(
-        drvs={old_drv: ProvenanceFlags.PACKAGE_NAME_MATCH},
-        status=CVEDerivationClusterProposal.Status.PUBLISHED,
-    )
-    # Simulate the stale in-memory object the worker would hold.
-    suggestion.status = CVEDerivationClusterProposal.Status.ACCEPTED
-
-    refresh_suggestion_derivation_links(suggestion)
-
-    links = DerivationClusterProposalLink.objects.filter(proposal=suggestion)
-    assert links.count() == 1
-    assert links.get().derivation == old_drv
-
-
 def test_package_links_populated_alongside_drv_links(
     make_container: Callable[..., Container],
     make_drv: Callable[..., NixDerivation],
@@ -550,6 +635,114 @@ def test_package_link_provenance_flags_merged_across_drvs(
         link.provenance_flags
         == ProvenanceFlags.PACKAGE_NAME_MATCH | ProvenanceFlags.PRODUCT_MATCH
     )
+
+
+def test_refresh_creates_package_links_alongside_drv_links(
+    cve: Container,
+    make_evaluation: Callable[..., NixEvaluation],
+    make_drv: Callable[..., NixDerivation],
+    make_package: Callable[..., Package],
+    make_suggestion: Callable[..., CVEDerivationClusterProposal],
+) -> None:
+    """Refreshing a suggestion (re)creates its package links, not just derivation links."""
+    old_eval = make_evaluation()
+    new_eval = make_evaluation()
+
+    old_drv = make_drv(pname="foo", evaluation=old_eval)
+    new_drv = make_drv(pname="foo", evaluation=new_eval, attribute=old_drv.attribute)
+    pkg = make_package(new_drv)
+    PackageDerivation.objects.create(derivation=new_drv, package=pkg)
+
+    suggestion = make_suggestion(
+        container=cve, drvs={old_drv: ProvenanceFlags.PACKAGE_NAME_MATCH}
+    )
+    assert not PackageClusterProposalLink.objects.filter(proposal=suggestion).exists()
+
+    refresh_suggestion_derivation_links(suggestion)
+
+    drv_link = DerivationClusterProposalLink.objects.get(proposal=suggestion)
+    assert drv_link.derivation == new_drv
+
+    pkg_link = PackageClusterProposalLink.objects.get(proposal=suggestion)
+    assert pkg_link.package == pkg
+    assert pkg_link.provenance_flags == ProvenanceFlags.PACKAGE_NAME_MATCH
+
+
+def test_refresh_replaces_stale_package_links(
+    cve: Container,
+    make_evaluation: Callable[..., NixEvaluation],
+    make_drv: Callable[..., NixDerivation],
+    make_package: Callable[..., Package],
+    make_suggestion: Callable[..., CVEDerivationClusterProposal],
+) -> None:
+    """
+    A package link from a previous match is removed and replaced by refresh,
+    not left stacked alongside the newly matched one.
+    """
+    old_eval = make_evaluation()
+    new_eval = make_evaluation()
+
+    old_drv = make_drv(pname="foo", evaluation=old_eval)
+    new_drv = make_drv(pname="foo", evaluation=new_eval, attribute=old_drv.attribute)
+    stale_pkg = make_package(
+        old_drv, homepage="https://example.com/foo-old", attrpath="old-attr"
+    )
+    PackageDerivation.objects.create(derivation=old_drv, package=stale_pkg)
+    fresh_pkg = make_package(
+        new_drv, homepage="https://example.com/foo-new", attrpath="new-attr"
+    )
+    PackageDerivation.objects.create(derivation=new_drv, package=fresh_pkg)
+
+    suggestion = make_suggestion(
+        container=cve, drvs={old_drv: ProvenanceFlags.PACKAGE_NAME_MATCH}
+    )
+    PackageClusterProposalLink.objects.create(
+        proposal=suggestion,
+        package=stale_pkg,
+        provenance_flags=ProvenanceFlags.PACKAGE_NAME_MATCH,
+    )
+
+    refresh_suggestion_derivation_links(suggestion)
+
+    drv_links = DerivationClusterProposalLink.objects.filter(proposal=suggestion)
+    assert drv_links.count() == 1
+    assert drv_links.get().derivation == new_drv
+
+    pkg_links = PackageClusterProposalLink.objects.filter(proposal=suggestion)
+    assert pkg_links.count() == 1
+    assert pkg_links.get().package == fresh_pkg
+
+
+def test_refresh_clears_package_links_when_rejected(
+    cve: Container,
+    make_evaluation: Callable[..., NixEvaluation],
+    drv: NixDerivation,
+    make_package: Callable[..., Package],
+    make_suggestion: Callable[..., CVEDerivationClusterProposal],
+) -> None:
+    """When a package no longer appears in the latest evaluation, stale derivation and package links are both cleared."""
+    pkg = make_package(drv)
+    PackageDerivation.objects.create(derivation=drv, package=pkg)
+
+    suggestion = make_suggestion(
+        container=cve, drvs={drv: ProvenanceFlags.PACKAGE_NAME_MATCH}
+    )
+    PackageClusterProposalLink.objects.create(
+        proposal=suggestion,
+        package=pkg,
+        provenance_flags=ProvenanceFlags.PACKAGE_NAME_MATCH,
+    )
+
+    make_evaluation()
+
+    refresh_suggestion_derivation_links(suggestion)
+
+    suggestion.refresh_from_db()
+    assert suggestion.status == CVEDerivationClusterProposal.Status.REJECTED
+    assert not DerivationClusterProposalLink.objects.filter(
+        proposal=suggestion
+    ).exists()
+    assert not PackageClusterProposalLink.objects.filter(proposal=suggestion).exists()
 
 
 def test_build_new_links_is_atomic(

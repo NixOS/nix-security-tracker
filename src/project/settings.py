@@ -232,6 +232,13 @@ class Settings(BaseSettings):
             """,
             default=600,
         )
+        DATABASE_DISABLE_SERVER_SIDE_CURSORS: bool = Field(
+            description="""
+            Disable server side cursors. To be used when we're fronting postgres by pgbouncer.
+            https://docs.djangoproject.com/en/6.1/ref/databases/#transaction-pooling-server-side-cursors
+            """,
+            default=False,
+        )
         EMAIL_BACKEND: str = "django.core.mail.backends.console.EmailBackend"
         EMAIL_HOST: str = "localhost"
         EMAIL_PORT: int = 25
@@ -251,6 +258,9 @@ class Settings(BaseSettings):
             """,
             default=100 * 64 // 2,
         )
+        API_THROTTLE_ANONYMOUS: str = "30/min"
+        API_THROTTLE_AUTHENTICATED: str = "120/min"
+        API_THROTTLE_SECURITY_TEAM: str = "2000/min"
 
         @model_validator(mode="after")
         def default_server_email(self) -> Self:
@@ -272,6 +282,13 @@ class Settings(BaseSettings):
             Prefix for vite assets in the static assets directory.
             """,
             default="vite",
+        )
+
+        VITE_DEV_SERVER_PORT: int | None = Field(
+            description="""
+            Development only: port at which the browser can reach the Vite server.
+            """,
+            default=None,
         )
 
         ACCOUNT_DEFAULT_HTTP_PROTOCOL: str = "http"
@@ -489,6 +506,9 @@ DATABASES["default"] = dj_database_url.config(
     conn_max_age=DATABASE_CONN_MAX_AGE,  # noqa: F821 # pyright: ignore [reportUndefinedVariable]
     conn_health_checks=True,
 )
+DATABASES["default"]["DISABLE_SERVER_SIDE_CURSORS"] = (
+    DATABASE_DISABLE_SERVER_SIDE_CURSORS  # noqa: F821 # pyright: ignore [reportUndefinedVariable]
+)
 
 # Password validation
 # https://docs.djangoproject.com/en/4.2/ref/settings/#auth-password-validators
@@ -518,6 +538,7 @@ REST_FRAMEWORK = {
         "knox.auth.TokenAuthentication",
         "rest_framework.authentication.SessionAuthentication",
     ],
+    "DEFAULT_THROTTLE_CLASSES": ["api.throttling.APIRateThrottle"],
 }
 
 # drf-spectacular (openapi generation) settings
@@ -587,9 +608,13 @@ STATIC_URL = "static/"
 # rather than re-declaring the config.
 DJANGO_VITE = {
     "default": {
-        "dev_mode": DEBUG,  # noqa: F821 # pyright: ignore [reportUndefinedVariable]
+        "dev_mode": VITE_DEV_SERVER_PORT is not None,  # noqa: F821 # pyright: ignore [reportUndefinedVariable]
         "dev_server_host": "localhost",
-        "dev_server_port": 5173,
+        **(
+            {"dev_server_port": VITE_DEV_SERVER_PORT}  # noqa: F821 # pyright: ignore [reportUndefinedVariable]
+            if VITE_DEV_SERVER_PORT  # noqa: F821 # pyright: ignore [reportUndefinedVariable]
+            else {}
+        ),
         "static_url_prefix": VITE_STATIC_URL_PREFIX,  # noqa: F821 # pyright: ignore [reportUndefinedVariable]
         "manifest_path": VITE_MANIFEST_PATH,  # noqa: F821 # pyright: ignore [reportUndefinedVariable]
     }
@@ -601,7 +626,7 @@ DJANGO_VITE = {
 # Django-served contexts (e.g. the test live_server's static handler) we register the
 # build output directory under the prefix so the staticfiles finders can serve it. The
 # asset dir is the manifest's grandparent (<dist>/.vite/manifest.json -> <dist>).
-if not DEBUG:  # noqa: F821 # pyright: ignore [reportUndefinedVariable]
+if VITE_DEV_SERVER_PORT is None:  # noqa: F821 # pyright: ignore [reportUndefinedVariable]
     _vite_assets_dir = VITE_MANIFEST_PATH.parent.parent  # noqa: F821 # pyright: ignore [reportUndefinedVariable]
     if _vite_assets_dir.is_dir():
         STATICFILES_DIRS = [

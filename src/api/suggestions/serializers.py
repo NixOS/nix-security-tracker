@@ -9,7 +9,10 @@ from shared.logs.batches import (
     FoldedPackageEvent,
     FoldedReferenceEvent,
     FoldedStatusEvent,
+    batch_events,
 )
+from shared.logs.events import remove_canceling_events
+from shared.logs.fetchers import fetch_suggestion_events
 from shared.models.linkage import CVEDerivationClusterProposal
 
 
@@ -36,6 +39,23 @@ class SuggestionMaintainerUpdateSerializer(serializers.Serializer):
     )
 
 
+class SuggestionMaintainerAddSerializer(serializers.Serializer):
+    """Request body for adding a maintainer that is not part of the original maintainers."""
+
+    github_handle = serializers.CharField(
+        max_length=200,
+        help_text="GitHub handle of the maintainer to add.",
+    )
+
+
+class SuggestionMaintainerDeleteSerializer(serializers.Serializer):
+    """Request body for deleting a manually added maintainer."""
+
+    github_id = serializers.IntegerField(
+        help_text="GitHub ID of the manually added maintainer to delete.",
+    )
+
+
 class SuggestionPackageUpdateSerializer(serializers.Serializer):
     """Request body for ignore/restore package PATCH operations."""
 
@@ -57,6 +77,23 @@ class SuggestionCommentSerializer(serializers.Serializer):
         required=True,
         max_length=1000,
         help_text="Free-text comment. Set to empty string to clear.",
+    )
+
+
+class SuggestionBundleSerializer(serializers.Serializer):
+    """Request/response body for adding or removing a suggestion from the issue draft."""
+
+    in_issue_draft = serializers.BooleanField(
+        help_text="Set to true to add the suggestion to the issue draft, false to remove it.",
+    )
+
+
+class IssueDraftPublishSerializer(serializers.Serializer):
+    """Request body for publishing the issue draft (all bundled suggestions) as one issue."""
+
+    title = serializers.CharField(
+        max_length=500,
+        help_text="Title of the GitHub issue to create from the bundled suggestions.",
     )
 
 
@@ -140,6 +177,22 @@ class SuggestionCategorizedMaintainersSerializer(serializers.Serializer):
     orphan = MaintainerSerializer(many=True)
 
 
+class ActivityLogReferenceSerializer(serializers.Serializer):
+    url = serializers.CharField()
+    name = serializers.CharField(allow_null=True)
+
+
+class ActivityLogEntrySerializer(serializers.Serializer):
+    action = serializers.CharField()
+    timestamp = serializers.DateTimeField()
+    username = serializers.CharField(allow_null=True)
+    status_value = serializers.CharField(allow_null=True, default=None)
+    rejection_reason = serializers.CharField(allow_null=True, default=None)
+    package_names = serializers.ListField(child=serializers.CharField(), default=list)
+    maintainers = MaintainerSerializer(many=True, default=list)
+    references = ActivityLogReferenceSerializer(many=True, default=list)
+
+
 class SuggestionSerializer(serializers.Serializer):
     """Suggestion (proposal linking a CVE to derivations)."""
 
@@ -169,6 +222,11 @@ class SuggestionSerializer(serializers.Serializer):
     metrics = serializers.SerializerMethodField()
     categorized_maintainers = serializers.SerializerMethodField()
     categorized_url_references = serializers.SerializerMethodField()
+
+    # Optional inlined activity log.
+    # Null unless requested via the `activity_log` query param.
+    # Lets the frontend seed the activity-log query as initial data and avoid a separate request per suggestion.
+    activity_log = serializers.SerializerMethodField(allow_null=True)
 
     def _payload(self, obj: CVEDerivationClusterProposal) -> dict:
         return obj.cached.payload
@@ -244,6 +302,18 @@ class SuggestionSerializer(serializers.Serializer):
         data = self._payload(obj)["categorized_url_references"]
         return dict(SuggestionCategorizedUrlReferencesSerializer(data).data)
 
+    @extend_schema_field(ActivityLogEntrySerializer(many=True))
+    def get_activity_log(self, obj: CVEDerivationClusterProposal) -> list | None:
+        if not self.context.get("include_activity_log"):
+            return None
+        activity_logs = self.context.get("activity_logs")
+        if activity_logs is not None and obj.pk in activity_logs:
+            data = activity_logs[obj.pk]
+        else:
+            # Single-object fallback (e.g. retrieve) when no batched map is provided.
+            data = build_activity_log_map([obj.pk]).get(obj.pk, [])
+        return list(ActivityLogEntrySerializer(data, many=True).data)
+
     def to_representation(self, instance: CVEDerivationClusterProposal) -> dict:
         result = super().to_representation(instance)
         if instance.status != CVEDerivationClusterProposal.Status.REJECTED:
@@ -253,25 +323,6 @@ class SuggestionSerializer(serializers.Serializer):
         if not instance.comment:
             result.pop("comment", None)
         return result
-
-
-# Activity log serializers
-
-
-class ActivityLogReferenceSerializer(serializers.Serializer):
-    url = serializers.CharField()
-    name = serializers.CharField(allow_null=True)
-
-
-class ActivityLogEntrySerializer(serializers.Serializer):
-    action = serializers.CharField()
-    timestamp = serializers.DateTimeField()
-    username = serializers.CharField(allow_null=True)
-    status_value = serializers.CharField(allow_null=True, default=None)
-    rejection_reason = serializers.CharField(allow_null=True, default=None)
-    package_names = serializers.ListField(child=serializers.CharField(), default=list)
-    maintainers = MaintainerSerializer(many=True, default=list)
-    references = ActivityLogReferenceSerializer(many=True, default=list)
 
 
 # FIXME(@florentc): Eventually we'll want to:
@@ -301,3 +352,20 @@ def folded_event_to_dict(event: FoldedEventType) -> dict:
     elif isinstance(event, FoldedReferenceEvent):
         base["references"] = [dict(r) for r in event.references]
     return base
+
+
+def build_activity_log_map(suggestion_ids: list[int]) -> dict[int, list[dict]]:
+    """Build the folded, serializable activity log for several suggestions at once."""
+    # FIXME(@florentc): Eventually we'll want to:
+    # - remove cancelling events: at the model level through a proper debouncing implementation
+    # - batch events: at the frontend level as it's presentation-related
+    if not suggestion_ids:
+        return {}
+
+    raw_events_by_id = fetch_suggestion_events(suggestion_ids)
+    result: dict[int, list[dict]] = {}
+    for suggestion_id, raw_events in raw_events_by_id.items():
+        deduplicated = remove_canceling_events(raw_events, sort=True)
+        folded = batch_events(deduplicated)
+        result[suggestion_id] = [folded_event_to_dict(e) for e in folded]
+    return result

@@ -3,6 +3,7 @@
  */
 import { MutationCache, QueryCache, QueryClient } from "@tanstack/react-query";
 import { getApiErrorMessage, isRateLimited } from "@/utils/apiError";
+import { seedSuggestionDetailFromByCve, syncEmbeddedActivityLogs } from "@/utils/suggestionCache";
 import { toaster } from "@/utils/toaster";
 
 const RATE_LIMIT_TOAST_ID = "rate-limited";
@@ -21,8 +22,16 @@ function notifyRateLimit(error: unknown): void {
   });
 }
 
-export const queryClient = new QueryClient({
-  queryCache: new QueryCache({ onError: notifyRateLimit }),
+export const queryClient: QueryClient = new QueryClient({
+  queryCache: new QueryCache({
+    onError: notifyRateLimit,
+    onSuccess: (data, query) => {
+      // Keeps the activity-log query cache in sync as soon as any suggestion (standalone or embedded in a list/issue) is fetched.
+      syncEmbeddedActivityLogs(queryClient, query.queryKey, data);
+      // Seeds the by-id suggestion query cache after a successful by-cve suggestion query to avoid refetch
+      seedSuggestionDetailFromByCve(queryClient, query.queryKey, data);
+    },
+  }),
   mutationCache: new MutationCache({ onError: notifyRateLimit }),
   defaultOptions: {
     queries: {

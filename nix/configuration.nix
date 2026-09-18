@@ -22,17 +22,31 @@ let
     ;
   inherit (pkgs) writeScriptBin writeShellApplication stdenv;
   cfg = config.services.nix-security-tracker;
+  # FIXME(@fricklerhandwerk): Use the explicit names everywhere.
+  # Maybe implement them as options so they have explicit documentation and can be overridden.
+  app = "nix-security-tracker";
+  # FIXME(@fricklerhandwerk): DRY the username, too.
+  metrics-group = "${app}-metrics";
 
   pythonEnv = pkgs.python3.withPackages (
-    ps: with ps; [
+    ps:
+    with ps;
+    [
       cfg.package
       daphne
     ]
+    ++ cfg.extra-python-packages
   );
-  wstManageScript = writeShellApplication {
-    name = "wst-manage";
 
-    runtimeInputs = [ pkgs.git ];
+  manage-script-name = "${cfg.manage-prefix}manage";
+
+  manage = writeShellApplication {
+    name = manage-script-name;
+
+    runtimeInputs = [
+      pkgs.git
+      pythonEnv
+    ];
     runtimeEnv = cfg.env;
     excludeShellChecks = [
       "SC2089"
@@ -44,17 +58,18 @@ let
       if [[ "$USER" != "nix-security-tracker" ]]; then
         sudo='exec /run/wrappers/bin/sudo -u nix-security-tracker --preserve-env --preserve-env=PYTHONPATH'
       fi
-      export PYTHONPATH=${toString cfg.package.pythonPath}
-      $sudo ${cfg.package}/bin/manage.py "$@"
+      export PYTHONPATH=${
+        lib.optionalString (cfg.env ? PYTHONPATH) "${cfg.env.PYTHONPATH}:"
+      }${toString cfg.package.pythonPath}
+      $sudo ${cfg.manage} "$@"
     '';
   };
   credentials = mapAttrsToList (name: secretPath: "${name}:${secretPath}") cfg.secrets;
   databaseUrl = "postgres:///nix-security-tracker";
 
   # This script has access to the credentials, no matter where it is.
-  wstExternalManageScript = writeScriptBin "wst-manage" ''
+  external-manage = writeScriptBin manage-script-name ''
     #!${stdenv.shell}
-    echo "${concatStringsSep " " credentials}"
     if [ -t 0 ]; then
       pty_flag="--pty"
     else
@@ -64,7 +79,7 @@ let
       --wait \
       --collect \
       --service-type=exec \
-      --unit "wst-manage.service" \
+      --unit "${manage-script-name}.service" \
       --property "User=nix-security-tracker" \
       --property "Group=nix-security-tracker" \
       --property "WorkingDirectory=/var/lib/nix-security-tracker" \
@@ -72,7 +87,7 @@ let
       --property 'Environment=${
         toString (lib.mapAttrsToList (name: value: "${name}=${value}") cfg.env)
       }' \
-      "${wstManageScript}/bin/wst-manage" "$@"
+      "${lib.getExe manage}" "$@"
   '';
 in
 {
@@ -80,6 +95,10 @@ in
     enable = mkEnableOption "web security tracker for Nixpkgs and similar monorepos";
 
     package = mkPackageOption pkgs "nix-security-tracker" { };
+    extra-python-packages = mkOption {
+      type = types.listOf types.package;
+      default = [ ];
+    };
     frontend = mkOption {
       type = types.package;
       default = pkgs.callPackage ./frontend.nix { };
@@ -111,7 +130,21 @@ in
       # only override defaults with explicit values
       apply = lib.recursiveUpdate default;
     };
-
+    manage-prefix = mkOption {
+      description = ''
+        Prefix for the `manage` script command name, to differentiate from other Django services deployed on the same machine.
+      '';
+      type = types.str;
+      default = "";
+    };
+    manage = mkOption {
+      description = ''
+        Path to the Django `manage.py` entrypoint.
+        Override to use a different source tree without rebuilding the package.
+      '';
+      type = types.path;
+      default = "${cfg.package}/bin/manage.py";
+    };
     settings = mkOption rec {
       description = ''
         Django configuration via environment variables, see `settings.py` for options.
@@ -123,7 +156,7 @@ in
         VITE_MANIFEST_PATH = "${cfg.frontend}/.vite/manifest.json";
         PACKAGE_CLUSTERING_BATCH_SIZE =
           let
-            parallelism = cfg.maxJobProcessors + 1; # account for periodic backfill
+            parallelism = cfg.suggestionRefreshProcesses + 1; # account for periodic backfill
             # fall back to implicit Postgres defaults
             connections = cfg.services.postgresql.settings.max_connections or 100;
             locks = cfg.services.postgresql.settings.max_locks_per_transaction or 64;
@@ -164,17 +197,38 @@ in
       default = 2;
     };
 
-    enablePgbouncer = mkEnableOption ''
-      PgBouncer connection pooling in front of PostgreSQL for the ASGI web server.
+    suggestionRefreshProcesses = mkOption {
+      description = ''
+        How many parallel pgpubsub listener processes to run for
+        SuggestionRefreshChannel, i.e. how many suggestion derivation-link
+        refreshes can run concurrently after an evaluation completes.
+      '';
+      type = types.int;
+      default = 2;
+    };
 
-      When enabled, only `nix-security-tracker-server` connects through
-      PgBouncer. The pgpubsub workers and management commands keep direct database
-      connections, which is required for PostgreSQL LISTEN/NOTIFY.
-    '';
+    enablePgbouncer =
+      (mkEnableOption ''
+        PgBouncer connection pooling in front of PostgreSQL for the ASGI web server.
+
+        When enabled, only `nix-security-tracker-server` connects through
+        PgBouncer. The pgpubsub workers and management commands keep direct database
+        connections, which is required for PostgreSQL LISTEN/NOTIFY.
+      '')
+      // {
+        default = true;
+      };
+    enable-exporters = (mkEnableOption "Prometheus metric exporters") // {
+      default = true;
+    };
   };
 
   config = mkIf cfg.enable {
-    environment.systemPackages = [ wstExternalManageScript ];
+    environment.systemPackages = [ external-manage ];
+    networking.firewall.allowedTCPPorts = [
+      config.services.nginx.defaultHTTPListenPort
+    ]
+    ++ lib.optionals cfg.production [ config.services.nginx.defaultSSLListenPort ];
     services = {
       nix-security-tracker.settings = {
         ALLOWED_HOSTS = mkDefault [
@@ -184,6 +238,7 @@ in
         EVALUATION_LOGS_DIRECTORY = mkDefault "/var/log/nix-security-tracker/evaluation";
         LOCAL_NIXPKGS_CHECKOUT = mkDefault "/var/lib/nix-security-tracker/nixpkgs-repo";
         CVE_CACHE_DIR = mkDefault "/var/lib/nix-security-tracker/cve-cache";
+        METRICS_TEXTFILE_DIR = mkDefault "/var/lib/${metrics-group}";
         ACCOUNT_DEFAULT_HTTP_PROTOCOL = mkDefault (with cfg; if production then "https" else "http");
         BASE_URL = mkDefault (with cfg; "http${optionalString production "s"}://${domain}");
       };
@@ -214,8 +269,8 @@ in
         };
       };
 
-      postgresql.enable = true;
       postgresql = {
+        enable = true;
         ensureUsers = [
           {
             name = "nix-security-tracker";
@@ -223,6 +278,21 @@ in
           }
         ];
         ensureDatabases = [ "nix-security-tracker" ];
+      }
+      // optionalAttrs cfg.enable-exporters {
+        identMap =
+          let
+            exporters = config.services.prometheus.exporters;
+          in
+          ''
+            map-nix-security-tracker nix-security-tracker nix-security-tracker
+            map-nix-security-tracker ${exporters.sql.user} nix-security-tracker
+            ${optionalString cfg.enablePgbouncer "map-nix-security-tracker ${config.services.pgbouncer.user} nix-security-tracker"}
+            postgres ${exporters.postgres.user} postgres
+          '';
+        authentication = ''
+          local all nix-security-tracker ident map=map-nix-security-tracker
+        '';
       };
 
       # PgBouncer fronts only the ASGI web server. Workers and management
@@ -250,17 +320,72 @@ in
     users.users.nix-security-tracker = {
       isSystemUser = true;
       group = "nix-security-tracker";
+      home = config.systemd.services.nix-security-tracker-server.serviceConfig.WorkingDirectory;
     };
     users.groups.nix-security-tracker = { };
+
+    users.groups.${metrics-group} = lib.mkIf cfg.enable-exporters { };
+    users.users.${config.services.prometheus.exporters.node.user} = lib.mkIf cfg.enable-exporters {
+      extraGroups = [ metrics-group ];
+    };
+
+    services.prometheus.exporters = mkIf cfg.enable-exporters {
+      node = {
+        enable = true;
+        openFirewall = true;
+        enabledCollectors = [ "textfile" ];
+        extraFlags = [
+          "--collector.textfile.directory=${cfg.settings.METRICS_TEXTFILE_DIR}"
+        ];
+      };
+      postgres = {
+        enable = true;
+        openFirewall = true;
+        # FIXME(@fricklerhandwerk): Remove when the fix to the upstream issue has landed in Nixpkgs:
+        # https://github.com/prometheus-community/postgres_exporter/issues/1310
+        extraFlags = [ "--no-collector.stat_replication" ];
+      };
+      sql = {
+        enable = true;
+        openFirewall = true;
+        configuration.jobs.sectracker = {
+          queries = import ../infra/sql-exporter-queries.nix;
+          connections =
+            let
+              db-name = builtins.head config.services.postgresql.ensureDatabases;
+              db-user = (builtins.head config.services.postgresql.ensureUsers).name;
+            in
+            [ "postgres://${db-user}@/${db-name}?host=/run/postgresql" ];
+          interval = "1h";
+        };
+      };
+    };
+
+    systemd.tmpfiles.rules = lib.optionals cfg.enable-exporters [
+      "d ${cfg.settings.METRICS_TEXTFILE_DIR} 2750 nix-security-tracker ${metrics-group} -"
+    ];
+
+    systemd.targets = {
+      nix-security-tracker = {
+        description = "Web security tracker services";
+        wantedBy = [ "multi-user.target" ];
+      };
+      nix-security-tracker-workers = {
+        description = "Web security tracker background workers";
+        wantedBy = [ "nix-security-tracker.target" ];
+      };
+    };
 
     systemd.services =
       let
         defaults = {
           path = [
             pythonEnv
-            wstManageScript
+            manage
             pkgs.nix-eval-jobs
           ];
+          wantedBy = [ "nix-security-tracker.target" ];
+          partOf = [ "nix-security-tracker.target" ];
           serviceConfig = {
             User = "nix-security-tracker";
             WorkingDirectory = "/var/lib/nix-security-tracker";
@@ -277,6 +402,19 @@ in
       in
       mkMerge [
         (mapAttrs (_: recursiveUpdate defaults) {
+          nix-security-tracker-checkout = {
+            description = "Web security tracker - Nixpkgs initial checkout";
+            after = [ "network.target" ];
+            wantedBy = [ "multi-user.target" ];
+            serviceConfig = {
+              Type = "oneshot";
+              StateDirectory = [
+                "nix-security-tracker"
+                (lib.removePrefix "/var/lib/" cfg.settings.LOCAL_NIXPKGS_CHECKOUT)
+              ];
+            };
+            script = "${manage.name} initiate_checkout";
+          };
           nix-security-tracker-migrations = {
             description = "Web security tracker - database migrations";
             after = [
@@ -284,7 +422,6 @@ in
               "postgresql.service"
             ];
             requires = [ "postgresql.service" ];
-            wantedBy = [ "multi-user.target" ];
 
             serviceConfig.Type = "oneshot";
 
@@ -292,8 +429,8 @@ in
             script = ''
               versionFile="/var/lib/nix-security-tracker/package-version"
               if [[ $(cat "$versionFile" 2>/dev/null) != ${cfg.package} ]]; then
-                wst-manage migrate --no-input
-                wst-manage collectstatic --no-input --clear
+                ${manage.name} migrate --no-input
+                ${manage.name} collectstatic --no-input --clear
                 echo ${cfg.package} > "$versionFile"
               fi
             '';
@@ -311,7 +448,6 @@ in
               "nix-security-tracker-migrations.service"
             ]
             ++ lib.optionals cfg.enablePgbouncer [ "pgbouncer.service" ];
-            wantedBy = [ "multi-user.target" ];
             serviceConfig = {
               Restart = cfg.restart;
               TimeoutStartSec = lib.mkDefault "10m";
@@ -333,27 +469,39 @@ in
             # CONN_MAX_AGE=0 lets PgBouncer do the pooling. Other services
             # (workers and management commands) keep the value from
             # `cfg.settings` so their direct connections persist.
-            environment.DJANGO_SETTINGS = builtins.toJSON (cfg.settings // { DATABASE_CONN_MAX_AGE = 0; });
+            environment.DJANGO_SETTINGS = builtins.toJSON (
+              cfg.settings
+              // {
+                DATABASE_CONN_MAX_AGE = 0;
+                DATABASE_DISABLE_SERVER_SIDE_CURSORS = true;
+              }
+            );
           };
 
           nix-security-tracker-evaluator = {
             description = "Web security tracker - Nixpkgs evaluation worker";
+            requiredBy = [ "nix-security-tracker-workers.target" ];
+            partOf = [
+              "nix-security-tracker-workers.target"
+              "nix-security-tracker.target"
+            ];
             after = [
               "network.target"
               "postgresql.service"
+              "nix-security-tracker-checkout.service"
               "nix-security-tracker-worker.service"
             ];
             requires = [
               "postgresql.service"
+              "nix-security-tracker-checkout.service"
               "nix-security-tracker-worker.service"
             ];
-            wantedBy = [ "multi-user.target" ];
 
             script = ''
               # Before starting, crash all the in-progress evaluations.
               # This will prevent them from being stalled forever, since workers would not pick up evaluations marked as in-progress.
-              wst-manage crash_all_evaluations
-              wst-manage listen --recover \
+              ${manage.name} crash_all_evaluations
+              ${manage.name} listen --recover \
                 --processes ${toString cfg.maxJobProcessors} \
                 --channels \
                   shared.channels.NixEvaluationChannel
@@ -371,7 +519,6 @@ in
               "postgresql.service"
               "nix-security-tracker-migrations.service"
             ];
-            wantedBy = [ "multi-user.target" ];
 
             serviceConfig = {
               Type = "oneshot";
@@ -379,8 +526,9 @@ in
               UMask = "0027";
             };
             script = ''
-              wst-manage backfill_package_clustering
-              wst-manage regenerate_cached_suggestions
+              ${manage.name} backfill_package_clustering
+              ${manage.name} rematch_stale_suggestions
+              ${manage.name} regenerate_cached_suggestions
             '';
           };
 
@@ -398,16 +546,20 @@ in
               "postgresql.service"
               "nix-security-tracker-migrations.service"
             ];
-            wantedBy = [ "multi-user.target" ];
 
             serviceConfig.Type = "oneshot";
             script = ''
-              wst-manage backfill_proposal_package_links
+              ${manage.name} backfill_proposal_package_links
             '';
           };
 
           nix-security-tracker-worker = {
             description = "Web security tracker - background job processor";
+            requiredBy = [ "nix-security-tracker-workers.target" ];
+            partOf = [
+              "nix-security-tracker-workers.target"
+              "nix-security-tracker.target"
+            ];
             after = [
               "network.target"
               "postgresql.service"
@@ -417,10 +569,9 @@ in
               "postgresql.service"
               "nix-security-tracker-migrations.service"
             ];
-            wantedBy = [ "multi-user.target" ];
 
             script = ''
-              wst-manage listen --recover \
+              ${manage.name} listen --recover \
                 --channels \
                   shared.channels.NixChannelInsertChannel \
                   shared.channels.NixChannelUpdateChannel \
@@ -431,6 +582,11 @@ in
 
           nix-security-tracker-worker-rematching = {
             description = "Web security tracker - post-evaluation suggestion rematching";
+            requiredBy = [ "nix-security-tracker-workers.target" ];
+            partOf = [
+              "nix-security-tracker-workers.target"
+              "nix-security-tracker.target"
+            ];
             after = [
               "network.target"
               "postgresql.service"
@@ -440,12 +596,13 @@ in
               "postgresql.service"
               "nix-security-tracker-migrations.service"
             ];
-            wantedBy = [ "multi-user.target" ];
 
             script = ''
-              wst-manage listen --recover \
+              ${manage.name} listen \
+                --processes ${toString cfg.suggestionRefreshProcesses} \
                 --channels \
                   shared.channels.NixEvaluationUpdateChannel \
+                  shared.channels.SuggestionRefreshChannel \
             '';
           };
 
@@ -461,11 +618,11 @@ in
               "postgresql.service"
               "nix-security-tracker-worker.service"
             ];
-
+            wantedBy = [ ];
             serviceConfig.Type = "oneshot";
 
             script = ''
-              wst-manage fetch_all_channels
+              ${manage.name} fetch_all_channels
             '';
 
             # Ideally, start at whatever night means.
@@ -483,10 +640,11 @@ in
               "postgresql.service"
               "nix-security-tracker-worker.service"
             ];
+            wantedBy = [ ];
             serviceConfig.Type = "oneshot";
 
             script = ''
-              wst-manage ingest_delta_cve "$(date --date='yesterday' --iso)" ${
+              ${manage.name} ingest_delta_cve "$(date --date='yesterday' --iso)" ${
                 optionalString (cfg.cve.startDate != null) "--default-start-ingestion ${cfg.cve.startDate}"
               }
             '';
@@ -506,10 +664,11 @@ in
               "postgresql.service"
               "nix-security-tracker-migrations.service"
             ];
-
+            wantedBy = [ ];
             serviceConfig.Type = "oneshot";
+
             script = ''
-              wst-manage garbage_collect
+              ${manage.name} garbage_collect
             '';
 
             # Weekly cleanup.

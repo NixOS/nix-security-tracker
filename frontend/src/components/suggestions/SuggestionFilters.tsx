@@ -8,8 +8,8 @@ import { statusLabel } from "./SuggestionStatus";
 import { SuggestionStatusIcon } from "./SuggestionStatusIcon";
 
 const STATUS_OPTIONS: ToggleGroupOption[] = [
-  Status.pending,
   Status.rejected,
+  Status.pending,
   Status.accepted,
   Status.published,
 ].map((status) => ({
@@ -24,8 +24,10 @@ const STATUS_OPTIONS: ToggleGroupOption[] = [
 
 // "in issue draft" is a flag, not status, but presented as an extra toggle alongside
 const ISSUE_DRAFT_VALUE = "issue_draft";
+
+// NOTE(@florentc): ugly hardcoded insertion in 4rth position so that "Issue draft" appears before "Published"
 const TOGGLE_OPTIONS: ToggleGroupOption[] = [
-  ...STATUS_OPTIONS,
+  ...STATUS_OPTIONS.slice(0, 3),
   {
     value: ISSUE_DRAFT_VALUE,
     label: (
@@ -35,6 +37,7 @@ const TOGGLE_OPTIONS: ToggleGroupOption[] = [
       </span>
     ),
   },
+  STATUS_OPTIONS[3],
 ];
 
 const DEBOUNCE_PACKAGE_MS = 500;

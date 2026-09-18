@@ -26,6 +26,7 @@ jobs:
           ../result/bin/npm update
           NEW_HASH="$(../result/bin/prefetch-npm-deps package-lock.json)"
           sed -i "s|npmDepsHash = \"[^\"]*\";|npmDepsHash = \"$NEW_HASH\";|" ../nix/frontend.nix
+          rm -rf node_modules
       - uses: actions/create-github-app-token@29824e69f54612133e76f7eaac726eef6c875baf # v2.2.1
         id: generate-token
         with:

@@ -30,9 +30,7 @@ in
     ];
   };
 
-  # FIXME(@fricklerhandwerk): Don't give everyone root.
-  # Wire the users to have the right permissions for doing what they need.
-  users.users.root.openssh.authorizedKeys.keyFiles = with config.custom.keys; [
+  custom.dump-db.authorizedKeyFiles = with config.custom.keys; [
     florentc
     DarshanCode2005
   ];
@@ -80,16 +78,10 @@ in
   };
   security.acme.acceptTerms = true;
   security.acme.defaults.email = "infra@nixos.org";
-  networking.firewall.allowedTCPPorts = [
-    80
-    443
-  ];
   services.nix-security-tracker = {
     enable = true;
     production = true;
     domain = "tracker-staging.security.nixos.org";
-
-    enablePgbouncer = true;
 
     settings = {
       SHOW_DEMO_DISCLAIMER = true;

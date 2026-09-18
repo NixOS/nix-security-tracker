@@ -12,12 +12,14 @@ _OUTDATED_VERSION: int = (
 )
 
 
-def test_untriaged_list_shows_active_version_only(
+def test_untriaged_list_shows_all_algorithm_versions(
     live_server: LiveServer,
     as_staff: Page,
     make_cached_suggestion: Callable[..., CVEDerivationClusterProposal],
 ) -> None:
-    """Only current-version proposals appear on the untriaged (pending) list."""
+    """
+    Pending proposals from any algorithm version appear on the untriaged list.
+    """
 
     current_proposal = make_cached_suggestion(
         status=CVEDerivationClusterProposal.Status.PENDING,
@@ -31,16 +33,18 @@ def test_untriaged_list_shows_active_version_only(
     as_staff.goto(live_server.url + reverse("webview:suggestion:untriaged_suggestions"))
 
     expect(as_staff.locator(f"#suggestion-{current_proposal.pk}")).to_be_visible()
-    expect(as_staff.locator(f"#suggestion-{outdated_proposal.pk}")).not_to_be_visible()
+    expect(as_staff.locator(f"#suggestion-{outdated_proposal.pk}")).to_be_visible()
 
 
-def test_list_by_package_shows_target_propospals_only(
+def test_list_by_package_shows_all_algorithm_versions(
     live_server: LiveServer,
     as_staff: Page,
     make_cached_suggestion: Callable[..., CVEDerivationClusterProposal],
     drv: NixDerivation,
 ) -> None:
-    """Only current-version proposals appear on the untriaged (pending) list."""
+    """
+    Proposals from any algorithm version appear in the package-filtered list.
+    """
     current_proposal = make_cached_suggestion(
         status=CVEDerivationClusterProposal.Status.PENDING,
     )
@@ -61,7 +65,7 @@ def test_list_by_package_shows_target_propospals_only(
 
     expect(as_staff.locator(f"#suggestion-{current_proposal.pk}")).to_be_visible()
     expect(as_staff.locator(f"#suggestion-{accepted_outdated.pk}")).to_be_visible()
-    expect(as_staff.locator(f"#suggestion-{outdated_proposal.pk}")).not_to_be_visible()
+    expect(as_staff.locator(f"#suggestion-{outdated_proposal.pk}")).to_be_visible()
 
 
 def test_accepted_and_dismissed_lists_show_all_versions(

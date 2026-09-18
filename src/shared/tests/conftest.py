@@ -160,7 +160,7 @@ def make_channel(
         channel_branch: str = settings.TRACKING_BRANCH,
         release_branch: NixpkgsBranch = branch,
         state: NixChannel.ChannelState = NixChannel.ChannelState.UNSTABLE,
-        variant: NixChannel.Variant | None = None,
+        variant: NixChannel.Variant | None = NixChannel.Variant.SMALL,
     ) -> NixChannel:
         channel, _ = NixChannel.objects.get_or_create(
             channel_branch=channel_branch,
@@ -265,19 +265,25 @@ def make_drv(
         version: str = "1.0",
         system: str = "x86_64-linux",
         attribute: str | None = None,
+        homepage: str = "https://example.org",
+        description: str = "Dummy derivation",
         evaluation: NixEvaluation = evaluation,
         maintainer: NixMaintainer = maintainer,
         known_vulnerabilities: list[str] | None = None,
+        cpe_vendor: str | None = None,
+        cpe_product: str | None = None,
     ) -> NixDerivation:
         meta = NixDerivationMeta.objects.create(
-            description="Dummy derivation",
-            homepage="https://example.com",
+            description=description,
+            homepage=homepage,
             insecure=False,
             available=True,
             broken=False,
             unfree=False,
             unsupported=False,
             known_vulnerabilities=known_vulnerabilities or [],
+            cpe_vendor=cpe_vendor,
+            cpe_product=cpe_product,
         )
         meta.maintainers.add(maintainer)
 

@@ -2,6 +2,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { ApiError } from "@/api/client";
 import {
   getGetSuggestionActivityLogQueryKey,
+  getListSuggestionsQueryKey,
   useUpdateSuggestionPackage,
 } from "@/api/generated/endpoints";
 import type {
@@ -16,6 +17,7 @@ import {
   getCachedSuggestion,
   invalidateCachedSuggestion,
   setCachedSuggestion,
+  staleQuietly,
 } from "@/utils/suggestionCache";
 import { toaster } from "@/utils/toaster";
 
@@ -83,10 +85,11 @@ export function usePackageMutation(suggestionId: number) {
       onSuccess: () => {
         // A new activity log entry is created server-side.
         // The suggestion cache is correct via the optimistic update above.
-        // We only refresh the activity log.
         queryClient.invalidateQueries({
           queryKey: getGetSuggestionActivityLogQueryKey(suggestionId),
         });
+        // A package moving in/out of `active` can affect the "with package" list filter.
+        staleQuietly(queryClient, getListSuggestionsQueryKey());
       },
     },
   });

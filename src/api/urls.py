@@ -1,10 +1,11 @@
 from django.urls import include, path
-from drf_spectacular.views import SpectacularAPIView
+from drf_spectacular.views import SpectacularAPIView, SpectacularSwaggerView
 from rest_framework import routers
 
 from api.issues.views import IssueViewSet
 from api.matching.views import MatchingTrainingDataView
 from api.me import CurrentUserView
+from api.notifications.views import NotificationViewSet
 from api.server_info import ServerInfoView
 from api.subscriptions.views import SubscriptionsViewSet
 from api.suggestions.views import SuggestionViewSet
@@ -12,6 +13,7 @@ from api.tokens.views import TokenManagementView
 
 v1_router = routers.DefaultRouter(trailing_slash=False)
 v1_router.register(r"issues", IssueViewSet)
+v1_router.register(r"notifications", NotificationViewSet, basename="notifications")
 v1_router.register("suggestions", SuggestionViewSet)
 v1_router.register("subscriptions", SubscriptionsViewSet)
 
@@ -26,4 +28,5 @@ urlpatterns = [
         name="matching-training-data",
     ),
     path("schema/", SpectacularAPIView.as_view(), name="schema"),
+    path("docs/", SpectacularSwaggerView.as_view(url_name="schema"), name="swagger-ui"),
 ]

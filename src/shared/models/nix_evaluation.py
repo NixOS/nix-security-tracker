@@ -115,6 +115,15 @@ class NixDerivationMeta(models.Model):
 
     position = models.URLField(null=True)
 
+    # From nixpkgs meta.identifiers.cpeParts (maintainer-provided CPE mapping).
+    cpe_vendor = models.CharField(max_length=512, null=True)
+    cpe_product = models.CharField(max_length=2048, null=True)
+
+    class Meta:  # type: ignore[override]
+        indexes = [
+            models.Index(fields=["cpe_vendor", "cpe_product"]),
+        ]
+
     def get_description(self) -> str | None:
         description: str | None = None
         try:

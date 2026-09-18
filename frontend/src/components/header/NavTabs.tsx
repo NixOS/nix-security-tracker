@@ -18,15 +18,27 @@ export function NavTabs() {
   return (
     <TabsRoot
       value={value}
+      // NOTE(@florentc): onValueChange also takes keyboard navigation into account.
+      // Not redundant with `onClick` on each tab
       onValueChange={({ value }) => setLocation(`/ui-v2/${value}`)}
       className={styles.tabsRoot}
     >
       <TabList className={`row ${styles.tabList}`}>
-        <TabTrigger value="suggestions" className={`column centered ${styles.tab} cursor-pointer`}>
+        <TabTrigger
+          value="suggestions"
+          // NOTE(@florentc): needed to force going back to list when browsing suggestion detail
+          onClick={() => setLocation("/ui-v2/suggestions")}
+          className={`column centered ${styles.tab} cursor-pointer`}
+        >
           <ShieldIcon size="1.5em" />
           <span className="no-line-breaks">Suggestions</span>
         </TabTrigger>
-        <TabTrigger value="issues" className={`column centered ${styles.tab} cursor-pointer`}>
+        <TabTrigger
+          value="issues"
+          // NOTE(@florentc): needed to force going back to list when browsing issue detail
+          onClick={() => setLocation("/ui-v2/issues")}
+          className={`column centered ${styles.tab} cursor-pointer`}
+        >
           <GlobeCheckIcon size="1.5em" />
           <span className="no-line-breaks">Nixpkgs Issues</span>
         </TabTrigger>

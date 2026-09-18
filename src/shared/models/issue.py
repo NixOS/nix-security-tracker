@@ -1,11 +1,13 @@
 import logging
 from enum import STRICT, IntFlag, auto
 from typing import Any
+from urllib.parse import urljoin
 
 from django.core.exceptions import ValidationError
-from django.db import IntegrityError, models
+from django.db import IntegrityError, models, transaction
 from django.db.models.signals import post_save
 from django.dispatch import receiver
+from django.utils import timezone
 from django.utils.translation import gettext_lazy as _
 
 from shared.models.linkage import CVEDerivationClusterProposal
@@ -97,7 +99,7 @@ class NixpkgsIssue(TimeStampMixin):
             raise ValueError("Cannot publish a NixpkgsIssue with no title")
 
         tracker_issue_path = reverse("webview:issue_detail", args=[self.code])
-        tracker_issue_link = f"{settings.BASE_URL}{tracker_issue_path}"
+        tracker_issue_link = urljoin(str(settings.BASE_URL), tracker_issue_path)
 
         suggestions = list(self.suggestions.select_related("cached").all())
         if not suggestions:
@@ -114,6 +116,25 @@ class NixpkgsIssue(TimeStampMixin):
             event_type=EventType.ISSUE | EventType.OPENED,
             url=github_issue_link,
         )
+
+    @classmethod
+    def publish_suggestions(
+        cls, suggestions: list[CVEDerivationClusterProposal], title: str
+    ) -> "NixpkgsIssue":
+        with transaction.atomic():
+            issue = cls.create_nixpkgs_issue(suggestions, title)
+            issue.publish()
+            # QuerySet.update() bypasses Model.save(), so Django's auto_now on
+            # updated_at is never triggered here; set it explicitly so published
+            # suggestions sort correctly (the suggestion list orders by -updated_at).
+            CVEDerivationClusterProposal.objects.filter(
+                pk__in=[s.pk for s in suggestions]
+            ).update(
+                status=CVEDerivationClusterProposal.Status.PUBLISHED,
+                in_issue_draft=False,
+                updated_at=timezone.now(),
+            )
+        return issue
 
 
 @receiver(post_save, sender=NixpkgsIssue)

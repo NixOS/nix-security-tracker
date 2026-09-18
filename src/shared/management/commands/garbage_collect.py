@@ -14,7 +14,9 @@ from django.db.models import (
     When,
 )
 from django.utils import timezone
+from pgpubsub.models import Notification
 
+from shared.channels import NixEvaluationUpdateChannel, SuggestionRefreshChannel
 from shared.models import (  # type: ignore
     CVEDerivationClusterProposalStatusEvent,
     DerivationClusterProposalLinkEvent,
@@ -89,6 +91,8 @@ class Command(BaseCommand):
         self._delete_inactive_channels(batch_size)
         self.stdout.write("\n[6/6] Pruning stale package attrpaths")
         self._prune_stale_package_attrpaths(batch_size)
+        self.stdout.write("\nDeleting stale rematching triggers")
+        self._delete_stale_triggers()
 
         self.stdout.write(self.style.SUCCESS("\nGarbage collection complete."))
 
@@ -277,6 +281,23 @@ class Command(BaseCommand):
             pk_field="channel_branch",
             label="channels",
             batch_size=batch_size,
+        )
+
+    def _delete_stale_triggers(self) -> None:
+        """
+        Reclaim rematching trigger notifications that the listener never drained.
+        Anything older than a day cannot represent live work, since a healthy live listener drains within seconds and the next evaluation would re-emit fresh triggers for anything still relevant.
+        """
+        channels = [SuggestionRefreshChannel, NixEvaluationUpdateChannel]
+        # The producer-side of each channel type records the channel identifier under a different convention.
+        # Both spellings need to be matched to reach all orphaned rows.
+        names = [n for c in channels for n in (c.name(), c.listen_safe_name())]
+        cutoff = timezone.now() - timedelta(hours=24)
+        deleted, _ = Notification.objects.filter(
+            channel__in=names, created_at__lt=cutoff
+        ).delete()
+        self.stdout.write(
+            self.style.SUCCESS(f"Deleted stale rematching triggers: {deleted}")
         )
 
     def _prune_stale_package_attrpaths(self, batch_size: int) -> None:

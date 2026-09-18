@@ -2,6 +2,7 @@ import { EyeIcon } from "lucide-preact";
 import { useSearchParams } from "wouter-preact";
 import { useListSuggestions } from "@/api/generated/endpoints";
 import type { Suggestion as SuggestionType } from "@/api/generated/models";
+import { IssueDraftPanel } from "@/components/suggestions/IssueDraftPanel";
 import { Suggestion } from "@/components/suggestions/Suggestion";
 import { SuggestionFilters } from "@/components/suggestions/SuggestionFilters";
 import { SuggestionViewToggle } from "@/components/suggestions/SuggestionViewToggle";
@@ -52,7 +53,14 @@ export function SuggestionList() {
     status: filters.statuses.length > 0 ? filters.statuses : undefined,
     in_issue_draft: filters.inIssueDraft || undefined,
     package: filters.packageFilter || undefined,
+    activity_log: true,
   });
+
+  const showIssueDraftPanel =
+    filters.inIssueDraft &&
+    filters.statuses.length === 0 &&
+    !filters.packageFilter &&
+    (data?.count ?? 0) > 0;
 
   const handlePageChange = (newPage: number) => {
     setSearchParams((prev) => {
@@ -76,6 +84,7 @@ export function SuggestionList() {
           setInIssueDraft={setInIssueDraft}
           setPackageFilter={setPackageFilter}
         />
+        <IssueDraftPanel open={showIssueDraftPanel} />
         <div className="row gap centered justify-right">
           <div className="row gap-small centered">
             <EyeIcon size="1em" />

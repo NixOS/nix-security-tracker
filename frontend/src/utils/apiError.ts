@@ -9,8 +9,14 @@ export function isRateLimited(error: unknown): boolean {
 
 /**
  * Extracts a human-readable message from an error thrown by `apiFetch`.
+ *
+ * Field validation errors are prefixed by the field name.
+ * `includeFiled` set to false omits it.
  */
-export function getApiErrorMessage(error: unknown): string {
+export function getApiErrorMessage(
+  error: unknown,
+  { includeField = true }: { includeField?: boolean } = {},
+): string {
   if (error instanceof ApiError) {
     const body = error.body;
     if (body && typeof body === "object") {
@@ -20,7 +26,7 @@ export function getApiErrorMessage(error: unknown): string {
 
       const [field, messages] = Object.entries(body)[0] ?? [];
       if (field && Array.isArray(messages) && typeof messages[0] === "string") {
-        return `${field}: ${messages[0]}`;
+        return includeField ? `${field}: ${messages[0]}` : messages[0];
       }
     }
   }

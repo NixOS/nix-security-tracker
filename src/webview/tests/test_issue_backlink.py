@@ -5,6 +5,7 @@ import pytest
 from django.conf import settings
 from django.test import override_settings
 from django.urls import reverse
+from pydantic import HttpUrl
 
 from shared.github import create_gh_issue
 from shared.models.linkage import CVEDerivationClusterProposal
@@ -81,4 +82,30 @@ def test_publish_uses_base_url(
 
     assert tracker_issue_link == expected_link, (
         f"Expected tracker link '{expected_link}', but got: '{tracker_issue_link}'"
+    )
+
+
+@pytest.mark.django_db
+def test_publish_tracker_link_no_double_slash(
+    make_cached_suggestion: Callable[..., CVEDerivationClusterProposal],
+) -> None:
+    suggestion = make_cached_suggestion(
+        status=CVEDerivationClusterProposal.Status.ACCEPTED
+    )
+
+    from shared.models import NixpkgsIssue
+
+    tracker_issue = NixpkgsIssue.create_nixpkgs_issue([suggestion], "Issue title")
+
+    with (
+        patch("shared.github.create_gh_issue") as mock_create_gh_issue,
+        override_settings(BASE_URL=HttpUrl("https://tracker.example.org")),
+    ):
+        mock_create_gh_issue.return_value.html_url = "https://github.com/mock/issue/1"
+        tracker_issue.publish()
+
+        tracker_issue_link = mock_create_gh_issue.call_args[0][2]
+
+    assert "//" not in tracker_issue_link.split("://")[1], (
+        f"Double slash in tracker link: {tracker_issue_link}"
     )

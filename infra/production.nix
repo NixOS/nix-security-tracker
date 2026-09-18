@@ -12,12 +12,6 @@ in
     ./common.nix
   ];
 
-  # FIXME(@fricklerhandwerk): Don't give everyone root.
-  # Wire the users to have the right permissions for doing what they need.
-  users.users.root.openssh.authorizedKeys.keyFiles = with config.custom.keys; [
-
-  ];
-
   networking.hostName = "sectracker";
 
   fileSystems."/" = {
@@ -78,16 +72,10 @@ in
   };
   security.acme.acceptTerms = true;
   security.acme.defaults.email = "infra@nixos.org";
-  networking.firewall.allowedTCPPorts = [
-    80
-    443
-  ];
   services.nix-security-tracker = {
     enable = true;
     production = true;
     domain = "tracker.security.nixos.org";
-
-    enablePgbouncer = true;
 
     settings = {
       SYNC_GITHUB_STATE_AT_STARTUP = true;

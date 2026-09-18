@@ -21,6 +21,18 @@
       "url": "https://files.pythonhosted.org/packages/a4/30/9b907ff7e4af8c64d5461ab7e7beeff5dc53893dd1c70347069915c82eb1/cpe-1.3.1.tar.gz",
       "hash": "sha256-8wqXiBtut0ptYwVSrrzgPfIs3belh9YyoTtOFLZrlbA="
     },
+    "grafana-dashboard-node": {
+      "type": "Url",
+      "url": "https://grafana.com/api/dashboards/1860/revisions/latest/download",
+      "unpack": false,
+      "hash": "sha256-GExrdAnzBtp1Ul13cvcZRbEM6iOtFrXXjEaY6g6lGYY="
+    },
+    "grafana-dashboard-postgres": {
+      "type": "Url",
+      "url": "https://grafana.com/api/dashboards/9628/revisions/latest/download",
+      "unpack": false,
+      "hash": "sha256-UhusNAZbyt7fJV/DhFUK4FKOmnTpG0R15YO2r+nDnMc="
+    },
     "htmx": {
       "type": "GitRelease",
       "repository": {
@@ -46,9 +58,9 @@
       },
       "branch": "main",
       "submodules": false,
-      "revision": "1dc230dd0e5a44a9fe25346bf9af2b6eaf58ac53",
-      "url": "https://github.com/nixos/infra/archive/1dc230dd0e5a44a9fe25346bf9af2b6eaf58ac53.tar.gz",
-      "hash": "sha256-hn3FpGRfvmEW5uAqYkybpIqNwioBwfqvWcAtR0rQPac="
+      "revision": "2007e09a5d508b8de5d475e1a6a55515fdc1fce3",
+      "url": "https://github.com/nixos/infra/archive/2007e09a5d508b8de5d475e1a6a55515fdc1fce3.tar.gz",
+      "hash": "sha256-Nn2cJPCS24ge0JCdSq/ANGnC1sozBYX4+Wf+uqLuN+8="
     },
     "nixos-logo": {
       "type": "Url",
@@ -60,8 +72,8 @@
       "type": "Channel",
       "name": "nixpkgs-unstable",
       "artifact": "nixexprs.tar.xz",
-      "url": "https://releases.nixos.org/nixpkgs/nixpkgs-26.11pre1059574.a831408e6378/nixexprs.tar.xz",
-      "hash": "sha256-YfYkbkJcUQ1wzXVX4BcIsLJ+xvB2yHdEbkRl7nPUXA4="
+      "url": "https://releases.nixos.org/nixpkgs/nixpkgs-26.11pre1072974.02f5696b0e60/nixexprs.tar.xz",
+      "hash": "sha256-iR1Jj6svMpvLxPWA40qp+WUpg3MStLXJy5TZrP2cPes="
     },
     "pre-commit-hooks": {
       "type": "Git",
@@ -72,9 +84,9 @@
       },
       "branch": "master",
       "submodules": false,
-      "revision": "809414f0cdadf82cf11b06c2b29ba9b3168b3297",
-      "url": "https://github.com/cachix/pre-commit-hooks.nix/archive/809414f0cdadf82cf11b06c2b29ba9b3168b3297.tar.gz",
-      "hash": "sha256-O2tBn84NNuHrnqNVxx/XqsXwfYvS1YwBh+7CBnbCYsk="
+      "revision": "27555e2624241fb116b49095df4caaee85a25691",
+      "url": "https://github.com/cachix/pre-commit-hooks.nix/archive/27555e2624241fb116b49095df4caaee85a25691.tar.gz",
+      "hash": "sha256-nt+lUqYVpc9Y6JeMd2WmXzCDojasdadKo0mWcluvY2Y="
     }
   },
   "version": 8

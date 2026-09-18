@@ -1,6 +1,7 @@
 import { useState } from "preact/hooks";
 import { Link } from "wouter-preact";
 import type { Suggestion as SuggestionType } from "@/api/generated/models";
+import { ExternalLink } from "@/components/ui/ExternalLink";
 import { useAuth } from "@/hooks/useAuth";
 import {
   DEFAULT_SUGGESTION_VIEW_MODE,
@@ -54,9 +55,7 @@ export function Suggestion({
             <span data-testid={`suggestion-${id}-status`}>
               <SuggestionStatus status={status} rejectionReason={rejection_reason} iconOnly />
             </span>
-            <a href={nvdUrl} target="_blank" rel="noreferrer">
-              {cve_id}
-            </a>
+            <ExternalLink href={nvdUrl}>{cve_id}</ExternalLink>
             {displayedTitle && <span>{truncate(displayedTitle)}</span>}
           </div>
           <div className="row gap centered">
@@ -96,9 +95,7 @@ export function Suggestion({
         <div className="row gap spread align-start">
           <div className="row gap">
             <Link href={`/ui-v2/suggestions/by-id/${id}`}>Permalink</Link>
-            <a href={nvdUrl} target="_blank" rel="noreferrer">
-              {cve_id}
-            </a>
+            <ExternalLink href={nvdUrl}>{cve_id}</ExternalLink>
             {metrics.length > 0 && <SeverityBadge metrics={metrics} />}
           </div>
           <ActivityLog suggestionId={id} />

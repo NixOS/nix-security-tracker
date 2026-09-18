@@ -30,10 +30,12 @@ Similarly, merges on the `production` branch get automatically applied to tracke
 
 ## Adding SSH keys
 
-To request access to the staging or production environment, open a pull request with:
+To request access, open a pull request with:
 
 - Your SSH public key added to a file `<your-github-handle>` in the [`keys`](./keys) directory
-- An addition to `users.users.root.openssh.authorizedKeys.keyFiles` in the respective environment ([staging](./staging.nix), [production](./production.nix), or [both](./common.nix)).
+- In the respective environment ([staging](./staging.nix), [production](./production.nix), or [both](./common.nix)), an addition to:
+  - `custom.dump-db.authorizedKeyFiles` for [obtaining a copy of the database](../CONTRIBUTING.md#resetting-the-database)
+  - `users.users.root.openssh.authorizedKeys.keyFiles` for full access (only needed for operators, all development can be done locally)
 
 ## Secrets
 

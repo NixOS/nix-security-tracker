@@ -3,6 +3,7 @@ from collections.abc import Callable
 import pytest
 from playwright.sync_api import Page, expect
 from pytest_django.live_server_helper import LiveServer
+from pytest_mock import MockerFixture
 
 from shared.models.linkage import CVEDerivationClusterProposal
 from shared.models.nix_evaluation import NixMaintainer
@@ -148,3 +149,137 @@ def test_maintainer_ignore_from_list_updates_the_list_card(
     expect(maintainers.get_by_text("Ignored maintainers", exact=False)).to_be_visible()
     maintainers.get_by_text("Ignored maintainers", exact=False).click()
     expect(maintainers.get_by_role("button", name="Restore")).to_be_visible()
+
+
+@pytest.mark.django_db
+def test_maintainer_add_form_visible_for_committer(
+    live_server: LiveServer,
+    as_committer: Page,
+    cached_suggestion: CVEDerivationClusterProposal,
+) -> None:
+    as_committer.goto(live_server.url + SUGGESTION_DETAIL + f"/{cached_suggestion.pk}")
+    maintainers = as_committer.get_by_test_id(
+        f"suggestion-{cached_suggestion.pk}-maintainers"
+    )
+    expect(maintainers.get_by_placeholder("GitHub username")).to_be_visible()
+    expect(maintainers.get_by_role("button", name="Add")).to_be_visible()
+
+
+@pytest.mark.django_db
+def test_maintainer_add_form_hidden_for_anonymous(
+    live_server: LiveServer,
+    page: Page,
+    cached_suggestion: CVEDerivationClusterProposal,
+) -> None:
+    page.goto(live_server.url + SUGGESTION_DETAIL + f"/{cached_suggestion.pk}")
+    maintainers = page.get_by_test_id(f"suggestion-{cached_suggestion.pk}-maintainers")
+    expect(maintainers.get_by_placeholder("GitHub username")).to_be_hidden()
+
+
+@pytest.mark.django_db
+def test_maintainer_add_new_maintainer_from_github_succeeds(
+    live_server: LiveServer,
+    as_committer: Page,
+    cached_suggestion: CVEDerivationClusterProposal,
+    mocker: MockerFixture,
+) -> None:
+    mocker.patch(
+        "shared.github.fetch_user_info",
+        return_value={
+            "id": 555,
+            "login": "alice",
+            "name": "Alice DeBob",
+            "email": "alice@somewhere.com",
+        },
+    )
+    as_committer.goto(live_server.url + SUGGESTION_DETAIL + f"/{cached_suggestion.pk}")
+    maintainers = as_committer.get_by_test_id(
+        f"suggestion-{cached_suggestion.pk}-maintainers"
+    )
+
+    maintainers.get_by_placeholder("GitHub username").fill("alice")
+    maintainers.get_by_role("button", name="Add").click()
+
+    expect(
+        maintainers.get_by_text("Additional maintainers", exact=False)
+    ).to_be_visible()
+    maintainers.get_by_text("Additional maintainers", exact=False).click()
+    expect(maintainers.get_by_text("Alice DeBob")).to_be_visible()
+    expect(maintainers.get_by_role("button", name="Delete")).to_be_visible()
+
+    activity_log = as_committer.get_by_test_id(
+        f"suggestion-{cached_suggestion.pk}-activity-log"
+    )
+    activity_log.locator("summary").click()
+    expect(activity_log.get_by_text("added maintainer", exact=False)).to_be_visible()
+
+
+@pytest.mark.django_db
+def test_maintainer_add_already_a_maintainer_shows_inline_error(
+    live_server: LiveServer,
+    as_committer: Page,
+    cached_suggestion: CVEDerivationClusterProposal,
+    maintainer: NixMaintainer,
+) -> None:
+    as_committer.goto(live_server.url + SUGGESTION_DETAIL + f"/{cached_suggestion.pk}")
+    maintainers = as_committer.get_by_test_id(
+        f"suggestion-{cached_suggestion.pk}-maintainers"
+    )
+
+    maintainers.get_by_placeholder("GitHub username").fill(maintainer.github)
+    maintainers.get_by_role("button", name="Add").click()
+
+    expect(maintainers.get_by_text("Already a maintainer")).to_be_visible()
+
+
+@pytest.mark.django_db
+def test_maintainer_add_not_found_on_github_shows_inline_error(
+    live_server: LiveServer,
+    as_committer: Page,
+    cached_suggestion: CVEDerivationClusterProposal,
+    mocker: MockerFixture,
+) -> None:
+    mocker.patch("shared.github.fetch_user_info", return_value=None)
+    as_committer.goto(live_server.url + SUGGESTION_DETAIL + f"/{cached_suggestion.pk}")
+    maintainers = as_committer.get_by_test_id(
+        f"suggestion-{cached_suggestion.pk}-maintainers"
+    )
+
+    maintainers.get_by_placeholder("GitHub username").fill("unknown")
+    maintainers.get_by_role("button", name="Add").click()
+
+    expect(
+        maintainers.get_by_text("Could not fetch maintainer from GitHub")
+    ).to_be_visible()
+
+
+@pytest.mark.django_db
+def test_maintainer_delete_removes_added_maintainer_and_logs_activity(
+    live_server: LiveServer,
+    as_committer: Page,
+    cached_suggestion: CVEDerivationClusterProposal,
+    make_maintainer: Callable[..., NixMaintainer],
+) -> None:
+    """Deleting a manually added maintainer removes it and logs activity."""
+    make_maintainer(github_id=555, github="alice", name="Alice DeBob")
+    # Added directly (not through the UI) it's not in the activity log and doesn't get debounced
+    cached_suggestion.add_maintainer("alice")
+
+    as_committer.goto(live_server.url + SUGGESTION_DETAIL + f"/{cached_suggestion.pk}")
+    maintainers = as_committer.get_by_test_id(
+        f"suggestion-{cached_suggestion.pk}-maintainers"
+    )
+    maintainers.get_by_text("Additional maintainers", exact=False).click()
+    expect(maintainers.get_by_role("button", name="Delete")).to_be_visible()
+
+    maintainers.get_by_role("button", name="Delete").click()
+
+    expect(
+        maintainers.get_by_text("Additional maintainers", exact=False)
+    ).to_be_hidden()
+
+    activity_log = as_committer.get_by_test_id(
+        f"suggestion-{cached_suggestion.pk}-activity-log"
+    )
+    activity_log.locator("summary").click()
+    expect(activity_log.get_by_text("deleted maintainer", exact=False)).to_be_visible()

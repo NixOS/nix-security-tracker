@@ -10,14 +10,9 @@ from django.conf import settings
 from django.core.management import call_command
 from django.db import close_old_connections
 
-from shared.cache_suggestions import cache_new_suggestions, parse_drv_name
-from shared.listeners.package_clustering import cluster_after_evaluation
-from shared.models.cached import CachedSuggestions
-from shared.models.cve import Container
-from shared.models.linkage import (
-    CVEDerivationClusterProposal,
-    DerivationClusterProposalLink,
-    ProvenanceFlags,
+from shared.cache_suggestions import parse_drv_name
+from shared.listeners.package_clustering import (
+    cluster_after_evaluation,
 )
 from shared.models.nix_evaluation import (
     NixChannel,
@@ -412,65 +407,61 @@ def test_concurrent_attrpath_consistency(
     assert PackageDerivation.objects.get(derivation=drv_b).package == pkg
 
 
-@pytest.mark.xfail(reason="Not implemented", strict=True)
-def test_cache_rebuilt_after_clustering(
-    cve: Container,
-    make_evaluation: Callable[..., NixEvaluation],
+def test_homepage_change_within_batch(
     make_drv: Callable[..., NixDerivation],
-    make_suggestion: Callable[..., CVEDerivationClusterProposal],
 ) -> None:
-    old_eval = make_evaluation()
-    new_eval = make_evaluation()
+    """
+    Packages are identified by (pname, homepage).
+    The following setup will produce two distinct packages, where one of them has an empty homepage.
+    If the other one's homepage gets cleared, we still don't want them to be considered equal.
 
-    old_drv = make_drv(pname="foo", evaluation=old_eval)
-    make_drv(pname="foo", evaluation=new_eval, attribute=old_drv.attribute)
-
-    suggestion = make_suggestion(
-        container=cve, drvs={old_drv: ProvenanceFlags.PACKAGE_NAME_MATCH}
-    )
-    cache_new_suggestions(suggestion)
-    cached_before = CachedSuggestions.objects.get(proposal=suggestion)
-
-    cluster_after_evaluation(
-        old=NixEvaluation(state=NixEvaluation.EvaluationState.IN_PROGRESS),
-        new=new_eval,
+    The workaround in that case is not to clear the homepage.
+    """
+    drv_old = make_drv(
+        pname="foo",
+        attribute="foo",
+        description="Something",
+        homepage="https://example.org",
     )
 
-    cached_after = CachedSuggestions.objects.get(proposal=suggestion)
-    assert cached_after.updated_at > cached_before.updated_at
+    drv_new = make_drv(
+        pname="foo",
+        attribute="bar",
+        description="Something completely different",
+        homepage=None,
+    )
+    drv_new.derivation_path = "custom"
+    drv_new.save()
 
-
-@pytest.mark.parametrize(
-    "status",
-    [
-        CVEDerivationClusterProposal.Status.REJECTED,
-        CVEDerivationClusterProposal.Status.PUBLISHED,
-    ],
-)
-def test_only_pending_and_accepted_suggestions_updated(
-    status: CVEDerivationClusterProposal.Status,
-    cve: Container,
-    make_evaluation: Callable[..., NixEvaluation],
-    make_drv: Callable[..., NixDerivation],
-    make_suggestion: Callable[..., CVEDerivationClusterProposal],
-) -> None:
-    """Only PENDING and ACCEPTED suggestions have their derivation links refreshed; REJECTED and PUBLISHED are skipped."""
-    old_eval = make_evaluation()
-    new_eval = make_evaluation()
-
-    old_drv = make_drv(pname="foo", evaluation=old_eval)
-    make_drv(pname="foo", evaluation=new_eval, attribute=old_drv.attribute)
-
-    suggestion = make_suggestion(
-        container=cve,
-        drvs={old_drv: ProvenanceFlags.PACKAGE_NAME_MATCH},
-        status=status,
+    cluster_packages(
+        NixDerivation.objects.filter(pk__in=[drv_old.pk, drv_new.pk]),
+        update_packages=False,
     )
 
-    cluster_after_evaluation(
-        old=NixEvaluation(state=NixEvaluation.EvaluationState.IN_PROGRESS),
-        new=new_eval,
+    assert Package.objects.count() == 2
+
+    # This clustering update amounts to:
+    # "Package `pkgs.foo` got its homepage removed."
+    drv_next = make_drv(
+        pname="foo",
+        attribute="foo",
+        description="Something new",
+        homepage=None,
     )
 
-    link = DerivationClusterProposalLink.objects.get(proposal=suggestion)
-    assert link.derivation == old_drv
+    # FIXME(@fricklerhandwerk): Handle the inverse, too, somehow:
+    # drv_next = make_drv(
+    #     pname="foo",
+    #     attribute="bar",
+    #     homepage="https://example.org",
+    # )
+
+    cluster_packages(
+        NixDerivation.objects.filter(pk=drv_next.pk),
+        update_packages=True,
+    )
+
+    assert Package.objects.count() == 2
+    pkg = PackageDerivation.objects.get(derivation=drv_next).package
+    assert pkg.homepage == "https://example.org"
+    assert pkg.description == "Something new"

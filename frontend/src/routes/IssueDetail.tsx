@@ -10,7 +10,7 @@ export function IssueDetail() {
 
   const { data, isLoading, isError, error } = useGetIssue(
     code,
-    { expand: "suggestions" },
+    { expand: "suggestions", activity_log: true },
     { query: { enabled: Boolean(code) } },
   );
 

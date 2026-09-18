@@ -10,6 +10,7 @@ import {
   type SuggestionViewMode,
 } from "@/hooks/useSuggestionViewMode";
 import { truncate } from "@/utils/text";
+import { ExternalLink } from "../ui/ExternalLink";
 import { IssueViewToggle } from "./IssueViewToggle";
 
 type Props = {
@@ -49,11 +50,7 @@ export function Issue({
           </div>
           <div className="row gap centered wrap">
             {viewMode === "collapsed" && <Link href={`/ui-v2/issues/${code}`}>Permalink</Link>}
-            {github_issue_url && (
-              <a href={github_issue_url} target="_blank" rel="noreferrer">
-                GitHub issue
-              </a>
-            )}
+            {github_issue_url && <ExternalLink href={github_issue_url}>GitHub issue</ExternalLink>}
             <IssueViewToggle
               value={viewToggleValue}
               onChange={setOwnViewMode}

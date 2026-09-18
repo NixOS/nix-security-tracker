@@ -103,6 +103,16 @@ class GitRepo:
 
         Otherwise, it will use a shallow clone, since we can fetch commits manually.
         """
+        exists = await self.execute_git_command(
+            "git",
+            "rev-parse",
+            "--git-dir",
+            stdout=asyncio.subprocess.DEVNULL,
+            stderr=asyncio.subprocess.DEVNULL,
+        )
+        await exists.wait()
+        if exists.returncode == 0:
+            return exists
         repo_clone_url = str(settings.GIT_CLONE_URL)
         stdout = self.stdout or asyncio.subprocess.PIPE
         stderr = self.stderr or asyncio.subprocess.PIPE

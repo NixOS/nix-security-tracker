@@ -11,6 +11,7 @@ import {
 } from "lucide-preact";
 import { useGetSuggestionActivityLog } from "@/api/generated/endpoints";
 import { type ActivityLogEntry, SuggestionStatusEnum } from "@/api/generated/models";
+import { ExternalLink } from "@/components/ui/ExternalLink";
 import { Skeleton } from "@/components/ui/Skeleton";
 import { Spinner } from "@/components/ui/Spinner";
 import { useTick } from "@/hooks/useTick";
@@ -96,9 +97,7 @@ function entryDescription(entry: ActivityLogEntry) {
       return (
         <span>
           {verb} reference{" "}
-          <a href={refs[0].url} target="_blank" rel="noreferrer">
-            {refs[0].name || refs[0].url.slice(0, 40)}
-          </a>
+          <ExternalLink href={refs[0].url}>{refs[0].name || refs[0].url.slice(0, 40)}</ExternalLink>
         </span>
       );
     }
@@ -110,9 +109,7 @@ function entryDescription(entry: ActivityLogEntry) {
         <ul className="column">
           {refs.map((r) => (
             <li key={r.url}>
-              <a href={r.url} target="_blank" rel="noreferrer">
-                {r.name || r.url}
-              </a>
+              <ExternalLink href={r.url}>{r.name || r.url}</ExternalLink>
             </li>
           ))}
         </ul>
@@ -179,7 +176,13 @@ function Timestamp({ iso }: { iso: string }) {
 }
 
 export function ActivityLog({ suggestionId }: Props) {
-  const { data, isLoading, isFetching } = useGetSuggestionActivityLog(suggestionId);
+  const { data, isLoading, isFetching } = useGetSuggestionActivityLog(suggestionId, undefined, {
+    query: {
+      // No automatic refetches unless specifically invalidated (e.g. after suggestion mutation).
+      staleTime: Infinity,
+    },
+  });
+
   // Single shared tick driving re-renders for every Timestamp in this log,
   // instead of each Timestamp instance running its own interval.
   useTick(TICK_INTERVAL_MS);

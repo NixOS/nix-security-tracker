@@ -8,92 +8,28 @@ Resources to help you get started:
 
 - [**Quickstart guide**](./docs/quickstart.md): Set up a database, run the service locally.
 - [**Manual data ingestion and matching**](./docs/data_ingestion_and_matching.md): Ingest Nixpkgs metadata and CVEs into your local instance.
+- [**Hacking guide**](./docs/hacking.md): Common workflows for interacting with the development environment.
 - [**Style guide**](./docs/styleguide.md): Tips for getting your change merged
 - [**Architecture Overview**](docs/README.md): High-level system design and component interaction.
 - [**Architecture Diagram**](docs/architecture.mermaid): Visual representation of the system (Mermaid source).
 - [**Design Documents**](docs/design/): Detailed design specifications for individual features.
 - [**CVE records**](./docs/cve_records.md): What the tracker stores for each CVE.
 
-Other directories in this repository have additional `README.md` files with more specific information relevant to their sibling files.
-
-Service definitions are in [`nix/configuration.nix`](nix/configuration.nix).
+## Directory structure
 
 Application logic lives in the [`src/`](src/) directory.
 From here, it follows standard Django patterns:
 
 - [`src/project/`](src/project/): global project configuration
 - [`src/shared/`](src/shared/): [application](https://docs.djangoproject.com/en/6.0/ref/applications/) with data models and business logic
-- [`src/webview/`](src/webview/): application for the web frontend
+- [`src/api`](src/api): application for the REST API
+- [`src/webview/`](src/webview/): application for the legacy web frontend
 
-# Hacking
+Web client code (currently in beta) lives [`frontend/`](frontend/) and relies on the API.
 
-The service is implemented in Python using [Django](https://www.djangoproject.com/).
-It is built and deployed with [Nix](https://nix.dev).
+Service definitions are in [`nix/configuration.nix`](nix/configuration.nix).
 
-## Running the service in a development environment
-
-Start a development shell:
-
-```console
-nix-shell
-```
-
-This will provide most of tools necessary to run the service locally.
-
-> [!NOTE]
-> If you want to start the development environment automatically when entering the project directory, set up [`nix-direnv`](https://github.com/nix-community/nix-direnv) on your system.
-> Add your `.envrc` to `.git/info/exclude`.
-
-List all available [management commands](https://docs.djangoproject.com/en/6.0/ref/django-admin/):
-
-```console
-manage help
-```
-
-## Working with the database
-
-You will need a local instance of the database to run tests and experiment manually.
-
-### Set up a local database
-
-Currently only [PostgreSQL](https://www.postgresql.org/) is supported as a database.
-Assuming you have a local checkout of this repository at `~/src/nix-security-tracker`, in your NixOS configuration, add the following entry to `imports` and rebuild your system:
-
-```nix
-{ ... }:
-{
-  imports = [
-    (import ~/src/nix-security-tracker { }).dev-setup
-  ];
-
-  nix-security-tracker-dev-environment = {
-    enable = true;
-    # The user you run the backend application as, so that you can access the local database
-    user = "myuser";
-    # Optionally enable a local Grafana instance at http://localhost:3000 to preview the monitoring dashboard
-    enableDashboard = true;
-  };
-}
-```
-
-To replicate this on a traditional Unix-like system:
-
-- Inspect the [local database configuration](./nix/dev-setup.nix)
-- Read the documentation on the respective module options for the general idea, e.g. [`services.postgresql.ensureDatabases`](https://search.nixos.org/options?query=postgresql.ensureDatabases)
-- Search the linked module source for the option names for implementation details, e.g. [`postgresql.nix`](https://github.com/NixOS/nixpkgs/blob/master/nixos/modules/services/databases/postgresql.nix)
-
-### Resetting the database
-
-In order to start over you need SSH [access to the staging environment](./infra/README.md#adding-ssh-keys).
-Tools for the following are available in the development shell.
-Delete the database and recreate it, then restore it from a dump, and (just in case the dump is behind the code) run migrations:
-
-```bash
-dropdb nix-security-tracker
-createdb nix-security-tracker
-ssh root@tracker-staging.security.nixos.org "sudo -u postgres pg_dump --create nix-security-tracker | zstd" | zstdcat | pv | psql
-manage migrate
-```
+Other directories in this repository have additional `README.md` files with more specific information relevant to their sibling files.
 
 ## Setting up credentials
 
@@ -184,64 +120,6 @@ To configure the GitHub app and the webhook in the GitHub organisation settings:
 
 </details>
 
-## Running the service in a container
-
-On NixOS, you can run the service in a [`systemd-nspawn` container](https://search.nixos.org/options?show=containers) to preview a deployment.
-
-Assuming you have a local checkout of this repository at `~/src/nix-security-tracker`, in your NixOS configuration, add the following entry to `imports` and rebuild your system:
-
-```nix
-{ ... }:
-{
-  imports = [
-    (import ~/src/nix-security-tracker { }).dev-container
-    # ...
-   ];
-}
-```
-
-The service will be accessible at <http://172.31.100.1>.
-
-## Running tests
-
-Run integration tests:
-
-```console
-nix-build -A tests
-```
-
-Interact with the involved virtual machines in a test:
-
-```
-$(nix-build -A tests.driverInteractive)/bin/nixos-test-driver
-```
-
-## Formatting
-
-A formatter is run [on each pull request](./.github/workflows/builds.yaml) and as one of the [pre-push Git hooks](./nix/git-hooks.nix).
-
-Run the formatter manually with:
-
-```console
-nix-shell --run format
-```
-
-## Changing the database schema
-
-Whenever you add a field in the database schema, run:
-
-```console
-manage makemigrations
-```
-
-Then before starting the server again, run:
-
-```
-manage migrate
-```
-
-This is the default Django workflow.
-
 ## `pgpubsub` listener registration pattern
 
 The application uses [`django-pgpubsub`](https://github.com/PaulGilmartin/django-pgpubsub) to react to database changes asynchronously.
@@ -262,16 +140,6 @@ We use the following pattern:
 
 > [!WARNING]
 > If you create a new listener module but forget to add its import to [`src/shared/listeners/__init__.py`](src/shared/listeners/__init__.py), your listener will fail to run silently!
-
-## Re-caching suggestions
-
-Suggestion contents are displayed from a cache to avoid latency from complex database queries.
-
-To compute or re-compute the cached information from scratch:
-
-```console
-manage regenerate_cached_suggestions
-```
 
 ## Staging deployment
 

@@ -2,24 +2,28 @@
   buildNpmPackage,
   biome,
   callPackage,
+  lib,
 }:
 let
   schema = callPackage ./schema.nix { };
 in
-buildNpmPackage {
+buildNpmPackage (finalAttrs: {
   pname = "nix-security-tracker-frontend";
   version = "0.1.0";
 
-  src = ../frontend;
+  src =
+    with lib.fileset;
+    toSource {
+      root = ../frontend;
+      fileset = intersection (gitTracked ../.) ../frontend;
+    };
 
-  npmDepsHash = "sha256-yJiRNDl9AX9wgBtAp1pHYyFpv1ZecE16ZV1IV1MzUJ8=";
+  npmDepsHash = "sha256-7sxnIR/OiQAZeGQ6PHOQQeFB6M/508piMet2/5U0sZc=";
 
   # Biome is used by the build scripts (lint check before build)
   nativeBuildInputs = [ biome ];
 
-  # Generate the Orval API client from the OpenAPI schema before `npm run build`.
-  # The generated client (src/api/generated/) is git-ignored, so it must be
-  # produced here for `tsc`/`vite build` to resolve its imports.
+  # Generate the Orval API client from the OpenAPI schema before building.
   preBuild = ''
     cp ${schema} schema.yaml
     npm run generate-api:local
@@ -32,4 +36,14 @@ buildNpmPackage {
     cp -r dist $out
     runHook postInstall
   '';
-}
+
+  passthru.dependencies = finalAttrs.finalPackage.overrideAttrs {
+    dontBuild = true;
+    installPhase = ''
+      mkdir $out
+      mv node_modules $out/
+      mkdir $out/node_modules/.vite
+      ln -s .bin $out/node_modules/bin
+    '';
+  };
+})

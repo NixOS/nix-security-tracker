@@ -8,9 +8,11 @@ export function SuggestionDetail() {
   const params = useParams<{ id: string }>();
   const id = Number(params.id);
 
-  const { data, isLoading, isError, error } = useGetSuggestion(id, {
-    query: { enabled: !Number.isNaN(id) },
-  });
+  const { data, isLoading, isError, error } = useGetSuggestion(
+    id,
+    { activity_log: true },
+    { query: { enabled: !Number.isNaN(id) } },
+  );
 
   if (Number.isNaN(id)) {
     return <p className="rounded box bg-red-light">Invalid suggestion ID.</p>;

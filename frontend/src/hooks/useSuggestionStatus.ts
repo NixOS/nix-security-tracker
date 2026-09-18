@@ -1,6 +1,7 @@
 import { useQueryClient } from "@tanstack/react-query";
 import {
   getGetSuggestionActivityLogQueryKey,
+  getListSuggestionsQueryKey,
   useChangeSuggestionStatus,
 } from "@/api/generated/endpoints";
 import type { Suggestion, SuggestionStatus as SuggestionStatusData } from "@/api/generated/models";
@@ -9,6 +10,7 @@ import {
   cancelCachedSuggestionQueries,
   getCachedSuggestion,
   setCachedSuggestion,
+  staleQuietly,
 } from "@/utils/suggestionCache";
 import { toaster } from "@/utils/toaster";
 
@@ -46,6 +48,7 @@ export function useSuggestionStatusMutation(suggestionId: number) {
         queryClient.invalidateQueries({
           queryKey: getGetSuggestionActivityLogQueryKey(suggestionId),
         });
+        staleQuietly(queryClient, getListSuggestionsQueryKey());
       },
     },
   });

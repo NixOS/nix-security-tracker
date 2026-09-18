@@ -19,6 +19,7 @@ export function SuggestionTabsBody({ suggestion, userCanEdit }: Props) {
     id,
     status,
     comment,
+    in_issue_draft,
     affected_products,
     packages,
     ignored_packages,
@@ -93,7 +94,12 @@ export function SuggestionTabsBody({ suggestion, userCanEdit }: Props) {
       )}
 
       {userCanEdit && (
-        <SuggestionStatusActions suggestionId={id} status={status} comment={comment}>
+        <SuggestionStatusActions
+          suggestionId={id}
+          status={status}
+          comment={comment}
+          inIssueDraft={in_issue_draft}
+        >
           <Comment suggestionId={id} comment={comment ?? null} canEdit={userCanEdit} compact />
         </SuggestionStatusActions>
       )}

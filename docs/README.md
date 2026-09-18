@@ -13,6 +13,7 @@ Maps each labeled diagram component to its implementation.
 
 - [fetch_all_channels](../src/shared/management/commands/fetch_all_channels.py)
 - [ingest_delta_cve](../src/shared/management/commands/ingest_delta_cve.py)
+- [fetch_matching_training_data](../src/shared/management/commands/fetch_matching_training_data.py) / [import_matching_training_data](../src/shared/management/commands/import_matching_training_data.py) / [benchmark_matching](../src/shared/management/commands/benchmark_matching.py) - see [Offline matching training data](./data_ingestion_and_matching.md#offline-matching-training-data)
 - [Evaluate Nixpkgs](../src/shared/listeners/nix_evaluation.py)
 - [CVE matching](../src/shared/listeners/automatic_linkage.py)
 - [WSGI Django](../src/project/asgi.py) (Daphne ASGI in production)

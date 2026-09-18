@@ -31,6 +31,7 @@ export function IssueList() {
   const { data, isLoading, isError, error } = useListIssues({
     page,
     expand: "suggestions",
+    activity_log: true,
   });
 
   const handlePageChange = (newPage: number) => {

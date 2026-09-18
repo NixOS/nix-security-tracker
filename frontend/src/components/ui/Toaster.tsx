@@ -27,6 +27,7 @@ const typeToFg: Record<string, string> = {
 const typeToBg: Record<string, string> = {
   error: "bg-red",
   warning: "bg-yellow-light",
+  success: "bg-green-light",
 };
 
 const typeToIcon: Record<string, typeof InfoIcon> = {

@@ -42,6 +42,30 @@ class LicenseAttribute(JSONWizard):
 
 
 @dataclass
+class CpePartsAttribute(JSONWizard):
+    """Structured CPE parts from nixpkgs meta.identifiers.cpeParts."""
+
+    part: str | None = None
+    vendor: str | None = None
+    product: str | None = None
+    version: str | None = None
+    update: str | None = None
+    edition: str | None = None
+    language: str | None = None
+    sw_edition: str | None = None
+    target_sw: str | None = None
+    target_hw: str | None = None
+    other: str | None = None
+
+
+@dataclass
+class IdentifiersAttribute(JSONWizard):
+    """Software identifiers from nixpkgs meta.identifiers (CPE parts only for now)."""
+
+    cpe_parts: CpePartsAttribute | None = None
+
+
+@dataclass
 class MetadataAttribute(JSONWizard, LoadMixin):
     outputs_to_install: list[str] = field(default_factory=list)
     available: bool = True
@@ -58,6 +82,7 @@ class MetadataAttribute(JSONWizard, LoadMixin):
     license: list[LicenseAttribute] = field(default_factory=list)
     platforms: list[str] = field(default_factory=list)
     known_vulnerabilities: list[str] = field(default_factory=list)
+    identifiers: IdentifiersAttribute | None = None
 
 
 class DerivationKey(NamedTuple):
@@ -82,7 +107,9 @@ class EvaluatedAttribute(JSONWizard):
     system: str
 
     def as_key(self) -> DerivationKey:
-        """Unique dictionary key for a derivation (see :func:`derivation_as_key`)."""
+        """
+        Unique dictionary key for a derivation.
+        """
         return derivation_as_key(
             drv_path=self.drv_path,
             attr=self.attr,
@@ -280,6 +307,16 @@ class SyncBatchAttributeIngester:
         maintainers = self.parse_maintainers(metadata.maintainers)
         licenses = self.parse_licenses(metadata.license)
 
+        cpe_vendor: str | None = None
+        cpe_product: str | None = None
+        if metadata.identifiers is not None:
+            parts = metadata.identifiers.cpe_parts
+            if parts is not None:
+                if parts.vendor:
+                    cpe_vendor = parts.vendor
+                if parts.product:
+                    cpe_product = parts.product
+
         meta = NixDerivationMeta(
             name=metadata.name,
             insecure=metadata.insecure,
@@ -292,6 +329,8 @@ class SyncBatchAttributeIngester:
             main_program=metadata.main_program,
             position=metadata.position,
             known_vulnerabilities=metadata.known_vulnerabilities,
+            cpe_vendor=cpe_vendor,
+            cpe_product=cpe_product,
         )
 
         return meta, maintainers, licenses
