@@ -1,5 +1,11 @@
 --- a/nixos/modules/virtualisation/qemu-vm.nix
 +++ b/nixos/modules/virtualisation/qemu-vm.nix
-@@ -337 +337 @@
+@@ -334,7 +334,7 @@
+           ${if share.writable then "--writeback" else "--readonly"} \
+           --sandbox=none \
+           --seccomp=none \
 -          --cache=always \
 +          --cache=auto \
+           --no-announce-submounts \
+           --translate-uid=host:65534:0:1 \
+           --translate-gid=host:65534:0:1 \
