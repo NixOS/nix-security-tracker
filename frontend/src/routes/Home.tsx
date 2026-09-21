@@ -28,14 +28,12 @@ export function Home() {
       <div className="column centered gap-small">
         <div className="row gap-big centered">
           <div className="column centered gap-small">
-            <img src="/static/cveLogo.svg" alt="" aria-hidden="true" style="height: 3em" />
             <ExternalLink href="https://www.cve.org/ResourcesSupport/Glossary#glossaryRecord">
               CVE Records
             </ExternalLink>
             <MoveDownIcon strokeWidth={0.8} size="2em" />
           </div>
           <div className="column centered gap-small">
-            <img src="/static/nixpkgsLogo.svg" alt="" aria-hidden="true" style="height: 3em" />
             <ExternalLink href="https://search.nixos.org/packages">
               Nixpkgs derivations
             </ExternalLink>
