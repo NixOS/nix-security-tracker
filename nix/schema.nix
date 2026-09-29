@@ -18,6 +18,7 @@ let
   pythonEnv = python3.withPackages (_: [ nix-security-tracker ]);
 
   # Dummy secrets: required for the settings module to import, never used here.
+  empty-dir = runCommand "empty-dir" { } "mkdir $out";
   credentials = runCommand "wst-schema-credentials" { } ''
     mkdir -p $out
     for name in SECRET_KEY GH_CLIENT_ID GH_SECRET GH_WEBHOOK_SECRET GH_APP_PRIVATE_KEY; do
@@ -37,9 +38,9 @@ runCommand "nix-security-tracker-openapi-schema"
       # Keep startup free of DB/network side effects (see note above).
       SYNC_GITHUB_STATE_AT_STARTUP = false;
       REVISION = "schema";
-      STATIC_ROOT = "/build/static";
+      STATIC_ROOT = "/dummy";
       VITE_DEV_SERVER_PORT = 1337; # Dummy, never used.
-      LOCAL_NIXPKGS_CHECKOUT = "/build/nixpkgs";
+      LOCAL_NIXPKGS_CHECKOUT = "${empty-dir}";
       GH_ISSUES_PING_MAINTAINERS = false;
       GH_ORGANIZATION = "dummy";
       GH_ISSUES_REPO = "dummy";
@@ -55,9 +56,6 @@ runCommand "nix-security-tracker-openapi-schema"
     # settings.py (EVALUATION_LOGS_DIRECTORY, CVE_CACHE_DIR) succeeds.
     cp -r ${../src} src
     chmod -R u+w src
-
-    # STATIC_ROOT and LOCAL_NIXPKGS_CHECKOUT (a DirectoryPath) must exist.
-    mkdir -p /build/static /build/nixpkgs
 
     export PYTHONPATH="$PWD/src''${PYTHONPATH:+:$PYTHONPATH}"
     ${pythonEnv}/bin/python src/manage.py spectacular --file "$out"

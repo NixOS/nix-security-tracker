@@ -326,7 +326,8 @@ in
   ];
 
   virtualisation = {
-    qemu.enableSharedMemory = true;
+    # Shared memory (memfd) backs virtiofs, which is only available on Linux hosts; Darwin falls back to 9p.
+    qemu.enableSharedMemory = config.virtualisation.host.pkgs.stdenv.hostPlatform.isLinux;
     graphics = false;
     memorySize = 12 * 1024;
     cores = 2;
