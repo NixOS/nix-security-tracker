@@ -96,7 +96,7 @@ in
       cp -v ${src}/manage.py $out/bin/manage.py
       chmod +x $out/bin/manage.py
       wrapProgram $out/bin/manage.py --prefix PYTHONPATH : "$PYTHONPATH"
-      cp ${sources.htmx}/dist/htmx.min.js* $out/${final.python3.sitePackages}/webview/static/
+      mkdir -p $out/${final.python3.sitePackages}/webview/static/
       cp ${sources.nixos-logo} $out/${final.python3.sitePackages}/webview/static/nixos-logo.svg
     '';
   };

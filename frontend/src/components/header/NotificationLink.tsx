@@ -11,7 +11,7 @@ export function NotificationLink() {
   const unreadCount = data?.unread_count ?? 0;
 
   return (
-    <Link href="/ui-v2/notifications" className={`row centered text-white cursor-pointer`}>
+    <Link href="/notifications" className={`row centered text-white cursor-pointer`}>
       <NotificationBell unreadCount={unreadCount} />
     </Link>
   );

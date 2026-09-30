@@ -45,7 +45,7 @@ export function UserSettings() {
           </div>
           <Tabs
             value={activeTab}
-            onValueChange={(value) => setLocation(`/ui-v2/user/${value}`)}
+            onValueChange={(value) => setLocation(`/user/${value}`)}
             lazyMount
             tabs={[
               {

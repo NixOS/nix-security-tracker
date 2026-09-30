@@ -37,18 +37,18 @@ export function App() {
       <HeaderBar />
       <main>
         <Switch>
-          <Route path="/ui-v2/suggestions/by-id/:id" component={SuggestionDetail} />
-          <Route path="/ui-v2/suggestions/by-cve/:cveId" component={SuggestionDetailByCve} />
-          <Route path="/ui-v2/suggestions" component={SuggestionList} />
-          <Route path="/ui-v2/issues/:code" component={IssueDetail} />
-          <Route path="/ui-v2/issues" component={IssueList} />
-          <Route path="/ui-v2/notifications" component={NotificationCenter} />
-          <Route path="/ui-v2/" component={Home} />
-          <Route path="/ui-v2/user">
-            <Redirect to="/ui-v2/user/subscriptions" />
+          <Route path="/suggestions/by-id/:id" component={SuggestionDetail} />
+          <Route path="/suggestions/by-cve/:cveId" component={SuggestionDetailByCve} />
+          <Route path="/suggestions" component={SuggestionList} />
+          <Route path="/issues/:code" component={IssueDetail} />
+          <Route path="/issues" component={IssueList} />
+          <Route path="/notifications" component={NotificationCenter} />
+          <Route path="/" component={Home} />
+          <Route path="/user">
+            <Redirect to="/user/subscriptions" />
           </Route>
-          <Route path="/ui-v2/user/subscriptions" component={UserSettings} />
-          <Route path="/ui-v2/user/tokens" component={UserSettings} />
+          <Route path="/user/subscriptions" component={UserSettings} />
+          <Route path="/user/tokens" component={UserSettings} />
           <Route>
             <p>Page not found</p>
           </Route>

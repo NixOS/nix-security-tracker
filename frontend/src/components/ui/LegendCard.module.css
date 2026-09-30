@@ -1,0 +1,37 @@
+/* Card border, with the CVE id displayed as a fieldset-style legend that
+ * breaks the top border line.
+ */
+
+.card {
+  position: relative;
+  border: 1px solid var(--gray);
+  border-radius: 0.4em;
+  padding: 1.4em 1em 1em 1em;
+}
+
+/* Higher specificity than the shared `.box` utility class (which sets
+ * `overflow: auto`), so the legend can poke out above the top border. */
+article.card {
+  overflow: visible;
+}
+
+.legend,
+.legendRight {
+  position: absolute;
+  top: 0;
+  transform: translateY(-50%);
+  background: white;
+}
+
+.legend {
+  left: 1em;
+  padding: 0 0.5em;
+  color: var(--gray);
+}
+
+/* No horizontal padding: the toggle already draws its own border, so the
+ * card border should touch it directly instead of leaving a white gutter. */
+.legendRight {
+  right: 1em;
+  font-size: 0.85em;
+}

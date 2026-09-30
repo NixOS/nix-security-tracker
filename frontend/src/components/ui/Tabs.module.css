@@ -1,3 +1,13 @@
+.tabList {
+  overflow-x: auto;
+  flex-wrap: nowrap;
+  scrollbar-width: thin;
+}
+
+.tabList::-webkit-scrollbar {
+  height: 0.4em;
+}
+
 .tab {
   padding: 0 1em 0.5em 1em;
   background: none;
@@ -8,6 +18,8 @@
   gap: 0.4em;
   outline: none;
   color: black;
+  flex-shrink: 0;
+  white-space: nowrap;
 }
 
 .tab:hover {

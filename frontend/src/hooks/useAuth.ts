@@ -54,11 +54,11 @@ export function login(): void {
   submitForm("/_allauth/browser/v1/auth/provider/redirect", {
     provider: "github",
     process: "login",
-    callback_url: "/ui-v2/",
+    callback_url: "/",
   });
 }
 
 export function logout(): void {
   // Form submission to allauth's logout endpoint (handles redirect server-side)
-  submitForm("/accounts/logout/", { next: "/ui-v2/" });
+  submitForm("/accounts/logout/", { next: "/" });
 }

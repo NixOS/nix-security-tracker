@@ -1,0 +1,61 @@
+.container {
+  width: 100%;
+  overflow-x: auto;
+  padding: 0.3em;
+  border-radius: 0.4em 0 0.4em 0.4em;
+  transition: background-color 0.2s ease;
+}
+
+.containerOpen {
+  background-color: var(--light-gray);
+}
+
+.reminder {
+  padding: 0;
+  padding-bottom: 0.5em;
+  border-radius: 0.4em 0.4em 0 0;
+  transition: background-color 0.2s ease;
+}
+
+.reminderOpen {
+  padding-left: 0.5em;
+  padding-right: 0.5em;
+  background-color: var(--light-gray);
+}
+
+.table {
+  table-layout: fixed;
+  border-collapse: collapse;
+}
+
+.table td {
+  padding: 0.1em 0.3em;
+  vertical-align: baseline;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.colTime {
+  width: 7em;
+}
+
+.colAuthor {
+  width: 11em;
+}
+
+.colAction {
+  width: 11em;
+}
+
+.colIcon {
+  width: 1.5em;
+}
+
+.entryRow.expandable {
+  cursor: pointer;
+}
+
+.objectRow td {
+  padding-top: 0;
+}

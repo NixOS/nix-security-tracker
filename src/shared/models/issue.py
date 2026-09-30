@@ -91,14 +91,13 @@ class NixpkgsIssue(TimeStampMixin):
         Create a corresponding GitHub issue for this NixpkgsIssue and log the event.
         """
         from django.conf import settings
-        from django.urls import reverse
 
         from shared.github import create_gh_issue
 
         if not self.title:
             raise ValueError("Cannot publish a NixpkgsIssue with no title")
 
-        tracker_issue_path = reverse("webview:issue_detail", args=[self.code])
+        tracker_issue_path = f"/issues/{self.code}"
         tracker_issue_link = urljoin(str(settings.BASE_URL), tracker_issue_path)
 
         suggestions = list(self.suggestions.select_related("cached").all())

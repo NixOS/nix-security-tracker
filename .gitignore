@@ -6,3 +6,4 @@ __pycache__
 # A shallow checkout of nixpkgs
 nixpkgs/
 /.local/
+*.qcow2

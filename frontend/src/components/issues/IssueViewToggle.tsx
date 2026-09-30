@@ -13,6 +13,8 @@ type Props = {
   testId: string;
   iconOnly?: boolean;
   allowClear?: boolean;
+  currentValue?: IssueViewMode;
+  onLegend?: boolean;
 };
 
 export function IssueViewToggle(props: Props) {

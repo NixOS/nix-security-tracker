@@ -25,7 +25,7 @@ export function Home() {
         </p>
       </div>
       <h2 className="text-l bold">Workflow</h2>
-      <div className="column centered gap-small">
+      <div className="column centered gap-small" style="overflow: auto;">
         <div className="row gap-big centered">
           <div className="column centered gap-small">
             <img src="/static/cveLogo.svg" alt="" aria-hidden="true" style="height: 3em" />
@@ -48,7 +48,7 @@ export function Home() {
         </div>
         <MoveDownIcon strokeWidth={0.8} size="2em" />
         <Link
-          href="/ui-v2/suggestions?status=pending"
+          href="/suggestions?status=pending"
           className="box rounded border row gap-small centered justify-center"
           style="min-width: 20em"
         >
@@ -61,7 +61,7 @@ export function Home() {
             <div>Team rejects</div>
             <MoveDownIcon strokeWidth={0.8} size="2em" />
             <Link
-              href="/ui-v2/suggestions?status=rejected"
+              href="/suggestions?status=rejected"
               className="box rounded border row gap-small centered"
             >
               <SuggestionStatusIcon status="rejected" size="1em" />
@@ -74,7 +74,7 @@ export function Home() {
             <div>Team accepts</div>
             <MoveDownIcon strokeWidth={0.8} size="2em" />
             <Link
-              href="/ui-v2/suggestions?status=accepted"
+              href="/suggestions?status=accepted"
               className="box rounded border row gap-small centered"
             >
               <SuggestionStatusIcon status="accepted" size="1em" />
@@ -89,7 +89,7 @@ export function Home() {
             <div>Bundle related suggestions</div>
             <MoveDownIcon strokeWidth={0.8} size="2em" />
             <Link
-              href="/ui-v2/suggestions?in_issue_draft=true"
+              href="/suggestions?in_issue_draft=true"
               className="box rounded border row gap-small centered"
             >
               <LayersIcon size="1em" />
@@ -98,7 +98,7 @@ export function Home() {
             <div>CVEs that users have bundled together for the next GitHub issue</div>
             <MoveDownIcon strokeWidth={0.8} size="2em" />
             <Link
-              href="http://localhost:8000/ui-v2/issues"
+              href="http://localhost:8000/issues"
               className="box rounded border row gap-small centered"
             >
               <SuggestionStatusIcon status="published" size="1em" />

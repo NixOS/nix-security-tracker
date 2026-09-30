@@ -4,6 +4,7 @@ import { useListIssues } from "@/api/generated/endpoints";
 import { Issue } from "@/components/issues/Issue";
 import { IssueViewToggle } from "@/components/issues/IssueViewToggle";
 import { SuggestionViewToggle } from "@/components/suggestions/SuggestionViewToggle";
+import { Collapsible } from "@/components/ui/Collapsible";
 import { Pagination } from "@/components/ui/Pagination";
 import { Skeleton } from "@/components/ui/Skeleton";
 import { useIssueListViewMode } from "@/hooks/useIssueViewMode";
@@ -62,17 +63,19 @@ export function IssueList() {
           />
         </div>
 
-        <div className="row gap centered justify-right">
-          <div className="row gap-small centered">
-            <EyeIcon size="1em" />
-            <span>Suggestions view mode</span>
+        <Collapsible open={issueViewMode === "expanded"}>
+          <div className="row gap centered justify-right">
+            <div className="row gap-small centered">
+              <EyeIcon size="1em" />
+              <span>Suggestions view mode</span>
+            </div>
+            <SuggestionViewToggle
+              value={suggestionViewMode}
+              onChange={(mode) => mode && setSuggestionViewMode(mode)}
+              testId="suggestion-view-toggle"
+            />
           </div>
-          <SuggestionViewToggle
-            value={suggestionViewMode}
-            onChange={(mode) => mode && setSuggestionViewMode(mode)}
-            testId="suggestion-view-toggle"
-          />
-        </div>
+        </Collapsible>
       </div>
 
       {isLoading && (

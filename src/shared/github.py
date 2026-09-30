@@ -1,16 +1,103 @@
 import logging
-from urllib.parse import quote
+from urllib.parse import quote, urljoin
 
 from django.conf import settings
 from django.template.defaultfilters import truncatewords
 from github import Auth, Github
 from github.Issue import Issue as GithubIssue
 
+from shared.cvss import CvssFields, compute_cvss_fields
 from shared.models.cached import CachedSuggestions
+from shared.models.cve import Metric
 from shared.models.linkage import CVEDerivationClusterProposal
-from webview.templatetags.viewutils import severity_badge
 
 logger = logging.getLogger(__name__)
+
+# GitHub's maximum length for an issue body, in Unicode codepoints.
+# According to https://github.com/dead-claudia/github-limits
+GH_ISSUE_BODY_MAX_LENGTH = 65536
+
+
+def _level0_body(
+    tracker_link: str,
+    full_sections: str,
+    packages_section: str,
+    maintainers: str,
+    help_text: str,
+) -> str:
+    return f"""\
+{tracker_link}
+
+{full_sections}
+{packages_section}
+{maintainers}
+{help_text}"""
+
+
+def _level1_body(
+    tracker_link: str,
+    size_note: str,
+    compact_list: str,
+    packages_section: str,
+    maintainers: str,
+    help_text: str,
+) -> str:
+    return f"""\
+{tracker_link}
+
+{size_note}
+
+{compact_list}
+{packages_section}
+{maintainers}
+{help_text}"""
+
+
+def _level2_body(
+    tracker_link: str,
+    size_note: str,
+    packages_section: str,
+    maintainers: str,
+    help_text: str,
+) -> str:
+    return f"""\
+{tracker_link}
+
+{size_note}
+
+{packages_section}
+{maintainers}
+{help_text}"""
+
+
+def _level3_body(
+    tracker_link: str,
+    size_note: str,
+    maintainers: str,
+    help_text: str,
+) -> str:
+    return f"""\
+{tracker_link}
+
+{size_note}
+
+{maintainers}
+{help_text}"""
+
+
+def _level4_body(
+    tracker_link: str,
+    size_note: str,
+    help_text: str,
+) -> str:
+    return f"""\
+{tracker_link}
+
+{size_note}
+
+Maintainer mentions omitted.
+
+{help_text}"""
 
 
 def get_gh(per_page: int = 30) -> Github:
@@ -54,64 +141,145 @@ def create_gh_issue(
         else:
             return f"`@{maintainer}`"
 
+    def first_cvss_metric(
+        suggestion: CVEDerivationClusterProposal,
+    ) -> tuple[dict, CvssFields] | tuple[None, None]:
+        for metric in suggestion.cached.payload["metrics"]:
+            fields = compute_cvss_fields(metric)
+            if fields.base_score is not None:
+                return metric, fields
+        return None, None
+
+    def severity_label(suggestion: CVEDerivationClusterProposal) -> str:
+        """
+        Short bold "<score> <SEVERITY>" label, or a fallback when no CVSS
+        metric could be parsed. Shared between the full CVSS details block
+        and the compact CVE bullet.
+        """
+        _, fields = first_cvss_metric(suggestion)
+        if fields:
+            return f"<strong>{fields.base_score:.1f} {fields.base_severity}</strong>"
+        else:
+            return "(no CVSS data)"
+
     def cvss_details(suggestion: CVEDerivationClusterProposal) -> str:
-        badge = severity_badge(suggestion.cached.payload["metrics"])
-        if badge:
-            metric = badge["cvss"]
+        metric, fields = first_cvss_metric(suggestion)
+        if metric and fields:
             metrics = "\n".join(
-                [f"- {k}: {v}" for k, v in badge["human_readable"].items()]
+                f"- {hr['label']}: {hr['value']}"
+                for hr in (fields.human_readable or [])
             )
-            score_label = (
-                f"<strong>{metric['base_score']:.1f} {metric['base_severity']}</strong>"
-            )
+            version = Metric.Format(metric["format"]).label
             return f"""
 <details>
-<summary>{score_label} | {metric["vector_string"]}</summary>
+<summary>{severity_label(suggestion)} | {metric["vector_string"]}</summary>
 
-- CVSS version (CVSS): {metric["version"]}
+- CVSS version (CVSS): {version}
 {metrics}
 </details>"""
         else:
             return ""
 
-    def maintainers(suggestion: CVEDerivationClusterProposal) -> str:
+    def suggestion_link(suggestion: CVEDerivationClusterProposal) -> str:
+        """
+        Link to the suggestion's own detail page in the frontend.
+        """
+        return urljoin(str(settings.BASE_URL), f"/suggestions/by-id/{suggestion.pk}")
+
+    def nvd_link(cve_id: str) -> str:
+        return f"https://nvd.nist.gov/vuln/detail/{quote(cve_id)}"
+
+    def cve_title_links(suggestion: CVEDerivationClusterProposal) -> str:
+        """
+        CVE ID linking to the suggestion's tracker detail page, with the NVD
+        record as a secondary parenthesized link. Used both in the full
+        per-CVE section header and the compact CVE bullet.
+        """
+        cve_id = suggestion.cached.payload["cve_id"]
+        return f"[{cve_id}]({suggestion_link(suggestion)}) ([NVD]({nvd_link(cve_id)}))"
+
+    def cve_bullet(suggestion: CVEDerivationClusterProposal) -> str:
+        return f"- {severity_label(suggestion)} {cve_title_links(suggestion)}"
+
+    def maintainer_usernames(suggestion: CVEDerivationClusterProposal) -> list[str]:
+        """
+        Resolve the current GitHub usernames of the maintainers of the packages
+        affected by a single suggestion.
+        """
         raw = suggestion.cached.payload["categorized_maintainers"]
         # Orphan maintainers no longer maintain any active package, don't ping them.
         orphan_github_ids = {m["github_id"] for m in raw.get("orphan", [])}
         # We need to query for the latest username of each maintainer, because
         # those might have changed since they were written out in Nixpkgs; since
         # we have the user id (which is stable), we can ask the GitHub API
-        maintainers_list = [
+        return [
             get_maintainer_username(maintainer, github)
             for maintainer in (raw["active"] + raw["added"])
             if "github_id" in maintainer
             and "github" in maintainer
             and maintainer["github_id"] not in orphan_github_ids
         ]
-        if maintainers_list:
-            maintainers_joined = ", ".join(mention(m) for m in maintainers_list)
-            return f"Affected package maintainers: cc {maintainers_joined}\n"
-        else:
+
+    def maintainers_line() -> str:
+        """
+        Build a single "Affected package maintainers" line grouping the
+        deduplicated maintainers of every suggestion in the bundle.
+        """
+        deduped: set[str] = set()
+        for cs in cached_suggestions:
+            for username in maintainer_usernames(cs.proposal):
+                deduped.add(username)
+        if not deduped:
+            return ""
+        maintainers_joined = ", ".join(mention(m) for m in deduped)
+        return f"""
+## Affected package maintainers
+
+{maintainers_joined}
+"""
+
+    def affected_packages_section() -> str:
+        """
+        Build a single "Affected packages" section deduplicated across every
+        suggestion in the bundle. When the same package attribute is affected
+        by several CVEs, its per-channel versions are merged as the union of
+        distinct versions seen.
+        """
+        order: list[str] = []
+        packages: dict[str, dict[str, list[str]]] = {}
+        for cs in cached_suggestions:
+            for attribute_name, pkg in cs.payload["packages"].items():
+                if attribute_name not in packages:
+                    packages[attribute_name] = {}
+                    order.append(attribute_name)
+                for major_channel, version_data in pkg["channels"].items():
+                    if version_data["major_version"]:
+                        versions = packages[attribute_name].setdefault(
+                            major_channel, []
+                        )
+                        if version_data["major_version"] not in versions:
+                            versions.append(version_data["major_version"])
+
+        if not packages:
             return ""
 
-    def affected_nix_packages(suggestion: CVEDerivationClusterProposal) -> str:
-        packages = []
-        for attribute_name, pkg in suggestion.cached.payload["packages"].items():
+        lines = []
+        for attribute_name in order:
             pull_requests = f"https://github.com/NixOS/nixpkgs/pulls?q=sort%3Aupdated-desc+is%3Apr+{quote(attribute_name)}+in%3Atitle+-%3E+in%3Atitle"
-            versions = []
-            for major_channel, version_data in pkg["channels"].items():
-                if version_data["major_version"]:
-                    versions.append(
-                        f"  - {version_data['major_version']}@{major_channel}"
-                    )
             package = f"- `{attribute_name}` ([pull requests]({pull_requests}))"
-            if versions:
-                package += f"\n{'\n'.join(versions)}"
-            packages.append(package)
-        return f"""
-### Affected packages
+            version_lines = [
+                f"  - {version}@{major_channel}"
+                for major_channel, versions in packages[attribute_name].items()
+                for version in sorted(versions)
+            ]
+            if version_lines:
+                package += f"\n{'\n'.join(version_lines)}"
+            lines.append(package)
 
-{"\n".join(packages)}"""
+        return f"""
+## Affected packages
+
+{"\n".join(lines)}"""
 
     def references(suggestion: CVEDerivationClusterProposal) -> str:
         refs = suggestion.cached.payload.get("categorized_url_references", {})
@@ -167,7 +335,7 @@ def create_gh_issue(
             or truncatewords(suggestion.cached.payload.get("description", ""), 10)
             or cve_id
         )
-        return f"""## [{cve_id}](https://nvd.nist.gov/vuln/detail/{quote(cve_id)})
+        return f"""## {cve_title_links(suggestion)}
 
 {cvss_details(suggestion)}
 
@@ -176,8 +344,7 @@ def create_gh_issue(
 </details>
 
 {references(suggestion)}
-{affected_nix_packages(suggestion)}
-{maintainers(suggestion)}{suggestion_comment(suggestion)}"""
+{suggestion_comment(suggestion)}"""
 
     def help_text() -> str:
         return """
@@ -189,13 +356,115 @@ def create_gh_issue(
 
     repo = github.get_repo(f"{settings.GH_ORGANIZATION}/{settings.GH_ISSUES_REPO}")
 
-    sections = "\n\n".join(suggestion_section(cs.proposal) for cs in cached_suggestions)
+    tracker_link = f"[Nixpkgs security tracker issue]({tracker_issue_uri})"
+    packages_section = affected_packages_section()
+    maintainers = maintainers_line()
+    help_text_str = help_text()
 
-    body = f"""\
-[Nixpkgs security tracker issue]({tracker_issue_uri})
+    # Level 0: full per-CVE sections (title, CVSS, description, references,
+    # comment), plus the single deduplicated packages/maintainers sections.
+    full_sections = "\n\n".join(
+        suggestion_section(cs.proposal) for cs in cached_suggestions
+    )
 
-{sections}
-{help_text()}"""
+    # Instead of building the full body text for each fallback level and
+    # calling len() on that (large) concatenation, compute the length of
+    # each independent chunk once, and compare a sum of those precomputed
+    # lengths (plus each level's fixed template overhead: the literal
+    # characters surrounding placeholders, including inter-block blank
+    # lines/newlines) against the limit. The body text itself is only ever
+    # built once, for the level that was actually selected.
+    len_tracker_link = len(tracker_link)
+    len_full_sections = len(full_sections)
+    len_packages_section = len(packages_section)
+    len_maintainers = len(maintainers)
+    len_help_text = len(help_text_str)
+
+    level0_overhead = len(_level0_body("", "", "", "", ""))
+    level0_length = (
+        level0_overhead
+        + len_tracker_link
+        + len_full_sections
+        + len_packages_section
+        + len_maintainers
+        + len_help_text
+    )
+
+    if level0_length <= GH_ISSUE_BODY_MAX_LENGTH:
+        body = _level0_body(
+            tracker_link, full_sections, packages_section, maintainers, help_text_str
+        )
+    else:
+        size_note = (
+            "Note: this issue's content was too large to include CVE details directly. "
+            "See the tracker link above for full information."
+        )
+        len_size_note = len(size_note)
+
+        # Level 1: replace the full per-CVE sections with a compact bullet
+        # list, one per CVE, keeping the packages/maintainers sections.
+        compact_list = "\n".join(cve_bullet(cs.proposal) for cs in cached_suggestions)
+        len_compact_list = len(compact_list)
+
+        level1_overhead = len(_level1_body("", "", "", "", "", ""))
+        level1_length = (
+            level1_overhead
+            + len_tracker_link
+            + len_size_note
+            + len_compact_list
+            + len_packages_section
+            + len_maintainers
+            + len_help_text
+        )
+
+        if level1_length <= GH_ISSUE_BODY_MAX_LENGTH:
+            body = _level1_body(
+                tracker_link,
+                size_note,
+                compact_list,
+                packages_section,
+                maintainers,
+                help_text_str,
+            )
+        else:
+            # Level 2: drop the compact CVE bullet list entirely.
+            level2_overhead = len(_level2_body("", "", "", "", ""))
+            level2_length = (
+                level2_overhead
+                + len_tracker_link
+                + len_size_note
+                + len_packages_section
+                + len_maintainers
+                + len_help_text
+            )
+
+            if level2_length <= GH_ISSUE_BODY_MAX_LENGTH:
+                body = _level2_body(
+                    tracker_link,
+                    size_note,
+                    packages_section,
+                    maintainers,
+                    help_text_str,
+                )
+            else:
+                # Level 3: also drop the affected packages section.
+                level3_overhead = len(_level3_body("", "", "", ""))
+                level3_length = (
+                    level3_overhead
+                    + len_tracker_link
+                    + len_size_note
+                    + len_maintainers
+                    + len_help_text
+                )
+
+                if level3_length <= GH_ISSUE_BODY_MAX_LENGTH:
+                    body = _level3_body(
+                        tracker_link, size_note, maintainers, help_text_str
+                    )
+                else:
+                    # Level 4: also drop the maintainers line, in the
+                    # unlikely worst case where even that is still too large.
+                    body = _level4_body(tracker_link, size_note, help_text_str)
 
     return repo.create_issue(title=title, body=body, labels=settings.GH_ISSUES_LABELS)
 

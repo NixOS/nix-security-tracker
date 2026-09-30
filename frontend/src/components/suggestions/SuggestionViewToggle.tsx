@@ -15,6 +15,8 @@ type Props = {
   testId: string;
   iconOnly?: boolean;
   allowClear?: boolean;
+  currentValue?: SuggestionViewMode;
+  onLegend?: boolean;
 };
 
 export function SuggestionViewToggle(props: Props) {

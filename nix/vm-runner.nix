@@ -3,6 +3,7 @@
   writeShellApplication,
   nixos,
   nixos-module,
+  pkgs,
 }:
 let
   runner-module =
@@ -42,6 +43,15 @@ let
       };
 
       config = {
+        # `pkgs.nixos` defaults the guest to the host package set, which on Darwin
+        # cannot evaluate Linux-only packages. Re-import the same (patched) nixpkgs for Linux.
+        nixpkgs.pkgs = lib.mkForce (
+          import pkgs.path {
+            system = "x86_64-linux";
+            inherit (pkgs) config overlays;
+          }
+        );
+        virtualisation.host.pkgs = pkgs;
         virtualisation.forwardPorts = lib.mapAttrsToList (_: port: {
           from = "host";
           host.port = port + config.local.port-offset;

@@ -74,7 +74,10 @@ let
       pty_flag="--pty"
     else
       pty_flag="--pipe"
-    fi
+    fi${
+      # FIXME(@fricklerhandwerk): Build a bash array with the arguments to get rid of the problem with line continuations.
+      ""
+    }
     systemd-run "$pty_flag" \
       --wait \
       --collect \
@@ -86,7 +89,7 @@ let
       ${concatStringsSep "\n" (map (cred: "--property 'LoadCredential=${cred}' \\") credentials)}
       --property 'Environment=${
         toString (lib.mapAttrsToList (name: value: "${name}=${value}") cfg.env)
-      }' \
+      }'${concatStringsSep "" (map (name: " \\\n      --setenv=${name}") cfg.pass-env)} \
       "${lib.getExe manage}" "$@"
   '';
 in
@@ -102,7 +105,7 @@ in
     frontend = mkOption {
       type = types.package;
       default = pkgs.callPackage ./frontend.nix { };
-      description = "Built frontend package (Preact/Vite UI served at /ui-v2/)";
+      description = "Built frontend package (Preact/Vite UI served at /)";
     };
     production = mkOption {
       type = types.bool;
@@ -129,6 +132,13 @@ in
       };
       # only override defaults with explicit values
       apply = lib.recursiveUpdate default;
+    };
+    pass-env = mkOption {
+      description = ''
+        Environment variables to pass through from the caller.
+      '';
+      type = types.listOf types.str;
+      default = [ ];
     };
     manage-prefix = mkOption {
       description = ''

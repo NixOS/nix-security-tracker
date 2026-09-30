@@ -1,5 +1,7 @@
 import { FormatRelativeTime } from "@ark-ui/react";
 import {
+  ChevronDownIcon,
+  ChevronRightIcon,
   InboxIcon,
   LinkIcon,
   PackageMinusIcon,
@@ -9,13 +11,17 @@ import {
   UserMinusIcon,
   UserPlusIcon,
 } from "lucide-preact";
+import type { ComponentChildren } from "preact";
+import { useState } from "preact/hooks";
 import { useGetSuggestionActivityLog } from "@/api/generated/endpoints";
 import { type ActivityLogEntry, SuggestionStatusEnum } from "@/api/generated/models";
+import { Collapsible } from "@/components/ui/Collapsible";
 import { ExternalLink } from "@/components/ui/ExternalLink";
 import { Skeleton } from "@/components/ui/Skeleton";
 import { Spinner } from "@/components/ui/Spinner";
 import { useTick } from "@/hooks/useTick";
 import { formatTime } from "@/utils/date";
+import styles from "./ActivityLog.module.css";
 import { SuggestionStatusIcon } from "./SuggestionStatusIcon";
 
 // Re-render frequency for relative-time displays updates
@@ -25,140 +31,129 @@ const JUST_NOW_MS = 5_000;
 
 type Props = {
   suggestionId: number;
+  open: boolean;
+  onToggle: () => void;
 };
+
+type ObjectItem = { key: string; node: ComponentChildren };
+
+type ActionCategory =
+  | { kind: "create" }
+  | { kind: "package"; restored: boolean }
+  | { kind: "reference"; restored: boolean }
+  | { kind: "maintainer"; op: "add" | "ignore" | "delete" | "restore" }
+  | { kind: "status"; value: SuggestionStatusEnum | null };
+
+function classifyAction(entry: ActivityLogEntry): ActionCategory {
+  if (entry.action === "create") return { kind: "create" };
+  if (entry.action.startsWith("package.")) {
+    return { kind: "package", restored: entry.action.includes("restore") };
+  }
+  if (entry.action.startsWith("reference.")) {
+    return { kind: "reference", restored: entry.action.includes("restore") };
+  }
+  if (entry.action.startsWith("maintainer.")) {
+    const op = entry.action.includes("add")
+      ? "add"
+      : entry.action.includes("ignore")
+        ? "ignore"
+        : entry.action.includes("delete")
+          ? "delete"
+          : "restore";
+    return { kind: "maintainer", op };
+  }
+  const sv = entry.status_value ?? "";
+  const statusValues = Object.values(SuggestionStatusEnum) as readonly SuggestionStatusEnum[];
+  return {
+    kind: "status",
+    value: statusValues.includes(sv as SuggestionStatusEnum) ? (sv as SuggestionStatusEnum) : null,
+  };
+}
 
 function entryIcon(entry: ActivityLogEntry) {
   const size = "1em";
-  if (entry.action === "create") {
-    return entry.rejection_reason ? <Trash2Icon size={size} /> : <InboxIcon size={size} />;
+  const category = classifyAction(entry);
+  switch (category.kind) {
+    case "create":
+      return entry.rejection_reason ? <Trash2Icon size={size} /> : <InboxIcon size={size} />;
+    case "package":
+      return category.restored ? <PackagePlusIcon size={size} /> : <PackageMinusIcon size={size} />;
+    case "reference":
+      return category.restored ? <LinkIcon size={size} /> : <UnlinkIcon size={size} />;
+    case "maintainer":
+      return category.op === "add" ? <UserPlusIcon size={size} /> : <UserMinusIcon size={size} />;
+    case "status":
+      return category.value ? <SuggestionStatusIcon status={category.value} size="1em" /> : null;
   }
-  if (entry.action.startsWith("package.")) {
-    return entry.action.includes("restore") ? (
-      <PackagePlusIcon size={size} />
-    ) : (
-      <PackageMinusIcon size={size} />
-    );
+}
+
+// Name of the action, for the "action name" table column.
+function actionName(entry: ActivityLogEntry): string {
+  const category = classifyAction(entry);
+  switch (category.kind) {
+    case "create":
+      return entry.rejection_reason ? "created & dismissed" : "created suggestion";
+    case "package":
+      return category.restored ? "restored package" : "ignored package";
+    case "reference":
+      return category.restored ? "restored reference" : "ignored reference";
+    case "maintainer":
+      if (category.op === "add") return "added maintainer";
+      if (category.op === "ignore") return "ignored maintainer";
+      if (category.op === "delete") return "deleted maintainer";
+      return "restored maintainer";
+    case "status": {
+      const sv = entry.status_value ?? "";
+      if (sv.includes("accepted")) return "accepted";
+      if (sv.includes("rejected")) return "dismissed";
+      if (sv.includes("pending")) return "marked untriaged";
+      if (sv.includes("published")) return "published";
+      return entry.action;
+    }
   }
-  if (entry.action.startsWith("reference.")) {
-    return entry.action.includes("restore") ? <LinkIcon size={size} /> : <UnlinkIcon size={size} />;
+}
+
+// Items batched into a single entry (e.g. several packages ignored at once), along with the kind label used to describe them (e.g. "packages").
+// null means the entry doesn't carry a list of objects.
+function entryObjectGroup(entry: ActivityLogEntry): { kind: string; items: ObjectItem[] } | null {
+  if (entry.package_names && entry.package_names.length > 0) {
+    return {
+      kind: "packages",
+      items: entry.package_names.map((name) => ({ key: name, node: <span>{name}</span> })),
+    };
   }
-  if (entry.action.startsWith("maintainer.")) {
-    return entry.action.includes("add") ? (
-      <UserPlusIcon size={size} />
-    ) : (
-      <UserMinusIcon size={size} />
-    );
+  if (entry.references && entry.references.length > 0) {
+    return {
+      kind: "references",
+      items: entry.references.map((r) => ({
+        key: r.url,
+        node: <ExternalLink href={r.url}>{r.name || r.url}</ExternalLink>,
+      })),
+    };
   }
-  // Status events
-  const sv = entry.status_value ?? "";
-  const statusValues = Object.values(SuggestionStatusEnum) as readonly SuggestionStatusEnum[];
-  if (statusValues.includes(sv as SuggestionStatusEnum)) {
-    return <SuggestionStatusIcon status={sv as SuggestionStatusEnum} size="1em" />;
+  if (entry.maintainers && entry.maintainers.length > 0) {
+    return {
+      kind: "maintainers",
+      items: entry.maintainers.map((m) => ({
+        key: String(m.github_id),
+        node: <span>@{m.github}</span>,
+      })),
+    };
   }
   return null;
 }
 
-function entryDescription(entry: ActivityLogEntry) {
+// Single, non-batched object of the action (e.g. a rejection reason), for entries that don't carry a list of objects.
+function entryObject(entry: ActivityLogEntry): ComponentChildren {
   if (entry.action === "create") {
-    if (entry.rejection_reason) {
-      return `Created & dismissed (${entry.rejection_reason}) suggestion`;
-    }
-    return "Created suggestion";
+    return entry.rejection_reason ?? null;
   }
-
-  if (entry.action.startsWith("package.")) {
-    const verb = entry.action.includes("restore") ? "restored" : "ignored";
-    const names = entry.package_names ?? [];
-    if (names.length === 1) {
-      return (
-        <span>
-          {verb} package <strong>{names[0]}</strong>
-        </span>
-      );
-    }
-    return (
-      <details>
-        <summary>
-          {verb} {names.length} packages
-        </summary>
-        <ul className="column">
-          {names.map((n) => (
-            <li key={n}>{n}</li>
-          ))}
-        </ul>
-      </details>
-    );
-  }
-
-  if (entry.action.startsWith("reference.")) {
-    const verb = entry.action.includes("restore") ? "restored" : "ignored";
-    const refs = entry.references ?? [];
-    if (refs.length === 1) {
-      return (
-        <span>
-          {verb} reference{" "}
-          <ExternalLink href={refs[0].url}>{refs[0].name || refs[0].url.slice(0, 40)}</ExternalLink>
-        </span>
-      );
-    }
-    return (
-      <details>
-        <summary>
-          {verb} {refs.length} references
-        </summary>
-        <ul className="column">
-          {refs.map((r) => (
-            <li key={r.url}>
-              <ExternalLink href={r.url}>{r.name || r.url}</ExternalLink>
-            </li>
-          ))}
-        </ul>
-      </details>
-    );
-  }
-
-  if (entry.action.startsWith("maintainer.")) {
-    const verb = entry.action.includes("add")
-      ? "added"
-      : entry.action.includes("ignore")
-        ? "ignored"
-        : entry.action.includes("delete")
-          ? "deleted"
-          : "restored";
-    const ms = entry.maintainers ?? [];
-    if (ms.length === 1) {
-      return (
-        <span>
-          {verb} maintainer <strong>@{ms[0].github}</strong>
-        </span>
-      );
-    }
-    return (
-      <details>
-        <summary>
-          {verb} {ms.length} maintainers
-        </summary>
-        <ul className="column">
-          {ms.map((m) => (
-            <li key={m.github_id}>@{m.github}</li>
-          ))}
-        </ul>
-      </details>
-    );
-  }
-
-  // Status change
   const sv = entry.status_value ?? "";
-  if (sv.includes("accepted")) return <span>accepted</span>;
-  if (sv.includes("rejected")) {
-    return <span>dismissed{entry.rejection_reason ? ` (${entry.rejection_reason})` : ""}</span>;
-  }
-  if (sv.includes("pending")) return <span>marked as untriaged</span>;
-  if (sv.includes("published")) return <span>published on GitHub</span>;
-  return <span>{entry.action}</span>;
+  if (sv.includes("rejected")) return entry.rejection_reason ?? null;
+  return null;
 }
 
-function Timestamp({ iso }: { iso: string }) {
+function Timestamp({ iso, short = false }: { iso: string; short?: boolean }) {
   const date = new Date(iso);
   const msAgo = Date.now() - date.getTime();
 
@@ -167,15 +162,87 @@ function Timestamp({ iso }: { iso: string }) {
       {msAgo < JUST_NOW_MS ? (
         "just now"
       ) : msAgo < 60_000 ? (
-        "less than a minute ago"
+        short ? (
+          "last min."
+        ) : (
+          "last minute"
+        )
       ) : (
-        <FormatRelativeTime value={date} />
+        <FormatRelativeTime value={date} style={short ? "short" : "long"} />
       )}
     </time>
   );
 }
 
-export function ActivityLog({ suggestionId }: Props) {
+function EntryRow({ entry }: { entry: ActivityLogEntry }) {
+  const group = entryObjectGroup(entry);
+  const items = group?.items ?? null;
+  const expandable = !!items && items.length > 1;
+  const [expanded, setExpanded] = useState(false);
+
+  function toggle() {
+    if (expandable) setExpanded((v) => !v);
+  }
+
+  const objectCell = items ? (
+    items.length > 1 ? (
+      <span className="row gap-small centered">
+        {expanded ? <ChevronDownIcon size="1em" /> : <ChevronRightIcon size="1em" />}
+        {items.length} {group?.kind}
+      </span>
+    ) : (
+      items[0].node
+    )
+  ) : (
+    entryObject(entry)
+  );
+
+  return (
+    <>
+      <tr
+        className={expandable ? `${styles.entryRow} ${styles.expandable}` : styles.entryRow}
+        onClick={expandable ? toggle : undefined}
+        role={expandable ? "button" : undefined}
+        tabIndex={expandable ? 0 : undefined}
+        aria-expanded={expandable ? expanded : undefined}
+        onKeyDown={
+          expandable
+            ? (e) => {
+                if (e.key === "Enter" || e.key === " ") {
+                  e.preventDefault();
+                  toggle();
+                }
+              }
+            : undefined
+        }
+      >
+        <td>
+          <Timestamp iso={entry.timestamp} short />
+        </td>
+        <td>
+          {entry.username ? <strong>@{entry.username}</strong> : <span>security tracker</span>}
+        </td>
+        <td>{entryIcon(entry)}</td>
+        <td>{actionName(entry)}</td>
+        <td>{objectCell}</td>
+      </tr>
+      {expandable &&
+        expanded &&
+        items?.map((item) => (
+          <tr key={item.key} className={styles.objectRow}>
+            <td />
+            <td />
+            <td />
+            <td />
+            <td>{item.node}</td>
+          </tr>
+        ))}
+    </>
+  );
+}
+
+/** Compact single-line reminder of the last activity log event, used to toggle the full panel. */
+export function ActivityLogToggle({ suggestionId, open, onToggle }: Props) {
   const { data, isLoading, isFetching } = useGetSuggestionActivityLog(suggestionId, undefined, {
     query: {
       // No automatic refetches unless specifically invalidated (e.g. after suggestion mutation).
@@ -197,13 +264,19 @@ export function ActivityLog({ suggestionId }: Props) {
   const summaryVerb = last.action === "create" ? "created" : "updated";
 
   return (
-    <details
-      className="column gap-small align-end"
-      data-testid={`suggestion-${suggestionId}-activity-log`}
+    <button
+      type="button"
+      className={`row gap-small align-end cursor-pointer ${styles.reminder} ${open ? styles.reminderOpen : ""}`}
+      onClick={onToggle}
+      aria-expanded={open}
+      data-testid={`suggestion-${suggestionId}-activity-log-toggle`}
     >
-      <summary>
-        <span className="details-closed inline-row gap-small baseline">
-          {isFetching && <Spinner />}
+      {open ? <ChevronDownIcon size="1em" /> : <ChevronRightIcon size="1em" />}
+      {isFetching && <Spinner />}
+      {open ? (
+        <span>Activity log</span>
+      ) : (
+        <>
           <span>
             {summaryVerb} <Timestamp iso={last.timestamp} />
           </span>
@@ -212,19 +285,46 @@ export function ActivityLog({ suggestionId }: Props) {
               by&nbsp;<strong>@{last.username}</strong>
             </>
           )}
-        </span>
-        <strong className="details-open">Activity log</strong>
-      </summary>
-      <ul className="column align-end">
-        {data.map((entry, i) => (
-          <li key={i} className="row gap-small baseline">
-            {entry.username && <strong>@{entry.username}</strong>}
-            {entryDescription(entry)}
-            <Timestamp iso={entry.timestamp} />
-            {entryIcon(entry)}
-          </li>
-        ))}
-      </ul>
-    </details>
+        </>
+      )}
+    </button>
+  );
+}
+
+/** Full-width, collapsible activity log table. */
+export function ActivityLogPanel({ suggestionId, open }: Omit<Props, "onToggle">) {
+  const { data } = useGetSuggestionActivityLog(suggestionId, undefined, {
+    query: {
+      staleTime: Infinity,
+    },
+  });
+
+  if (!data || data.length === 0) return null;
+
+  // Most recent event first.
+  const entries = [...data].reverse();
+
+  return (
+    <Collapsible open={open}>
+      <div
+        className={`${styles.container} ${open ? styles.containerOpen : ""}`}
+        data-testid={`suggestion-${suggestionId}-activity-log`}
+      >
+        <table className={styles.table}>
+          <colgroup>
+            <col className={styles.colTime} />
+            <col className={styles.colAuthor} />
+            <col className={styles.colIcon} />
+            <col className={styles.colAction} />
+            <col className={styles.colObject} />
+          </colgroup>
+          <tbody>
+            {entries.map((entry, i) => (
+              <EntryRow key={i} entry={entry} />
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </Collapsible>
   );
 }

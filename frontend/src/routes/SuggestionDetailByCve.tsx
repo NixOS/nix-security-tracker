@@ -17,7 +17,7 @@ export function SuggestionDetailByCve() {
 
   useEffect(() => {
     if (data) {
-      setLocation(`/ui-v2/suggestions/by-id/${data.id}`, { replace: true });
+      setLocation(`/suggestions/by-id/${data.id}`, { replace: true });
     }
   }, [data, setLocation]);
 

@@ -71,9 +71,7 @@ def test_feed_item_links_to_suggestion_detail(
         reverse("feeds:package_feed", kwargs={"package_name": drv.attribute})
     )
     content = response.content.decode()
-    suggestion_url = reverse(
-        "webview:suggestion:detail", kwargs={"suggestion_id": cached_suggestion.pk}
-    )
+    suggestion_url = f"/suggestions/by-id/{cached_suggestion.pk}"
     assert suggestion_url in content
 
 
@@ -107,9 +105,7 @@ def test_feed_excludes_suggestion_with_ignored_package(
     assert response.status_code == 200
     content = response.content.decode()
     # No entries should appear for this suggestion
-    suggestion_url = reverse(
-        "webview:suggestion:detail", kwargs={"suggestion_id": cached_suggestion.pk}
-    )
+    suggestion_url = f"/suggestions/by-id/{cached_suggestion.pk}"
     assert suggestion_url not in content
 
 
@@ -121,9 +117,7 @@ def test_feed_auto_dismiss_not_in_feed(
     suggestion = make_cached_suggestion(
         rejection_reason=CVEDerivationClusterProposal.RejectionReason.EXCLUSIVELY_HOSTED_SERVICE
     )
-    suggestion_url = reverse(
-        "webview:suggestion:detail", kwargs={"suggestion_id": suggestion.pk}
-    )
+    suggestion_url = f"/suggestions/by-id/{suggestion.pk}"
     response = client.get(
         reverse("feeds:package_feed", kwargs={"package_name": drv.attribute})
     )
@@ -144,7 +138,5 @@ def test_feed_excludes_events_older_than_30_days(
         )
     assert response.status_code == 200
     content = response.content.decode()
-    suggestion_url = reverse(
-        "webview:suggestion:detail", kwargs={"suggestion_id": cached_suggestion.pk}
-    )
+    suggestion_url = f"/suggestions/by-id/{cached_suggestion.pk}"
     assert suggestion_url not in content

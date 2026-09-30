@@ -1,5 +1,8 @@
 import type { LucideIcon } from "lucide-preact";
-import { ToggleGroup, type ToggleGroupOption } from "@/components/ui/ToggleGroup";
+import {
+  SegmentedToggleGroup,
+  type SegmentedToggleOption,
+} from "@/components/ui/SegmentedToggleGroup";
 
 export type ViewModeOption<T extends string> = { value: T; label: string; Icon: LucideIcon };
 
@@ -12,6 +15,13 @@ type Props<T extends string> = {
   iconOnly?: boolean;
   /** Allows to unselect. Used to inherit from the list-wide view mode. */
   allowClear?: boolean;
+  /**
+   * The inherited/parent-scope value, always highlighted distinctly from the
+   * plain unselected options (unless it is itself the current selection).
+   */
+  currentValue?: T;
+  /** Used when nested in a `LegendCard`'s border-legend slot. */
+  onLegend?: boolean;
 };
 
 /** Generic segmented toggle for switching between view modes (e.g. issue/suggestion display density). */
@@ -22,10 +32,13 @@ export function ViewModeToggle<T extends string>({
   testId,
   iconOnly = false,
   allowClear = false,
+  currentValue,
+  onLegend = false,
 }: Props<T>) {
-  const options: ToggleGroupOption[] = modes.map(({ value: mode, label, Icon }) => ({
+  const options: SegmentedToggleOption[] = modes.map(({ value: mode, label, Icon }) => ({
     value: mode,
     title: iconOnly ? label : undefined,
+    current: mode === currentValue,
     label: iconOnly ? (
       <Icon size="1em" />
     ) : (
@@ -38,10 +51,10 @@ export function ViewModeToggle<T extends string>({
 
   return (
     <div data-testid={testId}>
-      <ToggleGroup
-        value={value ? [value] : []}
+      <SegmentedToggleGroup
+        value={value}
         options={options}
-        variant="segmented"
+        onLegend={onLegend}
         onItemClick={(clicked) => {
           if (allowClear && clicked === value) {
             onChange(undefined);

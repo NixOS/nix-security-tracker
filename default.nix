@@ -8,6 +8,10 @@
       patched = (import sources.nixpkgs { }).applyPatches {
         src = sources.nixpkgs;
         patches = [ ./nix/virtiofs-cache.patch ];
+        patchFlags = [
+          "-p1"
+          "-l"
+        ];
       };
     in
     import patched {

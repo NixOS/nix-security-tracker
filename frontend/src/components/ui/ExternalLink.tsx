@@ -19,15 +19,9 @@ export function ExternalLink({
   title,
 }: ExternalLinkProps) {
   return (
-    <a
-      href={href}
-      target={target}
-      rel={rel}
-      className={`inline-row centered ${className}`}
-      title={title}
-    >
+    <a href={href} target={target} rel={rel} className={className} title={title}>
       {children}
-      <ExternalLinkIcon size=".9em" style="margin-left: .2em" />
+      <ExternalLinkIcon size=".9em" style="margin-left: .2em; vertical-align: -0.05em;" />
     </a>
   );
 }

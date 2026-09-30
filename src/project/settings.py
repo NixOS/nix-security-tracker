@@ -574,11 +574,11 @@ HEADLESS_CLIENTS = ("browser",)
 HEADLESS_FRONTEND_URLS = {
     # Fallback if the OAuth handshake state is lost (e.g. denied access, expired session mid-flow).
     # We set login_error for the frontend to recognize it and display an error message
-    "socialaccount_login_error": "/ui-v2/?login_error=1",
+    "socialaccount_login_error": "/?login_error=1",
 }
 
 # TODO: make configurable so one can log in locally
-LOGIN_REDIRECT_URL = "webview:home"
+LOGIN_REDIRECT_URL = "spa"
 
 # Internationalization
 # https://docs.djangoproject.com/en/4.2/topics/i18n/
@@ -603,9 +603,8 @@ STATIC_URL = "static/"
 #   - True  -> the Vite dev server (HMR) at VITE_DEV_SERVER_{HOST,PORT}
 #   - False -> hashed URLs under /static/<prefix>/, read from the built manifest
 #
-# These constants are the single source of truth for the django-vite wiring; the
-# new-UI test suite (src/webview/tests/ui_v2/) imports them and the helper below
-# rather than re-declaring the config.
+# These constants are the single source of truth for the django-vite wiring;
+# the frontend test suite (src/webview/tests/frontend/) imports them and the helper below rather than re-declaring the config.
 DJANGO_VITE = {
     "default": {
         "dev_mode": VITE_DEV_SERVER_PORT is not None,  # noqa: F821 # pyright: ignore [reportUndefinedVariable]

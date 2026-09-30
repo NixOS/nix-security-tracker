@@ -1,0 +1,51 @@
+.item {
+  padding: 0.3em 0.8em;
+  background: var(--light-gray);
+  flex-grow: 1;
+}
+
+.item:hover {
+  border-color: var(--nixos-blue);
+}
+
+.item[data-state="on"] {
+  background: var(--nixos-blue);
+  border-color: var(--nixos-blue);
+  color: white;
+  font-weight: bold;
+}
+
+/* Segmented variant: single connected control instead of separate pills */
+
+.segmentedRoot {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1px;
+  /* Shows through the 1px flex gaps as divider lines, both between items in
+   * a row and between wrapped rows, without any per-item border hacks. */
+  background-color: var(--gray);
+  border: 1px solid var(--gray);
+  border-radius: 0.4em;
+  max-width: 100%;
+  overflow: hidden;
+}
+
+.segmentedItem {
+  border: none;
+  border-radius: 0;
+  padding: 0.35em 0.6em;
+}
+
+/* "On legend" variant: used when nested in a LegendCard's border-legend
+ * slot. White background blending into the card, gray (unselected) icons. */
+.onLegend .item:not([data-state="on"]) {
+  background: white;
+  color: var(--gray);
+}
+
+/* The icon matching the inherited/parent-scope view mode is shown in black
+ * instead of the plain unselected gray, unless it is itself the current
+ * selection (already highlighted via the selected/"on" state). */
+.onLegend .item[data-current="true"]:not([data-state="on"]) {
+  color: black;
+}

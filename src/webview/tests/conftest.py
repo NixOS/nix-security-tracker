@@ -14,7 +14,6 @@ from django.http import HttpRequest, HttpResponse
 from django.shortcuts import redirect
 from django.urls import reverse
 from playwright.sync_api import Page
-from pytest import FixtureRequest
 from pytest_django.live_server_helper import LiveServer
 
 pytest_plugins = ["shared.tests.conftest"]
@@ -22,16 +21,6 @@ pytest_plugins = ["shared.tests.conftest"]
 # NOTE(@fricklerhandwerk): Allows mixing async `live_server` with sync `db` fixtures.
 # There seems to be no better way to make that work.
 os.environ["DJANGO_ALLOW_ASYNC_UNSAFE"] = "true"
-
-
-@pytest.fixture(params=[True, False])
-def no_js(request: FixtureRequest) -> bool:
-    return request.param
-
-
-@pytest.fixture
-def browser_context_args(no_js: bool) -> dict[str, Any]:
-    return {"java_script_enabled": not no_js}
 
 
 @pytest.fixture

@@ -6,8 +6,8 @@ import styles from "./NavTabs.module.css";
 type NavTab = "suggestions" | "issues";
 
 function getActiveTab(path: string): NavTab | "" {
-  if (path.startsWith("/ui-v2/suggestions")) return "suggestions";
-  if (path.startsWith("/ui-v2/issues")) return "issues";
+  if (path.startsWith("/suggestions")) return "suggestions";
+  if (path.startsWith("/issues")) return "issues";
   return "";
 }
 
@@ -20,14 +20,14 @@ export function NavTabs() {
       value={value}
       // NOTE(@florentc): onValueChange also takes keyboard navigation into account.
       // Not redundant with `onClick` on each tab
-      onValueChange={({ value }) => setLocation(`/ui-v2/${value}`)}
+      onValueChange={({ value }) => setLocation(`/${value}`)}
       className={styles.tabsRoot}
     >
       <TabList className={`row ${styles.tabList}`}>
         <TabTrigger
           value="suggestions"
           // NOTE(@florentc): needed to force going back to list when browsing suggestion detail
-          onClick={() => setLocation("/ui-v2/suggestions")}
+          onClick={() => setLocation("/suggestions")}
           className={`column centered ${styles.tab} cursor-pointer`}
         >
           <ShieldIcon size="1.5em" />
@@ -36,7 +36,7 @@ export function NavTabs() {
         <TabTrigger
           value="issues"
           // NOTE(@florentc): needed to force going back to list when browsing issue detail
-          onClick={() => setLocation("/ui-v2/issues")}
+          onClick={() => setLocation("/issues")}
           className={`column centered ${styles.tab} cursor-pointer`}
         >
           <GlobeCheckIcon size="1.5em" />

@@ -1,14 +1,15 @@
+import { ShieldIcon } from "lucide-preact";
 import { useState } from "preact/hooks";
 import { Link } from "wouter-preact";
 import type { Suggestion as SuggestionType } from "@/api/generated/models";
 import { ExternalLink } from "@/components/ui/ExternalLink";
+import { LegendCard } from "@/components/ui/LegendCard";
 import { useAuth } from "@/hooks/useAuth";
 import {
   DEFAULT_SUGGESTION_VIEW_MODE,
   type SuggestionViewMode,
 } from "@/hooks/useSuggestionViewMode";
-import { truncate } from "@/utils/text";
-import { ActivityLog } from "./ActivityLog";
+import { ActivityLogPanel, ActivityLogToggle } from "./ActivityLog";
 import { SeverityBadge } from "./SeverityBadge";
 import { SuggestionCompactBody } from "./SuggestionCompactBody";
 import { SuggestionDetailedBody } from "./SuggestionDetailedBody";
@@ -38,72 +39,87 @@ export function Suggestion({
 
   const [ownViewMode, setOwnViewMode] = useState<SuggestionViewMode | undefined>(undefined);
   const viewMode = ownViewMode ?? inheritedViewMode;
+  const [activityLogOpen, setActivityLogOpen] = useState(false);
 
   const nvdUrl = `https://nvd.nist.gov/vuln/detail/${encodeURIComponent(cve_id)}`;
 
-  const articleClassName = `box border rounded column gap-big ${dimmed ? "border-dashed" : "shadow"}`;
+  const cveLegend = (
+    <>
+      <div className="row gap-small centered">
+        <ShieldIcon size="1em" />
+        <Link href={`/suggestions/by-id/${id}`}>{cve_id}</Link>
+      </div>
+      <div>
+        (<ExternalLink href={nvdUrl}>NVD</ExternalLink>)
+      </div>
+    </>
+  );
 
   // Only highlight the toggle when the suggestion has an explicit override of its own
   const toggleValue = allowViewModeClear ? ownViewMode : viewMode;
 
+  const viewToggleLegend = (
+    <SuggestionViewToggle
+      value={toggleValue}
+      onChange={setOwnViewMode}
+      iconOnly
+      allowClear={allowViewModeClear}
+      currentValue={inheritedViewMode}
+      onLegend
+      testId={`suggestion-${id}-view-toggle`}
+    />
+  );
+
   if (viewMode === "collapsed") {
     const displayedTitle = title || description;
     return (
-      <article className={articleClassName} data-testid={`suggestion-${id}-collapsed`}>
-        <div className="row gap spread centered wrap">
-          <div className="row gap centered wrap">
-            <span data-testid={`suggestion-${id}-status`}>
-              <SuggestionStatus status={status} rejectionReason={rejection_reason} iconOnly />
-            </span>
-            <ExternalLink href={nvdUrl}>{cve_id}</ExternalLink>
-            {displayedTitle && <span>{truncate(displayedTitle)}</span>}
+      <LegendCard
+        legend={cveLegend}
+        viewToggle={viewToggleLegend}
+        dashed={dimmed}
+        testId={`suggestion-${id}-collapsed`}
+      >
+        <div className="row gap centered">
+          <div data-testid={`suggestion-${id}-status`} className="contents">
+            <SuggestionStatus status={status} rejectionReason={rejection_reason} iconOnly />
           </div>
-          <div className="row gap centered">
-            <Link href={`/ui-v2/suggestions/by-id/${id}`}>Permalink</Link>
-            <SuggestionViewToggle
-              value={toggleValue}
-              onChange={setOwnViewMode}
-              iconOnly
-              allowClear={allowViewModeClear}
-              testId={`suggestion-${id}-view-toggle`}
-            />
-          </div>
+          {displayedTitle && <div>{displayedTitle}</div>}
         </div>
-      </article>
+      </LegendCard>
     );
   }
 
   return (
-    <article className={articleClassName} data-testid={`suggestion-${id}`}>
+    <LegendCard
+      legend={cveLegend}
+      viewToggle={viewToggleLegend}
+      dashed={dimmed}
+      testId={`suggestion-${id}`}
+    >
       {/* Header */}
-      <div className="column gap-small">
-        <div className="row gap spread centered">
-          <SuggestionStatus
-            status={status}
-            rejectionReason={rejection_reason}
-            issueCode={issue_code}
-          />
-          <SuggestionViewToggle
-            value={toggleValue}
-            onChange={setOwnViewMode}
-            iconOnly
-            allowClear={allowViewModeClear}
-            testId={`suggestion-${id}-view-toggle`}
-          />
-        </div>
-
-        <div className="row gap spread align-start">
-          <div className="row gap">
-            <Link href={`/ui-v2/suggestions/by-id/${id}`}>Permalink</Link>
-            <ExternalLink href={nvdUrl}>{cve_id}</ExternalLink>
-            {metrics.length > 0 && <SeverityBadge metrics={metrics} />}
+      <div className="column gap">
+        <div className="column full-width">
+          <div className="row gap spread align-start">
+            <SuggestionStatus
+              status={status}
+              rejectionReason={rejection_reason}
+              issueCode={issue_code}
+            />
+            <ActivityLogToggle
+              suggestionId={id}
+              open={activityLogOpen}
+              onToggle={() => setActivityLogOpen((v) => !v)}
+            />
           </div>
-          <ActivityLog suggestionId={id} />
+          <ActivityLogPanel suggestionId={id} open={activityLogOpen} />
         </div>
 
         <details>
-          <summary className="bold text-l">
-            {title || (description ? `${description.slice(0, 80)}…` : cve_id)}
+          <summary>
+            {metrics.length > 0 && <SeverityBadge metrics={metrics} />}
+            <span className="bold text-l">
+              {title || (description ? `${description.slice(0, 80)}…` : cve_id)}
+            </span>
           </summary>
           {description && <p>{description}</p>}
         </details>
@@ -120,6 +136,6 @@ export function Suggestion({
       {viewMode === "detailed" && (
         <SuggestionDetailedBody suggestion={suggestion} userCanEdit={userCanEdit} />
       )}
-    </article>
+    </LegendCard>
   );
 }

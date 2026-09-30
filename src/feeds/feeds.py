@@ -1,11 +1,11 @@
 from dataclasses import dataclass
 from datetime import datetime
 from typing import Any, cast
+from urllib.parse import quote
 
 from django.contrib.syndication.views import Feed
 from django.core.exceptions import ObjectDoesNotExist
 from django.template.defaultfilters import truncatewords
-from django.urls import reverse
 from django.utils.feedgenerator import Atom1Feed
 from django.utils.safestring import SafeText, mark_safe
 
@@ -60,10 +60,7 @@ class PackageFeed(Feed):
         return f"Activity involving package '{package_name}'"
 
     def link(self, package_name: str) -> str:
-        return reverse(
-            "webview:suggestion:suggestions_by_package",
-            kwargs={"package_name": package_name},
-        )
+        return f"/suggestions?package={quote(package_name, safe='')}"
 
     def description(self, package_name: str) -> str:
         return f"Status changes for suggestions involving package '{package_name}' on Nixpkgs security tracker. Including creation of new suggestions, dismissal, acceptance, and publication. After a package is ignored on a suggestion, related events are no longer tracked."
@@ -109,10 +106,7 @@ class PackageFeed(Feed):
 
     def item_link(self, item: Any) -> str:
         fi = cast(FeedItem, item)
-        return reverse(
-            "webview:suggestion:detail",
-            kwargs={"suggestion_id": fi.suggestion.pk},
-        )
+        return f"/suggestions/by-id/{fi.suggestion.pk}"
 
     def item_description(self, item: Any) -> str:
         fi = cast(FeedItem, item)

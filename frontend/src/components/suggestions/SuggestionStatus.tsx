@@ -49,17 +49,19 @@ export function rejectionReasonLabel(rejection_reason: RejectionReasonEnum): str
 }
 
 export function SuggestionStatus({ status, rejectionReason, issueCode, iconOnly = false }: Props) {
-  return iconOnly ? (
-    <SuggestionStatusIcon status={status} size="1em" />
-  ) : (
-    <div className="row gap-small centered wrap">
+  return (
+    <div className="row gap-small centered">
       <SuggestionStatusIcon status={status} size="1em" />
-      <span>{statusLabel(status)}</span>
-      {rejectionReason && <span>({rejectionReasonLabel(rejectionReason)})</span>}
-      {status === "published" && issueCode && (
-        <span>
-          (<Link href={`/ui-v2/issues/${issueCode}`}>Issue</Link>)
-        </span>
+      {!iconOnly && (
+        <>
+          <span>{statusLabel(status)}</span>
+          {rejectionReason && <span>({rejectionReasonLabel(rejectionReason)})</span>}
+          {status === "published" && issueCode && (
+            <span>
+              (<Link href={`/issues/${issueCode}`}>Issue</Link>)
+            </span>
+          )}
+        </>
       )}
     </div>
   );

@@ -6,6 +6,7 @@ from api.issues.views import IssueViewSet
 from api.matching.views import MatchingTrainingDataView
 from api.me import CurrentUserView
 from api.notifications.views import NotificationViewSet
+from api.packages.views import PackageExistsView
 from api.server_info import ServerInfoView
 from api.subscriptions.views import SubscriptionsViewSet
 from api.suggestions.views import SuggestionViewSet
@@ -21,6 +22,11 @@ urlpatterns = [
     path("v1/", include(v1_router.urls)),
     path("v1/me", CurrentUserView.as_view(), name="current-user"),
     path("v1/server-info", ServerInfoView.as_view(), name="server-info"),
+    path(
+        "v1/packages/<path:package_name>/exists",
+        PackageExistsView.as_view(),
+        name="package-exists",
+    ),
     path("v1/tokens/me", TokenManagementView.as_view(), name="token-management"),
     path(
         "v1/matching-training-data",

@@ -19,17 +19,26 @@ export function Comment({ suggestionId, comment, canEdit, compact = false }: Pro
   const [saveState, setSaveState] = useState<SaveState>("idle");
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const savedTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // Unsaved local edits: the box must not be overwritten by anything coming from the server.
+  const dirtyRef = useRef(false);
+  // Latest typed text, readable from the mutation callbacks.
+  const valueRef = useRef(value);
 
   const mutation = useCommentMutation(suggestionId);
 
-  // Sync if the prop changes externally (e.g. parent re-fetches)
+  // Adopt an external value (parent re-fetch, own save echo) only when there is nothing unsaved locally.
+  // Otherwise it would clobber what the user is typing.
   useEffect(() => {
+    if (dirtyRef.current) return;
     setValue(comment ?? "");
+    valueRef.current = comment ?? "";
   }, [comment]);
 
   function handleChange(e: Event) {
     const next = (e.target as HTMLTextAreaElement).value;
     setValue(next);
+    valueRef.current = next;
+    dirtyRef.current = true;
     setSaveState("pending");
 
     if (debounceRef.current) clearTimeout(debounceRef.current);
@@ -41,6 +50,9 @@ export function Comment({ suggestionId, comment, canEdit, compact = false }: Pro
         { id: suggestionId, data: { comment: next } },
         {
           onSuccess: () => {
+            // Only settle if nothing was typed since: otherwise another save is pending.
+            if (valueRef.current !== next) return;
+            dirtyRef.current = false;
             setSaveState("saved");
             savedTimeoutRef.current = setTimeout(
               () => setSaveState("idle"),

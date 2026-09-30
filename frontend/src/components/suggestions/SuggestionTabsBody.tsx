@@ -35,30 +35,38 @@ export function SuggestionTabsBody({ suggestion, userCanEdit }: Props) {
       label: "References",
       icon: <LinkIcon size="1em" />,
       content: (
-        <CategorizedReferencesList
-          categorizedReferences={categorized_url_references}
-          suggestionId={id}
-          editable={editable}
-        />
+        <div className="box compact">
+          <CategorizedReferencesList
+            categorizedReferences={categorized_url_references}
+            suggestionId={id}
+            editable={editable}
+          />
+        </div>
       ),
     },
     Object.keys(affected_products).length > 0 && {
       value: "affected-products",
       label: "Affected products",
       icon: <BugIcon size="1em" />,
-      content: <AffectedProductsList affectedProducts={affected_products} />,
+      content: (
+        <div className="box compact">
+          <AffectedProductsList affectedProducts={affected_products} />
+        </div>
+      ),
     },
     Object.keys(packages).length + Object.keys(ignored_packages).length > 0 && {
       value: "packages",
       label: "Matching in Nixpkgs",
       icon: <PackageIcon size="1em" />,
       content: (
-        <CategorizedPackagesList
-          suggestionId={id}
-          active={packages}
-          ignored={ignored_packages}
-          editable={editable}
-        />
+        <div className="box compact">
+          <CategorizedPackagesList
+            suggestionId={id}
+            active={packages}
+            ignored={ignored_packages}
+            editable={editable}
+          />
+        </div>
       ),
     },
     categorized_maintainers.original.length > 0 && {
@@ -66,11 +74,13 @@ export function SuggestionTabsBody({ suggestion, userCanEdit }: Props) {
       label: "Maintainers",
       icon: <UserIcon size="1em" />,
       content: (
-        <CategorizedMaintainersList
-          suggestionId={id}
-          categorizedMaintainers={categorized_maintainers}
-          editable={editable}
-        />
+        <div className="box compact">
+          <CategorizedMaintainersList
+            suggestionId={id}
+            categorizedMaintainers={categorized_maintainers}
+            editable={editable}
+          />
+        </div>
       ),
     },
   ];

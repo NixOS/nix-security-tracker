@@ -20,11 +20,11 @@ from django.urls import include, path, re_path
 from django.views.decorators.csrf import ensure_csrf_cookie
 from django.views.generic import TemplateView
 
-# SPA catch-all: serves the same template for all /ui-v2/ sub-paths (client-side routing)
+# SPA catch-all: serves the same template for all paths (client-side routing)
 
 # `ensure_csrf_cookie` guarantees a first-time anonymous visitor already has a CSRF cookie before they click "Login with GitHub" (POST).
 # Otherwise the first login attempt fails with a CSRF 403.
-ui_v2_view = ensure_csrf_cookie(TemplateView.as_view(template_name="ui_v2.html"))
+spa_view = ensure_csrf_cookie(TemplateView.as_view(template_name="frontend.html"))
 
 urlpatterns = [
     path("", include("webview.urls")),
@@ -34,5 +34,5 @@ urlpatterns = [
     path("accounts/", include("allauth.urls")),
     path("_allauth/", include("allauth.headless.urls")),
     path("debug/", include("debug_toolbar.urls")),
-    re_path(r"^ui-v2/(?:.*)?$", ui_v2_view, name="ui_v2"),
+    re_path(r"^(?:.*)?$", spa_view, name="spa"),
 ]

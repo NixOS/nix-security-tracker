@@ -15,7 +15,7 @@ export function SuggestionCompactBody({ suggestion, userCanEdit }: Props) {
 
   return (
     <div className="column gap-big">
-      <div className="column gap-small">
+      <div className="box compact column gap-small">
         {categorized_url_references.original.length > 0 && (
           <>
             <CategorizedReferencesList

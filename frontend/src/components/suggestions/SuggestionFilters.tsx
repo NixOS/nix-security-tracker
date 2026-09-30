@@ -1,9 +1,9 @@
-import { LayersIcon, PackageIcon } from "lucide-preact";
-import { useEffect, useState } from "preact/hooks";
+import { LayersIcon } from "lucide-preact";
 import type { ListSuggestionsStatusItem } from "@/api/generated/models";
 import { ListSuggestionsStatusItem as Status } from "@/api/generated/models";
-import { ToggleGroup, type ToggleGroupOption } from "@/components/ui/ToggleGroup";
+import { PillToggleGroup, type ToggleGroupOption } from "@/components/ui/PillToggleGroup";
 import type { SuggestionListFilters } from "@/hooks/useSuggestionListFilters";
+import { PackageFilterInput } from "./PackageFilterInput";
 import { statusLabel } from "./SuggestionStatus";
 import { SuggestionStatusIcon } from "./SuggestionStatusIcon";
 
@@ -40,8 +40,6 @@ const TOGGLE_OPTIONS: ToggleGroupOption[] = [
   STATUS_OPTIONS[3],
 ];
 
-const DEBOUNCE_PACKAGE_MS = 500;
-
 type Props = {
   filters: SuggestionListFilters;
   setStatuses: (statuses: ListSuggestionsStatusItem[]) => void;
@@ -65,39 +63,6 @@ function nextToggleSelection(current: string[], clicked: string, event: MouseEve
   return isOnlySelected ? [] : [clicked];
 }
 
-function PackageFilterInput({
-  packageFilter,
-  setPackageFilter,
-}: {
-  packageFilter: string;
-  setPackageFilter: (value: string) => void;
-}) {
-  const [local, setLocal] = useState(packageFilter);
-
-  // Re-sync from the URL (e.g. back/forward navigation, external link).
-  useEffect(() => setLocal(packageFilter), [packageFilter]);
-
-  useEffect(() => {
-    if (local === packageFilter) return;
-    const timeout = setTimeout(() => setPackageFilter(local), DEBOUNCE_PACKAGE_MS);
-    return () => clearTimeout(timeout);
-  }, [local]);
-
-  return (
-    <div className="row gap-small centered">
-      <PackageIcon size="1em" />
-      <input
-        type="text"
-        placeholder="Filter by package…"
-        value={local}
-        onInput={(e) => setLocal(e.currentTarget.value)}
-        className="rounded border box compact"
-        aria-label="Filter by package"
-      />
-    </div>
-  );
-}
-
 export function SuggestionFilters({
   filters,
   setStatuses,
@@ -110,7 +75,7 @@ export function SuggestionFilters({
 
   return (
     <div className="row gap row-gap-big wrap align-center" data-testid="suggestion-filters">
-      <ToggleGroup
+      <PillToggleGroup
         value={toggleValue}
         options={TOGGLE_OPTIONS}
         onItemClick={(value, event) => {

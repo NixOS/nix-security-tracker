@@ -114,6 +114,55 @@ Then connect to the VM:
 ssh root@localhost -p 20022
 ```
 
+## Running Playwright tests in graphical debug mode
+
+For debug mode, Playwright needs to display a browser window.
+Set up [SSH access to the development VM](#ssh-access-to-the-development-vm), and enable X forwarding inside the virtual machine:
+
+```nix
+# .local/default.nix
+{ pkgs, ... }: {
+  environment.systemPackages = with pkgs; [
+    xauth
+  ];
+
+  services.openssh.settings.X11Forwarding = true;
+
+  services.nix-security-tracker = {
+    secrets.Xauthority = "/root/.Xauthority";
+    env.XAUTHORITY = "/run/credentials/manage.service/Xauthority";
+    pass-env = [
+      "DISPLAY"
+      "PWDEBUG"
+    ];
+  };
+}
+```
+
+> [!NOTE]
+> Your host needs [Xwayland support](https://search.nixos.org/options?query=xwayland.enable&type=options) for this to work.
+> It's enabled by default on NixOS for major desktop environments.
+
+Connect to the VM with X forwarding:
+
+```console
+ssh -X root@localhost -p 20022
+```
+
+Test whether the setup works:
+
+```console
+manage test -- --pyargs webview.tests.test_login --headed --slowmo 5000
+```
+
+This should open a chromium window.
+
+Run Playwright tests:
+
+```console
+PWDEBUG=1 manage test -- --pyargs webview
+```
+
 ## Formatting
 
 Run the formatter manually with:
@@ -178,12 +227,14 @@ Expose the keypair to the development VM through your [local configuration exten
 }
 ```
 
-Once you have access, delete the database and recreate it, then restore it from a dump, and (just in case the dump is behind the code) run migrations:
+Once you have access, stop the services, delete the database and recreate it, then restore it from a dump, and (just in case the dump is behind the code) run migrations:
 
 ```bash
 systemctl stop nix-security-tracker.target
+systemctl stop prometheus-{node,postgres,sql}-exporter
 dropdb nix-security-tracker
 ssh dump-db@tracker-staging.security.nixos.org | zstdcat | pv | psql -U postgres
 manage migrate
 systemctl start nix-security-tracker.target
+systemctl start prometheus-{node,postgres,sql}-exporter
 ```

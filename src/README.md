@@ -8,4 +8,4 @@ In addition to the `manage.py` administration utility, there are top-level direc
 - [`api`](./api/): Our REST API powered by Django REST framework (OpenAPI schema served on `/api/schema`)
 - [`feeds`](./feeds/): Atom feeds
 - [`shared`](./shared/): Utilities and models consumed by the other components.
-- [`webview`](./webview/): The views which comprise the web frontend.
+- [`webview`](./webview/): User specific models, user stories tests, and the Django view that serves the frontend.

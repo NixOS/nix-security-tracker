@@ -49,13 +49,13 @@ export function AuthStatus() {
             value: "subscriptions",
             label: "Subscriptions",
             icon: <BellIcon size="1em" />,
-            onSelect: () => setLocation("/ui-v2/user/subscriptions"),
+            onSelect: () => setLocation("/user/subscriptions"),
           },
           {
             value: "tokens",
             label: "API Tokens",
             icon: <KeyRoundIcon size="1em" />,
-            onSelect: () => setLocation("/ui-v2/user/tokens"),
+            onSelect: () => setLocation("/user/tokens"),
           },
           { type: "separator" },
           {

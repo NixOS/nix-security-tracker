@@ -1,4 +1,4 @@
-import { EyeIcon } from "lucide-preact";
+import { EyeIcon, GlobeCheckIcon } from "lucide-preact";
 import { useState } from "preact/hooks";
 import { Link } from "wouter-preact";
 import type { Issue as IssueType } from "@/api/generated/models";
@@ -9,8 +9,8 @@ import {
   DEFAULT_SUGGESTION_VIEW_MODE,
   type SuggestionViewMode,
 } from "@/hooks/useSuggestionViewMode";
-import { truncate } from "@/utils/text";
 import { ExternalLink } from "../ui/ExternalLink";
+import { LegendCard } from "../ui/LegendCard";
 import { IssueViewToggle } from "./IssueViewToggle";
 
 type Props = {
@@ -38,28 +38,38 @@ export function Issue({
   const viewToggleValue = allowViewModeClear ? ownViewMode : viewMode;
   const suggestionToggleValue = allowViewModeClear ? ownSuggestionViewMode : suggestionViewMode;
 
-  return (
-    <article className="box border rounded shadow column gap-big" data-testid={`issue-${code}`}>
-      <div className="column gap-small">
-        <div className="row gap spread centered wrap">
-          {viewMode !== "collapsed" && <Link href={`/ui-v2/issues/${code}`}>Permalink</Link>}
-          <div className="row gap centered wrap">
-            {viewMode === "collapsed" && title && (
-              <span data-testid={`issue-${code}-title`}>{truncate(title)}</span>
-            )}
-          </div>
-          <div className="row gap centered wrap">
-            {viewMode === "collapsed" && <Link href={`/ui-v2/issues/${code}`}>Permalink</Link>}
-            {github_issue_url && <ExternalLink href={github_issue_url}>GitHub issue</ExternalLink>}
-            <IssueViewToggle
-              value={viewToggleValue}
-              onChange={setOwnViewMode}
-              allowClear={allowViewModeClear}
-              iconOnly
-              testId={`issue-${code}-view-toggle`}
-            />
-          </div>
+  const legend = (
+    <>
+      <div className="row gap-small centered">
+        <GlobeCheckIcon size="1em" />
+        <Link href={`/issues/${code}`}>{code}</Link>
+      </div>
+      {github_issue_url && (
+        <div>
+          (<ExternalLink href={github_issue_url}>GitHub</ExternalLink>)
         </div>
+      )}
+    </>
+  );
+
+  const viewToggle = (
+    <IssueViewToggle
+      value={viewToggleValue}
+      onChange={setOwnViewMode}
+      allowClear={allowViewModeClear}
+      iconOnly
+      currentValue={inheritedViewMode}
+      onLegend
+      testId={`issue-${code}-view-toggle`}
+    />
+  );
+
+  return (
+    <LegendCard legend={legend} viewToggle={viewToggle} testId={`issue-${code}`}>
+      <div className="column gap-small">
+        {viewMode === "collapsed" && title && (
+          <span data-testid={`issue-${code}-title`}>{title}</span>
+        )}
         {viewMode !== "collapsed" && title && (
           <div className="bold text-l" data-testid={`issue-${code}-title`}>
             {title}
@@ -77,6 +87,7 @@ export function Issue({
                 onChange={setOwnSuggestionViewMode}
                 allowClear={allowViewModeClear}
                 iconOnly
+                currentValue={inheritedSuggestionViewMode}
                 testId={`issue-${code}-suggestions-view-toggle`}
               />
             </div>
@@ -93,6 +104,6 @@ export function Issue({
           )}
         </div>
       )}
-    </article>
+    </LegendCard>
   );
 }

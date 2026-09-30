@@ -189,21 +189,15 @@ pkgs.testers.runNixOSTest {
         server.succeed("curl --fail http://localhost:${toString exporters.sql.port}/metrics")
 
       with subtest("Check that stylesheet is served"):
-        machine.succeed("curl --fail -H 'Host: example.org' http://localhost/static/reset.css")
-        machine.succeed("curl --fail -H 'Host: example.org' http://localhost/static/font.css")
-        machine.succeed("curl --fail -H 'Host: example.org' http://localhost/static/colors.css")
-        machine.succeed("curl --fail -H 'Host: example.org' http://localhost/static/utility.css")
-        machine.succeed("curl --fail -H 'Host: example.org' http://localhost/static/cvss-tags.css")
-        machine.succeed("curl --fail -H 'Host: example.org' http://localhost/static/page-layout.css")
-        machine.succeed("curl --fail -H 'Host: example.org' http://localhost/static/icons/style.css")
+        machine.succeed("curl --fail -H 'Host: example.org' http://localhost/static/nixos-logo.svg")
 
       with subtest("Check that admin interface is served"):
         server.succeed("curl --fail -L -H 'Host: example.org' http://localhost/admin")
 
       with subtest("Check that frontend UI is served"):
-        server.succeed("curl --fail -H 'Host: example.org' http://localhost/ui-v2/")
+        server.succeed("curl --fail -H 'Host: example.org' http://localhost/")
         # SPA fallback: unknown routes still return the same page
-        server.succeed("curl --fail -H 'Host: example.org' http://localhost/ui-v2/some/route")
+        server.succeed("curl --fail -H 'Host: example.org' http://localhost/some/route")
         # Vite-built assets are served by nginx with immutable cache headers
         result = server.succeed("curl -sI -H 'Host: example.org' http://localhost/static/vite/.vite/manifest.json")
         assert "200" in result, f"Expected 200 for manifest.json, got: {result}"

@@ -23,9 +23,8 @@ From here, it follows standard Django patterns:
 - [`src/project/`](src/project/): global project configuration
 - [`src/shared/`](src/shared/): [application](https://docs.djangoproject.com/en/6.0/ref/applications/) with data models and business logic
 - [`src/api`](src/api): application for the REST API
-- [`src/webview/`](src/webview/): application for the legacy web frontend
-
-Web client code (currently in beta) lives [`frontend/`](frontend/) and relies on the API.
+- [`src/webview`](src/webview/): User specific models, user stories tests, and the Django view that serves the frontend.
+- [`frontend`](frontend/): the Preact powered frontend that relies on the API
 
 Service definitions are in [`nix/configuration.nix`](nix/configuration.nix).
 

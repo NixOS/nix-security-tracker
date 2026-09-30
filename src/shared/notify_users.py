@@ -5,14 +5,37 @@ from django.conf import settings
 from django.contrib.auth.models import User
 from django.core.mail import send_mail
 from django.template.defaultfilters import truncatewords
-from django.urls import reverse
 
 from shared.models.linkage import CVEDerivationClusterProposal
 from webview.models import Profile
 from webview.models import SuggestionNotification as Notification
-from webview.notifications.context import NotificationContext
 
 logger = logging.getLogger(__name__)
+
+
+def _matching_subscribed_packages(notification: Notification, profile: Profile) -> dict:
+    """Packages in the notification's suggestion that the user manually subscribed to."""
+    suggestion_packages = notification.suggestion.cached.payload.get("packages", {})
+    subscribed_attrs = set(profile.package_subscriptions)
+    return {
+        attr: pdata
+        for attr, pdata in suggestion_packages.items()
+        if attr in subscribed_attrs
+    }
+
+
+def _matching_maintained_packages(notification: Notification, profile: Profile) -> dict:
+    """Packages in the notification's suggestion that the user maintains."""
+    suggestion_packages = notification.suggestion.cached.payload.get("packages", {})
+    username = profile.user.username
+    return {
+        attr: pdata
+        for attr, pdata in suggestion_packages.items()
+        if any(
+            maintainer.get("github") == username
+            for maintainer in pdata.get("maintainers", [])
+        )
+    }
 
 
 def create_package_subscription_notifications(
@@ -114,8 +137,12 @@ def send_notification_email(user: User, notification: Notification) -> None:
         logger.info(f"Could not send email notification to {user.username}: no address")
         return
 
-    # Reuse existing notification rendering logic
-    context = NotificationContext(notification=notification, user_profile=user.profile)
+    matching_subscribed_packages = _matching_subscribed_packages(
+        notification, user.profile
+    )
+    matching_maintained_packages = _matching_maintained_packages(
+        notification, user.profile
+    )
 
     suggestion = notification.suggestion
     subject = f"Nixpkgs security notification: {suggestion.cve.cve_id}"
@@ -133,7 +160,7 @@ def send_notification_email(user: User, notification: Notification) -> None:
         "",
         f"CVE: {suggestion.cve.cve_id}",
         f"Object: {cve_title}",
-        f"Details: {urljoin(str(settings.BASE_URL), reverse('webview:suggestion:detail', kwargs={'suggestion_id': suggestion.pk}))}",
+        f"Details: {urljoin(str(settings.BASE_URL), f'/suggestions/by-id/{suggestion.pk}')}",
         "",
     ]
 
@@ -162,28 +189,28 @@ def send_notification_email(user: User, notification: Notification) -> None:
 
             message_parts.append("")
 
-    if context.matching_subscribed_packages:
+    if matching_subscribed_packages:
         message_parts.extend(
             [
                 "Packages you follow that may be affected:",
-                *[f"  - {pkg}" for pkg in context.matching_subscribed_packages.keys()],
+                *[f"  - {pkg}" for pkg in matching_subscribed_packages.keys()],
                 "",
             ]
         )
 
-    if context.matching_maintained_packages:
+    if matching_maintained_packages:
         message_parts.extend(
             [
                 "Packages you maintain that may be affected:",
-                *[f"  - {pkg}" for pkg in context.matching_maintained_packages.keys()],
+                *[f"  - {pkg}" for pkg in matching_maintained_packages.keys()],
                 "",
             ]
         )
 
     message_parts.extend(
         [
-            f"View all notifications: {urljoin(str(settings.BASE_URL), reverse('webview:notifications:center'))}",
-            f"Manage email notification preferences: {urljoin(str(settings.BASE_URL), reverse('webview:subscriptions:center'))}",
+            f"View all notifications: {urljoin(str(settings.BASE_URL), '/notifications')}",
+            f"Manage email notification preferences: {urljoin(str(settings.BASE_URL), '/user/subscriptions')}",
         ]
     )
 
