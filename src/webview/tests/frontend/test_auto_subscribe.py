@@ -19,7 +19,8 @@ def test_auto_subscribe_toggle_persists(
     state = as_staff.get_by_label(AUTO_SUBSCRIBE_LABEL)
     expect(state).to_be_checked()
 
-    toggle.click()
+    with as_staff.expect_response(lambda response: response.ok):
+        toggle.click()
     expect(state).not_to_be_checked()
 
     # Reload to prove the new state was persisted server-side (refetched from the API).
@@ -29,7 +30,8 @@ def test_auto_subscribe_toggle_persists(
     expect(state).not_to_be_checked()
 
     # Re-enable and confirm that persists too.
-    toggle.click()
+    with as_staff.expect_response(lambda response: response.ok):
+        toggle.click()
     expect(state).to_be_checked()
     as_staff.reload()
     state = as_staff.get_by_label(AUTO_SUBSCRIBE_LABEL)
