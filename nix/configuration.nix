@@ -82,7 +82,7 @@ let
       --wait \
       --collect \
       --service-type=exec \
-      --unit "${manage-script-name}.service" \
+      --unit "${manage-script-name}-$$.service" \
       --property "User=nix-security-tracker" \
       --property "Group=nix-security-tracker" \
       --property "WorkingDirectory=/var/lib/nix-security-tracker" \
