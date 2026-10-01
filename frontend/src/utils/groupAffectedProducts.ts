@@ -1,7 +1,4 @@
-import type {
-  SuggestionAffectedProduct,
-  SuggestionAffectedProducts,
-} from "@/api/generated/models";
+import type { SuggestionAffectedProduct, SuggestionAffectedProducts } from "@/api/generated/models";
 
 const CHUNK_SPLIT = /[^a-zA-Z0-9]+/;
 
@@ -110,12 +107,19 @@ function buildTree(entries: ProductEntry[], pathPrefix: string): AffectedProduct
   return [...buildTree(otherEntries, pathPrefix), branch].sort(compareNodes);
 }
 
+function listProducts(affectedProducts: SuggestionAffectedProducts): SuggestionAffectedProduct[] {
+  if (Array.isArray(affectedProducts)) {
+    return affectedProducts as SuggestionAffectedProduct[];
+  }
+  return Object.values(affectedProducts);
+}
+
 export function groupAffectedProducts(
   affectedProducts: SuggestionAffectedProducts,
 ): AffectedProductTreeNode[] {
-  const entries: ProductEntry[] = Object.entries(affectedProducts).map(([name, product]) => ({
-    fullName: name,
-    segments: splitName(name),
+  const entries: ProductEntry[] = listProducts(affectedProducts).map((product) => ({
+    fullName: product.name,
+    segments: splitName(product.name),
     product,
   }));
 

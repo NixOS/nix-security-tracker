@@ -45,11 +45,15 @@ function TreeNodes({ nodes, parentIndexPath, renderItem }: TreeNodesProps) {
           <TreeViewNodeProvider key={node.value} node={node} indexPath={indexPath}>
             {isBranch ? (
               <TreeViewBranch>
-                <TreeViewBranchControl className={`row gap-small align-center ${styles.branchControl}`}>
+                <TreeViewBranchControl
+                  className={`row gap-small align-center ${styles.branchControl}`}
+                >
                   <TreeViewBranchIndicator className={styles.branchIndicator}>
                     <ChevronRightIcon size="1em" />
                   </TreeViewBranchIndicator>
-                  <TreeViewBranchText className={styles.branchLabel}>{node.label}</TreeViewBranchText>
+                  <TreeViewBranchText className={styles.branchLabel}>
+                    {node.label}
+                  </TreeViewBranchText>
                 </TreeViewBranchControl>
                 <TreeViewBranchContent className={styles.branchContent}>
                   <TreeNodes

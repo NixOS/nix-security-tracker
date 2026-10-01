@@ -1,13 +1,7 @@
-import type {
-  SuggestionAffectedProduct,
-  SuggestionAffectedProducts,
-} from "@/api/generated/models";
-import { type TreeViewNode, TreeView } from "@/components/ui/TreeView";
-import {
-  type AffectedProductTreeNode,
-  groupAffectedProducts,
-} from "@/utils/groupAffectedProducts";
 import { useMemo } from "preact/hooks";
+import type { SuggestionAffectedProduct, SuggestionAffectedProducts } from "@/api/generated/models";
+import { TreeView, type TreeViewNode } from "@/components/ui/TreeView";
+import { type AffectedProductTreeNode, groupAffectedProducts } from "@/utils/groupAffectedProducts";
 import { AffectedProduct } from "./AffectedProduct";
 
 type AffectedProductTreeViewNode = TreeViewNode & {
@@ -52,10 +46,7 @@ function collectExpandedBranches(nodes: AffectedProductTreeNode[]): string[] {
 }
 
 export function AffectedProductsTree({ affectedProducts }: Props) {
-  const groupedNodes = useMemo(
-    () => groupAffectedProducts(affectedProducts),
-    [affectedProducts],
-  );
+  const groupedNodes = useMemo(() => groupAffectedProducts(affectedProducts), [affectedProducts]);
 
   const rootNode = useMemo<AffectedProductTreeViewNode>(
     () => ({
@@ -66,10 +57,7 @@ export function AffectedProductsTree({ affectedProducts }: Props) {
     [groupedNodes],
   );
 
-  const defaultExpandedValue = useMemo(
-    () => collectExpandedBranches(groupedNodes),
-    [groupedNodes],
-  );
+  const defaultExpandedValue = useMemo(() => collectExpandedBranches(groupedNodes), [groupedNodes]);
 
   return (
     <TreeView
