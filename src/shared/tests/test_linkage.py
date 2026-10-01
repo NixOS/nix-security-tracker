@@ -577,11 +577,11 @@ def test_package_links_populated_alongside_drv_links(
     assert link.provenance_flags == ProvenanceFlags.PACKAGE_NAME_MATCH
 
 
-def test_unclustered_drv_produces_no_package_links(
+def test_unclustered_drv_gets_auto_clustered_for_package_links(
     make_container: Callable[..., Container],
     make_drv: Callable[..., NixDerivation],
 ) -> None:
-    """Derivations not yet assigned to a package are skipped without error."""
+    """Matching derivations not yet assigned to a package are auto-clustered on the fly."""
     make_drv(pname="foo")
     container = make_container(package_name="foo")
 
@@ -590,7 +590,7 @@ def test_unclustered_drv_produces_no_package_links(
     proposal = CVEDerivationClusterProposal.objects.get(cve=container.cve)
     assert proposal.status == CVEDerivationClusterProposal.Status.PENDING
     assert DerivationClusterProposalLink.objects.filter(proposal=proposal).count() == 1
-    assert PackageClusterProposalLink.objects.filter(proposal=proposal).count() == 0
+    assert PackageClusterProposalLink.objects.filter(proposal=proposal).count() == 1
 
 
 def test_multiple_drvs_same_package_produce_one_package_link(

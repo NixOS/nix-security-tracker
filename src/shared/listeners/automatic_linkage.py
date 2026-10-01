@@ -30,7 +30,7 @@ from shared.models.linkage import (
     ProvenanceFlags,
 )
 from shared.models.nix_evaluation import NixChannel, NixDerivation, NixEvaluation
-from shared.models.package import PackageDerivation
+from shared.package_clustering import cluster_packages
 
 logger = logging.getLogger(__name__)
 
@@ -140,7 +140,6 @@ def build_derivation_links(
     proposal: CVEDerivationClusterProposal,
     derivations: models.QuerySet,
 ) -> list[DerivationClusterProposalLink]:
-    """Build DerivationClusterProposalLink."""
     return [
         DerivationClusterProposalLink(
             proposal=proposal,
@@ -159,13 +158,9 @@ def build_package_links(
     proposal: CVEDerivationClusterProposal,
     derivations: models.QuerySet,
 ) -> list[PackageClusterProposalLink]:
-    """Build one PackageClusterProposalLink per distinct package in the matched derivations."""
     package_flags: dict[int, int] = {}
     for drv in derivations:
-        try:
-            pkg_id = drv.package_link.package_id
-        except PackageDerivation.DoesNotExist:
-            continue
+        pkg_id = drv.package_link.package_id
         flags = (
             getattr(drv, "package_match", 0)
             | getattr(drv, "product_match", 0)
@@ -181,6 +176,29 @@ def build_package_links(
         )
         for pkg_id, flags in package_flags.items()
     ]
+
+
+def build_links(
+    proposal: CVEDerivationClusterProposal,
+    derivations: models.QuerySet,
+) -> None:
+    # Force-cluster just this batch to avoid race condition with bulk clustering not having caught these derivations yet.
+    # Most of the time this should be a cheap noop since bulk clustering is doing most of the work.
+    # By construction we get the latest derivations here, so update packages.
+    cluster_packages(derivations, update_packages=True)
+
+    drv_links = build_derivation_links(proposal, derivations)
+    DerivationClusterProposalLink.objects.bulk_create(drv_links)
+
+    pkg_links = build_package_links(proposal, derivations)
+    PackageClusterProposalLink.objects.bulk_create(pkg_links)
+
+    logger.info(
+        "Matched to '%s': %d derivations, %d packages.",
+        proposal.cve,
+        len(drv_links),
+        len(pkg_links),
+    )
 
 
 def _cpe_vendor_product_pairs(
@@ -273,6 +291,7 @@ def produce_linkage_candidates(
         )
         .filter(
             match_q,
+            metadata__isnull=False,
             parent_evaluation__in=list(latest_complete_channels),
         )
         .select_related("metadata", "package_link")
@@ -323,17 +342,8 @@ def build_new_links(container: Container) -> bool:
             algorithm_version=CVEDerivationClusterProposal.CURRENT_ALGORITHM_VERSION,
         )
 
-        if outcome.derivations:
-            links = build_derivation_links(proposal, outcome.derivations)
-            DerivationClusterProposalLink.objects.bulk_create(links)
-            pkg_links = build_package_links(proposal, outcome.derivations)
-            PackageClusterProposalLink.objects.bulk_create(pkg_links)
-            logger.info(
-                "Matching suggestion for '%s': %d derivations, %d packages found.",
-                container.cve,
-                len(links),
-                len(pkg_links),
-            )
+        if outcome.derivations is not None:
+            build_links(proposal, outcome.derivations)
 
     return True
 
@@ -381,13 +391,8 @@ def refresh_suggestion_derivation_links(
     DerivationClusterProposalLink.objects.filter(proposal=suggestion).delete()
     PackageClusterProposalLink.objects.filter(proposal=suggestion).delete()
 
-    if outcome.derivations:
-        DerivationClusterProposalLink.objects.bulk_create(
-            build_derivation_links(suggestion, outcome.derivations)
-        )
-        PackageClusterProposalLink.objects.bulk_create(
-            build_package_links(suggestion, outcome.derivations)
-        )
+    if outcome.derivations is not None:
+        build_links(suggestion, outcome.derivations)
 
     logger.info(
         "Refreshed derivation links for suggestion %d (rejection_reason=%s, derivations=%s).",
