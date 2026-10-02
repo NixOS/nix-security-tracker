@@ -38,7 +38,7 @@ def test_list_notifications_authenticated(
     assert isinstance(maintained, dict)
     assert len(maintained) == 1
     pkg_data = next(iter(maintained.values()))
-    assert "channels" in pkg_data
+    assert "branches" in pkg_data
     assert "description" in pkg_data
     assert "maintainers" in pkg_data
 

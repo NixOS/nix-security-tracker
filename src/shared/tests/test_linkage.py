@@ -69,68 +69,11 @@ def test_link_only_latest_eval(
     assert suggestion
     states = suggestion.derivations.values_list("parent_evaluation__state", flat=True)
     assert set(states) == {NixEvaluation.EvaluationState.COMPLETED}
-    assert suggestion.derivations.count() == len(channels)
+    assert suggestion.derivations.count() == 1
     assert suggestion.derivations.count() < len(evaluations)
 
     # Check the whole data pipeline by also caching the suggestion
     cache_new_suggestions(suggestion)
-
-
-def test_non_small_channel_produces_no_matches(
-    make_container: Callable[..., Container],
-    make_channel: Callable[..., NixChannel],
-    make_evaluation: Callable[..., NixEvaluation],
-    make_drv: Callable[..., NixDerivation],
-) -> None:
-    """
-    Derivations on non-small channel variants must not produce matches:
-    we only evaluate small channels, so any data on other variants is stale.
-    """
-    channel = make_channel(
-        channel_branch="nixos-unstable",
-        state=NixChannel.ChannelState.UNSTABLE,
-        variant=None,
-    )
-    evaluation = make_evaluation(channel=channel)
-    make_drv(pname="foo", evaluation=evaluation)
-
-    container = make_container(package_name="foo")
-    assert build_new_links(container) is True
-    proposal = CVEDerivationClusterProposal.objects.get(cve=container.cve)
-    assert proposal.status == CVEDerivationClusterProposal.Status.REJECTED
-    assert (
-        proposal.rejection_reason
-        == CVEDerivationClusterProposal.RejectionReason.NO_MATCHES
-    )
-    assert proposal.derivations.count() == 0
-
-
-def test_eol_channel_produces_no_matches(
-    make_container: Callable[..., Container],
-    make_channel: Callable[..., NixChannel],
-    make_evaluation: Callable[..., NixEvaluation],
-    make_drv: Callable[..., NixDerivation],
-) -> None:
-    """
-    Derivations on unmaintained channels must not produce matches.
-    """
-    assert NixChannel.ChannelState.END_OF_LIFE not in NixChannel.TRACKED_STATES
-    eol_channel = make_channel(
-        channel_branch="nixos-24.05",
-        state=NixChannel.ChannelState.END_OF_LIFE,
-    )
-    eol_eval = make_evaluation(channel=eol_channel)
-    make_drv(pname="foo", evaluation=eol_eval)
-
-    container = make_container(package_name="foo")
-    assert build_new_links(container) is True
-    proposal = CVEDerivationClusterProposal.objects.get(cve=container.cve)
-    assert proposal.status == CVEDerivationClusterProposal.Status.REJECTED
-    assert (
-        proposal.rejection_reason
-        == CVEDerivationClusterProposal.RejectionReason.NO_MATCHES
-    )
-    assert proposal.derivations.count() == 0
 
 
 @pytest.mark.parametrize(

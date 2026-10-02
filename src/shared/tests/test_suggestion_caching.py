@@ -74,11 +74,11 @@ def test_caching_newest_package(
     value = cached.get()
     assert cve.cve.cve_id == value.payload["cve_id"]
 
-    channel, package = next(
-        iter(value.payload["packages"][drv1.attribute]["channels"].items())
+    branch, package = next(
+        iter(value.payload["packages"][drv1.attribute]["branches"].items())
     )
 
-    assert package["major_version"] == "2.0"
+    assert package["version"] == "2.0"
 
 
 @pytest.mark.parametrize("stable_is_older", [True, False])
