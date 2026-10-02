@@ -18,7 +18,6 @@ from shared.models import (  # type: ignore
 )
 from shared.models.linkage import CVEDerivationClusterProposal
 from shared.models.nix_evaluation import (
-    NixChannel,
     NixDerivation,
     NixDerivationMeta,
     NixEvaluation,
@@ -29,7 +28,7 @@ DEFAULT_CUTOFF_DAYS = 365 // 2
 
 
 class Command(BaseCommand):
-    help = "Garbage collect stale proposals, derivations, evaluations and channels"
+    help = "Garbage collect stale proposals, derivations, and evaluations"
 
     # FIXME(@fricklerhandwerk): Use this for all management commands from a single source of truth.
     def create_parser(
@@ -71,15 +70,13 @@ class Command(BaseCommand):
         # `pghistory` events are never auto-deleted — each step explicitly clears relevant events first.
 
         # FIXME(@fricklerhandwerk): Make the numbering implicit, otherwise we'll have noisy diffs every time something changes here.
-        self.stdout.write("\n[1/5] Deleting stale matches")
+        self.stdout.write("\n[1/4] Deleting stale matches")
         self._delete_stale_matches(cutoff, batch_size)
-        self.stdout.write("\n[2/5] Deleting unmatched derivations")
+        self.stdout.write("\n[2/4] Deleting unmatched derivations")
         self._delete_unmatched_derivations(batch_size)
-        self.stdout.write("\n[3/5] Deleting empty evaluations")
+        self.stdout.write("\n[3/4] Deleting empty evaluations")
         self._delete_empty_evaluations(cutoff, batch_size)
-        self.stdout.write("\n[4/5] Deleting inactive channels")
-        self._delete_inactive_channels(batch_size)
-        self.stdout.write("\n[5/5] Pruning stale package attrpaths")
+        self.stdout.write("\n[4/4] Pruning stale package attrpaths")
         self._prune_stale_package_attrpaths(batch_size)
         self.stdout.write("\nDeleting stale rematching triggers")
         self._delete_stale_triggers()
@@ -149,7 +146,7 @@ class Command(BaseCommand):
         )
         stale_evaluations = NixEvaluation.objects.filter(
             state=NixEvaluation.EvaluationState.COMPLETED,
-        ).exclude(pk__in=NixEvaluation.objects.latest_completed_per_channel())
+        ).exclude(pk__in=NixEvaluation.objects.latest_completed_per_branch())
 
         self._delete_in_batches(
             qs=NixDerivation.objects.filter(
@@ -183,33 +180,6 @@ class Command(BaseCommand):
             model=NixEvaluation,
             pk_field="id",
             label="evaluations",
-            batch_size=batch_size,
-        )
-
-    def _delete_inactive_channels(self, batch_size: int) -> None:
-        candidates = (
-            NixChannel.objects.filter(
-                state__in=[
-                    NixChannel.ChannelState.END_OF_LIFE,
-                    NixChannel.ChannelState.DEPRECATED,
-                ]
-            )
-            .exclude(evaluations__derivations__cve_links_proposals__isnull=False)
-            .exclude(
-                # No user input must be attached.
-                # Currently only ignored/additional maintainers relate directly to derivations.
-                evaluations__derivations__metadata__maintainers__maintaineroverlay__isnull=False
-            )
-            .exclude(evaluations__derivations__isnull=False)
-            .exclude(evaluations__isnull=False)
-            .distinct()
-        )
-
-        self._delete_in_batches(
-            qs=candidates,
-            model=NixChannel,
-            pk_field="channel_branch",
-            label="channels",
             batch_size=batch_size,
         )
 

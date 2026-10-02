@@ -6,7 +6,6 @@ from typing import Any
 from django.conf import settings
 from django.core.management.base import BaseCommand, CommandError
 
-from shared.listeners.nix_channels import enqueue_evaluation_job
 from shared.listeners.nix_evaluation import evaluation_entrypoint
 from shared.models import NixChannel, NixEvaluation
 
@@ -36,14 +35,13 @@ class Command(BaseCommand):
              """)
             )
         try:
-            evaluation = NixEvaluation.objects.select_related("channel").get(
-                commit_sha1=kwargs["commit"]
-            )
+            evaluation = NixEvaluation.objects.get(commit_sha1=kwargs["commit"])
         except NixEvaluation.DoesNotExist:
-            enqueue_evaluation_job(channel)
-            evaluation = NixEvaluation.objects.select_related("channel").get(
-                commit_sha1=kwargs["commit"]
+            evaluation, _ = NixEvaluation.objects.get_or_create(
+                commit_sha1=kwargs["commit"],
+                defaults={"state": NixEvaluation.EvaluationState.WAITING},
             )
+            evaluation.on_branches.add(channel.release_branch)
         asyncio.run(
             evaluation_entrypoint(
                 settings.DEFAULT_SLEEP_WAITING_FOR_EVALUATION_SLOT,

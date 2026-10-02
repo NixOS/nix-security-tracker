@@ -22,8 +22,7 @@ from shared.evaluation import DerivationKey, derivation_as_key
 
 SCHEMA_VERSION = 1
 
-# Synthetic channel used when materializing a local benchmark corpus
-BENCHMARK_CHANNEL_BRANCH = "benchmark"
+# Synthetic release branch used when materializing a local benchmark corpus
 BENCHMARK_RELEASE_BRANCH = "benchmark-master"
 
 # Fixed dummy git SHA so get_or_create stays obviously idempotent.
@@ -34,23 +33,14 @@ _TRAINING_ORG_UUID = uuid.UUID("aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee")
 
 
 def ensure_benchmark_evaluation() -> models.NixEvaluation:
-    """Create or reuse the synthetic benchmark channel + completed evaluation."""
+    """Create or reuse the synthetic benchmark branch + completed evaluation."""
     release_branch, _ = models.NixpkgsBranch.objects.get_or_create(
         name=BENCHMARK_RELEASE_BRANCH,
         defaults={"head_sha1_commit": _BENCHMARK_DUMMY_SHA1},
     )
-    channel, _ = models.NixChannel.objects.get_or_create(
-        channel_branch=BENCHMARK_CHANNEL_BRANCH,
-        defaults={
-            "release_branch": release_branch,
-            "state": models.NixChannel.ChannelState.UNSTABLE,
-            "head_sha1_commit": _BENCHMARK_DUMMY_SHA1,
-            "variant": None,
-        },
-    )
     evaluation = (
         models.NixEvaluation.objects.filter(
-            channel=channel,
+            on_branches=release_branch,
             state=models.NixEvaluation.EvaluationState.COMPLETED,
         )
         .order_by("-updated_at")
@@ -58,10 +48,10 @@ def ensure_benchmark_evaluation() -> models.NixEvaluation:
     )
     if evaluation is None:
         evaluation = models.NixEvaluation.objects.create(
-            channel=channel,
             commit_sha1=_BENCHMARK_DUMMY_SHA1,
             state=models.NixEvaluation.EvaluationState.COMPLETED,
         )
+        evaluation.on_branches.add(release_branch)
     return evaluation
 
 
@@ -308,7 +298,7 @@ class CVEDerivationClusterProposal(serializers.ModelSerializer):
         self, validated_data: dict[str, Any]
     ) -> models.CVEDerivationClusterProposal:
         """
-        Materialize a training record on the synthetic benchmark channel.
+        Materialize a training record on the synthetic benchmark branch.
 
         Idempotent per ``cve_id``: any existing CVE with that id is replaced.
         """

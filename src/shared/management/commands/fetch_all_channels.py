@@ -10,7 +10,7 @@ from django.db import transaction
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from shared.git import get_head_sha1
-from shared.models.nix_evaluation import NixChannel, NixpkgsBranch
+from shared.models.nix_evaluation import NixChannel, NixEvaluation, NixpkgsBranch
 
 
 class MonitoredChannel(BaseModel):
@@ -90,6 +90,13 @@ class Command(BaseCommand):
                 branches[name] = branch
 
             for monitored in channels:
+                if monitored.status in NixChannel.TRACKED_STATES:
+                    eval_job, _ = NixEvaluation.objects.get_or_create(
+                        commit_sha1=branch_tips[monitored.release_branch],
+                        defaults={"state": NixEvaluation.EvaluationState.WAITING},
+                    )
+                    eval_job.on_branches.add(branches[monitored.release_branch])
+
                 NixChannel.objects.update_or_create(
                     channel_branch=monitored.channel,
                     defaults=dict(
