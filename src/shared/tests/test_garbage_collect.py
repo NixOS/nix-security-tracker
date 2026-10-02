@@ -148,13 +148,13 @@ def test_preserves_proposal_with_maintainer_overlay(
 
 
 @pytest.mark.parametrize(
-    ("channel_state", "keep_channel"),
+    "channel_state",
     [
-        (NixChannel.ChannelState.END_OF_LIFE, False),
-        (NixChannel.ChannelState.DEPRECATED, False),
-        (NixChannel.ChannelState.BETA, True),
-        (NixChannel.ChannelState.STABLE, True),
-        (NixChannel.ChannelState.UNSTABLE, True),
+        NixChannel.ChannelState.END_OF_LIFE,
+        NixChannel.ChannelState.DEPRECATED,
+        NixChannel.ChannelState.BETA,
+        NixChannel.ChannelState.STABLE,
+        NixChannel.ChannelState.UNSTABLE,
     ],
 )
 @pytest.mark.parametrize(
@@ -207,7 +207,6 @@ def test_deletes_empty_old_evaluations(
     channel_state: NixChannel.ChannelState,
     eval_state: NixEvaluation.EvaluationState,
     keep_eval: bool,
-    keep_channel: bool,
     keep_drvs: bool,
     can_have_drvs: bool,
     can_have_matches: bool,
@@ -215,7 +214,6 @@ def test_deletes_empty_old_evaluations(
     """
     Unmatched derivations and their metadata are both deleted; maintainers survive.
     Empty evaluations are deleted unless completed or not started.
-    Empty channels are deleted.
     """
     channel = make_channel(
         state=channel_state,
@@ -254,14 +252,8 @@ def test_deletes_empty_old_evaluations(
         assert NixEvaluation.objects.filter(pk=evaluation.pk).exists() is (
             keep_eval or keep_drvs
         )
-        assert NixChannel.objects.filter(pk=channel.pk).exists() is (
-            keep_channel or keep_eval
-        )
     else:
         assert NixEvaluation.objects.filter(pk=evaluation.pk).exists() is keep_eval
-        assert NixChannel.objects.filter(pk=channel.pk).exists() is (
-            keep_channel or keep_eval
-        )
 
 
 def test_only_old_proposals_deleted_recent_kept(

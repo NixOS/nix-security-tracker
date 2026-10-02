@@ -155,7 +155,6 @@ pkgs.testers.runNixOSTest {
         ${in-shell "succeed" ''
           from shared.models import NixEvaluation
           assert NixEvaluation.objects.count() == 1
-          assert NixEvaluation.objects.get().channel.variant == NixChannel.Variant.SMALL
         ''}
 
       with subtest("Application tests"):
@@ -231,13 +230,13 @@ pkgs.testers.runNixOSTest {
               # Maintainers should only be attached to derivations from the tracking branch.
               from django.conf import settings
               tracking_meta = NixDerivationMeta.objects.get(
-                derivation__parent_evaluation__channel__channel_branch=settings.TRACKING_BRANCH,
+                derivation__parent_evaluation__on_branches__name=settings.TRACKING_BRANCH,
               )
               assert tracking_meta.maintainers.exists(), f"{settings.TRACKING_BRANCH} meta has no maintainers"
               for m in NixDerivationMeta.objects.exclude(
-                derivation__parent_evaluation__channel__channel_branch=settings.TRACKING_BRANCH,
+                derivation__parent_evaluation__on_branches__name=settings.TRACKING_BRANCH,
               ):
-                assert not m.maintainers.exists(), f"{m.derivation.parent_evaluation.channel.channel_branch}) has unexpected maintainers"
+                assert not m.maintainers.exists(), f"{m.derivation.parent_evaluation.on_branches.all()} has unexpected maintainers"
             ''
           }
     '';

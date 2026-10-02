@@ -118,10 +118,9 @@ async def realtime_batch_process_attributes(
 
     elapsed = time.time() - start
     logger.info(
-        "%d attributes were ingested in %f seconds (%s, %s)",
+        "%d attributes were ingested in %f seconds (%s)",
         len(drvs),
         elapsed,
-        parent_evaluation.channel,
         parent_evaluation.commit_sha1[:8],
     )
 
@@ -304,8 +303,8 @@ async def evaluation_entrypoint(
 
 
 @pgpubsub.post_insert_listener(NixEvaluationChannel)
-def run_evaluation_job(old: NixEvaluation, new: NixEvaluation) -> None:
-    evaluation = NixEvaluation.objects.select_related("channel").get(pk=new.pk)
+def run_evaluation_job(old: None, new: NixEvaluation) -> None:
+    evaluation = NixEvaluation.objects.prefetch_related("on_branches").get(pk=new.pk)
     average_evaluation_time = NixEvaluation.objects.aggregate(
         avg_eval_time=Avg("elapsed")
     )
@@ -313,15 +312,13 @@ def run_evaluation_job(old: NixEvaluation, new: NixEvaluation) -> None:
         average_evaluation_time = average_evaluation_time["avg_eval_time"]
     if average_evaluation_time is not None:
         logger.info(
-            "Nix evaluation requested: %s %s, expecting to finish in %f seconds",
-            evaluation.channel,
+            "Nix evaluation requested: %s, expecting to finish in %f seconds",
             new.commit_sha1[:8],
             average_evaluation_time,
         )
     else:
         logger.info(
-            "First nix evaluation requested: %s %s, no ETA",
-            evaluation.channel,
+            "First nix evaluation requested: %s, no ETA",
             new.commit_sha1[:8],
         )
     # FIXME(@raitobezarius): Can we schedule this one instead of waiting on the lock?

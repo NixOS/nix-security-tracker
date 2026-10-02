@@ -29,7 +29,7 @@ from shared.models.linkage import (
     PackageClusterProposalLink,
     ProvenanceFlags,
 )
-from shared.models.nix_evaluation import NixChannel, NixDerivation, NixEvaluation
+from shared.models.nix_evaluation import NixDerivation, NixEvaluation
 from shared.package_clustering import cluster_packages
 
 logger = logging.getLogger(__name__)
@@ -222,11 +222,6 @@ def _cpe_vendor_product_pairs(
 def produce_linkage_candidates(
     filtered_affected: models.QuerySet,
 ) -> models.QuerySet:
-    latest_complete_channels = NixEvaluation.objects.filter(
-        channel__state__in=NixChannel.TRACKED_STATES,
-        channel__variant=NixChannel.Variant.SMALL,
-    ).latest_completed_per_channel()
-
     package_names = (
         filtered_affected.exclude(package_name__isnull=True)
         .values_list("package_name", flat=True)
@@ -292,7 +287,7 @@ def produce_linkage_candidates(
         .filter(
             match_q,
             metadata__isnull=False,
-            parent_evaluation__in=list(latest_complete_channels),
+            parent_evaluation__in=NixEvaluation.objects.latest_completed_per_branch(),
         )
         .select_related("metadata", "package_link")
         .annotate(**annotations)

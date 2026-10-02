@@ -18,7 +18,7 @@ from shared.matching_training_data import serializers as mtd
 from shared.matching_training_data.purge import purge_training_corpus
 from shared.matching_training_data.serializers import (
     _TRAINING_ORG_UUID,
-    BENCHMARK_CHANNEL_BRANCH,
+    BENCHMARK_RELEASE_BRANCH,
 )
 from shared.models.cve import Container, CveRecord
 from shared.models.linkage import (
@@ -297,7 +297,11 @@ def test_import_roundtrip_from_page_files(
 
     imported = CVEDerivationClusterProposal.objects.get(cve__cve_id="CVE-2026-cmd-1")
     assert _export(imported) == original
-    assert NixChannel.objects.filter(channel_branch=BENCHMARK_CHANNEL_BRANCH).exists()
+    assert (
+        imported.derivationclusterproposallink_set.first()
+        .derivation.parent_evaluation.on_branches.filter(name=BENCHMARK_RELEASE_BRANCH)
+        .exists()
+    )
 
 
 def test_import_command_is_idempotent(tmp_path: Path, db: None) -> None:
@@ -387,7 +391,7 @@ def test_purge_removes_imported_training_data(tmp_path: Path, db: None) -> None:
     )
     assert CveRecord.objects.filter(cve_id="CVE-2026-cmd-purge").exists()
     assert NixDerivation.objects.filter(
-        parent_evaluation__channel__channel_branch=BENCHMARK_CHANNEL_BRANCH
+        parent_evaluation__on_branches__name=BENCHMARK_RELEASE_BRANCH
     ).exists()
 
     call_command("purge_matching_training_data", stdout=StringIO())
@@ -397,15 +401,17 @@ def test_purge_removes_imported_training_data(tmp_path: Path, db: None) -> None:
         cve__cve_id="CVE-2026-cmd-purge"
     ).exists()
     assert not NixDerivation.objects.filter(
-        parent_evaluation__channel__channel_branch=BENCHMARK_CHANNEL_BRANCH
+        parent_evaluation__on_branches__name=BENCHMARK_RELEASE_BRANCH
     ).exists()
-    assert NixChannel.objects.filter(channel_branch=BENCHMARK_CHANNEL_BRANCH).exists()
+    assert NixEvaluation.objects.filter(
+        on_branches__name=BENCHMARK_RELEASE_BRANCH
+    ).exists()
 
 
 def test_purge_training_corpus_empty(db: None) -> None:
     assert not CveRecord.objects.filter(assigner__uuid=_TRAINING_ORG_UUID).exists()
     assert not NixDerivation.objects.filter(
-        parent_evaluation__channel__channel_branch=BENCHMARK_CHANNEL_BRANCH
+        parent_evaluation__on_branches__name=BENCHMARK_RELEASE_BRANCH
     ).exists()
 
     result = purge_training_corpus()
@@ -413,5 +419,5 @@ def test_purge_training_corpus_empty(db: None) -> None:
     assert result == {}
     assert not CveRecord.objects.filter(assigner__uuid=_TRAINING_ORG_UUID).exists()
     assert not NixDerivation.objects.filter(
-        parent_evaluation__channel__channel_branch=BENCHMARK_CHANNEL_BRANCH
+        parent_evaluation__on_branches__name=BENCHMARK_RELEASE_BRANCH
     ).exists()

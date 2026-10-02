@@ -21,7 +21,6 @@ from shared.models import (  # type: ignore
 )
 from shared.models.linkage import CVEDerivationClusterProposal
 from shared.models.nix_evaluation import (
-    NixChannel,
     NixDerivation,
     NixDerivationMeta,
     NixEvaluation,
@@ -38,7 +37,7 @@ def _merge(into: dict[str, int], other: dict[str, int]) -> dict[str, int]:
 
 
 class Command(BaseCommand):
-    help = "Garbage collect stale proposals, derivations, evaluations and channels"
+    help = "Garbage collect stale proposals, derivations, and evaluations"
 
     # FIXME(@fricklerhandwerk): Use this for all management commands from a single source of truth.
     def create_parser(
@@ -98,11 +97,6 @@ class Command(BaseCommand):
                 "empty_evaluations",
                 "Deleting empty evaluations",
                 lambda: self._delete_empty_evaluations(cutoff, batch_size),
-            ),
-            (
-                "inactive_channels",
-                "Deleting inactive channels",
-                lambda: self._delete_inactive_channels(batch_size),
             ),
             (
                 "stale_attrpaths",
@@ -227,7 +221,7 @@ class Command(BaseCommand):
         )
         stale_evaluations = NixEvaluation.objects.filter(
             state=NixEvaluation.EvaluationState.COMPLETED,
-        ).exclude(pk__in=NixEvaluation.objects.latest_completed_per_channel())
+        ).exclude(pk__in=NixEvaluation.objects.latest_completed_per_branch())
 
         _merge(
             totals,
@@ -268,33 +262,6 @@ class Command(BaseCommand):
             model=NixEvaluation,
             pk_field="id",
             label="evaluations",
-            batch_size=batch_size,
-        )
-
-    def _delete_inactive_channels(self, batch_size: int) -> dict[str, int]:
-        candidates = (
-            NixChannel.objects.filter(
-                state__in=[
-                    NixChannel.ChannelState.END_OF_LIFE,
-                    NixChannel.ChannelState.DEPRECATED,
-                ]
-            )
-            .exclude(evaluations__derivations__cve_links_proposals__isnull=False)
-            .exclude(
-                # No user input must be attached.
-                # Currently only ignored/additional maintainers relate directly to derivations.
-                evaluations__derivations__metadata__maintainers__maintaineroverlay__isnull=False
-            )
-            .exclude(evaluations__derivations__isnull=False)
-            .exclude(evaluations__isnull=False)
-            .distinct()
-        )
-
-        return self._delete_in_batches(
-            qs=candidates,
-            model=NixChannel,
-            pk_field="channel_branch",
-            label="channels",
             batch_size=batch_size,
         )
 

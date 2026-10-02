@@ -7,7 +7,7 @@ from rest_framework.exceptions import ValidationError
 from shared.listeners.automatic_linkage import resolve_linkage_candidates
 from shared.matching_training_data import serializers
 from shared.matching_training_data.serializers import (
-    BENCHMARK_CHANNEL_BRANCH,
+    BENCHMARK_RELEASE_BRANCH,
     SCHEMA_VERSION,
     ensure_benchmark_evaluation,
 )
@@ -171,7 +171,11 @@ def test_export_import_export_roundtrip(
     assert imported.status == CVEDerivationClusterProposal.Status.ACCEPTED
     assert imported.derivations.count() == 2
     assert imported.package_overlays.filter(package_attribute="foobar.tests").exists()
-    assert NixChannel.objects.filter(channel_branch=BENCHMARK_CHANNEL_BRANCH).exists()
+    assert (
+        imported.derivationclusterproposallink_set.first()
+        .derivation.parent_evaluation.on_branches.filter(name=BENCHMARK_RELEASE_BRANCH)
+        .exists()
+    )
 
     reexported = serializers.CVEDerivationClusterProposal(imported).data
     assert reexported == original
@@ -253,6 +257,4 @@ def test_import_is_idempotent_by_cve_id(
 def test_ensure_benchmark_evaluation_idempotency(db: None) -> None:
     first = ensure_benchmark_evaluation()
     second = ensure_benchmark_evaluation()
-    assert first.channel.channel_branch == BENCHMARK_CHANNEL_BRANCH
-    assert first.channel_id == second.channel_id
     assert first.pk == second.pk
