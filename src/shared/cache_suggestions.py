@@ -19,7 +19,6 @@ from shared.models.linkage import (
     PackageOverlay,
     ReferenceUrlOverlay,
 )
-from shared.models.nix_evaluation import get_major_channel
 
 logger = logging.getLogger(__name__)
 
@@ -48,25 +47,10 @@ class CachedSuggestion(BaseModel):
             return list(value)
 
     class PackageOnBranch(BaseModel):
-        version: str
-        status: Version.Status
-        src_position: str | None
-        # Evaluation timestamps
-        updated: datetime
-
-    # FIXME(@fricklerhandwerk): This currently subsumes PackageOnBranch, duplicates its structure, and conflates two unrelated concerns.
-    # We may instead want to collect all branches that have the same *status* (i.e. rolling, stable, deprecated) and display them as a group.
-    # Then we could collapse the group if all channels have the same version, and display that version in the summary.
-    class PackageOnPrimaryChannel(BaseModel):
-        # Package version on the primary ("major") channel
-        major_version: str | None
+        version: str | None
         status: Version.Status | None
-        # Evaluation timestamps
         updated: datetime | None
-        # Whether package version is the same for all branches where the package appears
-        uniform_versions: bool | None
         src_position: str | None
-        sub_branches: dict[str, "CachedSuggestion.PackageOnBranch"]
 
     class Maintainer(BaseModel):
         name: str | None = None
@@ -76,7 +60,7 @@ class CachedSuggestion(BaseModel):
         github_id: int
 
     class Package(BaseModel):
-        channels: dict[str, "CachedSuggestion.PackageOnPrimaryChannel"] = {}
+        branches: dict[str, "CachedSuggestion.PackageOnBranch"] = {}
         derivation_ids: list[int] = []
         maintainers: list["CachedSuggestion.Maintainer"] = []
         description: str | None = None
@@ -235,9 +219,9 @@ def cache_new_suggestions(suggestion: CVEDerivationClusterProposal) -> None:
             "metadata",
             "package_link__package",
             "parent_evaluation",
-            "parent_evaluation__channel",
         )
         .prefetch_related(
+            "parent_evaluation__on_branches",
             Prefetch(
                 "metadata__maintainers",
                 queryset=NixMaintainer.objects.distinct(),
@@ -340,71 +324,25 @@ def channel_structure(
         if attribute_path not in packages:
             packages[attribute_path] = CachedSuggestion.Package()
         packages[attribute_path].derivation_ids.append(derivation.pk)
-        if (
-            derivation.metadata
-            and derivation.parent_evaluation.channel.is_tracking_branch
-        ):
+        is_tracking = derivation.parent_evaluation.is_on_tracking_branch
+        if derivation.metadata and is_tracking:
             packages[attribute_path].description = derivation.metadata.get_description()
             packages[attribute_path].maintainers = [
                 CachedSuggestion.Maintainer.model_validate(to_dict(m))
                 for m in derivation.metadata.prefetched_maintainers
             ]
-        # Get the branch from which that derivation originates
-        branch_name = derivation.parent_evaluation.channel.channel_branch
-        # Get primary ("major") channel to which that branch belongs
-        major_channel = get_major_channel(branch_name)
-        # FIXME This quietly drops unfamiliar branch names
-        if major_channel:
-            # NOTE(@fricklerhandwerk): Here we assign package information to channel names in iteration order, which in the query we have established to be oldest-first by evaluation time.
-            channels = packages[attribute_path].channels
-            if major_channel not in channels:
-                channels[major_channel] = CachedSuggestion.PackageOnPrimaryChannel(
-                    major_version=None,
-                    status=None,
-                    src_position=None,
-                    # NOTE(@fricklerhandwerk): If this is not replaced in subsequent processing, it will display "-"
-                    uniform_versions=None,
-                    sub_branches=dict(),
-                    updated=None,
-                )
-            if branch_name == major_channel:
-                channels[major_channel] = CachedSuggestion.PackageOnPrimaryChannel(
-                    major_version=package_version,
-                    status=is_version_affected(
-                        [c.affects(package_version) for c in version_constraints]
-                    ),
-                    src_position=get_src_position(derivation),
-                    uniform_versions=channels[major_channel].uniform_versions,
-                    sub_branches=channels[major_channel].sub_branches,
-                    updated=derivation.parent_evaluation.updated_at,
-                )
-            else:
-                channels[major_channel].sub_branches[branch_name] = (
-                    CachedSuggestion.PackageOnBranch(
-                        version=package_version,
-                        status=is_version_affected(
-                            [c.affects(package_version) for c in version_constraints]
-                        ),
-                        src_position=get_src_position(derivation),
-                        updated=derivation.parent_evaluation.updated_at,
-                    )
-                )
-
-    for package_name in packages:
-        channels = packages[package_name].channels
-        for mc in channels.keys():
-            uniform_versions = True
-            major_version = channels[mc].major_version
-            for _, branch in channels[mc].sub_branches.items():
-                uniform_versions = (
-                    uniform_versions and str(major_version) == branch.version
-                )
-            channels[mc].uniform_versions = uniform_versions
-            # We just sort branch names by length to get a good-enough order
-            channels[mc].sub_branches = dict(
-                sorted(
-                    channels[mc].sub_branches.items(),
-                    reverse=True,
+        status = is_version_affected(
+            [c.affects(package_version) for c in version_constraints]
+        )
+        src_position = get_src_position(derivation)
+        updated = derivation.parent_evaluation.updated_at
+        for branch in derivation.parent_evaluation.on_branches.all():
+            packages[attribute_path].branches[branch.name] = (
+                CachedSuggestion.PackageOnBranch(
+                    version=package_version,
+                    status=status,
+                    src_position=src_position,
+                    updated=updated,
                 )
             )
     return packages

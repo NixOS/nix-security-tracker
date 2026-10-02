@@ -202,7 +202,7 @@ class Settings(BaseSettings):
             The branch that tracks upstream development.
             Serves as the source of truth for package metadata such as maintainers and descriptions.
             """,
-            default="nixos-unstable-small",
+            default="master",
         )
         MAX_MATCHES: int = Field(
             description="""

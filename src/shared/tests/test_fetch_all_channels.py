@@ -9,7 +9,11 @@ from pydantic import AnyUrl
 
 from shared.git import get_head_sha1
 from shared.management.commands.fetch_all_channels import fetch_from_monitoring
-from shared.models.nix_evaluation import NixChannel, NixEvaluation, NixpkgsBranch
+from shared.models.nix_evaluation import (
+    NixChannel,
+    NixEvaluation,
+    NixpkgsBranch,
+)
 
 
 def monitoring_response(*channels: dict) -> Mock:
@@ -122,10 +126,9 @@ def test_nixchannel_rejects_invalid_sha1(channel: NixChannel, sha1: str) -> None
 
 @pytest.mark.django_db
 @pytest.mark.parametrize("sha1", INVALID_SHA1S)
-def test_nixevaluation_rejects_invalid_sha1(channel: NixChannel, sha1: str) -> None:
+def test_nixevaluation_rejects_invalid_sha1(sha1: str) -> None:
     with pytest.raises(DatabaseError):
         NixEvaluation.objects.create(
-            channel=channel,
             commit_sha1=sha1,
             state=NixEvaluation.EvaluationState.WAITING,
         )
@@ -212,3 +215,76 @@ def test_handle_updates_branch_head(
         call_command("fetch_all_channels")
 
     assert NixpkgsBranch.objects.get(name="master").head_sha1_commit == "c" * 40
+
+
+@pytest.mark.django_db
+def test_handle_sets_variant(
+    mock_monitoring: Callable, mock_head_sha1: Callable
+) -> None:
+    with (
+        mock_monitoring(
+            {
+                "channel": "nixos-unstable",
+                "revision": "a" * 40,
+                "status": "rolling",
+                "variant": "primary",
+            },
+            {
+                "channel": "nixos-unstable-small",
+                "revision": "b" * 40,
+                "status": "rolling",
+                "variant": "small",
+            },
+            {
+                "channel": "nixpkgs-unstable",
+                "revision": "c" * 40,
+                "status": "rolling",
+            },
+        ),
+        mock_head_sha1(branch_commits={"master": "d" * 40}),
+    ):
+        call_command("fetch_all_channels")
+
+    unstable = NixChannel.objects.get(channel_branch="nixos-unstable")
+    assert unstable.variant == NixChannel.Variant.PRIMARY
+
+    unstable_small = NixChannel.objects.get(channel_branch="nixos-unstable-small")
+    assert unstable_small.variant == NixChannel.Variant.SMALL
+
+    pkgs_unstable = NixChannel.objects.get(channel_branch="nixpkgs-unstable")
+    assert pkgs_unstable.variant is None
+
+
+@pytest.mark.django_db
+def test_handle_creates_evals_only_for_tracked_states(
+    mock_monitoring: Callable, mock_head_sha1: Callable
+) -> None:
+    with (
+        mock_monitoring(
+            {
+                "channel": "nixos-unstable",
+                "revision": "a" * 40,
+                "status": "rolling",
+                "variant": "primary",
+            },
+            {
+                "channel": "nixos-25.05",
+                "revision": "b" * 40,
+                "status": "stable",
+                "variant": "primary",
+            },
+            {
+                "channel": "nixpkgs-unstable",
+                "revision": "c" * 40,
+                "status": "unmaintained",
+            },
+        ),
+        mock_head_sha1(branch_commits={"master": "d" * 40, "release-25.05": "e" * 40}),
+    ):
+        call_command("fetch_all_channels")
+
+    assert NixChannel.objects.count() == 3
+    assert NixEvaluation.objects.count() == 2
+    assert NixEvaluation.objects.filter(commit_sha1="d" * 40).exists()
+    assert NixEvaluation.objects.filter(commit_sha1="e" * 40).exists()
+    assert not NixEvaluation.objects.filter(commit_sha1="c" * 40).exists()

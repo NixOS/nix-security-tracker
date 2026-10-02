@@ -194,12 +194,12 @@ def make_evaluation(
         commit_sha1: str | None = None,
     ) -> NixEvaluation:
         evaluation = NixEvaluation.objects.create(
-            channel=channel,
             commit_sha1=commit_sha1
             if commit_sha1 is not None
             else secrets.token_hex(20),
             state=state,
         )
+        evaluation.on_branches.add(channel.release_branch)
 
         if age > timedelta(0):
             NixEvaluation.objects.filter(pk=evaluation.pk).update(
