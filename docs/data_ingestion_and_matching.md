@@ -119,6 +119,7 @@ manage benchmark_matching
 Reports true positives, false positives, and SNR vs kept derivations and ignored package overlays.
 Prints one line per CVE by default.
 Use `--quiet` for the summary only, and `--limit N` for a sample.
+`--output report.json` saves the aggregate and per-CVE scores.
 
 Remove a previously imported corpus:
 

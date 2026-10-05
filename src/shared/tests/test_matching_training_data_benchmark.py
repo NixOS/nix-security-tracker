@@ -206,3 +206,44 @@ def test_benchmark_matching_command_summary(
     text = out.getvalue()
     assert "Querying curated matching data..." in text
     assert "true_positives" in text
+
+
+def test_benchmark_matching_writes_json_report(
+    tmp_path: Path,
+    make_container: Callable[..., Container],
+    make_drv: Callable[..., NixDerivation],
+) -> None:
+    pkg = "benchjsonuniq"
+    evaluation = ensure_benchmark_evaluation()
+    drv = make_drv(pname=pkg, version="1.0", attribute=pkg, evaluation=evaluation)
+    container = make_container(
+        cve_id="CVE-2026-bench-json", package_name=pkg, product=pkg
+    )
+    proposal = _proposal(container, drv)
+    score = score_proposal(proposal, rematch(proposal))
+    report_path = tmp_path / "nested" / "report.json"
+    out = StringIO()
+    call_command(
+        "benchmark_matching",
+        "--quiet",
+        "--output",
+        str(report_path),
+        stdout=out,
+    )
+    text = out.getvalue()
+    assert "true_positives" in text
+    assert "CVE-2026-bench-json" not in text
+    assert f"Wrote benchmark report to {report_path}" in text
+
+    written = json.loads(report_path.read_text())
+    assert written["aggregate"]["proposals"] >= 1
+    match = next(
+        item for item in written["scores"] if item["cve_id"] == "CVE-2026-bench-json"
+    )
+    assert (
+        match
+        == report_as_dict(
+            aggregate([score]),
+            [score],
+        )["scores"][0]
+    )

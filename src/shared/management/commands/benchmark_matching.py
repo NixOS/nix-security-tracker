@@ -5,6 +5,8 @@ Offline matching quality vs curated training-data labels.
 from __future__ import annotations
 
 import argparse
+import json
+from pathlib import Path
 from pprint import pformat
 from typing import Any
 
@@ -13,6 +15,7 @@ from django.core.management.base import BaseCommand
 from shared.matching_training_data.benchmark import (
     aggregate,
     rematch,
+    report_as_dict,
     score_proposal,
     training_corpus_queryset,
 )
@@ -43,10 +46,17 @@ class Command(BaseCommand):
             action="store_true",
             help="Suppress per-CVE ProposalScore lines (summary only).",
         )
+        parser.add_argument(
+            "--output",
+            type=Path,
+            default=None,
+            help="Write aggregate and per-CVE scores to this JSON file.",
+        )
 
     def handle(self, *args: Any, **options: Any) -> None:
         limit: int | None = options["limit"]
         quiet: bool = options["quiet"]
+        output: Path | None = options["output"]
 
         self.stdout.write("Querying curated matching data...")
         qs = training_corpus_queryset()
@@ -74,3 +84,12 @@ class Command(BaseCommand):
             return
 
         self.stdout.write(self.style.SUCCESS(pformat(report)))
+        if output is None:
+            return
+
+        output.parent.mkdir(parents=True, exist_ok=True)
+        output.write_text(
+            json.dumps(report_as_dict(report, scores)) + "\n",
+            encoding="utf-8",
+        )
+        self.stdout.write(f"Wrote benchmark report to {output}")
