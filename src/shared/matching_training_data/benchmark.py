@@ -10,6 +10,7 @@ from __future__ import annotations
 import math
 from collections.abc import Iterable
 from dataclasses import dataclass
+from typing import Any
 
 from django.db.models import Q, QuerySet
 
@@ -70,6 +71,20 @@ def snr(true_positives: int, false_positives: int) -> float:
     if true_positives > 0:
         return math.inf
     return math.nan
+
+
+def snr_for_json(value: float) -> float | str:
+    """
+    Encode SNR for JSON.
+
+    Finite values stay numbers.
+    Infinity and NaN become strings, which JSON can store.
+    """
+    if math.isinf(value):
+        return "inf"
+    if math.isnan(value):
+        return "nan"
+    return value
 
 
 @dataclass(frozen=True)
@@ -145,6 +160,37 @@ def aggregate(scores: Iterable[ProposalScore]) -> AggregateReport:
         rejection_agree_count=sum(1 for s in scores_list if s.rejection_agree),
         snr=snr(true_positives, false_positives),
     )
+
+
+def report_as_dict(
+    report: AggregateReport, scores: Iterable[ProposalScore]
+) -> dict[str, Any]:
+    """
+    JSON-ready aggregate and per-CVE scores.
+
+    In-memory SNR stays a float.
+    Only this dict uses the JSON encoding.
+    """
+
+    def score_dict(score: ProposalScore) -> dict[str, Any]:
+        return {
+            "cve_id": score.cve_id,
+            "true_positives": score.true_positives,
+            "false_positives": score.false_positives,
+            "rejection_agree": score.rejection_agree,
+            "snr": snr_for_json(score.snr),
+        }
+
+    return {
+        "aggregate": {
+            "proposals": report.proposals,
+            "true_positives": report.true_positives,
+            "false_positives": report.false_positives,
+            "rejection_agree_count": report.rejection_agree_count,
+            "snr": snr_for_json(report.snr),
+        },
+        "scores": [score_dict(score) for score in scores],
+    }
 
 
 def training_corpus_queryset() -> QuerySet[CVEDerivationClusterProposal]:

@@ -4,9 +4,11 @@ Tests for offline matching benchmark against training labels.
 
 from __future__ import annotations
 
+import json
 import math
 from collections.abc import Callable
 from io import StringIO
+from pathlib import Path
 
 import pytest
 from django.core.management import call_command
@@ -19,8 +21,10 @@ from shared.matching_training_data.benchmark import (
     aggregate,
     label_sets,
     rematch,
+    report_as_dict,
     score_proposal,
     snr,
+    snr_for_json,
 )
 from shared.models.cve import Container
 from shared.models.linkage import (
@@ -68,6 +72,12 @@ def test_snr() -> None:
     assert math.isnan(snr(0, 0))
     with pytest.raises(ValueError, match="non-negative"):
         snr(-1, 0)
+
+
+def test_snr_for_json() -> None:
+    assert snr_for_json(1.5) == 1.5
+    assert snr_for_json(math.inf) == "inf"
+    assert snr_for_json(math.nan) == "nan"
 
 
 def test_aggregate_snr() -> None:
