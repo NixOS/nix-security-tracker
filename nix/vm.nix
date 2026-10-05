@@ -235,9 +235,9 @@ in
       # Don't start expensive services on boot; trigger them manually when needed.
       nix-security-tracker-caching.wantedBy = lib.mkForce [ ];
       nix-security-tracker-backfill-package-links.wantedBy = lib.mkForce [ ];
-      nix-security-tracker-fetch-all-channels.startAt = null;
-      nix-security-tracker-delta.startAt = null;
-      nix-security-tracker-garbage-collection.startAt = null;
+      nix-security-tracker-fetch-all-channels.startAt = lib.mkForce [ ];
+      nix-security-tracker-delta.startAt = lib.mkForce [ ];
+      nix-security-tracker-garbage-collection.startAt = lib.mkForce [ ];
 
       # The Nixpkgs checkout directory is shared by the host, systemd cannot chown it.
       # Drop it from StateDirectory to prevent the service from failing at startup.
