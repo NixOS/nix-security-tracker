@@ -3,7 +3,8 @@ from collections.abc import Callable
 
 import pytest
 from django.contrib.auth.models import User
-from playwright.sync_api import Page, expect
+from django.urls import reverse
+from playwright.sync_api import Page, Route, expect
 from pytest_django.live_server_helper import LiveServer
 
 from shared.models.linkage import CVEDerivationClusterProposal, ProvenanceFlags
@@ -88,7 +89,9 @@ def test_toggle_notification_read_updates_badge(
     expect(toggle).to_have_text("Mark unread")
 
     # Toggling again marks it unread, restoring the badge.
-    toggle.click()
+    with as_staff.expect_response(lambda response: response.ok):
+        # Wait for the server interaction before the subsequent page reload.
+        toggle.click()
     expect(as_staff.get_by_test_id("notification-bell-count")).to_have_text("1")
     expect(toggle).to_have_text("Mark read")
 
@@ -141,6 +144,52 @@ def test_clear_read_removes_read_notifications(
     ).to_be_visible()
 
 
+def test_clear_read_waits_for_pending_mark_read(
+    live_server: LiveServer,
+    as_staff: Page,
+    staff: User,
+    make_maintainer_notification: Callable[..., list[Notification]],
+) -> None:
+    """
+    Clearing read notifications is only sent after a pending mark-read has completed.
+
+    The trick here is to force the out-of-order handling by withholding one of the requests.
+    """
+    notification = make_maintainer_notification(staff)[0]
+
+    held_updates: set[Route] = set()
+
+    def hold_updates(route: Route) -> None:
+        if route.request.method == "PATCH":
+            held_updates.add(route)
+        else:
+            route.fallback()
+
+    as_staff.route(
+        live_server.url + reverse("notifications-detail", args=[notification.id]),
+        hold_updates,
+    )
+
+    as_staff.goto(live_server.url + NOTIFICATIONS)
+    as_staff.get_by_test_id(f"notification-{notification.id}-toggle-read").click()
+    expect(
+        as_staff.get_by_test_id(f"notification-{notification.id}-toggle-read")
+    ).to_have_text("Mark unread")
+
+    as_staff.once("dialog", lambda dialog: dialog.accept())
+    clear_read = as_staff.get_by_test_id("notifications-clear-read")
+    clear_read.click()
+    expect(clear_read).to_be_disabled()
+
+    assert len(held_updates) > 0
+    with as_staff.expect_response(
+        lambda response: response.request.method == "GET" and response.ok
+    ):
+        held_updates.pop().continue_()
+
+    expect(as_staff.get_by_test_id(f"notification-{notification.id}")).to_have_count(0)
+
+
 def test_clear_read_dismissed_keeps_notifications(
     live_server: LiveServer,
     as_staff: Page,
@@ -176,7 +225,9 @@ def test_clear_read_resets_to_page_one(
         make_maintainer_notification(staff)
 
     as_staff.goto(live_server.url + NOTIFICATIONS)
-    as_staff.get_by_test_id("notifications-mark-all-read").click()
+    with as_staff.expect_response(lambda response: response.ok):
+        # Wait for the server interaction before the subsequent page reload.
+        as_staff.get_by_test_id("notifications-mark-all-read").click()
     expect(as_staff.get_by_role("button", name="Mark unread")).to_have_count(10)
 
     as_staff.goto(live_server.url + NOTIFICATIONS + "?page=2")
