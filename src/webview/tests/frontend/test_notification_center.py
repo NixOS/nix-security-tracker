@@ -130,7 +130,9 @@ def test_clear_read_removes_read_notifications(
     ).to_have_text("Mark unread")
 
     as_staff.once("dialog", lambda dialog: dialog.accept())
-    with as_staff.expect_response(lambda response: response.ok):
+    with as_staff.expect_response(
+        lambda r: r.ok and r.request.method == "GET" and "/notifications" in r.url
+    ):
         as_staff.get_by_test_id("notifications-clear-read").click()
 
     expect(as_staff.get_by_test_id(f"notification-{notification.id}")).to_have_count(0)
