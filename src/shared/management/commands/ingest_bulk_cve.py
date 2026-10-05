@@ -4,6 +4,7 @@ import logging
 import shutil
 import tempfile
 import zipfile
+from concurrent.futures import ProcessPoolExecutor, as_completed
 from datetime import date
 from glob import glob
 from os import mkdir, path
@@ -15,11 +16,46 @@ from django.core.management.base import BaseCommand, CommandError
 from django.db import transaction
 from github.GitRelease import GitRelease
 
-from shared.fetchers import make_cve
+from shared.bulk_ingestion import (
+    CveBulkContext,
+    flush,
+    prepare_cve,
+    update_search_vectors,
+)
 from shared.github import get_gh
 from shared.models import CveIngestion
 
 logger = logging.getLogger(__name__)
+
+
+def prepare_batch(
+    cve_batch_paths: list[str], from_date: date, to_date: date
+) -> tuple[int, CveBulkContext]:
+    """Runs in worker process to parse JSON and build Django models."""
+    ctx = CveBulkContext()
+    count = 0
+    for j_cve in cve_batch_paths:
+        name = path.basename(j_cve)
+        try:
+            cve_year = int(name.split("-")[1])
+            if cve_year < from_date.year or cve_year > to_date.year:
+                continue
+        except (IndexError, ValueError):
+            pass
+
+        with open(j_cve) as fc:
+            cve_json = json.load(fc)
+            metadata = cve_json.get("cveMetadata", {})
+            cve_date_str = metadata.get("dateUpdated") or metadata.get("datePublished")
+            if cve_date_str:
+                cve_date = date.fromisoformat(cve_date_str.split("T")[0])
+                if not (from_date <= cve_date <= to_date):
+                    continue
+
+            prepare_cve(cve_json, ctx=ctx, triaged=False)
+            count += 1
+
+    return count, ctx
 
 
 class Command(BaseCommand):
@@ -131,44 +167,36 @@ class Command(BaseCommand):
             )
 
         # Open a single transaction for the db
+
         with transaction.atomic():
-            count = 0
-            for j_cve in cve_list:
-                name = path.basename(j_cve)
-                # Fast-path: Skip files based on year in filename (CVE-YYYY-XXXX.json)
-                try:
-                    cve_year = int(name.split("-")[1])
-                    if cve_year < from_date.year or cve_year > to_date.year:
-                        continue
-                except IndexError as e:
-                    self.stderr.write(
-                        f"Could not split year field from CVE ID '{name}': {e}"  # noqa
-                    )
-                    continue
-                except ValueError as e:
-                    self.stderr.write(
-                        f"Could not parse year from '{name}': {e}"  # noqa
-                    )
-                    continue
+            batch_size = 5000
+            total_count = 0
 
-                # Precise-path: Check metadata dateUpdated/datePublished
-                with open(j_cve) as fc:
-                    cve_json = json.load(fc)
-                    metadata = cve_json.get("cveMetadata", {})
-                    cve_date_str = metadata.get("dateUpdated") or metadata.get(
-                        "datePublished"
-                    )
-                    if cve_date_str:
-                        # Handle potential milliseconds/Z/offsets (ISO 8601)
-                        cve_date = date.fromisoformat(cve_date_str.split("T")[0])
-                        if not (from_date <= cve_date <= to_date):
-                            continue
+            # Chunk cve_list into sub-lists
+            chunks = [
+                cve_list[i : i + batch_size]
+                for i in range(0, len(cve_list), batch_size)
+            ]
 
-                    make_cve(cve_json, triaged=False)
-                    count += 1
-                    print(".", end="", flush=True)
+            with ProcessPoolExecutor(max_workers=4) as executor:
+                futures = {
+                    executor.submit(prepare_batch, chunk, from_date, to_date): chunk
+                    for chunk in chunks
+                }
 
-            print()  # Final newline after progress dots
-            logger.info(f"{count} CVEs ingested.")
+                for future in as_completed(futures):
+                    count, ctx = future.result()
+                    if count > 0:
+                        logger.info(f"Flushing batch of {count} CVEs...")
+                        flush(ctx)
+                        total_count += count
+                        print(".", end="", flush=True)
+
+            print()  # Newline after progress dots
+            logger.info(f"{total_count} CVEs ingested.")
+
+            logger.info("Updating search vectors in bulk...")
+            update_search_vectors()
+
             logger.info(f"Saving the ingestion valid up to {v_date}")
             CveIngestion.objects.create(valid_to=v_date, delta=False)
