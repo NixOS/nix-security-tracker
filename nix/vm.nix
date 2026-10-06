@@ -92,6 +92,15 @@ in
           "node"
           "postgres"
           "sql"
+        ]
+        ++ [
+          {
+            job_name = "django";
+            static_configs = [
+              { targets = [ "localhost:${toString config.services.nginx.defaultHTTPListenPort}" ]; }
+            ];
+            metrics_path = "/metrics";
+          }
         ];
       exporters.sql.configuration.jobs.sectracker.interval = lib.mkForce "1m";
     };
@@ -128,7 +137,7 @@ in
               else if isList v then
                 map strip-instance-filter v
               else if isString v then
-                replaceStrings [ '', instance="$Instance"'' ] [ "" ] v
+                replaceStrings [ '', instance="$Instance"'' ''instance="$Instance"'' ] [ "" "" ] v
               else
                 v;
           in
@@ -169,6 +178,7 @@ in
               uid = "prometheus";
               url = "http://localhost:${toString config.services.prometheus.port}";
               isDefault = true;
+              jsonData.timeInterval = "1m";
             }
           ];
           dashboards.settings.providers = [

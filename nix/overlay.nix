@@ -58,6 +58,7 @@ in
       django-pghistory
       django-pglock
       django-pgtrigger
+      django-prometheus
       cvss
       cpe
       univers
