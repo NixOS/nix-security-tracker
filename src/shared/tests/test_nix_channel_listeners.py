@@ -39,7 +39,7 @@ def test_update_enqueues_only_for_small_channel(
         variant=variant,
     )
     old_commit = channel.head_sha1_commit
-    channel.head_sha1_commit = secrets.token_hex(16)
+    channel.head_sha1_commit = secrets.token_hex(20)
     old = NixChannel(channel_branch=channel.channel_branch, head_sha1_commit=old_commit)
     start_evaluation_jobs_upon_updates(old=old, new=channel)
     assert NixEvaluation.objects.filter(channel=channel).exists() == (

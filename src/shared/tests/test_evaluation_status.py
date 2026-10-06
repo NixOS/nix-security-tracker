@@ -9,12 +9,12 @@ def test_latest_per_channel_selects_by_updated_at(
 ) -> None:
     older = make_evaluation(
         state=NixEvaluation.EvaluationState.COMPLETED,
-        commit_sha1="older-eval",
+        commit_sha1="a" * 40,
         age=timedelta(days=2),
     )
     newer = make_evaluation(
         state=NixEvaluation.EvaluationState.CRASHED,
-        commit_sha1="newer-eval",
+        commit_sha1="b" * 40,
         age=timedelta(days=0),
     )
 

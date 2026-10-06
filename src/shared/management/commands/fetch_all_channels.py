@@ -10,7 +10,7 @@ from django.db import transaction
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from shared.git import get_head_sha1
-from shared.models.nix_evaluation import NixChannel, NixpkgsBranch
+from shared.models.nix_evaluation import SHA1_COMMIT_REGEX, NixChannel, NixpkgsBranch
 
 
 class MonitoredChannel(BaseModel):
@@ -18,7 +18,7 @@ class MonitoredChannel(BaseModel):
 
     channel: str
     release_branch: str
-    revision: Annotated[str, Field(pattern="[0-9a-f]{40}")]
+    revision: Annotated[str, Field(pattern=SHA1_COMMIT_REGEX)]
     status: NixChannel.ChannelState
     variant: NixChannel.Variant | None = None
 

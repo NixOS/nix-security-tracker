@@ -9,6 +9,8 @@ from django.db.models.functions import RowNumber
 from django.utils.translation import gettext_lazy as _
 from pgtrigger import UpdateSearchVector
 
+SHA1_COMMIT_REGEX = r"^[0-9a-f]{40}$"
+
 
 class TimeStampMixin(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
@@ -147,7 +149,7 @@ class NixpkgsBranch(models.Model):
     class Meta:
         constraints = [
             models.CheckConstraint(
-                check=models.Q(head_sha1_commit__regex=r"^[0-9a-f]{40}$"),
+                check=models.Q(head_sha1_commit__regex=SHA1_COMMIT_REGEX),
                 name="nixpkgsbranch_head_sha1_commit_valid",
             )
         ]
@@ -198,9 +200,17 @@ class NixChannel(TimeStampMixin):
     # channel tarballs and scripts from releases.nixos.org.
     channel_branch = models.CharField(max_length=255, primary_key=True)
     # The currently known HEAD SHA1 commit of that channel.
-    head_sha1_commit = models.CharField(max_length=255)
+    head_sha1_commit = models.CharField(max_length=40)
     state = models.CharField(max_length=126, choices=ChannelState.choices)
     variant = models.CharField(max_length=126, choices=Variant.choices, null=True)
+
+    class Meta:  # type: ignore[override]
+        constraints = [
+            models.CheckConstraint(
+                check=models.Q(head_sha1_commit__regex=SHA1_COMMIT_REGEX),
+                name="nixchannel_head_sha1_commit_valid",
+            )
+        ]
 
     def __str__(self) -> str:
         return f"{self.release_branch} -> {self.channel_branch}"
@@ -265,7 +275,7 @@ class NixEvaluation(TimeStampMixin):
         NixChannel, related_name="evaluations", on_delete=models.PROTECT
     )
     # Commit SHA1 on which the evaluation was done precisely.
-    commit_sha1 = models.CharField(max_length=255)
+    commit_sha1 = models.CharField(max_length=40)
     # State in which the evaluation is in.
     state = models.CharField(max_length=126, choices=EvaluationState.choices)
     # How many times have been we trying to evaluate
@@ -283,7 +293,11 @@ class NixEvaluation(TimeStampMixin):
         constraints = [
             models.UniqueConstraint(
                 fields=["commit_sha1"], name="nixevaluation_commit_sha1_unique"
-            )
+            ),
+            models.CheckConstraint(
+                check=models.Q(commit_sha1__regex=SHA1_COMMIT_REGEX),
+                name="nixevaluation_commit_sha1_valid",
+            ),
         ]
 
 
