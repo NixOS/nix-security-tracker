@@ -294,15 +294,26 @@ def get_src_position(derivation: NixDerivation) -> str | None:
     Get the GitHub URL pointing to the exact source file used for the evaluation of this derivation.
     E.g. https://github.com/NixOS/nixpkgs/blob/0e8be3827d0298743ba71b91eea652d43d7dc03d/pkgs/by-name/he/hello/package.nix#L47
     """
-    if derivation.metadata and derivation.metadata.position:
-        rev = urllib.parse.quote(derivation.parent_evaluation.commit_sha1)
+    if derivation.metadata:
+        return src_position_url(
+            derivation.parent_evaluation.commit_sha1, derivation.metadata.position
+        )
+    return None
+
+
+def src_position_url(commit_sha1: str, position: str | None) -> str | None:
+    """
+    Get the GitHub URL pointing to the source file at `position` in the Nixpkgs commit `commit_sha1`.
+    """
+    if position:
+        rev = urllib.parse.quote(commit_sha1)
         # position is something like `/tmp/tmpfh7ff2xs/pkgs/development/python-modules/qemu/default.nix:67`
         position_match = re.match(
             # FIXME the location of the eval store is going to be configurable in the future.
             # https://github.com/Nix-Security-WG/nix-security-tracker/pull/451
             # Ideally the position field is already relative to the location.
             r"/tmp/[^/]+/(.+):(\d+)",
-            derivation.metadata.position,
+            position,
         )
         if position_match:
             path = urllib.parse.quote(position_match.group(1))

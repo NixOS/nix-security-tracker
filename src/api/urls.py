@@ -5,6 +5,7 @@ from rest_framework import routers
 from api.issues.views import IssueViewSet
 from api.matching.views import MatchingTrainingDataView
 from api.me import CurrentUserView
+from api.missing_cpes import MissingCPEsView
 from api.notifications.views import NotificationViewSet
 from api.packages.views import PackageExistsView
 from api.server_info import ServerInfoView
@@ -33,6 +34,7 @@ urlpatterns = [
         MatchingTrainingDataView.as_view(),
         name="matching-training-data",
     ),
+    path("v1/missing-cpes", MissingCPEsView.as_view(), name="missing-cpes"),
     path("schema/", SpectacularAPIView.as_view(), name="schema"),
     path("docs/", SpectacularSwaggerView.as_view(url_name="schema"), name="swagger-ui"),
 ]
