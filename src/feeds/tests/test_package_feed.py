@@ -11,6 +11,7 @@ from shared.models.linkage import (
     PackageOverlay,
 )
 from shared.models.nix_evaluation import NixDerivation
+from shared.models.package import Package
 
 
 def test_feed_unknown_package_fails(client: Client, db: None) -> None:
@@ -96,6 +97,7 @@ def test_feed_excludes_suggestion_with_ignored_package(
     PackageOverlay.objects.create(
         suggestion=cached_suggestion,
         package_attribute=drv.attribute,
+        package=Package.objects.get_or_create(name=drv.attribute)[0],
         type=PackageOverlay.Type.IGNORED,
     )
 

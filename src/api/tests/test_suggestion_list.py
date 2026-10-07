@@ -11,6 +11,7 @@ from shared.models.linkage import (
     ProvenanceFlags,
 )
 from shared.models.nix_evaluation import NixDerivation
+from shared.models.package import Package
 
 
 def url() -> str:
@@ -249,10 +250,12 @@ def test_suggestion_list_filters_by_package(
 def test_suggestion_list_filters_excludes_ignored_package(
     make_cached_suggestion: Callable[..., CVEDerivationClusterProposal],
     make_drv: Callable[..., NixDerivation],
+    make_package: Callable[..., Package],
 ) -> None:
     """A suggestion whose only matching package has been ignored isn't returned."""
     client = APIClient()
     package = make_drv(pname="foo")
+    make_package(package)
     suggestion = make_cached_suggestion(
         drvs={package: ProvenanceFlags.PACKAGE_NAME_MATCH}
     )

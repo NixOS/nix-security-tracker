@@ -11,6 +11,7 @@ from shared.models.linkage import (
     CVEDerivationClusterProposal,
     PackageOverlay,
 )
+from shared.models.package import Package
 
 url = reverse("matching-training-data")
 
@@ -52,6 +53,7 @@ def curated_proposals(
     PackageOverlay.objects.create(
         suggestion=accepted,
         package_attribute="foo.tests",
+        package=Package.objects.get_or_create(name="foo.tests")[0],
         type=PackageOverlay.Type.IGNORED,
     )
     return {

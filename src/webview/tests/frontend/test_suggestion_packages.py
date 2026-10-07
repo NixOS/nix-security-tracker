@@ -6,6 +6,7 @@ from pytest_django.live_server_helper import LiveServer
 
 from shared.models.linkage import CVEDerivationClusterProposal, ProvenanceFlags
 from shared.models.nix_evaluation import NixDerivation, NixMaintainer
+from shared.models.package import Package
 
 from .routes import SUGGESTION_DETAIL, SUGGESTION_LIST
 
@@ -15,10 +16,12 @@ PACKAGE_ATTRIBUTE = "package1"
 @pytest.fixture
 def suggestion_with_package(
     make_drv: Callable[..., NixDerivation],
+    make_package: Callable[..., Package],
     make_cached_suggestion: Callable[..., CVEDerivationClusterProposal],
 ) -> Callable[..., CVEDerivationClusterProposal]:
     def wrapped(**kwargs: object) -> CVEDerivationClusterProposal:
         drv = make_drv(pname=PACKAGE_ATTRIBUTE)
+        make_package(drv)
         return make_cached_suggestion(
             drvs={drv: ProvenanceFlags.PACKAGE_NAME_MATCH}, **kwargs
         )
