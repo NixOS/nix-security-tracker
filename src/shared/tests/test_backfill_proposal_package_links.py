@@ -3,8 +3,10 @@ from io import StringIO
 
 from django.core.management import call_command
 
+from shared.models.cve import Container
 from shared.models.linkage import (
     CVEDerivationClusterProposal,
+    DerivationClusterProposalLink,
     PackageClusterProposalLink,
     ProvenanceFlags,
 )
@@ -32,11 +34,17 @@ def test_backfill_creates_package_link_for_clustered_drv(
 
 
 def test_backfill_clusters_drv_with_no_package_link(
+    cve: Container,
     drv: NixDerivation,
-    suggestion: CVEDerivationClusterProposal,
 ) -> None:
     """A proposal's derivation that has no PackageDerivation yet is clustered
     into a package (instead of being skipped), then linked."""
+    suggestion = CVEDerivationClusterProposal.objects.create(cve=cve.cve)
+    DerivationClusterProposalLink.objects.create(
+        proposal=suggestion,
+        derivation=drv,
+        provenance_flags=ProvenanceFlags.PACKAGE_NAME_MATCH,
+    )
     assert not PackageDerivation.objects.filter(derivation=drv).exists()
 
     call_command("backfill_proposal_package_links", stdout=StringIO())

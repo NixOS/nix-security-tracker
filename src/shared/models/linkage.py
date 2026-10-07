@@ -15,7 +15,7 @@ from django.utils.translation import gettext_lazy as _
 import shared.models.cached
 from shared.models.cve import CveRecord, Reference
 from shared.models.nix_evaluation import NixDerivation, NixMaintainer, TimeStampMixin
-from shared.models.package import Package
+from shared.models.package import Package, PackageAttrpath
 
 
 class Overlay(models.Model):
@@ -215,7 +215,12 @@ class CVEDerivationClusterProposal(TimeStampMixin):
         with transaction.atomic():
             self.package_overlays.get_or_create(
                 package_attribute=package_attribute,
-                defaults={"type": PackageOverlay.Type.IGNORED},
+                defaults={
+                    "type": PackageOverlay.Type.IGNORED,
+                    "package_id": PackageAttrpath.objects.get(
+                        attrpath=package_attribute
+                    ).package.id,
+                },
             )
             self._recompute_package_cache()
 
@@ -603,6 +608,15 @@ class MaintainerOverlay(Overlay):
 @pghistory.track(
     pghistory.ManualEvent("package.restore"),
     pghistory.ManualEvent("package.ignore"),
+    attrs={
+        "package": models.ForeignKey(
+            Package,
+            on_delete=models.RESTRICT,
+            # Like pghistory's own copies of tracked references, keep history out of the package's reverse relations.
+            related_name="+",
+            related_query_name="+",
+        )
+    },
 )
 class PackageOverlay(Overlay):
     """
@@ -610,6 +624,12 @@ class PackageOverlay(Overlay):
     """
 
     package_attribute = models.CharField(max_length=255)
+
+    package = models.ForeignKey(
+        Package,
+        on_delete=models.RESTRICT,
+        related_name="overlays",
+    )
     suggestion = models.ForeignKey(
         CVEDerivationClusterProposal,
         related_name="package_overlays",

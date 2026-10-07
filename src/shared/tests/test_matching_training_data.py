@@ -19,6 +19,7 @@ from shared.models.linkage import (
     ProvenanceFlags,
 )
 from shared.models.nix_evaluation import NixChannel, NixDerivation, NixEvaluation
+from shared.models.package import Package
 
 
 def test_serializer_export_validates_like_api_payload(
@@ -41,6 +42,7 @@ def test_serializer_export_validates_like_api_payload(
     PackageOverlay.objects.create(
         suggestion=proposal,
         package_attribute="foo.tests",
+        package=Package.objects.get_or_create(name="foo.tests")[0],
         type=PackageOverlay.Type.IGNORED,
     )
 
@@ -146,6 +148,7 @@ def test_export_import_export_roundtrip(
     PackageOverlay.objects.create(
         suggestion=proposal,
         package_attribute="foobar.tests",
+        package=Package.objects.get_or_create(name="foobar.tests")[0],
         type=PackageOverlay.Type.IGNORED,
     )
     original = dict(serializers.CVEDerivationClusterProposal(proposal).data)
