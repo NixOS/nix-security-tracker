@@ -12,15 +12,6 @@ in
       django-pgpubsub = _pyprev.django-pgpubsub.overridePythonAttrs (old: {
         patches = (old.patches or [ ]) ++ [ ../nix/django-pgpubsub-fix-notify.patch ];
       });
-      cpe = pyfinal.buildPythonPackage {
-        pname = "cpe";
-        version = "1.3.1";
-        pyproject = true;
-        build-system = [
-          pyfinal.setuptools
-        ];
-        src = sources.cpe;
-      };
     };
   };
   # go through the motions to make a flake-incompat project use the build
@@ -67,6 +58,7 @@ in
       django-pghistory
       django-pglock
       django-pgtrigger
+      django-prometheus
       cvss
       cpe
       univers

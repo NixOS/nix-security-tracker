@@ -202,7 +202,7 @@ class Settings(BaseSettings):
             The branch that tracks upstream development.
             Serves as the source of truth for package metadata such as maintainers and descriptions.
             """,
-            default="nixos-unstable-small",
+            default="master",
         )
         MAX_MATCHES: int = Field(
             description="""
@@ -437,6 +437,7 @@ INSTALLED_APPS = [
     "django.contrib.sessions",
     "django.contrib.messages",
     "django.contrib.staticfiles",
+    "django_prometheus",
     "django_filters",
     "debug_toolbar",
     # AllAuth config
@@ -462,6 +463,7 @@ INSTALLED_APPS = [
 ]
 
 MIDDLEWARE = [
+    "django_prometheus.middleware.PrometheusBeforeMiddleware",
     "django.middleware.security.SecurityMiddleware",
     "django.contrib.sessions.middleware.SessionMiddleware",
     "django.middleware.common.CommonMiddleware",
@@ -473,6 +475,7 @@ MIDDLEWARE = [
     # Allauth account middleware
     "allauth.account.middleware.AccountMiddleware",
     "pghistory.middleware.HistoryMiddleware",
+    "django_prometheus.middleware.PrometheusAfterMiddleware",
 ]
 
 ROOT_URLCONF = "project.urls"

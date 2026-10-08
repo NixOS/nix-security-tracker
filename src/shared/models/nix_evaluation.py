@@ -9,6 +9,8 @@ from django.db.models.functions import RowNumber
 from django.utils.translation import gettext_lazy as _
 from pgtrigger import UpdateSearchVector
 
+SHA1_COMMIT_REGEX = r"^[0-9a-f]{40}$"
+
 
 class TimeStampMixin(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
@@ -147,7 +149,7 @@ class NixpkgsBranch(models.Model):
     class Meta:
         constraints = [
             models.CheckConstraint(
-                check=models.Q(head_sha1_commit__regex=r"^[0-9a-f]{40}$"),
+                check=models.Q(head_sha1_commit__regex=SHA1_COMMIT_REGEX),
                 name="nixpkgsbranch_head_sha1_commit_valid",
             )
         ]
@@ -198,37 +200,36 @@ class NixChannel(TimeStampMixin):
     # channel tarballs and scripts from releases.nixos.org.
     channel_branch = models.CharField(max_length=255, primary_key=True)
     # The currently known HEAD SHA1 commit of that channel.
-    head_sha1_commit = models.CharField(max_length=255)
+    head_sha1_commit = models.CharField(max_length=40)
     state = models.CharField(max_length=126, choices=ChannelState.choices)
     variant = models.CharField(max_length=126, choices=Variant.choices, null=True)
+
+    class Meta:  # type: ignore[override]
+        constraints = [
+            models.CheckConstraint(
+                check=models.Q(head_sha1_commit__regex=SHA1_COMMIT_REGEX),
+                name="nixchannel_head_sha1_commit_valid",
+            )
+        ]
 
     def __str__(self) -> str:
         return f"{self.release_branch} -> {self.channel_branch}"
 
-    @property
-    def is_tracking_branch(self) -> bool:
-        """
-        Whether the channel corresponds to a the tracking branch.
-
-        It's the source of truth for metadata such as package descriptions and maintainer information.
-        """
-        return self.channel_branch == settings.TRACKING_BRANCH
-
 
 class NixEvaluationQuerySet(models.QuerySet):
-    def latest_per_channel(self) -> "NixEvaluationQuerySet":
+    def latest_per_branch(self) -> "NixEvaluationQuerySet":
         return self.annotate(
             row_num=Window(
                 expression=RowNumber(),
-                partition_by=[F("channel")],
+                partition_by=[F("on_branches__name")],
                 order_by=F("updated_at").desc(),
             ),
         ).filter(row_num=1)
 
-    def latest_completed_per_channel(self) -> "NixEvaluationQuerySet":
+    def latest_completed_per_branch(self) -> "NixEvaluationQuerySet":
         return self.filter(
             state=NixEvaluation.EvaluationState.COMPLETED
-        ).latest_per_channel()
+        ).latest_per_branch()
 
 
 class NixEvaluation(TimeStampMixin):
@@ -260,12 +261,10 @@ class NixEvaluation(TimeStampMixin):
         # Failed means critical evaluation errors
         FAILED = "FAILED", _("Failed")
 
-    # Parent channel of that evaluation.
-    channel = models.ForeignKey(
-        NixChannel, related_name="evaluations", on_delete=models.PROTECT
-    )
+    # Release branches this evaluation is associated with.
+    on_branches = models.ManyToManyField(NixpkgsBranch, related_name="evaluations")
     # Commit SHA1 on which the evaluation was done precisely.
-    commit_sha1 = models.CharField(max_length=255)
+    commit_sha1 = models.CharField(max_length=40)
     # State in which the evaluation is in.
     state = models.CharField(max_length=126, choices=EvaluationState.choices)
     # How many times have been we trying to evaluate
@@ -277,13 +276,22 @@ class NixEvaluation(TimeStampMixin):
     elapsed = models.FloatField(null=True)
 
     def __str__(self) -> str:
-        return f"{self.channel} {self.commit_sha1[:8]}"
+        return f"{self.commit_sha1[:8]}"
+
+    @property
+    def is_on_tracking_branch(self) -> bool:
+        """Whether this evaluation is on the tracking branch."""
+        return self.on_branches.filter(name=settings.TRACKING_BRANCH).exists()
 
     class Meta:  # type: ignore[override]
         constraints = [
             models.UniqueConstraint(
                 fields=["commit_sha1"], name="nixevaluation_commit_sha1_unique"
-            )
+            ),
+            models.CheckConstraint(
+                check=models.Q(commit_sha1__regex=SHA1_COMMIT_REGEX),
+                name="nixevaluation_commit_sha1_valid",
+            ),
         ]
 
 
@@ -336,22 +344,3 @@ class NixDerivation(models.Model):
                 ],
             )
         ]
-
-
-# Major channels are the important channels that a user wants to keep an eye on.
-# FIXME figure this out dynamically [ref:channel-structure]
-# This should aggregate by `status` and pick the `primary` channels.
-# Probably `nixpkgs-unstable` needs a keep its special role:
-# https://github.com/NixOS/infra/pull/921
-MAJOR_CHANNELS = [
-    "unstable",
-    "26.05",
-]
-
-
-# The major channel that a branch name (e.g. nixpkgs-24.05-darwin) belongs to
-def get_major_channel(branch_name: str) -> str | None:
-    for mc in MAJOR_CHANNELS:
-        if mc in branch_name:
-            return f"nixos-{mc}"
-    return None

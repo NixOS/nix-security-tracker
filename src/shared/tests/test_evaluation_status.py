@@ -4,21 +4,21 @@ from datetime import timedelta
 from shared.models.nix_evaluation import NixEvaluation
 
 
-def test_latest_per_channel_selects_by_updated_at(
+def test_latest_per_branch_selects_by_updated_at(
     make_evaluation: Callable[..., NixEvaluation],
 ) -> None:
     older = make_evaluation(
         state=NixEvaluation.EvaluationState.COMPLETED,
-        commit_sha1="older-eval",
+        commit_sha1="a" * 40,
         age=timedelta(days=2),
     )
     newer = make_evaluation(
         state=NixEvaluation.EvaluationState.CRASHED,
-        commit_sha1="newer-eval",
+        commit_sha1="b" * 40,
         age=timedelta(days=0),
     )
 
-    latest = NixEvaluation.objects.latest_per_channel().get()
+    latest = NixEvaluation.objects.latest_per_branch().get()
 
     assert latest == newer
     assert latest != older

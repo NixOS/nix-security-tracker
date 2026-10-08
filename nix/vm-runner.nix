@@ -72,12 +72,7 @@ let
             if [ -n "$uid" ] && [ -n "$gid" ]; then
               ${lib.concatMapStrings (user: ''
                 usermod -u "$uid" ${lib.escapeShellArg user}
-                group=$(getent group "$gid" | cut -d: -f1)
-                if [ -n "$group" ]; then
-                  usermod -g "$group" ${lib.escapeShellArg user}
-                else
-                  groupmod -g "$gid" "$(id -gn ${lib.escapeShellArg user})"
-                fi
+                groupmod -o -g "$gid" "$(id -gn ${lib.escapeShellArg user})"
               '') config.local.mapped-users}
             fi
           '';

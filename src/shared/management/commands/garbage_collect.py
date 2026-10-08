@@ -1,3 +1,4 @@
+import time
 from argparse import ArgumentDefaultsHelpFormatter, ArgumentParser
 from datetime import timedelta
 from typing import Any
@@ -5,28 +6,21 @@ from typing import Any
 from django.core.management.base import BaseCommand, CommandParser, DjangoHelpFormatter
 from django.db import connection, models
 from django.db.models import (
-    Case,
-    Exists,
-    IntegerField,
-    OuterRef,
     Q,
     QuerySet,
-    When,
 )
 from django.utils import timezone
 from pgpubsub.models import Notification
+from prometheus_client import CollectorRegistry, Gauge
 
 from shared.channels import NixEvaluationUpdateChannel, SuggestionRefreshChannel
+from shared.metrics import write_metrics_textfile
 from shared.models import (  # type: ignore
     CVEDerivationClusterProposalStatusEvent,
     DerivationClusterProposalLinkEvent,
 )
-from shared.models.linkage import (
-    CVEDerivationClusterProposal,
-    DerivationClusterProposalLink,
-)
+from shared.models.linkage import CVEDerivationClusterProposal
 from shared.models.nix_evaluation import (
-    NixChannel,
     NixDerivation,
     NixDerivationMeta,
     NixEvaluation,
@@ -36,8 +30,14 @@ from shared.models.package import PackageAttrpath
 DEFAULT_CUTOFF_DAYS = 365 // 2
 
 
+def _merge(into: dict[str, int], other: dict[str, int]) -> dict[str, int]:
+    for k, v in other.items():
+        into[k] = into.get(k, 0) + v
+    return into
+
+
 class Command(BaseCommand):
-    help = "Garbage collect stale proposals, derivations, evaluations and channels"
+    help = "Garbage collect stale proposals, derivations, and evaluations"
 
     # FIXME(@fricklerhandwerk): Use this for all management commands from a single source of truth.
     def create_parser(
@@ -78,25 +78,77 @@ class Command(BaseCommand):
         # Each step satisfies the cascading constraints that gate the next step.
         # `pghistory` events are never auto-deleted — each step explicitly clears relevant events first.
 
-        # FIXME(@fricklerhandwerk): Make the numbering implicit, otherwise we'll have noisy diffs every time something changes here.
-        self.stdout.write("\n[1/6] Deleting stale matches")
-        self._delete_stale_matches(cutoff, batch_size)
-        self.stdout.write("\n[2/6] Purging obsolete channel links")
-        self._purge_obsolete_channel_links(batch_size)
-        self.stdout.write("\n[3/6] Deleting unmatched derivations")
-        self._delete_unmatched_derivations(batch_size)
-        self.stdout.write("\n[4/6] Deleting empty evaluations")
-        self._delete_empty_evaluations(cutoff, batch_size)
-        self.stdout.write("\n[5/6] Deleting inactive channels")
-        self._delete_inactive_channels(batch_size)
-        self.stdout.write("\n[6/6] Pruning stale package attrpaths")
-        self._prune_stale_package_attrpaths(batch_size)
-        self.stdout.write("\nDeleting stale rematching triggers")
-        self._delete_stale_triggers()
+        deleted: dict[str, int] = {}
+        step_durations: dict[str, float] = {}
+        start_total = time.time()
 
-        self.stdout.write(self.style.SUCCESS("\nGarbage collection complete."))
+        steps: list[tuple[str, str, Any]] = [
+            (
+                "stale_matches",
+                "Deleting stale matches",
+                lambda: self._delete_stale_matches(cutoff, batch_size),
+            ),
+            (
+                "unmatched_derivations",
+                "Deleting unmatched derivations",
+                lambda: self._delete_unmatched_derivations(batch_size),
+            ),
+            (
+                "empty_evaluations",
+                "Deleting empty evaluations",
+                lambda: self._delete_empty_evaluations(cutoff, batch_size),
+            ),
+            (
+                "stale_attrpaths",
+                "Pruning stale package attrpaths",
+                lambda: self._prune_stale_package_attrpaths(batch_size),
+            ),
+            (
+                "stale_triggers",
+                "Deleting stale rematching triggers",
+                lambda: self._delete_stale_triggers(),
+            ),
+        ]
 
-    def _delete_stale_matches(self, cutoff: Any, batch_size: int) -> None:
+        for i, (name, label, fn) in enumerate(steps, start=1):
+            self.stdout.write(f"[{i}/{len(steps)}] {label}")
+            step_start = time.time()
+            _merge(deleted, fn())
+            step_durations[name] = time.time() - step_start
+
+        self._write_metrics(time.time() - start_total, step_durations, deleted)
+
+        self.stdout.write(self.style.SUCCESS("Garbage collection complete."))
+
+    def _write_metrics(
+        self,
+        total_duration: float,
+        step_durations: dict[str, float],
+        deleted: dict[str, int],
+    ) -> None:
+        registry = CollectorRegistry()
+        duration_gauge = Gauge(
+            "sectracker_garbage_collect_duration_seconds",
+            "Duration of last garbage collection run by step",
+            ["step"],
+            registry=registry,
+        )
+        duration_gauge.labels(step="total").set(total_duration)
+        for step, duration in step_durations.items():
+            duration_gauge.labels(step=step).set(duration)
+
+        deleted_gauge = Gauge(
+            "sectracker_garbage_collect_deleted",
+            "Rows deleted in last garbage collection run by model",
+            ["model"],
+            registry=registry,
+        )
+        for model_label, count in deleted.items():
+            deleted_gauge.labels(model=model_label).set(float(count))
+
+        write_metrics_textfile("garbage_collection", registry)
+
+    def _delete_stale_matches(self, cutoff: Any, batch_size: int) -> dict[str, int]:
         candidates = (
             CVEDerivationClusterProposal.objects.filter(
                 Q(created_at__lt=cutoff)
@@ -116,86 +168,32 @@ class Command(BaseCommand):
             .distinct()
         )
 
+        totals: dict[str, int] = {}
         deleted = self._purge_events(
             DerivationClusterProposalLinkEvent,
             pgh_obj__proposal_id__in=candidates.values_list("id", flat=True),
         )
+        _merge(totals, deleted)
         self.stdout.write(
             self.style.SUCCESS(
                 f"Deleted for link events on stale suggestions: {deleted}"
             )
         )
 
-        self._delete_in_batches(
-            qs=candidates,
-            model=CVEDerivationClusterProposal,
-            pk_field="id",
-            label="stale suggestions",
-            batch_size=batch_size,
-            event_model=CVEDerivationClusterProposalStatusEvent,
-        )
-
-    def _purge_obsolete_channel_links(self, batch_size: int) -> None:
-        """
-        For each `(suggestion, attribute)`, keep only the derivatons from the most current channel.
-        Links to derivations from older channels with the same attribute count as obsolete if a more current channel is present.
-
-        This procedure can be removed once we evaluate the tip of each release branch once and match only against those.
-        """
-
-        # This priority corresponds to how far evaluated commits are behind `master`.
-        priority = Case(
-            When(
-                derivation__parent_evaluation__channel__channel_branch__endswith="-small",
-                then=0,
+        _merge(
+            totals,
+            self._delete_in_batches(
+                qs=candidates,
+                model=CVEDerivationClusterProposal,
+                pk_field="id",
+                label="stale suggestions",
+                batch_size=batch_size,
+                event_model=CVEDerivationClusterProposalStatusEvent,
             ),
-            When(
-                derivation__parent_evaluation__channel__channel_branch__startswith="nixos-",
-                then=1,
-            ),
-            # Stable releases can be considered even older and ordered lexicographically.
-            default=2,
-            output_field=IntegerField(),
         )
+        return totals
 
-        # We only need the latest version of a "package" at matching time.
-        # A "package" currently merely constsists of derivations grouped by attribute path.
-        # Some channels in old suggestions appear multiple times, we take only the latest evaluation for each.
-        # We only introduced taking the latest evaluation at some point after going live.
-        latest_link = (
-            DerivationClusterProposalLink.objects.annotate(priority=priority)
-            .filter(
-                proposal_id=OuterRef("proposal_id"),
-                derivation__attribute=OuterRef("derivation__attribute"),
-                derivation__parent_evaluation__channel__release_branch=OuterRef(
-                    "derivation__parent_evaluation__channel__release_branch"
-                ),
-            )
-            .filter(
-                Q(priority__lt=OuterRef("priority"))
-                | Q(
-                    priority=OuterRef("priority"),
-                    derivation__parent_evaluation__created_at__gt=OuterRef(
-                        "derivation__parent_evaluation__created_at"
-                    ),
-                )
-            )
-        )
-
-        candidates = DerivationClusterProposalLink.objects.annotate(
-            priority=priority
-        ).filter(Exists(latest_link))
-
-        self._delete_in_batches(
-            qs=candidates,
-            model=DerivationClusterProposalLink,
-            pk_field="id",
-            label="obsolete channel links",
-            batch_size=batch_size,
-            event_model=DerivationClusterProposalLinkEvent,
-        )
-
-    def _delete_unmatched_derivations(self, batch_size: int) -> None:
+    def _delete_unmatched_derivations(self, batch_size: int) -> dict[str, int]:
         failed_crashed = NixDerivation.objects.filter(
             parent_evaluation__state__in=[
                 NixEvaluation.EvaluationState.FAILED,
@@ -203,12 +201,16 @@ class Command(BaseCommand):
             ],
         )
 
-        self._delete_in_batches(
-            qs=failed_crashed,
-            model=NixDerivation,
-            pk_field="id",
-            label="derivations from failed evaluations",
-            batch_size=batch_size,
+        totals: dict[str, int] = {}
+        _merge(
+            totals,
+            self._delete_in_batches(
+                qs=failed_crashed,
+                model=NixDerivation,
+                pk_field="id",
+                label="derivations from failed evaluations",
+                batch_size=batch_size,
+            ),
         )
 
         # This set is O(500k), not great but still faster than a subquery.
@@ -219,27 +221,34 @@ class Command(BaseCommand):
         )
         stale_evaluations = NixEvaluation.objects.filter(
             state=NixEvaluation.EvaluationState.COMPLETED,
-        ).exclude(pk__in=NixEvaluation.objects.latest_completed_per_channel())
+        ).exclude(pk__in=NixEvaluation.objects.latest_completed_per_branch())
 
-        self._delete_in_batches(
-            qs=NixDerivation.objects.filter(
-                parent_evaluation__in=stale_evaluations,
-            ).exclude(id__in=linked_ids),
-            model=NixDerivation,
-            pk_field="id",
-            label="unmatched derivations from stale evaluations",
-            batch_size=batch_size,
+        _merge(
+            totals,
+            self._delete_in_batches(
+                qs=NixDerivation.objects.filter(
+                    parent_evaluation__in=stale_evaluations,
+                ).exclude(id__in=linked_ids),
+                model=NixDerivation,
+                pk_field="id",
+                label="unmatched derivations from stale evaluations",
+                batch_size=batch_size,
+            ),
         )
 
-        self._delete_in_batches(
-            qs=NixDerivationMeta.objects.filter(derivation__isnull=True),
-            model=NixDerivationMeta,
-            pk_field="id",
-            label="orphaned derivation metadata",
-            batch_size=batch_size,
+        _merge(
+            totals,
+            self._delete_in_batches(
+                qs=NixDerivationMeta.objects.filter(derivation__isnull=True),
+                model=NixDerivationMeta,
+                pk_field="id",
+                label="orphaned derivation metadata",
+                batch_size=batch_size,
+            ),
         )
+        return totals
 
-    def _delete_empty_evaluations(self, cutoff: Any, batch_size: int) -> None:
+    def _delete_empty_evaluations(self, cutoff: Any, batch_size: int) -> dict[str, int]:
         candidates = NixEvaluation.objects.filter(
             state__in=[
                 NixEvaluation.EvaluationState.FAILED,
@@ -248,7 +257,7 @@ class Command(BaseCommand):
             derivations__isnull=True,
         )
 
-        self._delete_in_batches(
+        return self._delete_in_batches(
             qs=candidates,
             model=NixEvaluation,
             pk_field="id",
@@ -256,34 +265,7 @@ class Command(BaseCommand):
             batch_size=batch_size,
         )
 
-    def _delete_inactive_channels(self, batch_size: int) -> None:
-        candidates = (
-            NixChannel.objects.filter(
-                state__in=[
-                    NixChannel.ChannelState.END_OF_LIFE,
-                    NixChannel.ChannelState.DEPRECATED,
-                ]
-            )
-            .exclude(evaluations__derivations__cve_links_proposals__isnull=False)
-            .exclude(
-                # No user input must be attached.
-                # Currently only ignored/additional maintainers relate directly to derivations.
-                evaluations__derivations__metadata__maintainers__maintaineroverlay__isnull=False
-            )
-            .exclude(evaluations__derivations__isnull=False)
-            .exclude(evaluations__isnull=False)
-            .distinct()
-        )
-
-        self._delete_in_batches(
-            qs=candidates,
-            model=NixChannel,
-            pk_field="channel_branch",
-            label="channels",
-            batch_size=batch_size,
-        )
-
-    def _delete_stale_triggers(self) -> None:
+    def _delete_stale_triggers(self) -> dict[str, int]:
         """
         Reclaim rematching trigger notifications that the listener never drained.
         Anything older than a day cannot represent live work, since a healthy live listener drains within seconds and the next evaluation would re-emit fresh triggers for anything still relevant.
@@ -293,15 +275,16 @@ class Command(BaseCommand):
         # Both spellings need to be matched to reach all orphaned rows.
         names = [n for c in channels for n in (c.name(), c.listen_safe_name())]
         cutoff = timezone.now() - timedelta(hours=24)
-        deleted, _ = Notification.objects.filter(
+        _, details = Notification.objects.filter(
             channel__in=names, created_at__lt=cutoff
         ).delete()
         self.stdout.write(
-            self.style.SUCCESS(f"Deleted stale rematching triggers: {deleted}")
+            self.style.SUCCESS(f"Deleted stale rematching triggers: {details}")
         )
+        return details
 
-    def _prune_stale_package_attrpaths(self, batch_size: int) -> None:
-        self._delete_in_batches(
+    def _prune_stale_package_attrpaths(self, batch_size: int) -> dict[str, int]:
+        return self._delete_in_batches(
             qs=PackageAttrpath.objects.stale(),
             model=PackageAttrpath,
             pk_field="attrpath",
@@ -337,7 +320,7 @@ class Command(BaseCommand):
         label: str,
         batch_size: int,
         event_model: type[models.Model] | None = None,
-    ) -> None:
+    ) -> dict[str, int]:
         totals: dict[str, int] = {}
         batch_num = 1
         skipped_pks: set[Any] = set()
@@ -379,3 +362,4 @@ class Command(BaseCommand):
             batch_num += 1
 
         self.stdout.write(self.style.SUCCESS(f"Deleted for {label}: {totals}"))
+        return totals

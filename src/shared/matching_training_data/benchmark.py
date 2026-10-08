@@ -20,7 +20,7 @@ from shared.listeners.automatic_linkage import (
 )
 from shared.matching_training_data.serializers import (
     _TRAINING_ORG_UUID,
-    BENCHMARK_CHANNEL_BRANCH,
+    BENCHMARK_RELEASE_BRANCH,
     pick_first_container,
 )
 from shared.models.linkage import CVEDerivationClusterProposal, PackageOverlay
@@ -155,7 +155,7 @@ def training_corpus_queryset() -> QuerySet[CVEDerivationClusterProposal]:
         CVEDerivationClusterProposal.objects.user_curated()
         .filter(
             Q(
-                derivationclusterproposallink__derivation__parent_evaluation__channel__channel_branch=BENCHMARK_CHANNEL_BRANCH
+                derivationclusterproposallink__derivation__parent_evaluation__on_branches__name=BENCHMARK_RELEASE_BRANCH
             )
             | Q(cve__assigner__uuid=_TRAINING_ORG_UUID)
         )

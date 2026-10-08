@@ -225,9 +225,9 @@ class SyncBatchAttributeIngester:
     ) -> None:
         self.evaluations = evaluations
         self.parent_evaluation = parent_evaluation
-        self.tracking_branch = self.parent_evaluation.channel.is_tracking_branch
 
     def initialize(self) -> None:
+        self.tracking_branch = self.parent_evaluation.is_on_tracking_branch
         self.maintainers = list(NixMaintainer.objects.all())
         self.licenses = list(NixLicense.objects.all())
 

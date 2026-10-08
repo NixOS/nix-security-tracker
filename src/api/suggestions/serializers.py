@@ -119,25 +119,14 @@ class MaintainerSerializer(serializers.Serializer):
 
 
 class SuggestionPackageOnBranchSerializer(serializers.Serializer):
-    version = serializers.CharField()
-    status = serializers.CharField()
-    src_position = serializers.CharField(allow_null=True)
-    updated = serializers.DateTimeField()
-
-
-class SuggestionPackageOnPrimaryChannelSerializer(serializers.Serializer):
-    major_version = serializers.CharField(allow_null=True)
+    version = serializers.CharField(allow_null=True)
     status = serializers.CharField(allow_null=True)
     updated = serializers.DateTimeField(allow_null=True)
-    uniform_versions = serializers.BooleanField(allow_null=True)
     src_position = serializers.CharField(allow_null=True)
-    sub_branches = serializers.DictField(child=SuggestionPackageOnBranchSerializer())
 
 
 class SuggestionPackageSerializer(serializers.Serializer):
-    channels = serializers.DictField(
-        child=SuggestionPackageOnPrimaryChannelSerializer()
-    )
+    branches = serializers.DictField(child=SuggestionPackageOnBranchSerializer())
     derivation_ids = serializers.ListField(child=serializers.IntegerField())
     maintainers = MaintainerSerializer(many=True)
     description = serializers.CharField(allow_null=True)

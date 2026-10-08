@@ -21,12 +21,15 @@ import { toaster } from "@/utils/toaster";
 
 type MutationContext = { snapshot: NotificationListSnapshot };
 
+const scope = { id: "notifications" };
+
 /** Marks a single notification read or unread. */
 export function useToggleNotificationReadMutation() {
   const queryClient = useQueryClient();
 
   return useUpdateNotification({
     mutation: {
+      scope,
       onMutate: async ({
         id,
         data,
@@ -61,6 +64,7 @@ export function useMarkAllNotificationsReadMutation() {
 
   return useMarkAllNotificationsRead({
     mutation: {
+      scope,
       onMutate: async (): Promise<MutationContext> => {
         await cancelNotificationListQueries(queryClient);
         const snapshot = snapshotNotificationLists(queryClient);
@@ -93,6 +97,7 @@ export function useClearReadNotificationsMutation() {
 
   return useClearReadNotifications({
     mutation: {
+      scope,
       onSuccess: () => {
         queryClient.invalidateQueries({ queryKey: getListNotificationsQueryKey() });
       },

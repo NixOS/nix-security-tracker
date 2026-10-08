@@ -27,6 +27,7 @@ from django.views.generic import TemplateView
 spa_view = ensure_csrf_cookie(TemplateView.as_view(template_name="frontend.html"))
 
 urlpatterns = [
+    path("", include("django_prometheus.urls")),
     path("", include("webview.urls")),
     path("api/", include("api.urls")),
     path("feeds/", include("feeds.urls")),

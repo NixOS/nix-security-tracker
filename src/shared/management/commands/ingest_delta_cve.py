@@ -3,6 +3,7 @@ import datetime
 import json
 import logging
 import tempfile
+import time
 import zipfile
 from glob import glob
 from typing import Any
@@ -12,10 +13,12 @@ from django.core.management.base import BaseCommand, CommandError
 from django.db import transaction
 from github import UnknownObjectException
 from github.Repository import Repository
+from prometheus_client import CollectorRegistry, Gauge
 
 from shared import models
 from shared.fetchers import make_cve
 from shared.github import get_gh
+from shared.metrics import write_metrics_textfile
 from shared.models import CveIngestion
 
 logger = logging.getLogger(__name__)
@@ -33,7 +36,7 @@ class NoReleaseError(Exception):
         super().__init__(f"No release for day {day}")
 
 
-def ingest_day(repo: Repository, day: datetime.datetime) -> CveIngestion:
+def ingest_day(repo: Repository, day: datetime.datetime) -> int:
     # Fetch the latest daily release
     try:
         release = repo.get_release(f"cve_{day}_at_end_of_day")
@@ -90,17 +93,19 @@ def ingest_day(repo: Repository, day: datetime.datetime) -> CveIngestion:
         # Record the ingestion
         logger.info(f"Saving the ingestion valid up to {day}")
 
-        return CveIngestion.objects.create(valid_to=day, delta=True)
+        CveIngestion.objects.create(valid_to=day, delta=True)
+        return len(cve_list)
 
 
-def process_day(repo: Repository, day: datetime.datetime) -> None:
-    """Wrapper function to process a single day."""
+def process_day(repo: Repository, day: datetime.datetime) -> tuple[int, bool]:
+    """Process a single day. Returns (cves_ingested, skipped)."""
     try:
-        ingest_day(repo, day)
+        return ingest_day(repo, day), False
     except NoReleaseError:
         logger.exception(
             f"CVE ingestion on day {day} is impossible as there's no release, continuing for the next days"
         )
+        return 0, True
 
 
 class Command(BaseCommand):
@@ -125,12 +130,15 @@ class Command(BaseCommand):
     def handle(self, *args: Any, **kwargs: Any) -> None:
         until_date = kwargs["date"]
         default_start_ingestion = kwargs["default_start_ingestion"]
+        start = time.time()
+        cves_ingested = 0
+        days_succeeded = 0
 
         if CveIngestion.objects.filter(valid_to__gte=until_date).exists():
             logger.warning(
                 f"The database already contains the delta contents from {until_date}."
             )
-
+            self._write_metrics(time.time() - start, cves_ingested, days_succeeded)
             return
 
         last_ingestion = (
@@ -160,4 +168,30 @@ class Command(BaseCommand):
             for x in range((until_date - next_ingestion).days + 1)
         ]
         for day in days:
-            process_day(repo, day)
+            day_cves, skipped = process_day(repo, day)
+            if not skipped:
+                cves_ingested += day_cves
+                days_succeeded += 1
+
+        self._write_metrics(time.time() - start, cves_ingested, days_succeeded)
+
+    def _write_metrics(
+        self, duration: float, cves_ingested: int, days_succeeded: int
+    ) -> None:
+        registry = CollectorRegistry()
+        Gauge(
+            "sectracker_cve_delta_ingest_duration_seconds",
+            "Duration of last CVE delta ingest run",
+            registry=registry,
+        ).set(duration)
+        Gauge(
+            "sectracker_cve_delta_ingest_cves",
+            "CVEs ingested in last CVE delta ingest run",
+            registry=registry,
+        ).set(float(cves_ingested))
+        Gauge(
+            "sectracker_cve_delta_ingest_days",
+            "Days successfully ingested in last CVE delta ingest run",
+            registry=registry,
+        ).set(float(days_succeeded))
+        write_metrics_textfile("cve_delta_ingest", registry)

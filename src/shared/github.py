@@ -252,13 +252,11 @@ def create_gh_issue(
                 if attribute_name not in packages:
                     packages[attribute_name] = {}
                     order.append(attribute_name)
-                for major_channel, version_data in pkg["channels"].items():
-                    if version_data["major_version"]:
-                        versions = packages[attribute_name].setdefault(
-                            major_channel, []
-                        )
-                        if version_data["major_version"] not in versions:
-                            versions.append(version_data["major_version"])
+                for branch, package in pkg["branches"].items():
+                    if package["version"]:
+                        versions = packages[attribute_name].setdefault(branch, [])
+                        if package["version"] not in versions:
+                            versions.append(package["version"])
 
         if not packages:
             return ""
@@ -268,8 +266,8 @@ def create_gh_issue(
             pull_requests = f"https://github.com/NixOS/nixpkgs/pulls?q=sort%3Aupdated-desc+is%3Apr+{quote(attribute_name)}+in%3Atitle+-%3E+in%3Atitle"
             package = f"- `{attribute_name}` ([pull requests]({pull_requests}))"
             version_lines = [
-                f"  - {version}@{major_channel}"
-                for major_channel, versions in packages[attribute_name].items()
+                f"  - {version}@{branch}"
+                for branch, versions in packages[attribute_name].items()
                 for version in sorted(versions)
             ]
             if version_lines:
