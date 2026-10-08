@@ -1,6 +1,6 @@
 import { BugIcon, LinkIcon, PackageIcon, UserIcon } from "lucide-preact";
 import type { Suggestion as SuggestionType } from "@/api/generated/models";
-import { AffectedProductsList } from "./AffectedProductsList";
+import { AffectedProductsTree } from "./AffectedProductsTree";
 import { CategorizedMaintainersList } from "./CategorizedMaintainersList";
 import { CategorizedPackagesList } from "./CategorizedPackagesList";
 import { CategorizedReferencesList } from "./CategorizedReferencesList";
@@ -46,13 +46,13 @@ export function SuggestionDetailedBody({ suggestion, userCanEdit }: Props) {
         )}
 
         {/* Affected products */}
-        {Object.keys(affected_products).length > 0 && (
+        {affected_products.length > 0 && (
           <div className="rounded border box column gap">
             <h2 className="text-l bold text-gray row gap-small centered">
               <BugIcon size="1em" />
               Affected products
             </h2>
-            <AffectedProductsList affectedProducts={affected_products} />
+            <AffectedProductsTree affectedProducts={affected_products} />
           </div>
         )}
 

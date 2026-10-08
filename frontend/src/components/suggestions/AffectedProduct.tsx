@@ -1,5 +1,4 @@
 import type { SuggestionAffectedProduct } from "@/api/generated/models";
-import styles from "./AffectedProduct.module.css";
 
 type Props = {
   product: SuggestionAffectedProduct;
@@ -8,10 +7,10 @@ type Props = {
 export function AffectedProduct({ product }: Props) {
   return (
     <div
-      className="row gap wrap"
+      className="row gap-small row-gap wrap"
       title={product.cpes.length > 0 ? product.cpes.join("\n") : "No CPE info"}
     >
-      <div className={styles.productName}>{product.name}</div>
+      <div>{product.name}</div>
       <ul className="row gap-small wrap">
         {product.version_constraints.map(([op, ver]) => (
           <li

@@ -1,5 +1,5 @@
 import type { Suggestion as SuggestionType } from "@/api/generated/models";
-import { AffectedProductsList } from "./AffectedProductsList";
+import { AffectedProductsTree } from "./AffectedProductsTree";
 import { CategorizedReferencesList } from "./CategorizedReferencesList";
 import { Comment } from "./Comment";
 import { SuggestionStatusActions } from "./SuggestionStatusActions";
@@ -27,8 +27,8 @@ export function SuggestionCompactBody({ suggestion, userCanEdit }: Props) {
           </>
         )}
 
-        {Object.keys(affected_products).length > 0 && (
-          <AffectedProductsList affectedProducts={affected_products} />
+        {affected_products.length > 0 && (
+          <AffectedProductsTree affectedProducts={affected_products} />
         )}
       </div>
 

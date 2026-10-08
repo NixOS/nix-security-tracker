@@ -2,7 +2,7 @@ import { BugIcon, LinkIcon, PackageIcon, UserIcon } from "lucide-preact";
 import { useState } from "preact/hooks";
 import type { Suggestion as SuggestionType } from "@/api/generated/models";
 import { type Tab, Tabs } from "@/components/ui/Tabs";
-import { AffectedProductsList } from "./AffectedProductsList";
+import { AffectedProductsTree } from "./AffectedProductsTree";
 import { CategorizedMaintainersList } from "./CategorizedMaintainersList";
 import { CategorizedPackagesList } from "./CategorizedPackagesList";
 import { CategorizedReferencesList } from "./CategorizedReferencesList";
@@ -44,13 +44,13 @@ export function SuggestionTabsBody({ suggestion, userCanEdit }: Props) {
         </div>
       ),
     },
-    Object.keys(affected_products).length > 0 && {
+    affected_products.length > 0 && {
       value: "affected-products",
       label: "Affected products",
       icon: <BugIcon size="1em" />,
       content: (
         <div className="box compact">
-          <AffectedProductsList affectedProducts={affected_products} />
+          <AffectedProductsTree affectedProducts={affected_products} />
         </div>
       ),
     },

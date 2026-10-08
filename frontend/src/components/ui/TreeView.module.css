@@ -1,0 +1,16 @@
+.branchControl {
+  list-style: none;
+}
+
+.branchIndicator {
+  display: inline-flex;
+  transition: transform 0.15s ease;
+}
+
+.branchIndicator[data-state="open"] {
+  transform: rotate(90deg);
+}
+
+.branchContent {
+  margin-left: 1em;
+}

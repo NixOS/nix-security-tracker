@@ -232,9 +232,7 @@ class SuggestionSerializer(serializers.Serializer):
     def get_description(self, obj: CVEDerivationClusterProposal) -> str | None:
         return self._payload(obj)["description"]
 
-    @extend_schema_field(
-        serializers.DictField(child=SuggestionAffectedProductSerializer())
-    )
+    @extend_schema_field(SuggestionAffectedProductSerializer(many=True))
     def get_affected_products(self, obj: CVEDerivationClusterProposal) -> list:
         data = self._payload(obj)["affected_products"]
         return [

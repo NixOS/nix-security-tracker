@@ -81,6 +81,7 @@ def make_container(
         affected_version: str = "1.0",
         package_name: str | None = "foo",
         product: str | None = "bar",
+        extra_affected: list[tuple[str, list[tuple[str, str]]]] = [],
         references: list[tuple[str, str, list[str]]] = [],
         cpes: list[str] = [],
         metrics: list[Metric] = make_metrics([cvss_v3_metric, cvss_v4_metric]),
@@ -104,6 +105,16 @@ def make_container(
             cpe, _ = Cpe.objects.get_or_create(name=cpe_name)
             affected.cpes.add(cpe)
 
+        # Additional products, each with its own version constraints
+        extra_affected_objects = []
+        for extra_name, constraints in extra_affected:
+            extra = AffectedProduct.objects.create(package_name=extra_name)
+            for status, constraint_version in constraints:
+                extra.versions.add(
+                    Version.objects.create(status=status, version=constraint_version)
+                )
+            extra_affected_objects.append(extra)
+
         container = cve.container.create(provider=org, title=title)
         refs = []
         for text, link, tags in references:
@@ -118,6 +129,8 @@ def make_container(
             refs.append(ref)
         container.references.set(refs)
         container.affected.add(affected)
+        for extra in extra_affected_objects:
+            container.affected.add(extra)
         if description is not None:
             desc = Description.objects.create(value=description)
             container.descriptions.add(desc)
