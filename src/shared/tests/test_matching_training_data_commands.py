@@ -28,6 +28,7 @@ from shared.models.linkage import (
     ProvenanceFlags,
 )
 from shared.models.nix_evaluation import NixChannel, NixDerivation, NixEvaluation
+from shared.models.package import Package
 
 
 def _export(proposal: CVEDerivationClusterProposal) -> dict[str, Any]:
@@ -277,6 +278,7 @@ def test_import_roundtrip_from_page_files(
     PackageOverlay.objects.create(
         suggestion=proposal,
         package_attribute="foobar.tests",
+        package=Package.objects.get_or_create(name="foobar.tests")[0],
         type=PackageOverlay.Type.IGNORED,
     )
 

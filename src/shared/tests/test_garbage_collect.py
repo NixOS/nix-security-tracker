@@ -30,7 +30,7 @@ from shared.models.nix_evaluation import (
     NixEvaluation,
     NixMaintainer,
 )
-from shared.models.package import PackageAttrpath, PackageDerivation
+from shared.models.package import Package, PackageAttrpath, PackageDerivation
 from shared.package_clustering import cluster_packages
 
 
@@ -130,6 +130,7 @@ def test_preserves_proposal_with_maintainer_overlay(
         PackageOverlay.objects.create(
             type=PackageOverlay.Type.IGNORED,
             package_attribute="foo",
+            package=Package.objects.get_or_create(name="foo")[0],
             suggestion=suggestion,
         )
     elif type == "reference":

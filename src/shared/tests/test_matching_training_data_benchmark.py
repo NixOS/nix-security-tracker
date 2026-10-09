@@ -30,6 +30,7 @@ from shared.models.linkage import (
     ProvenanceFlags,
 )
 from shared.models.nix_evaluation import NixDerivation
+from shared.models.package import Package
 
 
 def _proposal(
@@ -55,6 +56,7 @@ def _proposal(
         PackageOverlay.objects.create(
             suggestion=proposal,
             package_attribute=attr,
+            package=Package.objects.get_or_create(name=attr)[0],
             type=PackageOverlay.Type.IGNORED,
         )
     return proposal

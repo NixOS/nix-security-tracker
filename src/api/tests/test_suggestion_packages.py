@@ -7,6 +7,7 @@ from rest_framework.test import APIClient
 
 from shared.models.linkage import CVEDerivationClusterProposal, ProvenanceFlags
 from shared.models.nix_evaluation import NixDerivation, NixMaintainer
+from shared.models.package import Package
 
 PACKAGE_ATTRIBUTE_1 = "package1"
 PACKAGE_ATTRIBUTE_2 = "package2"
@@ -20,10 +21,13 @@ def url(id: int) -> str:
 @pytest.fixture
 def suggestion_with_packages(
     make_drv: Callable[..., NixDerivation],
+    make_package: Callable[..., Package],
     make_cached_suggestion: Callable[..., CVEDerivationClusterProposal],
 ) -> CVEDerivationClusterProposal:
     drv1 = make_drv(pname=PACKAGE_ATTRIBUTE_1)
     drv2 = make_drv(pname=PACKAGE_ATTRIBUTE_2)
+    make_package(drv1)
+    make_package(drv2)
     return make_cached_suggestion(
         drvs={
             drv1: ProvenanceFlags.PACKAGE_NAME_MATCH,
