@@ -4,9 +4,11 @@ Tests for offline matching benchmark against training labels.
 
 from __future__ import annotations
 
+import json
 import math
 from collections.abc import Callable
 from io import StringIO
+from pathlib import Path
 
 import pytest
 from django.core.management import call_command
@@ -19,8 +21,10 @@ from shared.matching_training_data.benchmark import (
     aggregate,
     label_sets,
     rematch,
+    report_as_dict,
     score_proposal,
     snr,
+    snr_for_json,
 )
 from shared.models.cve import Container
 from shared.models.linkage import (
@@ -66,6 +70,12 @@ def test_snr() -> None:
     assert math.isnan(snr(0, 0))
     with pytest.raises(ValueError, match="non-negative"):
         snr(-1, 0)
+
+
+def test_snr_for_json() -> None:
+    assert snr_for_json(1.5) == 1.5
+    assert snr_for_json(math.inf) == "inf"
+    assert snr_for_json(math.nan) == "nan"
 
 
 def test_aggregate_snr() -> None:
@@ -194,3 +204,44 @@ def test_benchmark_matching_command_summary(
     text = out.getvalue()
     assert "Querying curated matching data..." in text
     assert "true_positives" in text
+
+
+def test_benchmark_matching_writes_json_report(
+    tmp_path: Path,
+    make_container: Callable[..., Container],
+    make_drv: Callable[..., NixDerivation],
+) -> None:
+    pkg = "benchjsonuniq"
+    evaluation = ensure_benchmark_evaluation()
+    drv = make_drv(pname=pkg, version="1.0", attribute=pkg, evaluation=evaluation)
+    container = make_container(
+        cve_id="CVE-2026-bench-json", package_name=pkg, product=pkg
+    )
+    proposal = _proposal(container, drv)
+    score = score_proposal(proposal, rematch(proposal))
+    report_path = tmp_path / "nested" / "report.json"
+    out = StringIO()
+    call_command(
+        "benchmark_matching",
+        "--quiet",
+        "--output",
+        str(report_path),
+        stdout=out,
+    )
+    text = out.getvalue()
+    assert "true_positives" in text
+    assert "CVE-2026-bench-json" not in text
+    assert f"Wrote benchmark report to {report_path}" in text
+
+    written = json.loads(report_path.read_text())
+    assert written["aggregate"]["proposals"] >= 1
+    match = next(
+        item for item in written["scores"] if item["cve_id"] == "CVE-2026-bench-json"
+    )
+    assert (
+        match
+        == report_as_dict(
+            aggregate([score]),
+            [score],
+        )["scores"][0]
+    )
