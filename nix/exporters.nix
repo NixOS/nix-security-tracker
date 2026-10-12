@@ -30,12 +30,16 @@ in
     users.groups.${metrics-group} = { };
 
     services.postgresql = {
-      identMap = ''
-        map-nix-security-tracker nix-security-tracker nix-security-tracker
-        map-nix-security-tracker prometheus-sql-exporter nix-security-tracker
-        ${optionalString cfg.enablePgbouncer "map-nix-security-tracker pgbouncer nix-security-tracker"}
-        postgres postgres postgres
-      '';
+      identMap =
+        let
+          exporters = config.services.prometheus.exporters;
+        in
+        ''
+          map-nix-security-tracker nix-security-tracker nix-security-tracker
+          map-nix-security-tracker ${exporters.sql.user} nix-security-tracker
+          ${optionalString cfg.enablePgbouncer "map-nix-security-tracker ${config.services.pgbouncer.user} nix-security-tracker"}
+          postgres ${exporters.postgres.user} postgres
+        '';
       authentication = ''
         local all nix-security-tracker ident map=map-nix-security-tracker
       '';
