@@ -21,12 +21,12 @@ from shared.matching_training_data.benchmark import (
     aggregate,
     label_sets,
     rematch,
-    report_as_dict,
     score_proposal,
     snr,
     snr_for_json,
 )
-from shared.models.cve import Container
+from shared.matching_training_data.serializers import _TRAINING_ORG_UUID
+from shared.models.cve import Container, Organization
 from shared.models.linkage import (
     CVEDerivationClusterProposal,
     DerivationClusterProposalLink,
@@ -78,6 +78,26 @@ def test_snr_for_json() -> None:
     assert snr_for_json(1.5) == 1.5
     assert snr_for_json(math.inf) == "inf"
     assert snr_for_json(math.nan) == "nan"
+
+    score = ProposalScore(
+        cve_id="CVE-1",
+        true_positives=1,
+        false_positives=0,
+        rejection_agree=True,
+        snr=math.inf,
+    )
+    assert score.snr == math.inf
+    assert score.model_dump(mode="json")["snr"] == "inf"
+    assert (
+        AggregateReport(
+            proposals=0,
+            true_positives=0,
+            false_positives=0,
+            rejection_agree_count=0,
+            snr=math.nan,
+        ).model_dump(mode="json")["snr"]
+        == "nan"
+    )
 
 
 def test_aggregate_snr() -> None:
@@ -214,36 +234,43 @@ def test_benchmark_matching_writes_json_report(
     make_drv: Callable[..., NixDerivation],
 ) -> None:
     pkg = "benchjsonuniq"
-    evaluation = ensure_benchmark_evaluation()
-    drv = make_drv(pname=pkg, version="1.0", attribute=pkg, evaluation=evaluation)
+    drv = make_drv(pname=pkg, version="1.0", attribute=pkg)
     container = make_container(
         cve_id="CVE-2026-bench-json", package_name=pkg, product=pkg
     )
-    proposal = _proposal(container, drv)
-    score = score_proposal(proposal, rematch(proposal))
+    org, _created = Organization.objects.get_or_create(
+        uuid=_TRAINING_ORG_UUID,
+        defaults={"short_name": "training"},
+    )
+    container.cve.assigner = org
+    container.cve.save(update_fields=["assigner"])
+    _proposal(container, drv)
+
     report_path = tmp_path / "nested" / "report.json"
-    out = StringIO()
     call_command(
         "benchmark_matching",
         "--quiet",
         "--output",
         str(report_path),
-        stdout=out,
     )
-    text = out.getvalue()
-    assert "true_positives" in text
-    assert "CVE-2026-bench-json" not in text
-    assert f"Wrote benchmark report to {report_path}" in text
 
-    written = json.loads(report_path.read_text())
-    assert written["aggregate"]["proposals"] >= 1
-    match = next(
-        item for item in written["scores"] if item["cve_id"] == "CVE-2026-bench-json"
-    )
-    assert (
-        match
-        == report_as_dict(
-            aggregate([score]),
-            [score],
-        )["scores"][0]
-    )
+    # One accepted link to the package the CVE names.
+    # The matcher sees that same package, so the hit is clean and SNR is infinite.
+    assert json.loads(report_path.read_text()) == {
+        "aggregate": {
+            "proposals": 1,
+            "true_positives": 1,
+            "false_positives": 0,
+            "rejection_agree_count": 1,
+            "snr": "inf",
+        },
+        "scores": [
+            {
+                "cve_id": "CVE-2026-bench-json",
+                "true_positives": 1,
+                "false_positives": 0,
+                "rejection_agree": True,
+                "snr": "inf",
+            }
+        ],
+    }

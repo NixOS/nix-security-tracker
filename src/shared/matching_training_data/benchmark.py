@@ -9,10 +9,10 @@ from __future__ import annotations
 
 import math
 from collections.abc import Iterable
-from dataclasses import dataclass
-from typing import Any
+from typing import Annotated
 
 from django.db.models import Q, QuerySet
+from pydantic import BaseModel, ConfigDict, PlainSerializer
 
 from shared.evaluation import DerivationKey, derivation_as_key
 from shared.listeners.automatic_linkage import (
@@ -87,22 +87,38 @@ def snr_for_json(value: float) -> float | str:
     return value
 
 
-@dataclass(frozen=True)
-class ProposalScore:
+Snr = Annotated[float, PlainSerializer(snr_for_json, when_used="json")]
+
+
+class ProposalScore(BaseModel):
+    model_config = ConfigDict(frozen=True)
+
     cve_id: str
     true_positives: int
     false_positives: int
     rejection_agree: bool
-    snr: float
+    snr: Snr
 
 
-@dataclass(frozen=True)
-class AggregateReport:
+class AggregateReport(BaseModel):
+    model_config = ConfigDict(frozen=True)
+
     proposals: int
     true_positives: int
     false_positives: int
     rejection_agree_count: int
-    snr: float
+    snr: Snr
+
+
+class BenchmarkReport(BaseModel):
+    """
+    Aggregate and per-CVE scores written by the benchmark command.
+    """
+
+    model_config = ConfigDict(frozen=True)
+
+    aggregate: AggregateReport
+    scores: list[ProposalScore]
 
 
 def rematch(original: CVEDerivationClusterProposal) -> LinkageOutcome:
@@ -160,37 +176,6 @@ def aggregate(scores: Iterable[ProposalScore]) -> AggregateReport:
         rejection_agree_count=sum(1 for s in scores_list if s.rejection_agree),
         snr=snr(true_positives, false_positives),
     )
-
-
-def report_as_dict(
-    report: AggregateReport, scores: Iterable[ProposalScore]
-) -> dict[str, Any]:
-    """
-    JSON-ready aggregate and per-CVE scores.
-
-    In-memory SNR stays a float.
-    Only this dict uses the JSON encoding.
-    """
-
-    def score_dict(score: ProposalScore) -> dict[str, Any]:
-        return {
-            "cve_id": score.cve_id,
-            "true_positives": score.true_positives,
-            "false_positives": score.false_positives,
-            "rejection_agree": score.rejection_agree,
-            "snr": snr_for_json(score.snr),
-        }
-
-    return {
-        "aggregate": {
-            "proposals": report.proposals,
-            "true_positives": report.true_positives,
-            "false_positives": report.false_positives,
-            "rejection_agree_count": report.rejection_agree_count,
-            "snr": snr_for_json(report.snr),
-        },
-        "scores": [score_dict(score) for score in scores],
-    }
 
 
 def training_corpus_queryset() -> QuerySet[CVEDerivationClusterProposal]:
