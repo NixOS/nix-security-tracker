@@ -327,6 +327,16 @@ in
       "serial-getty@ttyS0" = {
         after = [ "nix-security-tracker-server-ready.service" ];
       };
+
+      # Each inode cached by the guest pins an open file descriptor in the unprivileged host-side virtiofs daemon.
+      # With ample guest memory the cache is rarely reclaimed, until the daemon runs out of descriptors.
+      drop-inode-cache = {
+        startAt = "hourly";
+        serviceConfig.Type = "oneshot";
+        script = ''
+          echo 2 > /proc/sys/vm/drop_caches
+        '';
+      };
     };
 
     tmpfiles.rules = [
