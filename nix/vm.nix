@@ -255,6 +255,9 @@ in
         "nix-security-tracker"
       ];
 
+      # Suspending the VM for a longer period will kill `systemd-journald` as stuck because it doesn't report to the watchdog service during that time.
+      systemd-journald.serviceConfig.WatchdogSec = 0;
+
       # Run service from local source, to enable auto-reload.
       nix-security-tracker-server = {
         wants = [ "nix-security-tracker-vite.service" ];
