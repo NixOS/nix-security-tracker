@@ -21,6 +21,7 @@ from shared.models.nix_evaluation import (
     NixChannel,
     NixDerivation,
     NixEvaluation,
+    NixpkgsBranch,
 )
 from shared.models.package import Package, PackageDerivation
 
@@ -74,6 +75,66 @@ def test_link_only_latest_eval(
 
     # Check the whole data pipeline by also caching the suggestion
     cache_new_suggestions(suggestion)
+
+
+def test_eol_channel_produces_no_matches(
+    make_container: Callable[..., Container],
+    make_branch: Callable[..., NixpkgsBranch],
+    make_channel: Callable[..., NixChannel],
+    make_evaluation: Callable[..., NixEvaluation],
+    make_drv: Callable[..., NixDerivation],
+) -> None:
+    """
+    Derivations on unmaintained channels must not produce matches.
+    """
+    assert NixChannel.ChannelState.END_OF_LIFE not in NixChannel.TRACKED_STATES
+    eol_channel = make_channel(
+        channel_branch="nixos-24.05",
+        release_branch=make_branch("release-24.05"),
+        state=NixChannel.ChannelState.END_OF_LIFE,
+    )
+    eol_eval = make_evaluation(channel=eol_channel)
+    make_drv(pname="foo", evaluation=eol_eval)
+
+    container = make_container(package_name="foo")
+    assert build_new_links(container) is True
+    proposal = CVEDerivationClusterProposal.objects.get(cve=container.cve)
+    assert proposal.status == CVEDerivationClusterProposal.Status.REJECTED
+    assert (
+        proposal.rejection_reason
+        == CVEDerivationClusterProposal.RejectionReason.NO_MATCHES
+    )
+    assert proposal.derivations.count() == 0
+
+
+def test_evaluation_latest_only_on_untracked_branch_produces_no_matches(
+    make_container: Callable[..., Container],
+    make_branch: Callable[..., NixpkgsBranch],
+    make_channel: Callable[..., NixChannel],
+    make_evaluation: Callable[..., NixEvaluation],
+    make_drv: Callable[..., NixDerivation],
+) -> None:
+    """
+    An evaluation shared by a tracked and an untracked branch must not count as latest just because it is the newest on the untracked one.
+    """
+    tracked_channel = make_channel()
+    untracked_channel = make_channel(
+        channel_branch="nixos-24.05-small",
+        release_branch=make_branch("release-24.05"),
+        state=NixChannel.ChannelState.END_OF_LIFE,
+    )
+    shared = make_evaluation(channel=tracked_channel, age=timedelta(days=2))
+    shared.on_branches.add(untracked_channel.release_branch)
+    newer = make_evaluation(channel=tracked_channel, age=timedelta(days=0))
+    make_drv(pname="foo", evaluation=shared)
+    make_drv(pname="foo", evaluation=newer)
+
+    container = make_container(package_name="foo")
+    assert build_new_links(container) is True
+    proposal = CVEDerivationClusterProposal.objects.get(cve=container.cve)
+    assert set(proposal.derivations.values_list("parent_evaluation", flat=True)) == {
+        newer.pk
+    }
 
 
 @pytest.mark.parametrize(

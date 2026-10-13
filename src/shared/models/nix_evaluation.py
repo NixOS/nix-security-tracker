@@ -228,7 +228,8 @@ class NixEvaluationQuerySet(models.QuerySet):
 
     def latest_completed_per_branch(self) -> "NixEvaluationQuerySet":
         return self.filter(
-            state=NixEvaluation.EvaluationState.COMPLETED
+            state=NixEvaluation.EvaluationState.COMPLETED,
+            on_branches__channels__state__in=NixChannel.TRACKED_STATES,
         ).latest_per_branch()
 
 
