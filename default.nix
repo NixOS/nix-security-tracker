@@ -17,6 +17,22 @@ rec {
   package = pkgs.nix-security-tracker;
   module = import ./nix/configuration.nix;
   vm-runner = pkgs.callPackage ./nix/vm-runner.nix {
+    # Writeback caching on shared directories makes the guest miss edits from the host.
+    # FIXME(@fricklerhandwerk): Remove once Nixpkgs allows disabling writeback separately.
+    inherit
+      (import
+        (pkgs.applyPatches {
+          name = "nixpkgs-patched";
+          src = sources.nixpkgs;
+          patches = [ ./nix/nixpkgs-virtiofs-writeback.patch ];
+        })
+        {
+          config = { };
+          inherit overlays system;
+        }
+      )
+      nixos
+      ;
     nixos-module = {
       imports = [
         { _module.args.sources = sources; }

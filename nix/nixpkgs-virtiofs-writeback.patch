@@ -1,0 +1,11 @@
+--- a/nixos/modules/virtualisation/qemu-vm.nix
++++ b/nixos/modules/virtualisation/qemu-vm.nix
+@@ -334,7 +334,7 @@
+           ${lib.getExe hostPkgs.virtiofsd} \
+             --socket-path="$NIX_VIRTIOFS_DIR"/"${tag}" \
+             --shared-dir="$(readlink -f "${share.source}")" \
+-            ${if share.writable then "--writeback" else "--readonly"} \
++            ${lib.optionalString (!share.writable) "--readonly"} \
+             --sandbox=none \
+             --seccomp=none \
+             --cache=${share.cache} \
