@@ -10,6 +10,8 @@ from shared.listeners.automatic_linkage import (
     build_new_links,
     refresh_suggestion_derivation_links,
 )
+from shared.logs.events import RawRematchEvent
+from shared.logs.fetchers import fetch_suggestion_events
 from shared.models.cve import Container, Tag
 from shared.models.linkage import (
     CVEDerivationClusterProposal,
@@ -747,6 +749,19 @@ def test_refresh_clears_package_links_when_rejected(
         proposal=suggestion
     ).exists()
     assert not PackageClusterProposalLink.objects.filter(proposal=suggestion).exists()
+
+
+def test_refresh_records_rematch_event(
+    cve: Container,
+    make_suggestion: Callable[..., CVEDerivationClusterProposal],
+) -> None:
+    """
+    Rematching records an event so operators can audit when the algorithm last ran.
+    """
+    suggestion = make_suggestion(container=cve)
+    refresh_suggestion_derivation_links(suggestion)
+    events = fetch_suggestion_events([suggestion.pk])
+    assert any(isinstance(e, RawRematchEvent) for e in events[suggestion.pk])
 
 
 def test_build_new_links_is_atomic(

@@ -161,12 +161,23 @@ class RawReferenceEvent(RawEvent):
         return False
 
 
+class RawRematchEvent(RawEvent):
+    """Raw rematch event, recorded when the matching algorithm reruns on a suggestion."""
+
+    username: str | None = None
+    action: Literal["rematch"] = "rematch"
+
+    def is_canceled_by(self, other: "RawEvent") -> bool:
+        return False
+
+
 RawEventType = (
     RawCreationEvent
     | RawStatusEvent
     | RawPackageEvent
     | RawMaintainerEvent
     | RawReferenceEvent
+    | RawRematchEvent
 )
 
 

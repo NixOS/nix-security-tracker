@@ -80,6 +80,9 @@ class CVEDerivationClusterProposalQuerySet(models.QuerySet):
 
 
 @pghistory.track(
+    pghistory.InsertEvent(),
+    pghistory.UpdateEvent(),
+    pghistory.ManualEvent("rematch"),
     fields=["status", "rejection_reason"],
     model_name="CVEDerivationClusterProposalStatusEvent",
 )

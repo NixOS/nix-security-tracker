@@ -4,6 +4,7 @@ import pytest
 from playwright.sync_api import Page, expect
 from pytest_django.live_server_helper import LiveServer
 
+from shared.listeners.automatic_linkage import refresh_suggestion_derivation_links
 from shared.models.issue import NixpkgsIssue
 from shared.models.linkage import CVEDerivationClusterProposal
 
@@ -268,3 +269,21 @@ def test_dismiss_with_comment_enabled_after_typing_comment_from_list(
     expect(
         as_committer.get_by_role("menuitem", name="With comment")
     ).not_to_have_attribute("data-disabled", "")
+
+
+@pytest.mark.django_db
+def test_rematch_appears_in_activity_log(
+    live_server: LiveServer,
+    page: Page,
+    make_cached_suggestion: Callable[..., CVEDerivationClusterProposal],
+) -> None:
+    """
+    A rematched suggestion shows the event in the activity log
+    so operators can audit algorithm runs without server access.
+    """
+    suggestion = make_cached_suggestion()
+    refresh_suggestion_derivation_links(suggestion)
+    page.goto(live_server.url + SUGGESTION_DETAIL + f"/{suggestion.pk}")
+    page.get_by_test_id(f"suggestion-{suggestion.pk}-activity-log-toggle").click()
+    activity_log = page.get_by_test_id(f"suggestion-{suggestion.pk}-activity-log")
+    expect(activity_log.get_by_text("rematched", exact=False)).to_be_visible()
