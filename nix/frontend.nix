@@ -38,6 +38,15 @@ buildNpmPackage (finalAttrs: {
   '';
 
   passthru.dependencies = finalAttrs.finalPackage.overrideAttrs {
+    src = lib.fileset.toSource {
+      root = ../frontend;
+      fileset = lib.fileset.unions [
+        ../frontend/package.json
+        ../frontend/package-lock.json
+        ../frontend/.npmrc
+      ];
+    };
+    preBuild = "";
     dontBuild = true;
     installPhase = ''
       mkdir $out
