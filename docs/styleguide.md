@@ -115,3 +115,11 @@ We use these tagged comments inspired by and loosely following [PEP 350](https:/
 
 Always add your GitHub handle in parentheses -- `(@<author>)` -- so it's clear who had an opinion and may still have one during review.
 Code may move around, so [`git blame`](https://git-scm.com/docs/git-blame) won't be useful to track comment authorship.
+
+## Logging
+
+We're migrating to structured logging.
+
+The move is not complete yet, but when touching or adding logging, change it to structured form.
+
+<!-- FIXME(@fricklerhandwerk): Remove this note when the migration is complete. -->
