@@ -1,6 +1,5 @@
 from typing import cast
 
-from django.db.models import Prefetch
 from django.db.models.query import QuerySet
 from drf_spectacular.utils import extend_schema
 from rest_framework import viewsets
@@ -21,8 +20,6 @@ from api.serializers import ErrorDetailSerializer
 from api.suggestions.serializers import build_activity_log_map
 from shared.models import (
     NIXPKGS_ISSUE_CODE_REGEX,
-    EventType,
-    NixpkgsEvent,
     NixpkgsIssue,
 )
 
@@ -44,12 +41,7 @@ class IssueViewSet(ListModelMixin, RetrieveModelMixin, viewsets.GenericViewSet):
             NixpkgsIssue.objects.prefetch_related(
                 "suggestions__cached",
                 "suggestions__cve__container__references__tags",
-                Prefetch(
-                    "events",
-                    queryset=NixpkgsEvent.objects.filter(
-                        event_type=EventType.ISSUE | EventType.OPENED,
-                    ),
-                ),
+                "github_items",
             )
             .order_by("-created_at")
             .distinct()
