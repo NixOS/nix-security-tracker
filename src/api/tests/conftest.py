@@ -5,12 +5,15 @@ from django.contrib.auth.models import User
 from rest_framework.test import APIClient
 from rest_framework.views import APIView
 
+from api.suggestions.views import SuggestionViewSet
+
 pytest_plugins = ["shared.tests.conftest"]
 
 
 @pytest.fixture(autouse=True)
 def disable_api_throttling(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(APIView, "throttle_classes", [])
+    monkeypatch.setattr(SuggestionViewSet, "bulk_throttle_classes", [])
 
 
 @pytest.fixture

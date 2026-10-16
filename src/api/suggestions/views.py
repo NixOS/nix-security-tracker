@@ -1,5 +1,7 @@
+from collections.abc import Callable
 from typing import cast
 
+from django.conf import settings
 from django.core.exceptions import ValidationError
 from django.db.models.query import QuerySet
 from django.shortcuts import get_object_or_404
@@ -26,6 +28,8 @@ from api.params import ACTIVITY_LOG_PARAMETER, activity_log_requested
 from api.serializers import ErrorDetailSerializer
 from api.suggestions.serializers import (
     ActivityLogEntrySerializer,
+    BulkErrorSerializer,
+    BulkResultSerializer,
     IssueDraftPublishSerializer,
     MaintainerSerializer,
     SuggestionBundleSerializer,
@@ -41,9 +45,11 @@ from api.suggestions.serializers import (
     SuggestionSerializer,
     build_activity_log_map,
 )
+from api.throttling import BulkRateThrottle
 from shared.auth import user_can_edit_suggestion
 from shared.models import CVEDerivationClusterProposal, NixpkgsIssue
 from shared.models.cached import CachedSuggestions
+from shared.models.linkage import BulkValidationError
 
 
 class CanEditSuggestion(BasePermission):
@@ -127,12 +133,56 @@ class SuggestionFilterSet(filters.FilterSet):
         return queryset.filter(cached__payload__packages__has_key=value)
 
 
+# The list filters, as they appear on the bulk operations.
+# drf-spectacular only documents filter backends on list endpoints, and bulk operations do not return a list, so they declare their selection parameters explicitly.
+BULK_FILTER_PARAMETERS = [
+    OpenApiParameter(
+        name="status",
+        type=str,
+        many=True,
+        enum=[value for value, _label in CVEDerivationClusterProposal.Status.choices],
+        description="Select suggestions by status (repeatable, combined with OR).",
+    ),
+    OpenApiParameter(
+        name="in_issue_draft",
+        type=bool,
+        description="Select suggestions by whether they are in the issue draft.",
+    ),
+    OpenApiParameter(
+        name="package",
+        type=str,
+        description="Select suggestions holding this active package attribute name (exact match).",
+    ),
+]
+
+
 class SuggestionViewSet(ListModelMixin, RetrieveModelMixin, viewsets.GenericViewSet):
     queryset = CVEDerivationClusterProposal.objects.all()
     serializer_class = SuggestionSerializer
     pagination_class = SuggestionPagination
     filter_backends = [filters.DjangoFilterBackend]
     filterset_class = SuggestionFilterSet
+
+    # Actions that operate on a whole filtered selection rather than on a single suggestion.
+    BULK_ACTIONS = frozenset(
+        {
+            "bulk_status",
+            "bulk_bundle",
+            "bulk_comment",
+            "bulk_packages",
+            "bulk_maintainers",
+            "bulk_references",
+        }
+    )
+
+    # Applied on top of the usual rate limit, for bulk operations only.
+    bulk_throttle_classes = [BulkRateThrottle]
+
+    def get_throttles(self) -> list:
+        throttles = super().get_throttles()
+        if self.action in self.BULK_ACTIONS:
+            throttles += [throttle() for throttle in self.bulk_throttle_classes]
+        return throttles
 
     def get_permissions(self) -> list:
         if getattr(self.request, "method", None) != "GET":
@@ -141,14 +191,14 @@ class SuggestionViewSet(ListModelMixin, RetrieveModelMixin, viewsets.GenericView
             return []
 
     def filter_queryset(self, queryset: QuerySet) -> QuerySet:  # pyright: ignore[reportIncompatibleMethodOverride]
-        # Filters only apply to the list action.
-        # Other actions (retrieve, status, comment, ...) fetch a single suggestion by pk via get_object() and must not be affected by list-only filters.
-        if self.action != "list":
+        # Filters (status/in_issue_draft/package) apply to the list action and to the bulk actions, which select what they modify the same way the list selects what it displays.
+        # Other actions (retrieve, status, comment, ...) fetch a single suggestion by pk via get_object() and must not be affected by those filters.
+        if self.action != "list" and self.action not in self.BULK_ACTIONS:
             return queryset
         return super().filter_queryset(queryset)
 
     def get_queryset(self) -> QuerySet[CVEDerivationClusterProposal]:  # pyright: ignore[reportIncompatibleMethodOverride]
-        if self.action != "list":
+        if self.action != "list" and self.action not in self.BULK_ACTIONS:
             return super().get_queryset()
 
         # Only suggestions with fresh cache
@@ -161,6 +211,54 @@ class SuggestionViewSet(ListModelMixin, RetrieveModelMixin, viewsets.GenericView
             .prefetch_related("cve__container__references__tags")
             .order_by("-updated_at", "-created_at")
         )
+
+    def get_bulk_queryset(self) -> QuerySet[CVEDerivationClusterProposal]:
+        """
+        The selection a bulk operation applies to, or an error explaining why there is none.
+
+        Refuses an unfiltered selection, so that a forgotten filter cannot silently
+        reach every suggestion, and a selection too large to be modified in a single
+        transaction.
+        """
+        request = cast(Request, self.request)
+        if not set(self.filterset_class.base_filters) & set(request.query_params):
+            raise DRFValidationError(
+                {
+                    "detail": "A bulk operation requires at least one filter: "
+                    + ", ".join(sorted(self.filterset_class.base_filters))
+                }
+            )
+        queryset = self.filter_queryset(self.get_queryset())
+        count = queryset.count()
+        if count > settings.API_BULK_MAX_AFFECTED:
+            raise DRFValidationError(
+                {
+                    "detail": f"This selection holds {count} suggestions, more than the {settings.API_BULK_MAX_AFFECTED} a single bulk operation is allowed to affect. Narrow it down with more filters."
+                }
+            )
+        return queryset
+
+    def bulk_response(
+        self, operation: Callable[[QuerySet[CVEDerivationClusterProposal]], int]
+    ) -> Response:
+        """
+        Apply a bulk operation to the current selection and report what happened.
+        """
+        queryset = self.get_bulk_queryset()
+        try:
+            affected = operation(queryset)
+        except BulkValidationError as error:
+            return Response(
+                BulkErrorSerializer(
+                    {
+                        "detail": error.detail
+                        or "Some of the selected suggestions do not accept this operation, so none was modified.",
+                        "reasons": error.errors,
+                    }
+                ).data,
+                status=400,
+            )
+        return Response(BulkResultSerializer({"affected": affected}).data)
 
     def get_serializer_context(self) -> dict:
         context = super().get_serializer_context()
@@ -656,3 +754,195 @@ class SuggestionViewSet(ListModelMixin, RetrieveModelMixin, viewsets.GenericView
             return Response(status=204)
         else:
             raise MethodNotAllowed(request.method)
+
+    # Bulk operations.
+    # They mirror the single-suggestion actions above, but apply to every suggestion matching the filters of the list endpoint.
+    # They are all-or-nothing: if a single selected suggestion refuses the operation, nothing is modified and the response says which ones refused and why.
+
+    @extend_schema(
+        operation_id="bulkChangeSuggestionStatus",
+        description=(
+            "Change the status of every suggestion matching the filters. "
+            "Fails without modifying anything if any of them is already in the "
+            "target status or cannot reach it."
+        ),
+        parameters=BULK_FILTER_PARAMETERS,
+        request=SuggestionStatusSerializer,
+        responses={
+            200: BulkResultSerializer,
+            400: BulkErrorSerializer,
+            403: ErrorDetailSerializer,
+        },
+    )
+    @action(
+        detail=False,
+        methods=["post"],
+        url_path="status",
+        url_name="bulk-status",
+        serializer_class=SuggestionStatusSerializer,
+    )
+    def bulk_status(self, request: Request) -> Response:
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        validated = serializer.validated_data
+        return self.bulk_response(lambda queryset: queryset.change_status(**validated))
+
+    @extend_schema(
+        operation_id="bulkBundleSuggestions",
+        description=(
+            "Add every suggestion matching the filters to the issue draft, or remove "
+            "them all from it. Fails without modifying anything if any of them is not "
+            "accepted."
+        ),
+        parameters=BULK_FILTER_PARAMETERS,
+        request=SuggestionBundleSerializer,
+        responses={
+            200: BulkResultSerializer,
+            400: BulkErrorSerializer,
+            403: ErrorDetailSerializer,
+        },
+    )
+    @action(
+        detail=False,
+        methods=["patch"],
+        url_path="bundle",
+        url_name="bulk-bundle",
+        serializer_class=SuggestionBundleSerializer,
+    )
+    def bulk_bundle(self, request: Request) -> Response:
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        in_issue_draft = serializer.validated_data["in_issue_draft"]
+        return self.bulk_response(
+            lambda queryset: queryset.set_in_issue_draft(in_issue_draft)
+        )
+
+    @extend_schema(
+        operation_id="bulkUpdateSuggestionComment",
+        description=(
+            "Replace the comment of every suggestion matching the filters. Send an "
+            "empty string to clear it. Fails without modifying anything if the selected "
+            "suggestions do not all hold the same comment to begin with."
+        ),
+        parameters=BULK_FILTER_PARAMETERS,
+        request=SuggestionCommentSerializer,
+        responses={
+            200: BulkResultSerializer,
+            400: BulkErrorSerializer,
+            403: ErrorDetailSerializer,
+        },
+    )
+    @action(
+        detail=False,
+        methods=["patch"],
+        url_path="comment",
+        url_name="bulk-comment",
+        serializer_class=SuggestionCommentSerializer,
+    )
+    def bulk_comment(self, request: Request) -> Response:
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        comment = serializer.validated_data["comment"]
+        return self.bulk_response(lambda queryset: queryset.set_comment(comment))
+
+    @extend_schema(
+        operation_id="bulkUpdateSuggestionPackage",
+        description=(
+            "Ignore or restore a package on every suggestion matching the filters. "
+            "Fails without modifying anything if any of them does not hold that "
+            "package, or already has it in the requested state."
+        ),
+        parameters=BULK_FILTER_PARAMETERS,
+        request=SuggestionPackageUpdateSerializer,
+        responses={
+            200: BulkResultSerializer,
+            400: BulkErrorSerializer,
+            403: ErrorDetailSerializer,
+        },
+    )
+    @action(
+        detail=False,
+        methods=["patch"],
+        url_path="packages",
+        url_name="bulk-packages",
+        serializer_class=SuggestionPackageUpdateSerializer,
+    )
+    def bulk_packages(self, request: Request) -> Response:
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        package_attribute = serializer.validated_data["package_attribute"]
+        if serializer.validated_data["ignored"]:
+            return self.bulk_response(
+                lambda queryset: queryset.ignore_package(package_attribute)
+            )
+        return self.bulk_response(
+            lambda queryset: queryset.restore_package(package_attribute)
+        )
+
+    @extend_schema(
+        operation_id="bulkUpdateSuggestionMaintainer",
+        description=(
+            "Ignore or restore a maintainer on every suggestion matching the filters. "
+            "Fails without modifying anything if any of them does not hold that "
+            "maintainer, or already has them in the requested state."
+        ),
+        parameters=BULK_FILTER_PARAMETERS,
+        request=SuggestionMaintainerUpdateSerializer,
+        responses={
+            200: BulkResultSerializer,
+            400: BulkErrorSerializer,
+            403: ErrorDetailSerializer,
+        },
+    )
+    @action(
+        detail=False,
+        methods=["patch"],
+        url_path="maintainers",
+        url_name="bulk-maintainers",
+        serializer_class=SuggestionMaintainerUpdateSerializer,
+    )
+    def bulk_maintainers(self, request: Request) -> Response:
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        github_id = serializer.validated_data["github_id"]
+        if serializer.validated_data["ignored"]:
+            return self.bulk_response(
+                lambda queryset: queryset.ignore_maintainer(github_id)
+            )
+        return self.bulk_response(
+            lambda queryset: queryset.restore_maintainer(github_id)
+        )
+
+    @extend_schema(
+        operation_id="bulkUpdateSuggestionReference",
+        description=(
+            "Ignore or restore a URL reference on every suggestion matching the "
+            "filters. Fails without modifying anything if any of them does not hold "
+            "that reference, or already has it in the requested state."
+        ),
+        parameters=BULK_FILTER_PARAMETERS,
+        request=SuggestionReferenceUpdateSerializer,
+        responses={
+            200: BulkResultSerializer,
+            400: BulkErrorSerializer,
+            403: ErrorDetailSerializer,
+        },
+    )
+    @action(
+        detail=False,
+        methods=["patch"],
+        url_path="references",
+        url_name="bulk-references",
+        serializer_class=SuggestionReferenceUpdateSerializer,
+    )
+    def bulk_references(self, request: Request) -> Response:
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        reference_url = serializer.validated_data["reference_url"]
+        if serializer.validated_data["ignored"]:
+            return self.bulk_response(
+                lambda queryset: queryset.ignore_reference(reference_url)
+            )
+        return self.bulk_response(
+            lambda queryset: queryset.restore_reference(reference_url)
+        )

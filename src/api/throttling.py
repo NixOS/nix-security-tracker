@@ -29,3 +29,19 @@ class APIRateThrottle(SimpleRateThrottle):
         else:
             ident = self.get_ident(request)
         return self.cache_format % {"scope": self.scope, "ident": ident}
+
+
+class BulkRateThrottle(APIRateThrottle):
+    """
+    Stricter limit for operations that modify a whole selection of suggestions at once.
+
+    Those are far more expensive than their single-suggestion counterparts, and a
+    handful of them is enough for any realistic triage session.
+    """
+
+    scope = "bulk"
+
+    def get_rate(self, request: Request | None = None) -> str:
+        if request is not None and isadmin(request.user):
+            return settings.API_BULK_THROTTLE_SECURITY_TEAM
+        return settings.API_BULK_THROTTLE_AUTHENTICATED

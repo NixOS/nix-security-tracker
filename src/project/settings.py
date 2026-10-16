@@ -261,6 +261,16 @@ class Settings(BaseSettings):
         API_THROTTLE_ANONYMOUS: str = "30/min"
         API_THROTTLE_AUTHENTICATED: str = "120/min"
         API_THROTTLE_SECURITY_TEAM: str = "2000/min"
+        API_BULK_THROTTLE_AUTHENTICATED: str = "5/min"
+        API_BULK_THROTTLE_SECURITY_TEAM: str = "30/min"
+        API_BULK_MAX_AFFECTED: int = Field(
+            description="""
+            Maximum number of suggestions a single bulk operation may affect.
+
+            Bulk operations rewrite the denormalized cache of every affected suggestion in a single transaction, so an unbounded selection would hold locks for a long time.
+            """,
+            default=100,
+        )
 
         @model_validator(mode="after")
         def default_server_email(self) -> Self:
