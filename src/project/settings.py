@@ -132,7 +132,7 @@ class Settings(BaseSettings):
             URL from which to fetch the current channel structure.
             """,
             default=HttpUrl(
-                "https://monitoring.nixos.org/prometheus/api/v1/query?query=channel_revision"
+                "https://prometheus.nixos.org/api/v1/query?query=channel_revision"
             ),
         )
         NETWORK_REQUEST_TIMEOUT: int = Field(
