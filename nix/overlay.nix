@@ -12,6 +12,18 @@ in
       django-pgpubsub = _pyprev.django-pgpubsub.overridePythonAttrs (old: {
         patches = (old.patches or [ ]) ++ [ ../nix/django-pgpubsub-fix-notify.patch ];
       });
+      sgqlc = pyfinal.buildPythonPackage rec {
+        pname = "sgqlc";
+        version = "18";
+        pyproject = true;
+        src = final.fetchPypi {
+          inherit pname version;
+          hash = "sha256-oJ92+2midgUjFE+NOsvwahs3EPY7+H+6wULTU4sdY5s=";
+        };
+        build-system = [ pyfinal.poetry-core ];
+        dependencies = [ pyfinal.graphql-core ];
+        pythonImportsCheck = [ "sgqlc" ];
+      };
     };
   };
   # go through the motions to make a flake-incompat project use the build
@@ -66,6 +78,9 @@ in
       drf-spectacular
       django-rest-knox
       django-vite
+      (callPackage ./github-graphql-types {
+        inherit (sources) github-graphql-schema;
+      })
     ];
 
     nativeCheckInputs = with final.python3.pkgs; [
