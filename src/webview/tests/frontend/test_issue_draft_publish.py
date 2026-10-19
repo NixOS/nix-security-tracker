@@ -1,6 +1,7 @@
 from collections.abc import Callable
 
 import pytest
+from django.conf import settings
 from playwright.sync_api import Page, expect
 from pytest_django.live_server_helper import LiveServer
 from pytest_mock import MockerFixture
@@ -99,7 +100,7 @@ def test_publish_draft_creates_one_issue_for_all_bundled_suggestions(
     mocker: MockerFixture,
 ) -> None:
     mock_issue = mocker.Mock()
-    mock_issue.html_url = "https://github.com/NixOS/nixpkgs/issues/5678"
+    mock_issue.number = 5678
     mocker.patch("shared.github.create_gh_issue", return_value=mock_issue)
 
     suggestion1 = make_cached_suggestion(
@@ -119,7 +120,8 @@ def test_publish_draft_creates_one_issue_for_all_bundled_suggestions(
 
     expect(as_committer.get_by_text("Issue bundle published")).to_be_visible()
     expect(as_committer.get_by_role("link", name="GitHub issue")).to_have_attribute(
-        "href", mock_issue.html_url
+        "href",
+        f"https://github.com/{settings.GH_ORGANIZATION}/{settings.GH_ISSUES_REPO}/issues/{mock_issue.number}",
     )
 
     # The draft is now empty, so the list (still filtered to the draft) is empty.
@@ -161,7 +163,7 @@ def test_publish_draft_updates_previously_cached_published_filter_without_reload
 ) -> None:
     """If the "Published" status filter was already visited (and cached empty) before publishing the issue draft, switching to it afterwards must show the newly published suggestions without requiring a page reload."""
     mock_issue = mocker.Mock()
-    mock_issue.html_url = "https://github.com/NixOS/nixpkgs/issues/5678"
+    mock_issue.number = 5678
     mocker.patch("shared.github.create_gh_issue", return_value=mock_issue)
 
     suggestion = make_cached_suggestion(

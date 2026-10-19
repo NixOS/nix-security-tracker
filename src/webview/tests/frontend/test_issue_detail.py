@@ -1,7 +1,7 @@
 from playwright.sync_api import Page, expect
 from pytest_django.live_server_helper import LiveServer
 
-from shared.models.issue import EventType, NixpkgsEvent, NixpkgsIssue
+from shared.models.issue import GitHubItem, NixpkgsIssue
 
 from .routes import ISSUE_DETAIL
 
@@ -33,10 +33,11 @@ def test_issue_detail_shows_github_issue_link(
     page: Page,
     issue: NixpkgsIssue,
 ) -> None:
-    NixpkgsEvent.objects.create(
-        issue=issue,
-        event_type=EventType.ISSUE | EventType.OPENED,
-        url="https://github.com/NixOS/nixpkgs/issues/1",
+    issue.github_items.create(
+        owner="NixOS",
+        repository="nixpkgs",
+        number=1,
+        kind=GitHubItem.Kind.ISSUE,
     )
     page.goto(live_server.url + ISSUE_DETAIL + f"/{issue.code}")
     expect(page.get_by_role("link", name="GitHub")).to_have_attribute(

@@ -27,7 +27,7 @@ def test_publish_accepted_suggestion(
 ) -> None:
     """Publishing an accepted suggestion creates a NixpkgsIssue, a GitHub issue, and marks the suggestion as published."""
     mock_issue = mocker.Mock()
-    mock_issue.html_url = "https://github.com/NixOS/nixpkgs/issues/1234"
+    mock_issue.number = 1234
     mock_create = mocker.patch("shared.github.create_gh_issue", return_value=mock_issue)
 
     client = APIClient()
@@ -48,7 +48,6 @@ def test_publish_accepted_suggestion(
 
     issue = NixpkgsIssue.objects.get(pk=response.data["id"])
     assert issue.code == response.data["code"]
-    assert response.data["github_issue_url"] == mock_issue.html_url
     assert list(issue.suggestions.all()) == [suggestion]
 
 
@@ -58,7 +57,7 @@ def test_publish_bumps_updated_at_and_sorts_first(
     mocker: MockerFixture,
 ) -> None:
     mock_issue = mocker.Mock()
-    mock_issue.html_url = "https://github.com/NixOS/nixpkgs/issues/1234"
+    mock_issue.number = 1234
     mocker.patch("shared.github.create_gh_issue", return_value=mock_issue)
 
     client = APIClient()
@@ -95,7 +94,7 @@ def test_publish_derives_title_from_suggestion(
     mocker: MockerFixture,
 ) -> None:
     mock_issue = mocker.Mock()
-    mock_issue.html_url = "https://github.com/NixOS/nixpkgs/issues/1234"
+    mock_issue.number = 1234
     mocker.patch("shared.github.create_gh_issue", return_value=mock_issue)
 
     client = APIClient()

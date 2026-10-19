@@ -6,7 +6,7 @@ from rest_framework.reverse import reverse
 from rest_framework.test import APIClient
 
 from shared.models.cve import Container
-from shared.models.issue import EventType, NixpkgsEvent, NixpkgsIssue
+from shared.models.issue import GitHubItem, NixpkgsIssue
 
 
 def list_url() -> str:
@@ -115,10 +115,11 @@ def test_issue_detail_github_issue_url(
 ) -> None:
     client = APIClient()
     issue = make_issue()
-    NixpkgsEvent.objects.create(
-        issue=issue,
-        event_type=EventType.ISSUE | EventType.OPENED,
-        url="https://github.com/NixOS/nixpkgs/issues/1",
+    issue.github_items.create(
+        owner="NixOS",
+        repository="nixpkgs",
+        number=1,
+        kind=GitHubItem.Kind.ISSUE,
     )
 
     response = client.get(detail_url(issue.code))

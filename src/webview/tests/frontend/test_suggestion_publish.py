@@ -2,6 +2,7 @@ import re
 from collections.abc import Callable
 
 import pytest
+from django.conf import settings
 from playwright.sync_api import Page, expect
 from pytest_django.live_server_helper import LiveServer
 from pytest_mock import MockerFixture
@@ -50,7 +51,7 @@ def test_publish_creates_issue_and_shows_success_toast_with_links(
 ) -> None:
     """Clicking "Publish" creates a GitHub issue and shows a success toast linking to both the tracker issue and the GitHub issue."""
     mock_issue = mocker.Mock()
-    mock_issue.html_url = "https://github.com/NixOS/nixpkgs/issues/1234"
+    mock_issue.number = 1234
     mocker.patch("shared.github.create_gh_issue", return_value=mock_issue)
 
     suggestion = make_cached_suggestion(
@@ -63,7 +64,8 @@ def test_publish_creates_issue_and_shows_success_toast_with_links(
 
     expect(as_committer.get_by_text("Issue published")).to_be_visible()
     expect(as_committer.get_by_role("link", name="GitHub issue")).to_have_attribute(
-        "href", mock_issue.html_url
+        "href",
+        f"https://github.com/{settings.GH_ORGANIZATION}/{settings.GH_ISSUES_REPO}/issues/{mock_issue.number}",
     )
 
     # The success toast uses the theme's light green, the counterpart to error toasts.
@@ -86,7 +88,7 @@ def test_publish_keeps_suggestion_in_place_dimmed_instead_of_disappearing(
 ) -> None:
     """Publishing a suggestion from a list filtered to "accepted" keeps the card visible (dimmed, since it no longer matches the filter) instead of making it disappear."""
     mock_issue = mocker.Mock()
-    mock_issue.html_url = "https://github.com/NixOS/nixpkgs/issues/1234"
+    mock_issue.number = 1234
     mocker.patch("shared.github.create_gh_issue", return_value=mock_issue)
 
     suggestion = make_cached_suggestion(
