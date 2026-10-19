@@ -29,6 +29,12 @@
       "url": "https://api.github.com/repos/nix-community/disko/tarball/refs/tags/v1.13.0",
       "hash": "sha256-CNzzBsRhq7gg4BMBuTDObiWDH/rFYHEuDRVOwCcwXw4="
     },
+    "github-graphql-schema": {
+      "type": "Url",
+      "url": "https://raw.githubusercontent.com/github/docs/3a3bc2063e4d9cab232c6026a0bf4166a2a1f8d8/src/graphql/data/fpt/schema.docs.graphql",
+      "unpack": false,
+      "hash": "sha256-SJ0lWiEr9f7MDTHpMHrbr/Lb/d5vkrXchTf51MdP94M="
+    },
     "grafana-dashboard-node": {
       "type": "Url",
       "url": "https://grafana.com/api/dashboards/1860/revisions/latest/download",

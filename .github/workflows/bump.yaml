@@ -22,11 +22,17 @@ jobs:
       - run: |
           nix-build -A ci
           result/bin/npins update
+          SCHEMA=src/graphql/data/fpt/schema.docs.graphql
+          REV="$(gh api "repos/github/docs/commits?path=$SCHEMA&per_page=1" --jq '.[0].sha')"
+          result/bin/npins add --name github-graphql-schema url \
+            "https://raw.githubusercontent.com/github/docs/$REV/$SCHEMA"
           cd frontend
           ../result/bin/npm update
           NEW_HASH="$(../result/bin/prefetch-npm-deps package-lock.json)"
           sed -i "s|npmDepsHash = \"[^\"]*\";|npmDepsHash = \"$NEW_HASH\";|" ../nix/frontend.nix
           rm -rf node_modules
+        env:
+          GH_TOKEN: ${{ github.token }}
       - uses: actions/create-github-app-token@29824e69f54612133e76f7eaac726eef6c875baf # v2.2.1
         id: generate-token
         with:
