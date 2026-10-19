@@ -85,11 +85,13 @@ in
 
     nativeCheckInputs = with final.python3.pkgs; [
       freezegun
+      graphql-core
       pytest
       pytest-django
       pytest-playwright
       pytest-mock
       pytest-socket
+      responses
     ];
 
     passthru = {

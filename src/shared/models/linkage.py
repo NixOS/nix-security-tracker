@@ -285,7 +285,7 @@ class CVEDerivationClusterProposal(TimeStampMixin):
         )
 
     @classproperty
-    def CURRENT_ALGORITHM_VERSION(cls) -> int:  # noqa: N802, N805
+    def CURRENT_ALGORITHM_VERSION(cls) -> int:  # noqa: N802
         return 2
 
     cached: "shared.models.cached.CachedSuggestions"

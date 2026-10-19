@@ -1,4 +1,5 @@
 import logging
+from collections.abc import Iterable
 from enum import STRICT, IntFlag, auto
 from typing import Any
 from urllib.parse import urljoin
@@ -60,6 +61,13 @@ class GitHubItem(models.Model):
             self.Kind.PULL_REQUEST: "pull",
         }[self.Kind(self.kind)]
         return f"https://github.com/{self.owner}/{self.repository}/{path}/{self.number}"
+
+    def add_events(self, events: Iterable["GitHubEvent"]) -> None:
+        events = list(events)
+        for event in events:
+            event.item = self
+            event.clean_fields(exclude=["item"])
+        GitHubEvent.objects.bulk_create(events, ignore_conflicts=True)
 
 
 class NixpkgsIssue(TimeStampMixin):
