@@ -4,7 +4,7 @@ from datetime import UTC, datetime
 from importlib.resources import files
 from typing import Any, Literal
 
-from graphql import GraphQLResolveInfo, build_schema, graphql_sync
+from graphql import GraphQLError, GraphQLResolveInfo, build_schema, graphql_sync
 from graphql.pyutils import camel_to_snake
 from requests import PreparedRequest
 
@@ -70,12 +70,21 @@ class Issue:
         return page(nodes, **args)
 
 
+class NotFoundError(GraphQLError):
+    def __init__(self, message: str) -> None:
+        super().__init__(message, extensions={"type": "NOT_FOUND"})
+
+
 @dataclass
 class Repository:
     items: dict[int, Issue]
 
-    def issue(self, _info: GraphQLResolveInfo, number: int) -> Issue | None:
-        return self.items.get(number)
+    def issue(self, _info: GraphQLResolveInfo, number: int) -> Issue:
+        if number not in self.items:
+            raise NotFoundError(
+                f"Could not resolve to an Issue with the number of {number}."
+            )
+        return self.items[number]
 
 
 def resolve_field(source: Any, info: GraphQLResolveInfo, **args: Any) -> Any:
@@ -96,13 +105,14 @@ class FakeGitHub:
 
     def repository(
         self, _info: GraphQLResolveInfo, owner: str, name: str, **_: Any
-    ) -> Repository | None:
-        items = {
-            item.number: item
-            for item in self.items
-            if item.repository == f"{owner}/{name}"
-        }
-        return Repository(items) if items else None
+    ) -> Repository:
+        return Repository(
+            {
+                item.number: item
+                for item in self.items
+                if item.repository == f"{owner}/{name}"
+            }
+        )
 
     def rate_limit(self, _info: GraphQLResolveInfo, **_: Any) -> dict[str, Any]:
         return {
@@ -127,5 +137,13 @@ class FakeGitHub:
         )
         response: dict[str, Any] = {"data": result.data}
         if result.errors:
-            response["errors"] = [error.formatted for error in result.errors]
+            # GitHub puts the error type next to the message instead of in the spec's slot for extra error details, and doesn't send that slot at all.
+            # Matching this exactly keeps code that reads the wrong place from passing tests.
+            response["errors"] = [
+                {
+                    **{k: v for k, v in error.formatted.items() if k != "extensions"},
+                    **(error.extensions or {}),
+                }
+                for error in result.errors
+            ]
         return 200, {"Content-Type": "application/json"}, json.dumps(response)

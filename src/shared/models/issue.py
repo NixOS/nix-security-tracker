@@ -268,6 +268,25 @@ class GitHubEvent(models.Model):
         ]
 
 
+class GitHubSyncError(models.Model):
+    item = models.ForeignKey(
+        GitHubItem, on_delete=models.CASCADE, related_name="sync_errors"
+    )
+    error_type = models.CharField(max_length=64)
+    message = models.TextField()
+
+    first_seen = models.DateTimeField(auto_now_add=True)
+    last_seen = models.DateTimeField(auto_now=True)
+
+    class Meta:  # type: ignore[override]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["item", "error_type"],
+                name="githubsyncerror_unique",
+            ),
+        ]
+
+
 class NixpkgsAdvisory(models.Model):
     class AdvisoryStatus(models.TextChoices):
         DRAFT = "DRAFT", _("draft")

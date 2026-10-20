@@ -87,10 +87,14 @@ class Issue:
 
 class Repository:
     @staticmethod
-    def fragment(numbers: Iterable[int]) -> Fragment:
+    def alias(number: int) -> str:
+        return f"issue{number}"
+
+    @classmethod
+    def fragment(cls, numbers: Iterable[int]) -> Fragment:
         fragment = Fragment(schema.Repository, "RepositoryIssues")
         for number in numbers:
-            fragment.issue(number=number, __alias__=f"issue{number}").__fragment__(
+            fragment.issue(number=number, __alias__=cls.alias(number)).__fragment__(
                 Issue.fragment
             )
         return fragment
@@ -100,4 +104,5 @@ class Repository:
 
     def issues(self, numbers: Iterable[int]) -> Iterator[Issue]:
         for number in numbers:
-            yield Issue(getattr(self.data, f"issue{number}"))
+            if data := getattr(self.data, self.alias(number)):
+                yield Issue(data)
