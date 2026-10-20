@@ -604,6 +604,27 @@ in
             startAt = "*-*-* 03:00:00";
           };
 
+          nix-security-tracker-github-events = {
+            description = "Web security tracker - sync GitHub events of published issues";
+            after = [
+              "network.target"
+              "postgresql.service"
+              "nix-security-tracker-migrations.service"
+            ];
+            requires = [
+              "postgresql.service"
+              "nix-security-tracker-migrations.service"
+            ];
+            wantedBy = [ ];
+            serviceConfig.Type = "oneshot";
+
+            script = ''
+              ${manage.name} sync_github_events
+            '';
+
+            startAt = "*-*-* 05:00:00";
+          };
+
           nix-security-tracker-garbage-collection = {
             description = "Web security tracker - garbage collection";
             after = [
