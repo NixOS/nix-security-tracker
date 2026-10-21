@@ -1,5 +1,6 @@
 import { Tooltip as ArkTooltip, Portal } from "@ark-ui/react";
 import type { ComponentChild, ComponentChildren } from "preact";
+import { useState } from "preact/hooks";
 
 type TooltipProps = {
   content: ComponentChildren;
@@ -8,9 +9,20 @@ type TooltipProps = {
 };
 
 export function Tooltip({ content, children, compact = false }: TooltipProps) {
+  const [open, setOpen] = useState(false);
   return (
-    <ArkTooltip.Root openDelay={100} closeDelay={100} interactive>
-      <ArkTooltip.Trigger asChild>{children}</ArkTooltip.Trigger>
+    <ArkTooltip.Root
+      openDelay={100}
+      closeDelay={100}
+      interactive
+      open={open}
+      onOpenChange={({ open }) => setOpen(open)}
+      closeOnClick={false}
+      closeOnPointerDown={false}
+    >
+      <ArkTooltip.Trigger asChild onClick={() => setOpen(!open)}>
+        {children}
+      </ArkTooltip.Trigger>
       <Portal>
         <ArkTooltip.Positioner>
           <ArkTooltip.Content
