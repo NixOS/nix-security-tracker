@@ -10,7 +10,7 @@ import github_graphql as schema
 from github import Github, GithubException
 from sgqlc.operation import Operation
 
-from shared.github_events import Repository
+from shared.github_events import Repository, TruncatedError
 from shared.models.issue import EventType, GitHubItem, GitHubSyncError
 
 logger = logging.getLogger(__name__)
@@ -78,7 +78,17 @@ def sync_github_events(github: Github) -> None:
             found = []
             events = 0
             for issue in Repository(data.repository).issues(batch):
-                issue_events = list(issue.events())
+                try:
+                    issue_events = list(issue.events())
+                except TruncatedError as e:
+                    message = f"Query result has more items than could be fetched in one page: {e.what} of {owner}/{name}#{e.number}"
+                    logger.error(f"Skipping {owner}/{name}#{issue.number}: {message}")
+                    GitHubSyncError.objects.update_or_create(
+                        item=by_number[issue.number],
+                        error_type="TRUNCATED",
+                        defaults={"message": message},
+                    )
+                    continue
                 logger.debug(
                     f"{owner}/{name}#{issue.number}: "
                     + (
