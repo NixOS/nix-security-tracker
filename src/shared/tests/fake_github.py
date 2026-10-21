@@ -4,7 +4,21 @@ from datetime import UTC, datetime
 from importlib.resources import files
 from typing import Any, Literal
 
-from graphql import GraphQLError, GraphQLResolveInfo, build_schema, graphql_sync
+from graphql import (
+    DocumentNode,
+    FieldNode,
+    FragmentDefinitionNode,
+    FragmentSpreadNode,
+    GraphQLError,
+    GraphQLResolveInfo,
+    InlineFragmentNode,
+    IntValueNode,
+    OperationDefinitionNode,
+    SelectionSetNode,
+    build_schema,
+    graphql_sync,
+    parse,
+)
 from graphql.pyutils import camel_to_snake
 from requests import PreparedRequest
 
@@ -14,6 +28,54 @@ GITHUB_SCHEMA = build_schema(
 
 # PyGithub's connection fills in the default port, so requests carry it explicitly.
 GRAPHQL_URL = "https://api.github.com:443/graphql"
+
+MAX_NODES = 500_000
+
+
+def node_count(document: DocumentNode) -> int:
+    """
+    Count the nodes a query may return, the way GitHub does to enforce its limit.
+    """
+    fragments = {
+        definition.name.value: definition
+        for definition in document.definitions
+        if isinstance(definition, FragmentDefinitionNode)
+    }
+
+    def count(selection_set: SelectionSetNode | None, multiplier: int) -> int:
+        if selection_set is None:
+            return 0
+        total = 0
+        for selection in selection_set.selections:
+            if isinstance(selection, FragmentSpreadNode):
+                total += count(
+                    fragments[selection.name.value].selection_set, multiplier
+                )
+            elif isinstance(selection, InlineFragmentNode):
+                total += count(selection.selection_set, multiplier)
+            elif isinstance(selection, FieldNode):
+                size = next(
+                    (
+                        int(argument.value.value)
+                        for argument in selection.arguments or []
+                        if argument.name.value in ("first", "last")
+                        and isinstance(argument.value, IntValueNode)
+                    ),
+                    None,
+                )
+                if size is None:
+                    total += count(selection.selection_set, multiplier)
+                else:
+                    total += multiplier * size + count(
+                        selection.selection_set, multiplier * size
+                    )
+        return total
+
+    return sum(
+        count(definition.selection_set, 1)
+        for definition in document.definitions
+        if isinstance(definition, OperationDefinitionNode)
+    )
 
 
 def page(
@@ -48,11 +110,34 @@ class ReopenedEvent:
 
 
 @dataclass
-class Issue:
+class MergedEvent:
+    created_at: datetime
+
+
+def timeline_page(
+    timeline: list[Any], item_types: list[str] | None, **args: Any
+) -> dict[str, Any]:
+    # GitHub names the filter value for each item type by converting the type name, e.g. `CLOSED_EVENT` for `ClosedEvent`.
+    nodes = [
+        node
+        for node in timeline
+        if item_types is None
+        or camel_to_snake(type(node).__name__).upper() in item_types
+    ]
+    return page(nodes, **args)
+
+
+@dataclass
+class Item:
     repository: str
     number: int
     created_at: datetime
+
+
+@dataclass
+class Issue(Item):
     timeline: list[ClosedEvent | ReopenedEvent] = field(default_factory=list)
+    closed_by: list["PullRequest"] = field(default_factory=list)
 
     def timeline_items(
         self,
@@ -60,14 +145,31 @@ class Issue:
         item_types: list[str] | None = None,
         **args: Any,
     ) -> dict[str, Any]:
-        # GitHub names the filter value for each item type by converting the type name, e.g. `CLOSED_EVENT` for `ClosedEvent`.
-        nodes = [
-            node
-            for node in self.timeline
-            if item_types is None
-            or camel_to_snake(type(node).__name__).upper() in item_types
-        ]
-        return page(nodes, **args)
+        return timeline_page(self.timeline, item_types, **args)
+
+    def closed_by_pull_requests_references(
+        self, _info: GraphQLResolveInfo, **args: Any
+    ) -> dict[str, Any]:
+        return page(self.closed_by, **args)
+
+
+@dataclass
+class PullRequest(Item):
+    timeline: list[ClosedEvent | ReopenedEvent | MergedEvent] = field(
+        default_factory=list
+    )
+
+    def timeline_items(
+        self,
+        _info: GraphQLResolveInfo,
+        item_types: list[str] | None = None,
+        **args: Any,
+    ) -> dict[str, Any]:
+        return timeline_page(self.timeline, item_types, **args)
+
+    @property
+    def base_repository(self) -> dict[str, Any]:
+        return {"nameWithOwner": self.repository}
 
 
 class NotFoundError(GraphQLError):
@@ -77,14 +179,21 @@ class NotFoundError(GraphQLError):
 
 @dataclass
 class Repository:
-    items: dict[int, Issue]
+    items: dict[int, Issue | PullRequest]
 
     def issue(self, _info: GraphQLResolveInfo, number: int) -> Issue:
-        if number not in self.items:
+        item = self.items.get(number)
+        if not isinstance(item, Issue):
             raise NotFoundError(
                 f"Could not resolve to an Issue with the number of {number}."
             )
-        return self.items[number]
+        return item
+
+    def pull_request(
+        self, _info: GraphQLResolveInfo, number: int
+    ) -> PullRequest | None:
+        item = self.items.get(number)
+        return item if isinstance(item, PullRequest) else None
 
 
 def resolve_field(source: Any, info: GraphQLResolveInfo, **args: Any) -> Any:
@@ -101,7 +210,7 @@ def resolve_field(source: Any, info: GraphQLResolveInfo, **args: Any) -> Any:
 
 class FakeGitHub:
     def __init__(self) -> None:
-        self.items: list[Issue] = []
+        self.items: list[Issue | PullRequest] = []
 
     def repository(
         self, _info: GraphQLResolveInfo, owner: str, name: str, **_: Any
@@ -127,6 +236,16 @@ class FakeGitHub:
     def handle(self, request: PreparedRequest) -> tuple[int, dict[str, str], str]:
         assert isinstance(request.body, str | bytes)
         body = json.loads(request.body)
+        if (nodes := node_count(parse(body["query"]))) > MAX_NODES:
+            error = {
+                "type": "MAX_NODE_LIMIT_EXCEEDED",
+                "message": f"This query requests up to {nodes:,} possible nodes which exceeds the maximum limit of {MAX_NODES:,}.",
+            }
+            return (
+                200,
+                {"Content-Type": "application/json"},
+                json.dumps({"errors": [error]}),
+            )
         result = graphql_sync(
             GITHUB_SCHEMA,
             body["query"],
