@@ -1,5 +1,6 @@
 from datetime import timedelta
 
+import pytest
 from django.utils import timezone
 
 from shared.models.issue import EventType, GitHubItem
@@ -25,12 +26,21 @@ def test_closed_issue(db: None) -> None:
     assert item.state == EventType.ISSUE | EventType.CLOSED | EventType.COMPLETED
 
 
-def test_issue_without_events_is_open(db: None) -> None:
+@pytest.mark.parametrize(
+    "kind, flag",
+    [
+        (GitHubItem.Kind.ISSUE, EventType.ISSUE),
+        (GitHubItem.Kind.PULL_REQUEST, EventType.PULL_REQUEST),
+    ],
+)
+def test_item_without_events_is_open(
+    db: None, kind: GitHubItem.Kind, flag: EventType
+) -> None:
     item = GitHubItem.objects.create(
         owner="NixOS",
         repository="nixpkgs",
         number=1,
-        kind=GitHubItem.Kind.ISSUE,
+        kind=kind,
     )
 
-    assert item.state == EventType.ISSUE | EventType.OPENED
+    assert item.state == flag | EventType.OPENED

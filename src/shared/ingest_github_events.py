@@ -11,7 +11,12 @@ from github import Github, GithubException
 from sgqlc.operation import Operation
 
 from shared.github_events import Repository, TruncatedError
-from shared.models.issue import EventType, GitHubItem, GitHubSyncError
+from shared.models.issue import (
+    EventType,
+    GitHubClosingReference,
+    GitHubItem,
+    GitHubSyncError,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -29,6 +34,7 @@ def sync_github_events(github: Github) -> None:
         )
         .distinct()
         .order_by("owner", "repository", "number")
+        .prefetch_related("nixpkgs_issues")
     )
     repositories = items.order_by().values("owner", "repository").distinct().count()
     logger.info(
@@ -78,13 +84,19 @@ def sync_github_events(github: Github) -> None:
             found = []
             events = 0
             for issue in Repository(data.repository).issues(batch):
+                item = by_number[issue.number]
                 try:
                     issue_events = list(issue.events())
+                    closing_pull_requests = [
+                        (closing_pr, list(closing_pr.events()))
+                        for closing_pr in issue.closing_pull_requests()
+                        if closing_pr.repository == f"{owner}/{name}"
+                    ]
                 except TruncatedError as e:
                     message = f"Query result has more items than could be fetched in one page: {e.what} of {owner}/{name}#{e.number}"
                     logger.error(f"Skipping {owner}/{name}#{issue.number}: {message}")
                     GitHubSyncError.objects.update_or_create(
-                        item=by_number[issue.number],
+                        item=item,
                         error_type="TRUNCATED",
                         defaults={"message": message},
                     )
@@ -99,9 +111,29 @@ def sync_github_events(github: Github) -> None:
                         or "no events"
                     )
                 )
-                by_number[issue.number].add_events(issue_events)
+                item.add_events(issue_events)
                 events += len(issue_events)
-                found.append(by_number[issue.number])
+                pull_requests = []
+                for closing_pr, pr_events in closing_pull_requests:
+                    pull_request, _ = GitHubItem.objects.get_or_create(
+                        owner=owner,
+                        repository=name,
+                        number=closing_pr.number,
+                        defaults={"kind": GitHubItem.Kind.PULL_REQUEST},
+                    )
+                    pull_request.add_events(pr_events)
+                    pull_requests.append(pull_request)
+                GitHubClosingReference.objects.filter(issue=item).exclude(
+                    pull_request__in=pull_requests
+                ).delete()
+                GitHubClosingReference.objects.bulk_create(
+                    [
+                        GitHubClosingReference(pull_request=pull_request, issue=item)
+                        for pull_request in pull_requests
+                    ],
+                    ignore_conflicts=True,
+                )
+                found.append(item)
             GitHubSyncError.objects.filter(item__in=found).delete()
             logger.info(
                 f"{owner}/{name}: {len(found)} of {len(batch)} issues synced, {len(batch) - len(found)} failed, {events} events fetched"

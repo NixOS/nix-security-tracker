@@ -31,6 +31,106 @@ def nodes(page: Any, number: int, what: str) -> list[Any]:
     return page.nodes or []
 
 
+class PullRequest:
+    @classproperty
+    @cache
+    def closed(cls) -> Fragment:
+        fragment = Fragment(schema.ClosedEvent, "PullRequestClosed")
+        fragment.created_at()
+        return fragment
+
+    @classproperty
+    @cache
+    def reopened(cls) -> Fragment:
+        fragment = Fragment(schema.ReopenedEvent, "PullRequestReopened")
+        fragment.created_at()
+        return fragment
+
+    @classproperty
+    @cache
+    def merged(cls) -> Fragment:
+        fragment = Fragment(schema.MergedEvent, "PullRequestMerged")
+        fragment.created_at()
+        return fragment
+
+    @classproperty
+    @cache
+    def fragment(cls) -> Fragment:
+        fragment = Fragment(schema.PullRequest, "PullRequestHistory")
+        fragment.number()
+        fragment.created_at()
+        fragment.base_repository.name_with_owner()
+        timeline = fragment.timeline_items(
+            first=20,
+            item_types=["CLOSED_EVENT", "REOPENED_EVENT", "MERGED_EVENT"],
+        )
+        timeline.page_info.has_next_page()
+        nodes = timeline.nodes
+        nodes.__fragment__(cls.closed)
+        nodes.__fragment__(cls.reopened)
+        nodes.__fragment__(cls.merged)
+        return fragment
+
+    def __init__(self, data: schema.PullRequest) -> None:
+        self.data = data
+
+    @property
+    def number(self) -> int:
+        return self.data.number
+
+    @property
+    def repository(self) -> str | None:
+        if repository := self.data.base_repository:
+            return repository.name_with_owner
+        return None
+
+    def events(self) -> Iterator[GitHubEvent]:
+        yield GitHubEvent(
+            event_type=EventType.PULL_REQUEST | EventType.OPENED,
+            occurred_at=self.data.created_at,
+        )
+        timeline = nodes(self.data.timeline_items, self.number, "timeline")
+        # GitHub records a merge as both a merge and a close, the close at the same moment or shortly after.
+        # Recording both would leave two latest events in unknown order, and a merged pull request may end up showing as merely closed.
+        # We therefore filter those cases.
+        # A merged pull request can't be reopened, so the merge's close is its last one.
+        merge_close = (
+            next(
+                (
+                    node
+                    for node in reversed(timeline)
+                    if isinstance(node, schema.ClosedEvent)
+                ),
+                None,
+            )
+            if any(isinstance(node, schema.MergedEvent) for node in timeline)
+            else None
+        )
+        for node in timeline:
+            match node:
+                case schema.MergedEvent():
+                    yield GitHubEvent(
+                        event_type=EventType.PULL_REQUEST
+                        | EventType.CLOSED
+                        | EventType.MERGED,
+                        occurred_at=node.created_at,
+                    )
+                case schema.ClosedEvent() if node is merge_close:
+                    continue
+                case schema.ClosedEvent():
+                    yield GitHubEvent(
+                        event_type=EventType.PULL_REQUEST | EventType.CLOSED,
+                        occurred_at=node.created_at,
+                    )
+                case schema.ReopenedEvent():
+                    yield GitHubEvent(
+                        event_type=EventType.PULL_REQUEST | EventType.OPENED,
+                        occurred_at=node.created_at,
+                    )
+                case _:
+                    raise ValueError(f"Unexpected timeline item: {type(node).__name__}")
+
+
 class Issue:
     @classproperty
     @cache
@@ -54,13 +154,18 @@ class Issue:
         fragment.number()
         fragment.created_at()
         timeline = fragment.timeline_items(
-            first=100,
+            first=20,
             item_types=["CLOSED_EVENT", "REOPENED_EVENT"],
         )
         timeline.page_info.has_next_page()
         nodes = timeline.nodes
         nodes.__fragment__(cls.closed)
         nodes.__fragment__(cls.reopened)
+        closing = fragment.closed_by_pull_requests_references(
+            first=10, include_closed_prs=True
+        )
+        closing.page_info.has_next_page()
+        closing.nodes.__fragment__(PullRequest.fragment)
         return fragment
 
     def __init__(self, data: schema.Issue) -> None:
@@ -100,6 +205,14 @@ class Issue:
                     )
                 case _:
                     raise ValueError(f"Unexpected timeline item: {type(node).__name__}")
+
+    def closing_pull_requests(self) -> Iterator[PullRequest]:
+        for node in nodes(
+            self.data.closed_by_pull_requests_references,
+            self.number,
+            "closing pull requests",
+        ):
+            yield PullRequest(node)
 
 
 class Repository:
