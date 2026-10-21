@@ -1,5 +1,5 @@
 from collections.abc import Iterator
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 
 import pytest
 import responses
@@ -156,6 +156,45 @@ def test_missing_issues_do_not_abort_sync(
     # Idempotency check
     sync_github_events(Github())
     assert GitHubSyncError.objects.count() == len(missing)
+
+
+def test_truncated_timeline_skips_issue(
+    issue: NixpkgsIssue, fake_github: FakeGitHub
+) -> None:
+    for number in (1, 2):
+        GitHubItem.objects.create(
+            owner="NixOS",
+            repository="nixpkgs",
+            number=number,
+            kind=GitHubItem.Kind.ISSUE,
+        ).nixpkgs_issues.add(issue)
+    fake_github.items = [
+        Issue(
+            "NixOS/nixpkgs",
+            1,
+            created_at=datetime(2026, 10, 1),
+            timeline=[
+                ClosedEvent(
+                    created_at=datetime(2026, 10, 1) + timedelta(hours=n),
+                    state_reason="COMPLETED",
+                )
+                if n % 2
+                else ReopenedEvent(
+                    created_at=datetime(2026, 10, 1) + timedelta(hours=n)
+                )
+                for n in range(1, 102)
+            ],
+        ),
+        Issue("NixOS/nixpkgs", 2, created_at=datetime(2026, 10, 1)),
+    ]
+
+    sync_github_events(Github())
+
+    assert set(GitHubEvent.objects.values_list("item__number", flat=True)) == {2}
+    assert set(GitHubSyncError.objects.values_list("item__number", "error_type")) == {
+        (1, "TRUNCATED")
+    }
+    assert "timeline of NixOS/nixpkgs#1" in GitHubSyncError.objects.get().message
 
 
 def test_reappearing_issue_clears_error(
