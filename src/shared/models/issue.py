@@ -66,7 +66,10 @@ class GitHubItem(models.Model):
     def state(self) -> "EventType":
         latest = max(self.events.all(), key=lambda e: e.occurred_at, default=None)
         if latest is None:
-            return EventType.ISSUE | EventType.OPENED
+            return {
+                self.Kind.ISSUE: EventType.ISSUE,
+                self.Kind.PULL_REQUEST: EventType.PULL_REQUEST,
+            }[self.Kind(self.kind)] | EventType.OPENED
         return EventType(latest.event_type)
 
     def add_events(self, events: Iterable["GitHubEvent"]) -> None:
@@ -275,6 +278,23 @@ class GitHubEvent(models.Model):
             models.UniqueConstraint(
                 fields=["item", "event_type", "occurred_at"],
                 name="githubevent_unique",
+            ),
+        ]
+
+
+class GitHubClosingReference(models.Model):
+    pull_request = models.ForeignKey(
+        GitHubItem, on_delete=models.CASCADE, related_name="closes"
+    )
+    issue = models.ForeignKey(
+        GitHubItem, on_delete=models.CASCADE, related_name="closed_by"
+    )
+
+    class Meta:  # type: ignore[override]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["pull_request", "issue"],
+                name="githubclosingreference_unique",
             ),
         ]
 
