@@ -8,12 +8,27 @@ The repository fragment is built per batch, since GraphQL offers no lookup of se
 
 from collections.abc import Iterable, Iterator
 from functools import cache
+from typing import Any
 
 import github_graphql as schema
 from django.utils.functional import classproperty
 from sgqlc.operation import Fragment
 
 from shared.models.issue import EventType, GitHubEvent
+
+
+class TruncatedError(Exception):
+    def __init__(self, number: int, what: str) -> None:
+        super().__init__(f"{what} of #{number}")
+        self.number = number
+        self.what = what
+
+
+def nodes(page: Any, number: int, what: str) -> list[Any]:
+    # FIXME(@fricklerhandwerk): Fetch the remaining pages here instead of giving up, once lists that long occur.
+    if page.page_info.has_next_page:
+        raise TruncatedError(number, what)
+    return page.nodes or []
 
 
 class Issue:
@@ -38,10 +53,12 @@ class Issue:
         fragment = Fragment(schema.Issue, "IssueHistory")
         fragment.number()
         fragment.created_at()
-        nodes = fragment.timeline_items(
+        timeline = fragment.timeline_items(
             first=100,
             item_types=["CLOSED_EVENT", "REOPENED_EVENT"],
-        ).nodes
+        )
+        timeline.page_info.has_next_page()
+        nodes = timeline.nodes
         nodes.__fragment__(cls.closed)
         nodes.__fragment__(cls.reopened)
         return fragment
@@ -58,7 +75,7 @@ class Issue:
             event_type=EventType.ISSUE | EventType.OPENED,
             occurred_at=self.data.created_at,
         )
-        for node in self.data.timeline_items.nodes or []:
+        for node in nodes(self.data.timeline_items, self.number, "timeline"):
             match node:
                 case schema.ClosedEvent():
                     match node.state_reason:
