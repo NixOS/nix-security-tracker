@@ -62,6 +62,13 @@ class GitHubItem(models.Model):
         }[self.Kind(self.kind)]
         return f"https://github.com/{self.owner}/{self.repository}/{path}/{self.number}"
 
+    @property
+    def state(self) -> "EventType":
+        latest = max(self.events.all(), key=lambda e: e.occurred_at, default=None)
+        if latest is None:
+            return EventType.ISSUE | EventType.OPENED
+        return EventType(latest.event_type)
+
     def add_events(self, events: Iterable["GitHubEvent"]) -> None:
         events = list(events)
         for event in events:
@@ -91,8 +98,8 @@ class NixpkgsIssue(TimeStampMixin):
         return self.code
 
     @property
-    def github_issue_url(self) -> str | None:
-        item = next(
+    def github_issue(self) -> GitHubItem | None:
+        return next(
             (
                 item
                 for item in self.github_items.all()
@@ -100,6 +107,10 @@ class NixpkgsIssue(TimeStampMixin):
             ),
             None,
         )
+
+    @property
+    def github_issue_url(self) -> str | None:
+        item = self.github_issue
         return item.url if item else None
 
     @property

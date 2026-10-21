@@ -1,7 +1,8 @@
+from django.utils import timezone
 from playwright.sync_api import Page, expect
 from pytest_django.live_server_helper import LiveServer
 
-from shared.models.issue import GitHubItem, NixpkgsIssue
+from shared.models.issue import EventType, GitHubItem, NixpkgsIssue
 
 from .routes import ISSUE_DETAIL
 
@@ -51,3 +52,41 @@ def test_issue_detail_not_found(
 ) -> None:
     page.goto(live_server.url + ISSUE_DETAIL + "/NIXPKGS-2099-9999")
     expect(page.get_by_text("Issue not found.")).to_be_visible()
+
+
+def test_issue_detail_shows_closed_github_issue(
+    live_server: LiveServer,
+    page: Page,
+    issue: NixpkgsIssue,
+) -> None:
+    item = issue.github_items.create(
+        owner="NixOS",
+        repository="nixpkgs",
+        number=1,
+        kind=GitHubItem.Kind.ISSUE,
+    )
+    item.events.create(
+        event_type=EventType.ISSUE | EventType.CLOSED | EventType.COMPLETED,
+        occurred_at=timezone.now(),
+    )
+    page.goto(live_server.url + ISSUE_DETAIL + f"/{issue.code}")
+    expect(
+        page.get_by_test_id(f"issue-{issue.code}-github-state")
+    ).to_have_accessible_name("Closed (completed)")
+
+
+def test_issue_detail_shows_unsynced_github_issue_as_open(
+    live_server: LiveServer,
+    page: Page,
+    issue: NixpkgsIssue,
+) -> None:
+    issue.github_items.create(
+        owner="NixOS",
+        repository="nixpkgs",
+        number=1,
+        kind=GitHubItem.Kind.ISSUE,
+    )
+    page.goto(live_server.url + ISSUE_DETAIL + f"/{issue.code}")
+    expect(
+        page.get_by_test_id(f"issue-{issue.code}-github-state")
+    ).to_have_accessible_name("Open")

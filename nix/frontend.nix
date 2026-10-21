@@ -18,7 +18,7 @@ buildNpmPackage (finalAttrs: {
       fileset = intersection (gitTracked ../.) ../frontend;
     };
 
-  npmDepsHash = "sha256-V7sAPp9o/E6GK1DZlvUJXJVspqoa3rP38Itt8JbT2kA=";
+  npmDepsHash = "sha256-pqH6CTIRECHlp+spcBFOJbkVys/Gpt6+uXQfeJqD89E=";
 
   # Biome is used by the build scripts (lint check before build)
   nativeBuildInputs = [ biome ];

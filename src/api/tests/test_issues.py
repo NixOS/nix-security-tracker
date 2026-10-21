@@ -1,12 +1,14 @@
 from collections.abc import Callable
 from datetime import timedelta
 
+from django.db import connection
+from django.test.utils import CaptureQueriesContext
 from django.utils import timezone
 from rest_framework.reverse import reverse
 from rest_framework.test import APIClient
 
 from shared.models.cve import Container
-from shared.models.issue import GitHubItem, NixpkgsIssue
+from shared.models.issue import EventType, GitHubItem, NixpkgsIssue
 
 
 def list_url() -> str:
@@ -149,3 +151,55 @@ def test_issue_detail_only_lists_its_own_suggestions(
     ids = response.data["suggestions"]
     assert ids == [s.pk for s in issue1.suggestions.all()]
     assert not set(ids) & {s.pk for s in issue2.suggestions.all()}
+
+
+def test_issue_detail_github_issue_state(
+    make_issue: Callable[..., NixpkgsIssue],
+) -> None:
+    client = APIClient()
+    issue = make_issue()
+    item = issue.github_items.create(
+        owner="NixOS",
+        repository="nixpkgs",
+        number=1,
+        kind=GitHubItem.Kind.ISSUE,
+    )
+    item.events.create(
+        event_type=EventType.ISSUE | EventType.CLOSED | EventType.COMPLETED,
+        occurred_at=timezone.now(),
+    )
+
+    response = client.get(detail_url(issue.code))
+    assert response.status_code == 200
+    assert response.data["github_issue_state"] == ["ISSUE", "CLOSED", "COMPLETED"]
+
+
+def test_list_issues_query_count_independent_of_issue_count(
+    make_container: Callable[..., Container],
+    make_issue: Callable[..., NixpkgsIssue],
+) -> None:
+    client = APIClient()
+
+    def add_closed_issue(number: int) -> None:
+        issue = make_issue(container=make_container(cve_id=f"CVE-2025-{1000 + number}"))
+        item = issue.github_items.create(
+            owner="NixOS",
+            repository="nixpkgs",
+            number=number,
+            kind=GitHubItem.Kind.ISSUE,
+        )
+        item.events.create(
+            event_type=EventType.ISSUE | EventType.CLOSED | EventType.COMPLETED,
+            occurred_at=timezone.now(),
+        )
+
+    def count_queries() -> int:
+        with CaptureQueriesContext(connection) as queries:
+            assert client.get(list_url()).status_code == 200
+        return len(queries)
+
+    add_closed_issue(1)
+    one = count_queries()
+    add_closed_issue(2)
+    add_closed_issue(3)
+    assert count_queries() == one

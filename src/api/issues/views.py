@@ -41,7 +41,7 @@ class IssueViewSet(ListModelMixin, RetrieveModelMixin, viewsets.GenericViewSet):
             NixpkgsIssue.objects.prefetch_related(
                 "suggestions__cached",
                 "suggestions__cve__container__references__tags",
-                "github_items",
+                "github_items__events",
             )
             .order_by("-created_at")
             .distinct()
