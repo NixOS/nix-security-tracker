@@ -26,7 +26,7 @@ from shared.models.cve import (
     Tag,
     Version,
 )
-from shared.models.issue import NixpkgsIssue
+from shared.models.issue import EventType, GitHubItem, NixpkgsIssue
 from shared.models.linkage import (
     CVEDerivationClusterProposal,
     DerivationClusterProposalLink,
@@ -475,6 +475,30 @@ def make_issue(
 @pytest.fixture
 def issue(make_issue: Callable[..., NixpkgsIssue]) -> NixpkgsIssue:
     return make_issue()
+
+
+@pytest.fixture
+def make_github_item(db: None) -> Callable[..., GitHubItem]:
+    def wrapped(
+        number: int,
+        kind: GitHubItem.Kind,
+        *events: EventType,
+    ) -> GitHubItem:
+        item = GitHubItem.objects.create(
+            owner="NixOS",
+            repository="nixpkgs",
+            number=number,
+            kind=kind,
+        )
+        now = timezone.now()
+        for age, event_type in enumerate(reversed(events)):
+            item.events.create(
+                event_type=event_type,
+                occurred_at=now - timedelta(days=age),
+            )
+        return item
+
+    return wrapped
 
 
 @pytest.fixture

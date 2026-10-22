@@ -564,6 +564,9 @@ SPECTACULAR_SETTINGS = {
     "ENUM_NAME_OVERRIDES": {
         "IssueStatusEnum": "shared.models.issue.IssueStatus",
         "SuggestionStatusEnum": "shared.models.linkage.SuggestionStatus",
+        "SharedValueStateEnum": "shared.models.linkage.SharedValueState",
+        "GithubIssueStateEnum": "api.issues.serializers.GITHUB_ISSUE_STATES",
+        "GithubPullRequestStateEnum": "api.issues.serializers.GITHUB_PULL_REQUEST_STATES",
     },
 }
 
