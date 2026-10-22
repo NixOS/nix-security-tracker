@@ -90,7 +90,7 @@ export function Issue({
           </div>
         )}
         {viewMode === "collapsed" && (
-          <div className="row gap centered">
+          <div className="row gap align-start">
             <div className="row gap-small">
               {github_issue_state && (
                 <GitHubIssueState

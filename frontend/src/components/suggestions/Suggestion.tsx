@@ -79,8 +79,8 @@ export function Suggestion({
         dashed={dimmed}
         testId={`suggestion-${id}-collapsed`}
       >
-        <div className="row gap centered">
-          <div data-testid={`suggestion-${id}-status`} className="contents">
+        <div className="row gap align-start">
+          <div data-testid={`suggestion-${id}-status`} className="row centered" style="height: 1lh;">
             <SuggestionStatus status={status} rejectionReason={rejection_reason} iconOnly />
           </div>
           {displayedTitle && <div>{displayedTitle}</div>}
