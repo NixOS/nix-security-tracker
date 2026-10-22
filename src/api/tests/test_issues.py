@@ -9,6 +9,7 @@ from rest_framework.test import APIClient
 
 from shared.models.cve import Container
 from shared.models.issue import EventType, GitHubItem, NixpkgsIssue
+from shared.models.linkage import CVEDerivationClusterProposal
 
 
 def list_url() -> str:
@@ -203,3 +204,39 @@ def test_list_issues_query_count_independent_of_issue_count(
     add_closed_issue(2)
     add_closed_issue(3)
     assert count_queries() == one
+
+
+def test_issue_detail_title_falls_back_to_sole_suggestion(
+    make_container: Callable[..., Container],
+    make_cached_suggestion: Callable[..., CVEDerivationClusterProposal],
+) -> None:
+    """
+    Issues published before bundling have no title of their own.
+    """
+    client = APIClient()
+    suggestion = make_cached_suggestion(
+        container=make_container(title="Suggestion title"),
+        status=CVEDerivationClusterProposal.Status.PUBLISHED,
+    )
+    issue = NixpkgsIssue.create_nixpkgs_issue([suggestion], title="")
+
+    response = client.get(detail_url(issue.code))
+    assert response.data["title"] == "Suggestion title"
+
+
+def test_issue_detail_title_falls_back_to_sole_suggestion_description(
+    make_container: Callable[..., Container],
+    make_cached_suggestion: Callable[..., CVEDerivationClusterProposal],
+) -> None:
+    client = APIClient()
+    suggestion = make_cached_suggestion(
+        container=make_container(
+            title=None,
+            description="Some description",
+        ),
+        status=CVEDerivationClusterProposal.Status.PUBLISHED,
+    )
+    issue = NixpkgsIssue.create_nixpkgs_issue([suggestion], title="")
+
+    response = client.get(detail_url(issue.code))
+    assert response.data["title"] == "Some description"
