@@ -1,0 +1,70 @@
+.input {
+  border: none;
+  outline: none;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  padding: 0;
+  width: 10ch;
+}
+
+.trigger,
+.navigation {
+  border: none;
+  background: none;
+  color: inherit;
+  font: inherit;
+  padding: 0;
+  display: flex;
+}
+
+.content {
+  z-index: 100;
+  outline: none;
+}
+
+.viewControl {
+  margin-bottom: 0.5em;
+}
+
+.weekDay {
+  font-weight: normal;
+  color: var(--gray);
+}
+
+.cell {
+  display: block;
+  width: 100%;
+  border: none;
+  background: none;
+  color: inherit;
+  font: inherit;
+  padding: 0.3em 0.5em;
+  text-align: center;
+}
+
+.cell[data-outside-range] {
+  color: var(--gray);
+}
+
+.cell[data-disabled] {
+  color: var(--light-gray);
+  cursor: not-allowed;
+}
+
+.cell[data-today] {
+  font-weight: bold;
+}
+
+.cell[data-in-range] {
+  background-color: var(--light-gray);
+}
+
+.cell[data-selected] {
+  background-color: var(--nixos-blue);
+  color: white;
+}
+
+.cell:not([data-disabled]):hover {
+  outline: 1px solid var(--nixos-blue);
+}

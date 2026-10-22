@@ -6,6 +6,7 @@ lint.ignore = [
   "E501", # line too long
   "ANN401" # Dynamically typed expressions (typing.Any) are disallowed
 ]
+lint.pep8-naming.classmethod-decorators = ["django.utils.functional.classproperty"]
 exclude = ["src/shared/migrations/*.py"] # auto-generated code
 
 [tool.commitizen]

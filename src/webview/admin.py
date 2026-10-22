@@ -7,7 +7,7 @@ from django.contrib import admin
 from django.db import models
 from django.db.models import CharField, ForeignKey, ManyToManyField, TextField
 
-from shared.models import Container, NixDerivationMeta, NixpkgsEvent, NixpkgsIssue
+from shared.models import Container, NixDerivationMeta, NixpkgsIssue
 from shared.models.linkage import (
     DerivationClusterProposalLink,
 )
@@ -131,15 +131,16 @@ class ContainerAdmin(ReadOnlyMixin, AutocompleteMixin, admin.ModelAdmin):
         return queryset, use_distinct
 
 
-class NixpkgsEventInline(admin.TabularInline):
-    model = NixpkgsEvent
+class GitHubItemInline(admin.TabularInline):
+    model = NixpkgsIssue.github_items.through
     extra = 0
 
 
 @admin.register(NixpkgsIssue)
 class NixpkgsIssueAdmin(AutocompleteMixin, admin.ModelAdmin):
     readonly_fields = ["code"]
-    inlines = [NixpkgsEventInline]
+    exclude = ["github_items"]
+    inlines = [GitHubItemInline]
 
 
 admin.site.register(DerivationClusterProposalLink)

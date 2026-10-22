@@ -3,8 +3,10 @@ from collections.abc import Callable
 from rest_framework.reverse import reverse
 from rest_framework.test import APIClient
 
+from shared.listeners.automatic_linkage import refresh_suggestion_derivation_links
 from shared.models.issue import NixpkgsIssue
 from shared.models.linkage import CVEDerivationClusterProposal
+from shared.models.nix_evaluation import NixEvaluation
 
 
 def test_detail_activity_log_null_by_default(
@@ -98,3 +100,48 @@ def test_issue_list_expanded_suggestions_inline_activity_log(
     suggestions = response.data["results"][0]["suggestions"]
     assert isinstance(suggestions[0]["activity_log"], list)
     assert len(suggestions[0]["activity_log"]) >= 1
+
+
+def test_rematch_appears_in_activity_log(
+    cached_suggestion: CVEDerivationClusterProposal,
+    client: APIClient,
+) -> None:
+    """
+    A rematch call must be visible in the activity log so API consumers
+    can track algorithm reruns without reading server logs.
+    """
+    refresh_suggestion_derivation_links(cached_suggestion)
+    response = client.get(
+        reverse(
+            "cvederivationclusterproposal-detail",
+            kwargs={"pk": cached_suggestion.pk},
+        ),
+        {"activity_log": "true"},
+    )
+    assert response.status_code == 200
+    rematch = next(e for e in response.data["activity_log"] if e["action"] == "rematch")
+    assert rematch["username"] is None
+
+
+def test_rematch_dismissal_is_not_attributed_to_anyone(
+    cached_suggestion: CVEDerivationClusterProposal,
+    make_evaluation: Callable[..., NixEvaluation],
+    client: APIClient,
+) -> None:
+    make_evaluation()
+    refresh_suggestion_derivation_links(cached_suggestion)
+    response = client.get(
+        reverse(
+            "cvederivationclusterproposal-detail",
+            kwargs={"pk": cached_suggestion.pk},
+        ),
+        {"activity_log": "true"},
+    )
+    assert response.status_code == 200
+    dismissal = next(
+        e
+        for e in response.data["activity_log"]
+        if e["action"] == "update"
+        and e["status_value"] == CVEDerivationClusterProposal.Status.REJECTED
+    )
+    assert dismissal["username"] is None

@@ -1,0 +1,16 @@
+.pill {
+  padding: 0.35em 0.8em;
+  width: fit-content;
+}
+
+.clear {
+  border: none;
+  background: none;
+  color: inherit;
+  padding: 0;
+  display: flex;
+}
+
+.clear:disabled {
+  visibility: hidden;
+}

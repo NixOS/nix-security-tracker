@@ -1,0 +1,22 @@
+.trigger {
+  border: none;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  padding: 0;
+  outline: none;
+}
+
+.content {
+  z-index: 100;
+  outline: none;
+}
+
+.item {
+  padding: 0.3em 1em;
+  outline: none;
+}
+
+.item[data-highlighted] {
+  background-color: var(--light-gray);
+}

@@ -18,7 +18,7 @@ buildNpmPackage (finalAttrs: {
       fileset = intersection (gitTracked ../.) ../frontend;
     };
 
-  npmDepsHash = "sha256-324U+b1AXgR/uSg6seOUBXl7eu+9ooNrd3Oxkjlb81I=";
+  npmDepsHash = "sha256-pqH6CTIRECHlp+spcBFOJbkVys/Gpt6+uXQfeJqD89E=";
 
   # Biome is used by the build scripts (lint check before build)
   nativeBuildInputs = [ biome ];
@@ -38,6 +38,15 @@ buildNpmPackage (finalAttrs: {
   '';
 
   passthru.dependencies = finalAttrs.finalPackage.overrideAttrs {
+    src = lib.fileset.toSource {
+      root = ../frontend;
+      fileset = lib.fileset.unions [
+        ../frontend/package.json
+        ../frontend/package-lock.json
+        ../frontend/.npmrc
+      ];
+    };
+    preBuild = "";
     dontBuild = true;
     installPhase = ''
       mkdir $out

@@ -55,21 +55,13 @@ class MockGithubOrganization:
         return self.teams[slug]
 
 
-class MockGithubIssue:
-    @property
-    def html_url(self) -> str:
-        # This is called internally to display the URL of a newly published issue.
-        # For testing purposes we don't care about the exact string.
-        return "mock"
-
-
 class MockGithubRepo:
     def __init__(self, name: str, expected_issue_title: str) -> None:
         self.name = name
         self.expected_issue_title = expected_issue_title
         self.created_issues: list[dict[str, Any]] = []
 
-    def create_issue(self, title: str, body: str, labels: list[str]) -> MockGithubIssue:
+    def create_issue(self, title: str, body: str, labels: list[str]) -> None:
         # FIXME(@fricklerhandwerk): We shouldn't do assertions here, but it's too much to tear apart now. [ref:todo-github-connection]
         # NOTE(@fricklerhandwerk): This unfortunately does part of the testing for [ref:test-github-create_issue-title] and [ref:test-github-create_issue-description].
         if self.expected_issue_title:
@@ -77,7 +69,6 @@ class MockGithubRepo:
                 f"Expected issue title '{self.expected_issue_title}', got '{title}'"
             )
         self.created_issues.append({"title": title, "body": body, "labels": labels})
-        return MockGithubIssue()
 
 
 class MockGithub:

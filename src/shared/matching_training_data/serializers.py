@@ -19,6 +19,7 @@ from rest_framework import serializers
 
 from shared import models
 from shared.evaluation import DerivationKey, derivation_as_key
+from shared.package_clustering import cluster_packages
 
 SCHEMA_VERSION = 1
 
@@ -415,10 +416,20 @@ class CVEDerivationClusterProposal(serializers.ModelSerializer):
         if link_objs:
             models.DerivationClusterProposalLink.objects.bulk_create(link_objs)
 
+        # Overlays refer to packages, so the imported derivations need to be
+        # clustered into packages first, as it happens on evaluation ingestion.
+        cluster_packages(
+            models.NixDerivation.objects.filter(
+                pk__in=[drv.pk for drv in by_fingerprint.values()]
+            )
+        )
         for overlay in overlays_data:
             models.PackageOverlay.objects.create(
                 suggestion=proposal,
                 package_attribute=overlay["package_attribute"],
+                package=models.PackageAttrpath.objects.get(
+                    attrpath=overlay["package_attribute"]
+                ).package,
                 type=overlay["type"],
             )
 

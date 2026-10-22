@@ -407,28 +407,38 @@ def test_concurrent_attrpath_consistency(
     assert PackageDerivation.objects.get(derivation=drv_b).package == pkg
 
 
+@pytest.mark.parametrize(
+    "homepage_foo, homepage_bar",
+    [
+        pytest.param("https://foo.example", None, id="removed"),
+        pytest.param(None, "https://bar.example", id="added"),
+        pytest.param("https://foo.example", "https://bar.example", id="changed"),
+    ],
+)
 def test_homepage_change_within_batch(
     make_drv: Callable[..., NixDerivation],
+    homepage_foo: str | None,
+    homepage_bar: str | None,
 ) -> None:
     """
     Packages are identified by (pname, homepage).
-    The following setup will produce two distinct packages, where one of them has an empty homepage.
-    If the other one's homepage gets cleared, we still don't want them to be considered equal.
+    The following setup will produce two distinct packages with the same name.
+    If one of them gets the other one's homepage, we still don't want them to be considered equal.
 
-    The workaround in that case is not to clear the homepage.
+    The workaround in that case is not to update the homepage.
     """
     drv_old = make_drv(
         pname="foo",
         attribute="foo",
         description="Something",
-        homepage="https://example.org",
+        homepage=homepage_foo,
     )
 
     drv_new = make_drv(
         pname="foo",
         attribute="bar",
         description="Something completely different",
-        homepage=None,
+        homepage=homepage_bar,
     )
     drv_new.derivation_path = "custom"
     drv_new.save()
@@ -441,20 +451,13 @@ def test_homepage_change_within_batch(
     assert Package.objects.count() == 2
 
     # This clustering update amounts to:
-    # "Package `pkgs.foo` got its homepage removed."
+    # "Package `pkgs.foo` got the homepage of `pkgs.bar`."
     drv_next = make_drv(
         pname="foo",
         attribute="foo",
         description="Something new",
-        homepage=None,
+        homepage=homepage_bar,
     )
-
-    # FIXME(@fricklerhandwerk): Handle the inverse, too, somehow:
-    # drv_next = make_drv(
-    #     pname="foo",
-    #     attribute="bar",
-    #     homepage="https://example.org",
-    # )
 
     cluster_packages(
         NixDerivation.objects.filter(pk=drv_next.pk),
@@ -463,5 +466,5 @@ def test_homepage_change_within_batch(
 
     assert Package.objects.count() == 2
     pkg = PackageDerivation.objects.get(derivation=drv_next).package
-    assert pkg.homepage == "https://example.org"
+    assert pkg.homepage == homepage_foo
     assert pkg.description == "Something new"

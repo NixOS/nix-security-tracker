@@ -19,7 +19,7 @@ class CachedSuggestions(TimeStampMixin):
     objects = CachedSuggestionsQuerySet.as_manager()
 
     @classproperty
-    def CURRENT_SCHEMA_VERSION(cls) -> int:  # noqa: N802, N805
+    def CURRENT_SCHEMA_VERSION(cls) -> int:  # noqa: N802
         return 6
 
     proposal = models.OneToOneField(

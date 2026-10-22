@@ -247,6 +247,7 @@ in
       nix-security-tracker-backfill-package-links.wantedBy = lib.mkForce [ ];
       nix-security-tracker-fetch-all-channels.startAt = lib.mkForce [ ];
       nix-security-tracker-delta.startAt = lib.mkForce [ ];
+      nix-security-tracker-github-events.startAt = lib.mkForce [ ];
       nix-security-tracker-garbage-collection.startAt = lib.mkForce [ ];
 
       # The Nixpkgs checkout directory is shared by the host, systemd cannot chown it.
@@ -254,6 +255,9 @@ in
       nix-security-tracker-checkout.serviceConfig.StateDirectory = lib.mkForce [
         "nix-security-tracker"
       ];
+
+      # Suspending the VM for a longer period will kill `systemd-journald` as stuck because it doesn't report to the watchdog service during that time.
+      systemd-journald.serviceConfig.WatchdogSec = 0;
 
       # Run service from local source, to enable auto-reload.
       nix-security-tracker-server = {
@@ -326,6 +330,16 @@ in
 
       "serial-getty@ttyS0" = {
         after = [ "nix-security-tracker-server-ready.service" ];
+      };
+
+      # Each inode cached by the guest pins an open file descriptor in the unprivileged host-side virtiofs daemon.
+      # With ample guest memory the cache is rarely reclaimed, until the daemon runs out of descriptors.
+      drop-inode-cache = {
+        startAt = "hourly";
+        serviceConfig.Type = "oneshot";
+        script = ''
+          echo 2 > /proc/sys/vm/drop_caches
+        '';
       };
     };
 

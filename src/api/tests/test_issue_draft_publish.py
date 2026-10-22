@@ -25,7 +25,7 @@ def test_publish_issue_draft_bundles_all_suggestions(
 ) -> None:
     """Publishing the issue draft creates a single issue for all bundled suggestions."""
     mock_issue = mocker.Mock()
-    mock_issue.html_url = "https://github.com/NixOS/nixpkgs/issues/1234"
+    mock_issue.number = 1234
     mock_create = mocker.patch("shared.github.create_gh_issue", return_value=mock_issue)
 
     container1 = make_container(cve_id="CVE-2025-0001")

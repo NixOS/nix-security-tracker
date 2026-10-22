@@ -1,4 +1,5 @@
 import logging
+from collections.abc import Iterable
 from enum import STRICT, IntFlag, auto
 from typing import Any
 from urllib.parse import urljoin
@@ -33,6 +34,49 @@ class IssueStatus(models.TextChoices):
 NIXPKGS_ISSUE_CODE_REGEX = r"NIXPKGS-[0-9]{4}-[0-9]{4,19}"
 
 
+class GitHubItem(models.Model):
+    class Kind(models.TextChoices):
+        # GitHub's own type names, as its API reports them.
+        ISSUE = "Issue", _("issue")
+        PULL_REQUEST = "PullRequest", _("pull request")
+
+    owner = models.CharField(max_length=255)
+    repository = models.CharField(max_length=255)
+    # Issues and pull requests share one number sequence per repository.
+    number = models.PositiveIntegerField()
+    kind = models.CharField(max_length=64, choices=Kind.choices)
+
+    class Meta:  # type: ignore[override]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["owner", "repository", "number"],
+                name="githubitem_unique",
+            ),
+        ]
+
+    @property
+    def url(self) -> str:
+        path = {
+            self.Kind.ISSUE: "issues",
+            self.Kind.PULL_REQUEST: "pull",
+        }[self.Kind(self.kind)]
+        return f"https://github.com/{self.owner}/{self.repository}/{path}/{self.number}"
+
+    @property
+    def state(self) -> "EventType":
+        latest = max(self.events.all(), key=lambda e: e.occurred_at, default=None)
+        if latest is None:
+            return EventType.ISSUE | EventType.OPENED
+        return EventType(latest.event_type)
+
+    def add_events(self, events: Iterable["GitHubEvent"]) -> None:
+        events = list(events)
+        for event in events:
+            event.item = self
+            event.clean_fields(exclude=["item"])
+        GitHubEvent.objects.bulk_create(events, ignore_conflicts=True)
+
+
 class NixpkgsIssue(TimeStampMixin):
     """The Nixpkgs version of a cve."""
 
@@ -48,13 +92,26 @@ class NixpkgsIssue(TimeStampMixin):
         default=IssueStatus.UNKNOWN,
     )
 
+    github_items = models.ManyToManyField(GitHubItem, related_name="nixpkgs_issues")
+
     def __str__(self) -> str:
         return self.code
 
     @property
+    def github_issue(self) -> GitHubItem | None:
+        return next(
+            (
+                item
+                for item in self.github_items.all()
+                if item.kind == GitHubItem.Kind.ISSUE
+            ),
+            None,
+        )
+
+    @property
     def github_issue_url(self) -> str | None:
-        event = next(iter(self.events.all()), None)
-        return event.url if event else None
+        item = self.github_issue
+        return item.url if item else None
 
     @property
     def status_string(self) -> str:
@@ -104,16 +161,19 @@ class NixpkgsIssue(TimeStampMixin):
         if not suggestions:
             raise ValueError("Cannot publish a NixpkgsIssue with no suggestions")
 
-        github_issue_link = create_gh_issue(
+        github_issue = create_gh_issue(
             [s.cached for s in suggestions],
             self.title,
             tracker_issue_link,
-        ).html_url
+        )
 
-        NixpkgsEvent.objects.create(
-            issue=self,
-            event_type=EventType.ISSUE | EventType.OPENED,
-            url=github_issue_link,
+        self.github_items.add(
+            GitHubItem.objects.create(
+                owner=settings.GH_ORGANIZATION,
+                repository=settings.GH_ISSUES_REPO,
+                number=github_issue.number,
+                kind=GitHubItem.Kind.ISSUE,
+            )
         )
 
     @classmethod
@@ -200,12 +260,42 @@ class EventType(IntFlag, boundary=STRICT):
             raise ValidationError(f"Invalid event type: 0b{value:b}")
 
 
-class NixpkgsEvent(TimeStampMixin):
-    issue = models.ForeignKey(
-        NixpkgsIssue, on_delete=models.CASCADE, related_name="events"
+class GitHubEvent(models.Model):
+    item = models.ForeignKey(
+        GitHubItem, on_delete=models.CASCADE, related_name="events"
     )
     event_type = models.IntegerField(validators=[EventType.validator])
-    url = models.URLField()
+
+    created_at = models.DateTimeField(auto_now_add=True)
+    # When the event happened on GitHub, as opposed to when it was recorded here.
+    occurred_at = models.DateTimeField()
+
+    class Meta:  # type: ignore[override]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["item", "event_type", "occurred_at"],
+                name="githubevent_unique",
+            ),
+        ]
+
+
+class GitHubSyncError(models.Model):
+    item = models.ForeignKey(
+        GitHubItem, on_delete=models.CASCADE, related_name="sync_errors"
+    )
+    error_type = models.CharField(max_length=64)
+    message = models.TextField()
+
+    first_seen = models.DateTimeField(auto_now_add=True)
+    last_seen = models.DateTimeField(auto_now=True)
+
+    class Meta:  # type: ignore[override]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["item", "error_type"],
+                name="githubsyncerror_unique",
+            ),
+        ]
 
 
 class NixpkgsAdvisory(models.Model):

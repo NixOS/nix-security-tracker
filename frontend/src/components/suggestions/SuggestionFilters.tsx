@@ -3,6 +3,7 @@ import type { ListSuggestionsStatusItem } from "@/api/generated/models";
 import { ListSuggestionsStatusItem as Status } from "@/api/generated/models";
 import { PillToggleGroup, type ToggleGroupOption } from "@/components/ui/PillToggleGroup";
 import type { SuggestionListFilters } from "@/hooks/useSuggestionListFilters";
+import { DateRangeFilterInput } from "./DateRangeFilterInput";
 import { PackageFilterInput } from "./PackageFilterInput";
 import { statusLabel } from "./SuggestionStatus";
 import { SuggestionStatusIcon } from "./SuggestionStatusIcon";
@@ -45,6 +46,7 @@ type Props = {
   setStatuses: (statuses: ListSuggestionsStatusItem[]) => void;
   setInIssueDraft: (inIssueDraft: boolean) => void;
   setPackageFilter: (packageFilter: string) => void;
+  setCreatedAtRange: (after: string, before: string) => void;
 };
 
 /**
@@ -68,25 +70,33 @@ export function SuggestionFilters({
   setStatuses,
   setInIssueDraft,
   setPackageFilter,
+  setCreatedAtRange,
 }: Props) {
   const toggleValue = filters.inIssueDraft
     ? [...filters.statuses, ISSUE_DRAFT_VALUE]
     : filters.statuses;
 
   return (
-    <div className="row gap row-gap-big wrap align-center" data-testid="suggestion-filters">
-      <PillToggleGroup
-        value={toggleValue}
-        options={TOGGLE_OPTIONS}
-        onItemClick={(value, event) => {
-          const next = nextToggleSelection(toggleValue, value, event);
-          setInIssueDraft(next.includes(ISSUE_DRAFT_VALUE));
-          setStatuses(next.filter((v) => v !== ISSUE_DRAFT_VALUE) as ListSuggestionsStatusItem[]);
-        }}
-      />
-      <PackageFilterInput
-        packageFilter={filters.packageFilter}
-        setPackageFilter={setPackageFilter}
+    <div className="column gap" data-testid="suggestion-filters">
+      <div className="row gap row-gap-big wrap align-center">
+        <PillToggleGroup
+          value={toggleValue}
+          options={TOGGLE_OPTIONS}
+          onItemClick={(value, event) => {
+            const next = nextToggleSelection(toggleValue, value, event);
+            setInIssueDraft(next.includes(ISSUE_DRAFT_VALUE));
+            setStatuses(next.filter((v) => v !== ISSUE_DRAFT_VALUE) as ListSuggestionsStatusItem[]);
+          }}
+        />
+        <PackageFilterInput
+          packageFilter={filters.packageFilter}
+          setPackageFilter={setPackageFilter}
+        />
+      </div>
+      <DateRangeFilterInput
+        createdAtAfter={filters.createdAtAfter}
+        createdAtBefore={filters.createdAtBefore}
+        setCreatedAtRange={setCreatedAtRange}
       />
     </div>
   );

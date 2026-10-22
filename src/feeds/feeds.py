@@ -7,7 +7,8 @@ from django.contrib.syndication.views import Feed
 from django.core.exceptions import ObjectDoesNotExist
 from django.template.defaultfilters import truncatewords
 from django.utils.feedgenerator import Atom1Feed
-from django.utils.safestring import SafeText, mark_safe
+from django.utils.html import format_html, format_html_join
+from django.utils.safestring import SafeString
 
 from shared.logs.events import (
     RawCreationEvent,
@@ -86,10 +87,10 @@ class PackageFeed(Feed):
             )  # We exclude auto-dismiss events
         ]
 
-    def item_title(self, item: Any) -> SafeText:
+    def item_title(self, item: Any) -> str:  # type: ignore[override]  # base pre-escapes, we leave escaping to the XML writer
         fi = cast(FeedItem, item)
         cve_id = fi.suggestion.cve.cve_id
-        return mark_safe(f"{cve_id}: {_describe_event(fi.event)}")
+        return f"{cve_id}: {_describe_event(fi.event)}"
 
     # Item links are used as ids by default but several feed items (events) can share the same suggestion, hence link.
     # We define item ids based on suggestion id, event type, and timestamp.
@@ -108,21 +109,26 @@ class PackageFeed(Feed):
         fi = cast(FeedItem, item)
         return f"/suggestions/by-id/{fi.suggestion.pk}"
 
-    def item_description(self, item: Any) -> str:
+    # NOTE(@florentc): Atom summaries are emitted by Django with type="html", so feed
+    # readers unescape and render them as markup. Every value interpolated here comes from
+    # ingested upstream CVE records and must be escaped with format_html to avoid injection.
+    def item_description(self, item: Any) -> SafeString:
         fi = cast(FeedItem, item)
         cve_id = fi.suggestion.cve.cve_id
-        cve_url = f"https://nvd.nist.gov/vuln/detail/{cve_id}"
+        cve_url = f"https://nvd.nist.gov/vuln/detail/{quote(cve_id, safe='')}"
+        payload = fi.suggestion.cached.payload
         cve_title = None
-        if fi.suggestion.cached.payload["title"]:
-            cve_title = fi.suggestion.cached.payload["title"]
-        elif fi.suggestion.cached.payload["description"]:
-            cve_title = truncatewords(fi.suggestion.cached.payload["description"], 10)
-        label = f"<strong>{_describe_event(fi.event)}</strong>"
-        parts = [f'<a href="{cve_url}">{cve_id}</a>']
+        if payload.get("title"):
+            cve_title = payload["title"]
+        elif payload.get("description"):
+            cve_title = truncatewords(payload["description"], 10)
+        parts: list[str] = [format_html('<a href="{}">{}</a>', cve_url, cve_id)]
         if cve_title:
             parts.append(cve_title)
-        parts.append(label)
-        return "<ul>" + "".join(f"<li>{p}</li>" for p in parts) + "</ul>"
+        parts.append(format_html("<strong>{}</strong>", _describe_event(fi.event)))
+        return format_html(
+            "<ul>{}</ul>", format_html_join("", "<li>{}</li>", ((p,) for p in parts))
+        )
 
     def item_pubdate(self, item: FeedItem) -> datetime:
         return item.event.timestamp

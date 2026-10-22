@@ -10,6 +10,7 @@ in
   imports = [
     sectracker.module
     ./common.nix
+    ./hetzner-cloud.nix
   ];
 
   networking.hostName = "sectracker";

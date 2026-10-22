@@ -11,6 +11,7 @@ from shared.logs.events import (
     RawMaintainerEvent,
     RawPackageEvent,
     RawReferenceEvent,
+    RawRematchEvent,
     RawStatusEvent,
     Reference,
     sort_events_chronologically,
@@ -65,12 +66,19 @@ class FoldedReferenceEvent(FoldedEvent):
     references: list[Reference]  # Always a list, even for single references
 
 
+class FoldedRematchEvent(FoldedEvent):
+    """A folded rematch event (always singular)."""
+
+    action: Literal["rematch"] = "rematch"
+
+
 FoldedEventType = (
     FoldedCreationEvent
     | FoldedStatusEvent
     | FoldedPackageEvent
     | FoldedMaintainerEvent
     | FoldedReferenceEvent
+    | FoldedRematchEvent
 )
 
 
@@ -153,7 +161,7 @@ def batch_events(
                     maintainers=[event.maintainer],
                 )
 
-        else:  # RawStatusEvent or other non-foldable events
+        else:  # RawStatusEvent, RawRematchEvent or other non-foldable events
             # Flush any accumulator
             if accumulator:
                 folded_events.append(accumulator)
@@ -171,7 +179,7 @@ def batch_events(
                     )
                 )
             # Add status event (always singular)
-            if isinstance(event, RawStatusEvent):
+            elif isinstance(event, RawStatusEvent):
                 folded_events.append(
                     FoldedStatusEvent(
                         suggestion_id=event.suggestion_id,
@@ -180,6 +188,14 @@ def batch_events(
                         action=event.action,
                         status_value=event.status_value,
                         rejection_reason=event.rejection_reason,
+                    )
+                )
+            elif isinstance(event, RawRematchEvent):
+                folded_events.append(
+                    FoldedRematchEvent(
+                        suggestion_id=event.suggestion_id,
+                        timestamp=event.timestamp,
+                        username=event.username,
                     )
                 )
 

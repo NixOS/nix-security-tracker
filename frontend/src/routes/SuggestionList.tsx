@@ -45,7 +45,8 @@ function suggestionMatchesFilters(
 export function SuggestionList() {
   const [searchParams, setSearchParams] = useSearchParams();
   const page = parsePage(searchParams);
-  const { filters, setStatuses, setInIssueDraft, setPackageFilter } = useSuggestionListFilters();
+  const { filters, setStatuses, setInIssueDraft, setPackageFilter, setCreatedAtRange } =
+    useSuggestionListFilters();
   const { viewMode, setViewMode } = useSuggestionListViewMode();
 
   const { data, isLoading, isError, error } = useListSuggestions({
@@ -53,6 +54,8 @@ export function SuggestionList() {
     status: filters.statuses.length > 0 ? filters.statuses : undefined,
     in_issue_draft: filters.inIssueDraft || undefined,
     package: filters.packageFilter || undefined,
+    created_at_after: filters.createdAtAfter || undefined,
+    created_at_before: filters.createdAtBefore || undefined,
     activity_log: true,
   });
 
@@ -60,6 +63,8 @@ export function SuggestionList() {
     filters.inIssueDraft &&
     filters.statuses.length === 0 &&
     !filters.packageFilter &&
+    !filters.createdAtAfter &&
+    !filters.createdAtBefore &&
     (data?.count ?? 0) > 0;
 
   const handlePageChange = (newPage: number) => {
@@ -83,6 +88,7 @@ export function SuggestionList() {
           setStatuses={setStatuses}
           setInIssueDraft={setInIssueDraft}
           setPackageFilter={setPackageFilter}
+          setCreatedAtRange={setCreatedAtRange}
         />
         <IssueDraftPanel open={showIssueDraftPanel} />
         <div className="row gap centered justify-right">

@@ -153,13 +153,18 @@ def test_cache_stale_check(
 
 
 def test_cache_description_from_package(
-    suggestion: CVEDerivationClusterProposal,
+    cve: Container,
+    drv: NixDerivation,
 ) -> None:
     """
     The cached payload must surface the description after clustering.
     """
-    drv = suggestion.derivations.first()
-    assert drv
+    suggestion = CVEDerivationClusterProposal.objects.create(cve=cve.cve)
+    DerivationClusterProposalLink.objects.create(
+        proposal=suggestion,
+        derivation=drv,
+        provenance_flags=ProvenanceFlags.PACKAGE_NAME_MATCH,
+    )
     assert drv.metadata
     expected_description = drv.metadata.description
 
@@ -223,13 +228,18 @@ def test_cache_skipped_without_title_or_description(
 
 
 def test_cache_description_falls_back_to_meta(
-    suggestion: CVEDerivationClusterProposal,
+    cve: Container,
+    drv: NixDerivation,
 ) -> None:
     """
     When no PackageDerivation exists, the cached payload falls back to NixDerivationMeta.description.
     """
-    drv = suggestion.derivations.first()
-    assert drv
+    suggestion = CVEDerivationClusterProposal.objects.create(cve=cve.cve)
+    DerivationClusterProposalLink.objects.create(
+        proposal=suggestion,
+        derivation=drv,
+        provenance_flags=ProvenanceFlags.PACKAGE_NAME_MATCH,
+    )
     assert drv.metadata
 
     cache_new_suggestions(suggestion)

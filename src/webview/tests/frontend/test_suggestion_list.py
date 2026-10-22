@@ -1,8 +1,9 @@
 import re
 from collections.abc import Callable
-from datetime import timedelta
+from datetime import datetime, timedelta
 from urllib.parse import urlencode
 
+import pytest
 from django.utils import timezone
 from playwright.sync_api import Page, expect
 from pytest_django.live_server_helper import LiveServer
@@ -328,3 +329,162 @@ def test_suggestion_list_shows_collapsed_card_after_mutation_stops_matching_filt
     expect(
         as_committer.get_by_test_id(f"suggestion-{suggestion.pk}-status-actions")
     ).to_have_count(0)
+
+
+@pytest.fixture
+def make_suggestion_created_on(
+    make_container: Callable[..., Container],
+    make_cached_suggestion: Callable[..., CVEDerivationClusterProposal],
+) -> Callable[[str, str], CVEDerivationClusterProposal]:
+    """Factory of cached suggestions whose creation date is `day` (YYYY-MM-DD), at noon local time."""
+
+    def _make(cve_id: str, day: str) -> CVEDerivationClusterProposal:
+        suggestion = make_cached_suggestion(container=make_container(cve_id=cve_id))
+        # `created_at` is auto_now_add, so it can only be backdated with a direct UPDATE.
+        created_at = timezone.make_aware(
+            datetime.strptime(day, "%Y-%m-%d").replace(hour=12)
+        )
+        CVEDerivationClusterProposal.objects.filter(pk=suggestion.pk).update(
+            created_at=created_at
+        )
+        suggestion.refresh_from_db()
+        return suggestion
+
+    return _make
+
+
+def select_date_filter_mode(page: Page, mode: str) -> None:
+    """Pick a creation date filtering mode (anytime/before/after/on/between)."""
+    page.get_by_role("combobox", name="Creation date filter mode").click()
+    page.get_by_role("option", name=mode, exact=True).click()
+
+
+def fill_day(page: Page, label: str, day: str) -> None:
+    """Type a day into a date picker input, which commits the value on Enter."""
+    # Exact match: the calendar trigger next to the input is labelled after it.
+    field = page.get_by_label(label, exact=True)
+    field.fill(day)
+    field.press("Enter")
+
+
+def test_suggestion_list_created_at_after_filter(
+    live_server: LiveServer,
+    page: Page,
+    make_suggestion_created_on: Callable[[str, str], CVEDerivationClusterProposal],
+) -> None:
+    """The "after" mode keeps the suggestions created on or after the picked day."""
+    old = make_suggestion_created_on("CVE-2026-3101", "2026-03-09")
+    recent = make_suggestion_created_on("CVE-2026-3102", "2026-03-11")
+
+    page.goto(live_server.url + SUGGESTION_LIST)
+    select_date_filter_mode(page, "after")
+    fill_day(page, "Created on or after", "2026-03-10")
+
+    expect(page.get_by_test_id(f"suggestion-{recent.pk}")).to_be_visible()
+    expect(page.get_by_test_id(f"suggestion-{old.pk}")).not_to_be_visible()
+    expect(page).to_have_url(re.compile(r"[?&]created_at_after=2026-03-10"))
+
+
+def test_suggestion_list_created_at_before_filter(
+    live_server: LiveServer,
+    page: Page,
+    make_suggestion_created_on: Callable[[str, str], CVEDerivationClusterProposal],
+) -> None:
+    """The "before" mode keeps the suggestions created on or before the picked day."""
+    old = make_suggestion_created_on("CVE-2026-3111", "2026-03-09")
+    recent = make_suggestion_created_on("CVE-2026-3112", "2026-03-11")
+
+    page.goto(live_server.url + SUGGESTION_LIST)
+    select_date_filter_mode(page, "before")
+    fill_day(page, "Created on or before", "2026-03-10")
+
+    expect(page.get_by_test_id(f"suggestion-{old.pk}")).to_be_visible()
+    expect(page.get_by_test_id(f"suggestion-{recent.pk}")).not_to_be_visible()
+    expect(page).to_have_url(re.compile(r"[?&]created_at_before=2026-03-10"))
+
+
+def test_suggestion_list_created_at_single_day(
+    live_server: LiveServer,
+    page: Page,
+    make_suggestion_created_on: Callable[[str, str], CVEDerivationClusterProposal],
+) -> None:
+    """The "on" mode selects the suggestions created that very day."""
+    before = make_suggestion_created_on("CVE-2026-3121", "2026-03-09")
+    matching = make_suggestion_created_on("CVE-2026-3122", "2026-03-10")
+    after = make_suggestion_created_on("CVE-2026-3123", "2026-03-11")
+
+    page.goto(live_server.url + SUGGESTION_LIST)
+    select_date_filter_mode(page, "on")
+    fill_day(page, "Created on", "2026-03-10")
+
+    expect(page.get_by_test_id(f"suggestion-{matching.pk}")).to_be_visible()
+    expect(page.get_by_test_id(f"suggestion-{before.pk}")).not_to_be_visible()
+    expect(page.get_by_test_id(f"suggestion-{after.pk}")).not_to_be_visible()
+
+
+def test_suggestion_list_created_at_between_filter(
+    live_server: LiveServer,
+    page: Page,
+    make_suggestion_created_on: Callable[[str, str], CVEDerivationClusterProposal],
+) -> None:
+    """The "between" mode selects the suggestions created within the inclusive range."""
+    before = make_suggestion_created_on("CVE-2026-3151", "2026-03-08")
+    matching = make_suggestion_created_on("CVE-2026-3152", "2026-03-10")
+    after = make_suggestion_created_on("CVE-2026-3153", "2026-03-13")
+
+    page.goto(live_server.url + SUGGESTION_LIST)
+    select_date_filter_mode(page, "between")
+    fill_day(page, "Created on or after", "2026-03-09")
+    # The first bound must have landed before the second is typed: committing a
+    # bound re-syncs both inputs from the URL.
+    expect(page).to_have_url(re.compile(r"[?&]created_at_after=2026-03-09"))
+    fill_day(page, "Created on or before", "2026-03-11")
+
+    expect(page.get_by_test_id(f"suggestion-{matching.pk}")).to_be_visible()
+    expect(page.get_by_test_id(f"suggestion-{before.pk}")).not_to_be_visible()
+    expect(page.get_by_test_id(f"suggestion-{after.pk}")).not_to_be_visible()
+
+
+def test_suggestion_list_created_at_deep_link_preselects_inputs(
+    live_server: LiveServer,
+    page: Page,
+    make_suggestion_created_on: Callable[[str, str], CVEDerivationClusterProposal],
+) -> None:
+    """Equal creation date bounds in the URL restore the "on" mode and its day."""
+    matching = make_suggestion_created_on("CVE-2026-3131", "2026-03-10")
+
+    query = urlencode(
+        {"created_at_after": "2026-03-10", "created_at_before": "2026-03-10"}
+    )
+    page.goto(live_server.url + SUGGESTION_LIST + "?" + query)
+
+    expect(page.get_by_test_id(f"suggestion-{matching.pk}")).to_be_visible()
+    expect(page.get_by_role("combobox", name="Creation date filter mode")).to_have_text(
+        "on"
+    )
+    expect(page.get_by_label("Created on", exact=True)).to_have_value("2026-03-10")
+
+
+def test_suggestion_list_created_at_clear_resets_both_bounds(
+    live_server: LiveServer,
+    page: Page,
+    make_suggestion_created_on: Callable[[str, str], CVEDerivationClusterProposal],
+) -> None:
+    """Clearing the creation date filter restores all results and the "anytime" mode."""
+    excluded = make_suggestion_created_on("CVE-2026-3141", "2026-03-09")
+    matching = make_suggestion_created_on("CVE-2026-3142", "2026-03-10")
+
+    query = urlencode(
+        {"created_at_after": "2026-03-10", "created_at_before": "2026-03-10"}
+    )
+    page.goto(live_server.url + SUGGESTION_LIST + "?" + query)
+    expect(page.get_by_test_id(f"suggestion-{excluded.pk}")).not_to_be_visible()
+
+    page.get_by_role("button", name="Clear creation date filter").click()
+
+    expect(page.get_by_test_id(f"suggestion-{excluded.pk}")).to_be_visible()
+    expect(page.get_by_test_id(f"suggestion-{matching.pk}")).to_be_visible()
+    expect(page.get_by_role("combobox", name="Creation date filter mode")).to_have_text(
+        "anytime"
+    )
+    expect(page.get_by_label("Created on", exact=True)).to_have_count(0)

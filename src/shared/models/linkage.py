@@ -1,3 +1,5 @@
+from collections.abc import Callable
+from copy import copy
 from enum import STRICT, IntFlag
 from typing import Any
 
@@ -15,7 +17,7 @@ from django.utils.translation import gettext_lazy as _
 import shared.models.cached
 from shared.models.cve import CveRecord, Reference
 from shared.models.nix_evaluation import NixDerivation, NixMaintainer, TimeStampMixin
-from shared.models.package import Package
+from shared.models.package import Package, PackageAttrpath
 
 
 class Overlay(models.Model):
@@ -38,6 +40,32 @@ class SuggestionStatus(models.TextChoices):
     REJECTED = "rejected", _("rejected")
     ACCEPTED = "accepted", _("accepted")
     PUBLISHED = "published", _("published")
+
+
+STATUS_TRANSITIONS: list[tuple[str, str]] = [
+    (SuggestionStatus.PENDING, SuggestionStatus.REJECTED),
+    (SuggestionStatus.PENDING, SuggestionStatus.ACCEPTED),
+    (SuggestionStatus.REJECTED, SuggestionStatus.ACCEPTED),
+    (SuggestionStatus.ACCEPTED, SuggestionStatus.REJECTED),
+    (SuggestionStatus.ACCEPTED, SuggestionStatus.PUBLISHED),
+]
+
+
+class BulkValidationError(Exception):
+    """
+    Raised when a bulk operation cannot be applied to every selected suggestion.
+
+    Carries the reason why, for each offending suggestion, or a single message when the
+    operation is refused because of the selection as a whole rather than because of any
+    particular suggestion.
+    """
+
+    def __init__(
+        self, errors: dict[int, dict[str, list[str]]], detail: str | None = None
+    ) -> None:
+        self.errors = errors
+        self.detail = detail
+        super().__init__(detail or "Some suggestions do not accept this operation")
 
 
 class CVEDerivationClusterProposalQuerySet(models.QuerySet):
@@ -78,8 +106,147 @@ class CVEDerivationClusterProposalQuerySet(models.QuerySet):
         """
         return self.exclude(status=CVEDerivationClusterProposal.Status.PENDING)
 
+    def _apply_to_each(
+        self,
+        check: "Callable[[CVEDerivationClusterProposal], None]",
+        apply: "Callable[[CVEDerivationClusterProposal], None]",
+        fresh_cache: bool = False,
+        check_selection: "Callable[[CVEDerivationClusterProposalQuerySet], None] | None" = None,
+    ) -> int:
+        """
+        Apply an operation to every selected suggestion, or to none of them.
+
+        The whole selection is checked first, so that an unapplicable operation is
+        reported for all the suggestions that refuse it rather than just the first
+        one, and so that nothing is written in that case.
+        """
+        with transaction.atomic():
+            if check_selection is not None:
+                check_selection(self)
+
+            suggestions = list(self)
+            if fresh_cache:
+                # NOTE(@florentc): We assume the cache is fresh most of the time.
+                # This should only rarely hold the transaction open for long.
+                for suggestion in suggestions:
+                    suggestion.ensure_fresh_cache()
+
+            errors = {}
+            for suggestion in suggestions:
+                try:
+                    check(suggestion)
+                except ValidationError as error:
+                    errors[suggestion.pk] = error.message_dict
+            if errors:
+                raise BulkValidationError(errors)
+
+            for suggestion in suggestions:
+                apply(suggestion)
+        return len(suggestions)
+
+    def change_status(
+        self,
+        status: SuggestionStatus,
+        rejection_reason: "CVEDerivationClusterProposal.RejectionReason | None" = None,
+        comment: str | None = None,
+    ) -> int:
+        """Move every selected suggestion to the given status."""
+        return self._apply_to_each(
+            lambda suggestion: suggestion.check_change_status(
+                status, rejection_reason, comment
+            ),
+            lambda suggestion: suggestion.change_status(
+                status, rejection_reason, comment
+            ),
+        )
+
+    def set_comment(self, comment: str | None) -> int:
+        """
+        Replace the comment every selected suggestion shares.
+
+        Refuses a selection whose suggestions say different things, so that a bulk edit
+        cannot silently overwrite comments the caller has not seen.
+        """
+
+        def check_shared_comment(
+            selection: "CVEDerivationClusterProposalQuerySet",
+        ) -> None:
+            shared_comments = {
+                existing or None
+                for existing in selection.values_list("comment", flat=True)
+            }
+            if len(shared_comments) > 1:
+                raise BulkValidationError(
+                    {},
+                    detail="The selected suggestions do not all hold the same comment, so replacing it would discard what sets them apart. Narrow the selection down to suggestions sharing a single comment.",
+                )
+
+        return self._apply_to_each(
+            lambda suggestion: None,
+            lambda suggestion: suggestion.set_comment(comment),
+            check_selection=check_shared_comment,
+        )
+
+    def set_in_issue_draft(self, in_issue_draft: bool) -> int:
+        """Add every selected suggestion to the issue draft, or remove them all."""
+        return self._apply_to_each(
+            lambda suggestion: suggestion.check_set_in_issue_draft(in_issue_draft),
+            lambda suggestion: suggestion.set_in_issue_draft(in_issue_draft),
+        )
+
+    def ignore_package(self, package_attribute: str) -> int:
+        """Ignore a package on every selected suggestion."""
+        return self._apply_to_each(
+            lambda suggestion: suggestion.check_ignore_package(package_attribute),
+            lambda suggestion: suggestion.ignore_package(package_attribute),
+            fresh_cache=True,
+        )
+
+    def restore_package(self, package_attribute: str) -> int:
+        """Restore a package on every selected suggestion."""
+        return self._apply_to_each(
+            lambda suggestion: suggestion.check_restore_package(package_attribute),
+            lambda suggestion: suggestion.restore_package(package_attribute),
+            fresh_cache=True,
+        )
+
+    def ignore_maintainer(self, github_id: int) -> int:
+        """Ignore a maintainer on every selected suggestion."""
+        return self._apply_to_each(
+            lambda suggestion: suggestion.check_ignore_maintainer(github_id),
+            lambda suggestion: suggestion.ignore_maintainer(github_id),
+            fresh_cache=True,
+        )
+
+    def restore_maintainer(self, github_id: int) -> int:
+        """Restore a maintainer on every selected suggestion."""
+        return self._apply_to_each(
+            lambda suggestion: suggestion.check_restore_maintainer(github_id),
+            lambda suggestion: suggestion.restore_maintainer(github_id),
+            fresh_cache=True,
+        )
+
+    def ignore_reference(self, reference_url: str) -> int:
+        """Ignore a URL reference on every selected suggestion."""
+        return self._apply_to_each(
+            lambda suggestion: suggestion.check_ignore_reference(reference_url),
+            lambda suggestion: suggestion.ignore_reference(reference_url),
+            fresh_cache=True,
+        )
+
+    def restore_reference(self, reference_url: str) -> int:
+        """Restore a URL reference on every selected suggestion."""
+        return self._apply_to_each(
+            lambda suggestion: suggestion.check_restore_reference(reference_url),
+            lambda suggestion: suggestion.restore_reference(reference_url),
+            fresh_cache=True,
+        )
+
 
 @pghistory.track(
+    pghistory.InsertEvent(),
+    pghistory.UpdateEvent(),
+    pghistory.ManualEvent("rematch"),
     fields=["status", "rejection_reason"],
     model_name="CVEDerivationClusterProposalStatusEvent",
 )
@@ -118,7 +285,7 @@ class CVEDerivationClusterProposal(TimeStampMixin):
         )
 
     @classproperty
-    def CURRENT_ALGORITHM_VERSION(cls) -> int:  # noqa: N802, N805
+    def CURRENT_ALGORITHM_VERSION(cls) -> int:  # noqa: N802
         return 2
 
     cached: "shared.models.cached.CachedSuggestions"
@@ -199,8 +366,10 @@ class CVEDerivationClusterProposal(TimeStampMixin):
             cache_new_suggestions(self)
             self.refresh_from_db()
 
-    def ignore_package(self, package_attribute: str) -> None:
-        """Ignore a package, updating the overlay and the cache."""
+    def check_ignore_package(self, package_attribute: str) -> None:
+        """
+        Raise unless this package can be ignored on this suggestion.
+        """
         original_packages = self.cached.payload["original_packages"]
         if package_attribute not in original_packages:
             raise ValidationError(
@@ -212,25 +381,41 @@ class CVEDerivationClusterProposal(TimeStampMixin):
         ).exists():
             raise ValidationError({"package_attribute": "Package is already ignored"})
 
+    def ignore_package(self, package_attribute: str) -> None:
+        """Ignore a package, updating the overlay and the cache."""
         with transaction.atomic():
+            self.check_ignore_package(package_attribute)
             self.package_overlays.get_or_create(
                 package_attribute=package_attribute,
-                defaults={"type": PackageOverlay.Type.IGNORED},
+                defaults={
+                    "type": PackageOverlay.Type.IGNORED,
+                    "package_id": PackageAttrpath.objects.get(
+                        attrpath=package_attribute
+                    ).package.id,
+                },
             )
             self._recompute_package_cache()
 
-    def restore_package(self, package_attribute: str) -> None:
-        """Restore a previously ignored package."""
-        overlay = self.package_overlays.filter(
+    def check_restore_package(self, package_attribute: str) -> None:
+        """
+        Raise unless this package can be restored on this suggestion.
+        """
+        if not self.package_overlays.filter(
             package_attribute=package_attribute,
             type=PackageOverlay.Type.IGNORED,
-        ).first()
-        if not overlay:
+        ).exists():
             raise ValidationError(
                 {"package_attribute": "No ignore overlay found for this package"}
             )
 
+    def restore_package(self, package_attribute: str) -> None:
+        """Restore a previously ignored package."""
         with transaction.atomic():
+            self.check_restore_package(package_attribute)
+            overlay = self.package_overlays.get(
+                package_attribute=package_attribute,
+                type=PackageOverlay.Type.IGNORED,
+            )
             overlay.delete()
             self._recompute_package_cache()
 
@@ -262,11 +447,12 @@ class CVEDerivationClusterProposal(TimeStampMixin):
         ).model_dump()
         self.cached.save()
 
-    def ignore_reference(self, reference_url: str) -> None:
-        """Ignore a URL reference, updating the overlay and the cache."""
+    def check_ignore_reference(self, reference_url: str) -> None:
+        """
+        Raise unless this URL reference can be ignored on this suggestion.
+        """
         cat_refs = self.cached.payload["categorized_url_references"]
-        ref = next((r for r in cat_refs["original"] if r["url"] == reference_url), None)
-        if ref is None:
+        if not any(r["url"] == reference_url for r in cat_refs["original"]):
             raise ValidationError(
                 {"reference_url": "Reference not found in the suggestion"}
             )
@@ -275,7 +461,12 @@ class CVEDerivationClusterProposal(TimeStampMixin):
         ).exists():
             raise ValidationError({"reference_url": "Reference is already ignored"})
 
+    def ignore_reference(self, reference_url: str) -> None:
+        """Ignore a URL reference, updating the overlay and the cache."""
         with transaction.atomic():
+            self.check_ignore_reference(reference_url)
+            cat_refs = self.cached.payload["categorized_url_references"]
+            ref = next(r for r in cat_refs["original"] if r["url"] == reference_url)
             self.reference_url_overlays.get_or_create(
                 reference_url=reference_url,
                 defaults={
@@ -289,24 +480,31 @@ class CVEDerivationClusterProposal(TimeStampMixin):
             cat_refs["ignored"].append(ref)
             self.cached.save()
 
-    def restore_reference(self, reference_url: str) -> None:
-        """Restore a previously ignored URL reference."""
+    def check_restore_reference(self, reference_url: str) -> None:
+        """
+        Raise unless this URL reference can be restored on this suggestion.
+        """
         cat_refs = self.cached.payload["categorized_url_references"]
-        ref = next((r for r in cat_refs["ignored"] if r["url"] == reference_url), None)
-        if ref is None:
+        if not any(r["url"] == reference_url for r in cat_refs["ignored"]):
             raise ValidationError(
                 {"reference_url": "Reference not found in ignored references"}
             )
-
-        overlay = self.reference_url_overlays.filter(
+        if not self.reference_url_overlays.filter(
             reference_url=reference_url, type=ReferenceUrlOverlay.Type.IGNORED
-        ).first()
-        if not overlay:
+        ).exists():
             raise ValidationError(
                 {"reference_url": "No ignore overlay found for this reference"}
             )
 
+    def restore_reference(self, reference_url: str) -> None:
+        """Restore a previously ignored URL reference."""
         with transaction.atomic():
+            self.check_restore_reference(reference_url)
+            cat_refs = self.cached.payload["categorized_url_references"]
+            ref = next(r for r in cat_refs["ignored"] if r["url"] == reference_url)
+            overlay = self.reference_url_overlays.get(
+                reference_url=reference_url, type=ReferenceUrlOverlay.Type.IGNORED
+            )
             overlay.delete()
             cat_refs["ignored"] = [
                 r for r in cat_refs["ignored"] if r["url"] != reference_url
@@ -314,14 +512,12 @@ class CVEDerivationClusterProposal(TimeStampMixin):
             cat_refs["active"].append(ref)
             self.cached.save()
 
-    def ignore_maintainer(self, github_id: int) -> None:
-        """Ignore a maintainer, updating the overlay and the cache."""
+    def check_ignore_maintainer(self, github_id: int) -> None:
+        """
+        Raise unless this maintainer can be ignored on this suggestion.
+        """
         cat_maintainers = self.cached.payload["categorized_maintainers"]
-        maintainer_data = next(
-            (m for m in cat_maintainers["original"] if m["github_id"] == github_id),
-            None,
-        )
-        if maintainer_data is None:
+        if not any(m["github_id"] == github_id for m in cat_maintainers["original"]):
             raise ValidationError(
                 {"github_id": "Maintainer not found in original maintainers"}
             )
@@ -330,9 +526,15 @@ class CVEDerivationClusterProposal(TimeStampMixin):
         ).exists():
             raise ValidationError({"github_id": "Maintainer is already ignored"})
 
-        maintainer = NixMaintainer.objects.get(github_id=github_id)
-
+    def ignore_maintainer(self, github_id: int) -> None:
+        """Ignore a maintainer, updating the overlay and the cache."""
         with transaction.atomic():
+            self.check_ignore_maintainer(github_id)
+            cat_maintainers = self.cached.payload["categorized_maintainers"]
+            maintainer_data = next(
+                m for m in cat_maintainers["original"] if m["github_id"] == github_id
+            )
+            maintainer = NixMaintainer.objects.get(github_id=github_id)
             edit, created = self.maintainer_overlays.get_or_create(
                 maintainer=maintainer,
                 defaults={"type": MaintainerOverlay.Type.IGNORED},
@@ -346,27 +548,33 @@ class CVEDerivationClusterProposal(TimeStampMixin):
             cat_maintainers["ignored"].append(maintainer_data)
             self.cached.save()
 
-    def restore_maintainer(self, github_id: int) -> None:
-        """Restore a previously ignored maintainer."""
+    def check_restore_maintainer(self, github_id: int) -> None:
+        """
+        Raise unless this maintainer can be restored on this suggestion.
+        """
         cat_maintainers = self.cached.payload["categorized_maintainers"]
-        maintainer_data = next(
-            (m for m in cat_maintainers["ignored"] if m["github_id"] == github_id),
-            None,
-        )
-        if maintainer_data is None:
+        if not any(m["github_id"] == github_id for m in cat_maintainers["ignored"]):
             raise ValidationError(
                 {"github_id": "Maintainer not found in ignored maintainers"}
             )
-
-        overlay = self.maintainer_overlays.filter(
+        if not self.maintainer_overlays.filter(
             maintainer__github_id=github_id, type=MaintainerOverlay.Type.IGNORED
-        ).first()
-        if not overlay:
+        ).exists():
             raise ValidationError(
                 {"github_id": "No ignore overlay found for this maintainer"}
             )
 
+    def restore_maintainer(self, github_id: int) -> None:
+        """Restore a previously ignored maintainer."""
         with transaction.atomic():
+            self.check_restore_maintainer(github_id)
+            cat_maintainers = self.cached.payload["categorized_maintainers"]
+            maintainer_data = next(
+                m for m in cat_maintainers["ignored"] if m["github_id"] == github_id
+            )
+            overlay = self.maintainer_overlays.get(
+                maintainer__github_id=github_id, type=MaintainerOverlay.Type.IGNORED
+            )
             overlay.delete()
             cat_maintainers["ignored"] = [
                 m for m in cat_maintainers["ignored"] if m["github_id"] != github_id
@@ -403,6 +611,9 @@ class CVEDerivationClusterProposal(TimeStampMixin):
             )
 
         with transaction.atomic():
+            if any(m["github"] == github_handle for m in cat_maintainers["original"]):
+                raise ValidationError({"github_handle": "Already a maintainer"})
+
             edit, created = self.maintainer_overlays.get_or_create(
                 maintainer=maintainer,
                 defaults={"type": MaintainerOverlay.Type.ADDITIONAL},
@@ -421,25 +632,25 @@ class CVEDerivationClusterProposal(TimeStampMixin):
 
     def delete_maintainer(self, github_id: int) -> None:
         """Delete a maintainer that was manually added."""
-        cat_maintainers = self.cached.payload["categorized_maintainers"]
-        maintainer_data = next(
-            (m for m in cat_maintainers["added"] if m["github_id"] == github_id),
-            None,
-        )
-        if maintainer_data is None:
-            raise ValidationError(
-                {"github_id": "Only manually added maintainers can be deleted"}
-            )
-
-        overlay = self.maintainer_overlays.filter(
-            maintainer__github_id=github_id, type=MaintainerOverlay.Type.ADDITIONAL
-        ).first()
-        if not overlay:
-            raise ValidationError(
-                {"github_id": "No add overlay found for this maintainer"}
-            )
-
         with transaction.atomic():
+            cat_maintainers = self.cached.payload["categorized_maintainers"]
+            maintainer_data = next(
+                (m for m in cat_maintainers["added"] if m["github_id"] == github_id),
+                None,
+            )
+            if maintainer_data is None:
+                raise ValidationError(
+                    {"github_id": "Only manually added maintainers can be deleted"}
+                )
+
+            overlay = self.maintainer_overlays.filter(
+                maintainer__github_id=github_id, type=MaintainerOverlay.Type.ADDITIONAL
+            ).first()
+            if not overlay:
+                raise ValidationError(
+                    {"github_id": "No add overlay found for this maintainer"}
+                )
+
             overlay.delete()
             cat_maintainers["added"] = [
                 m for m in cat_maintainers["added"] if m["github_id"] != github_id
@@ -451,11 +662,48 @@ class CVEDerivationClusterProposal(TimeStampMixin):
         self.comment = comment or None
         self.save(update_fields=["comment"])
 
+    def check_set_in_issue_draft(self, in_issue_draft: bool) -> None:
+        """
+        Raise unless this suggestion can be put in or taken out of the issue draft.
+        """
+        candidate = copy(self)
+        candidate.in_issue_draft = in_issue_draft
+        candidate.full_clean()
+
     def set_in_issue_draft(self, in_issue_draft: bool) -> None:
         """Add or remove this suggestion from the issue draft bundle."""
         self.in_issue_draft = in_issue_draft
         self.full_clean()
         self.save(update_fields=["in_issue_draft"])
+
+    def check_change_status(
+        self,
+        status: SuggestionStatus,
+        rejection_reason: RejectionReason | None = None,
+        comment: str | None = None,
+    ) -> None:
+        """
+        Raise unless this suggestion can move to the given status.
+
+        Mirrors what the database would reject anyway, so that a caller acting on
+        several suggestions at once can tell beforehand which ones it cannot handle.
+        """
+        if status == self.status:
+            raise ValidationError({"status": f"Already in status '{self.status}'"})
+        if (self.status, status) not in STATUS_TRANSITIONS:
+            raise ValidationError(
+                {
+                    "status": f"Invalid status transition from '{self.status}' to '{status}'"
+                }
+            )
+        candidate = copy(self)
+        candidate.status = status
+        candidate.rejection_reason = rejection_reason
+        if comment:
+            candidate.comment = comment
+        if status != SuggestionStatus.ACCEPTED:
+            candidate.in_issue_draft = False
+        candidate.full_clean()
 
     def change_status(
         self,
@@ -550,19 +798,7 @@ class CVEDerivationClusterProposal(TimeStampMixin):
             pgtrigger.FSM(
                 name="status_fsm",
                 field="status",
-                transitions=[
-                    (SuggestionStatus.PENDING, SuggestionStatus.REJECTED),
-                    (SuggestionStatus.PENDING, SuggestionStatus.ACCEPTED),
-                    (SuggestionStatus.REJECTED, SuggestionStatus.ACCEPTED),
-                    (SuggestionStatus.ACCEPTED, SuggestionStatus.REJECTED),
-                    (SuggestionStatus.ACCEPTED, SuggestionStatus.PUBLISHED),
-                    # FIXME(@fricklerhandwerk): It's not desirable to allow this, but it happens when we want to undo a status change ad hoc.
-                    # The correct solution is to get rid of the concept of status altogether:
-                    # Whatever is done to a piece of data will determine which filter it appears in.
-                    # And then we can have a generic undo that will simply invert edit operations on the overlay data from the frontend.
-                    (SuggestionStatus.ACCEPTED, SuggestionStatus.PENDING),
-                    (SuggestionStatus.REJECTED, SuggestionStatus.PENDING),
-                ],
+                transitions=STATUS_TRANSITIONS,
             ),
         ]
 
@@ -603,6 +839,15 @@ class MaintainerOverlay(Overlay):
 @pghistory.track(
     pghistory.ManualEvent("package.restore"),
     pghistory.ManualEvent("package.ignore"),
+    attrs={
+        "package": models.ForeignKey(
+            Package,
+            on_delete=models.RESTRICT,
+            # Like pghistory's own copies of tracked references, keep history out of the package's reverse relations.
+            related_name="+",
+            related_query_name="+",
+        )
+    },
 )
 class PackageOverlay(Overlay):
     """
@@ -610,6 +855,12 @@ class PackageOverlay(Overlay):
     """
 
     package_attribute = models.CharField(max_length=255)
+
+    package = models.ForeignKey(
+        Package,
+        on_delete=models.RESTRICT,
+        related_name="overlays",
+    )
     suggestion = models.ForeignKey(
         CVEDerivationClusterProposal,
         related_name="package_overlays",

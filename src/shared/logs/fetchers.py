@@ -23,6 +23,7 @@ from shared.logs.events import (
     RawMaintainerEvent,
     RawPackageEvent,
     RawReferenceEvent,
+    RawRematchEvent,
     RawStatusEvent,
     Reference,
 )
@@ -39,23 +40,35 @@ from shared.models.nix_evaluation import NixDerivation
 def _annotate_username(query: EventQuerySet) -> EventQuerySet:
     """Add username annotation to a query."""
     return query.annotate(
-        username=Coalesce(
-            Case(
-                When(Q(pgh_context__isnull=True), then=Value("ADMIN")),
-                When(
-                    Q(pgh_context__metadata__contains={"user": None}),
-                    then=Value("ANONYMOUS"),
-                ),
-                default=Subquery(
-                    User.objects.filter(
-                        id=Cast(
-                            OuterRef("pgh_context__metadata__user"),
-                            BigIntegerField(),
-                        )
-                    ).values("username")[:1]
-                ),
+        username=Case(
+            # Automated processes label their own changes, so they aren't attributed to a person.
+            When(
+                Q(pgh_context__metadata__contains={"system": True}),
+                then=Value(None),
             ),
-            Value("REDACTED"),
+            # Deleted accounts must not be resolvable from the log.
+            # FIXME(@fricklerhandwerk): Figure out a way to make that typesafe towards the frontend.
+            # Otherwise it will be indistinguishable from users with names that coincide with these hard-coded values.
+            default=Coalesce(
+                Case(
+                    # Unlabeled changes outside a web request come from an operator working directly on the server.
+                    When(Q(pgh_context__isnull=True), then=Value("ADMIN")),
+                    # Web requests by visitors who aren't logged in.
+                    When(
+                        Q(pgh_context__metadata__contains={"user": None}),
+                        then=Value("ANONYMOUS"),
+                    ),
+                    default=Subquery(
+                        User.objects.filter(
+                            id=Cast(
+                                OuterRef("pgh_context__metadata__user"),
+                                BigIntegerField(),
+                            )
+                        ).values("username")[:1]
+                    ),
+                ),
+                Value("REDACTED"),
+            ),
         )
     )
 
@@ -89,7 +102,7 @@ def fetch_suggestion_events(
 
     status_qs = _annotate_username(
         CVEDerivationClusterProposalStatusEvent.objects.select_related("pgh_context")
-        .exclude(pgh_label="insert")
+        .exclude(pgh_label__in=["insert", "rematch"])
         .filter(pgh_obj_id__in=suggestion_ids)
     )
     for status_event in status_qs.iterator():
@@ -105,6 +118,20 @@ def fetch_suggestion_events(
                 ).label.__str__()
                 if status_event.rejection_reason is not None
                 else None,
+            )
+        )
+
+    rematch_qs = _annotate_username(
+        CVEDerivationClusterProposalStatusEvent.objects.select_related(
+            "pgh_context"
+        ).filter(pgh_label="rematch", pgh_obj_id__in=suggestion_ids)
+    )
+    for rematch_event in rematch_qs.iterator():
+        result[rematch_event.pgh_obj_id].append(
+            RawRematchEvent(
+                suggestion_id=rematch_event.pgh_obj_id,
+                timestamp=rematch_event.pgh_created_at,
+                username=rematch_event.username,
             )
         )
 

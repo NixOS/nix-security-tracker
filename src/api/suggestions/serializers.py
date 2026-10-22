@@ -88,6 +88,34 @@ class SuggestionBundleSerializer(serializers.Serializer):
     )
 
 
+class BulkResultSerializer(serializers.Serializer):
+    """Response body for a successful bulk operation."""
+
+    affected = serializers.IntegerField(
+        help_text="Number of suggestions the operation was applied to.",
+    )
+
+
+class BulkErrorSerializer(serializers.Serializer):
+    """
+    Response body for a bulk operation rejected by at least one selected suggestion.
+
+    Bulk operations are all-or-nothing: when this is returned, nothing was modified.
+    """
+
+    detail = serializers.CharField(
+        help_text="Human readable summary of the failure.",
+    )
+    reasons = serializers.DictField(
+        child=serializers.DictField(
+            child=serializers.ListField(child=serializers.CharField())
+        ),
+        help_text=(
+            "Reasons why the operation was refused, keyed by suggestion id, then by field name."
+        ),
+    )
+
+
 class IssueDraftPublishSerializer(serializers.Serializer):
     """Request body for publishing the issue draft (all bundled suggestions) as one issue."""
 

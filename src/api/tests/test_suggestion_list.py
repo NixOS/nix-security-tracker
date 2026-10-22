@@ -1,6 +1,7 @@
 from collections.abc import Callable
-from datetime import timedelta
+from datetime import UTC, datetime, timedelta
 
+import pytest
 from django.utils import timezone
 from rest_framework.reverse import reverse
 from rest_framework.test import APIClient
@@ -19,6 +20,16 @@ def url() -> str:
 
 def detail_url(pk: int) -> str:
     return reverse("cvederivationclusterproposal-detail", kwargs={"pk": pk})
+
+
+def set_created_at(
+    suggestion: CVEDerivationClusterProposal, time: datetime
+) -> CVEDerivationClusterProposal:
+    CVEDerivationClusterProposal.objects.filter(pk=suggestion.pk).update(
+        created_at=time
+    )
+    suggestion.refresh_from_db()
+    return suggestion
 
 
 def test_suggestion_list_anonymous(
@@ -296,6 +307,112 @@ def test_suggestion_list_combines_filters_with_and(
     ids = [item["id"] for item in response.data["results"]]
     assert ids == [matching.pk]
     assert wrong_status.pk not in ids
+
+
+# Creation times of the suggestions used by the creation date filter test, chosen
+# around the boundaries of 2026-03-10.
+CREATION_TIMES = [
+    "2026-03-08 12:00",
+    "2026-03-09 23:59",
+    "2026-03-10 00:00",
+    "2026-03-10 23:59",
+    "2026-03-11 00:01",
+]
+
+
+@pytest.mark.parametrize(
+    ("query", "expected"),
+    [
+        pytest.param(
+            {"created_at_after": "2026-03-10"},
+            ["2026-03-10 00:00", "2026-03-10 23:59", "2026-03-11 00:01"],
+            id="after",
+        ),
+        pytest.param(
+            {"created_at_before": "2026-03-10"},
+            [
+                "2026-03-08 12:00",
+                "2026-03-09 23:59",
+                "2026-03-10 00:00",
+                "2026-03-10 23:59",
+            ],
+            id="before",
+        ),
+        pytest.param(
+            {"created_at_after": "2026-03-09", "created_at_before": "2026-03-10"},
+            ["2026-03-09 23:59", "2026-03-10 00:00", "2026-03-10 23:59"],
+            id="range",
+        ),
+        pytest.param(
+            {"created_at_after": "2026-03-10", "created_at_before": "2026-03-10"},
+            ["2026-03-10 00:00", "2026-03-10 23:59"],
+            id="exact-day",
+        ),
+    ],
+)
+def test_suggestion_list_filters_by_created_at(
+    make_cached_suggestion: Callable[..., CVEDerivationClusterProposal],
+    query: dict[str, str],
+    expected: list[str],
+) -> None:
+    """The creation date filters are inclusive of the whole boundary days."""
+    client = APIClient()
+    suggestions = {
+        time: set_created_at(
+            make_cached_suggestion(),
+            datetime.strptime(time, "%Y-%m-%d %H:%M").replace(tzinfo=UTC),
+        )
+        for time in CREATION_TIMES
+    }
+
+    response = client.get(url(), query)
+    assert response.status_code == 200
+    ids = {item["id"] for item in response.data["results"]}
+    assert ids == {suggestions[time].pk for time in expected}
+
+
+def test_suggestion_list_combines_created_at_with_status(
+    make_cached_suggestion: Callable[..., CVEDerivationClusterProposal],
+) -> None:
+    """The creation date filter combines with the status filter with AND."""
+    client = APIClient()
+    matching = set_created_at(
+        make_cached_suggestion(status=CVEDerivationClusterProposal.Status.ACCEPTED),
+        datetime(2026, 3, 10, 12, 0, tzinfo=UTC),
+    )
+    wrong_status = set_created_at(
+        make_cached_suggestion(status=CVEDerivationClusterProposal.Status.PENDING),
+        datetime(2026, 3, 10, 12, 0, tzinfo=UTC),
+    )
+    wrong_day = set_created_at(
+        make_cached_suggestion(status=CVEDerivationClusterProposal.Status.ACCEPTED),
+        datetime(2026, 3, 12, 12, 0, tzinfo=UTC),
+    )
+
+    response = client.get(
+        url(),
+        {
+            "status": "accepted",
+            "created_at_after": "2026-03-10",
+            "created_at_before": "2026-03-10",
+        },
+    )
+    assert response.status_code == 200
+    ids = {item["id"] for item in response.data["results"]}
+    assert ids == {matching.pk}
+    assert wrong_status.pk not in ids
+    assert wrong_day.pk not in ids
+
+
+def test_suggestion_list_rejects_invalid_created_at(
+    make_cached_suggestion: Callable[..., CVEDerivationClusterProposal],
+) -> None:
+    """An unparseable creation date is rejected."""
+    client = APIClient()
+    make_cached_suggestion()
+
+    response = client.get(url(), {"created_at_after": "not-a-date"})
+    assert response.status_code == 400
 
 
 def test_suggestion_detail_unaffected_by_list_filters(

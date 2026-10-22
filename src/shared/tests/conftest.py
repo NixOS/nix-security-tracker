@@ -43,6 +43,7 @@ from shared.models.nix_evaluation import (
 )
 from shared.models.package import Package, PackageAttrpath, PackageDerivation
 from shared.notify_users import create_package_subscription_notifications
+from shared.package_clustering import cluster_packages
 from webview.models import SuggestionNotification as Notification
 
 
@@ -415,6 +416,7 @@ def make_suggestion(
             )
             for package, flags in package_flags.items()
         )
+        cluster_packages(NixDerivation.objects.filter(pk__in=[drv.pk for drv in drvs]))
 
         return suggestion
 

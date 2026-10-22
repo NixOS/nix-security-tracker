@@ -11,6 +11,7 @@ import {
 } from "@/hooks/useSuggestionViewMode";
 import { ExternalLink } from "../ui/ExternalLink";
 import { LegendCard } from "../ui/LegendCard";
+import { GitHubIssueState } from "./GitHubIssueState";
 import { IssueViewToggle } from "./IssueViewToggle";
 
 type Props = {
@@ -26,7 +27,7 @@ export function Issue({
   allowViewModeClear = false,
   inheritedSuggestionViewMode = DEFAULT_SUGGESTION_VIEW_MODE,
 }: Props) {
-  const { code, title, github_issue_url } = issue;
+  const { code, title, github_issue_url, github_issue_state } = issue;
 
   const [ownViewMode, setOwnViewMode] = useState<IssueViewMode | undefined>(undefined);
   const [ownSuggestionViewMode, setOwnSuggestionViewMode] = useState<
@@ -45,8 +46,12 @@ export function Issue({
         <Link href={`/issues/${code}`}>{code}</Link>
       </div>
       {github_issue_url && (
-        <div>
-          (<ExternalLink href={github_issue_url}>GitHub</ExternalLink>)
+        /* FIXME(@fricklerhandwerk): Move the GitHub issue state into the card once the issue activity log lands, so the legend carries no variable data. */
+        <div className="row centered gap-small">
+          {github_issue_state && (
+            <GitHubIssueState state={github_issue_state} testId={`issue-${code}-github-state`} />
+          )}
+          <ExternalLink href={github_issue_url}>GitHub</ExternalLink>
         </div>
       )}
     </>

@@ -10,6 +10,7 @@
 import logging
 from dataclasses import dataclass, field
 
+import pghistory
 import pgpubsub
 from django.conf import settings
 from django.db import models, transaction
@@ -381,13 +382,15 @@ def refresh_suggestion_derivation_links(
             "rejection_max_matches_limit",
         ]
 
-    suggestion.save(update_fields=update_fields)
+    with pghistory.context(system=True):
+        suggestion.save(update_fields=update_fields)
+        pghistory.create_event(suggestion, label="rematch")
 
-    DerivationClusterProposalLink.objects.filter(proposal=suggestion).delete()
-    PackageClusterProposalLink.objects.filter(proposal=suggestion).delete()
+        DerivationClusterProposalLink.objects.filter(proposal=suggestion).delete()
+        PackageClusterProposalLink.objects.filter(proposal=suggestion).delete()
 
-    if outcome.derivations is not None:
-        build_links(suggestion, outcome.derivations)
+        if outcome.derivations is not None:
+            build_links(suggestion, outcome.derivations)
 
     logger.info(
         "Refreshed derivation links for suggestion %d (rejection_reason=%s, derivations=%s).",

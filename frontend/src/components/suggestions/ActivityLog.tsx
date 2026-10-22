@@ -6,6 +6,7 @@ import {
   LinkIcon,
   PackageMinusIcon,
   PackagePlusIcon,
+  RefreshCwIcon,
   Trash2Icon,
   UnlinkIcon,
   UserMinusIcon,
@@ -42,10 +43,12 @@ type ActionCategory =
   | { kind: "package"; restored: boolean }
   | { kind: "reference"; restored: boolean }
   | { kind: "maintainer"; op: "add" | "ignore" | "delete" | "restore" }
+  | { kind: "rematch" }
   | { kind: "status"; value: SuggestionStatusEnum | null };
 
 function classifyAction(entry: ActivityLogEntry): ActionCategory {
   if (entry.action === "create") return { kind: "create" };
+  if (entry.action === "rematch") return { kind: "rematch" };
   if (entry.action.startsWith("package.")) {
     return { kind: "package", restored: entry.action.includes("restore") };
   }
@@ -82,6 +85,8 @@ function entryIcon(entry: ActivityLogEntry) {
       return category.restored ? <LinkIcon size={size} /> : <UnlinkIcon size={size} />;
     case "maintainer":
       return category.op === "add" ? <UserPlusIcon size={size} /> : <UserMinusIcon size={size} />;
+    case "rematch":
+      return <RefreshCwIcon size={size} />;
     case "status":
       return category.value ? <SuggestionStatusIcon status={category.value} size="1em" /> : null;
   }
@@ -102,6 +107,8 @@ function actionName(entry: ActivityLogEntry): string {
       if (category.op === "ignore") return "ignored maintainer";
       if (category.op === "delete") return "deleted maintainer";
       return "restored maintainer";
+    case "rematch":
+      return "rematched";
     case "status": {
       const sv = entry.status_value ?? "";
       if (sv.includes("accepted")) return "accepted";

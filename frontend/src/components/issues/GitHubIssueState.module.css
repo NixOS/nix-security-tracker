@@ -1,0 +1,11 @@
+@import "@primer/primitives/dist/css/functional/themes/light.css";
+
+.github-issue-open {
+  color: var(--fgColor-open);
+}
+.github-issue-done {
+  color: var(--fgColor-done);
+}
+.github-issue-not-planned {
+  color: var(--fgColor-muted);
+}
