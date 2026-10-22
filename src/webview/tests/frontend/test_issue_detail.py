@@ -1,3 +1,5 @@
+from collections.abc import Callable
+
 from django.utils import timezone
 from playwright.sync_api import Page, expect
 from pytest_django.live_server_helper import LiveServer
@@ -41,7 +43,7 @@ def test_issue_detail_shows_github_issue_link(
         kind=GitHubItem.Kind.ISSUE,
     )
     page.goto(live_server.url + ISSUE_DETAIL + f"/{issue.code}")
-    expect(page.get_by_role("link", name="GitHub")).to_have_attribute(
+    expect(page.get_by_role("link", name="#1")).to_have_attribute(
         "href", "https://github.com/NixOS/nixpkgs/issues/1"
     )
 
@@ -90,3 +92,30 @@ def test_issue_detail_shows_unsynced_github_issue_as_open(
     expect(
         page.get_by_test_id(f"issue-{issue.code}-github-state")
     ).to_have_accessible_name("Open")
+
+
+def test_issue_detail_shows_closing_pull_request(
+    live_server: LiveServer,
+    page: Page,
+    issue: NixpkgsIssue,
+    make_github_item: Callable[..., GitHubItem],
+) -> None:
+    github_issue = make_github_item(
+        1,
+        GitHubItem.Kind.ISSUE,
+        EventType.ISSUE | EventType.OPENED,
+        EventType.ISSUE | EventType.CLOSED | EventType.COMPLETED,
+    )
+    issue.github_items.add(github_issue)
+    make_github_item(
+        2,
+        GitHubItem.Kind.PULL_REQUEST,
+        EventType.PULL_REQUEST | EventType.OPENED,
+        EventType.PULL_REQUEST | EventType.CLOSED | EventType.MERGED,
+    ).closes.create(issue=github_issue)
+
+    page.goto(live_server.url + ISSUE_DETAIL + f"/{issue.code}")
+    expect(page.get_by_role("link", name="#2")).to_have_attribute(
+        "href", "https://github.com/NixOS/nixpkgs/pull/2"
+    )
+    expect(page.get_by_role("img", name="Merged")).to_be_visible()

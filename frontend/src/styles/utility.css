@@ -360,6 +360,10 @@
   gap: 0.5em;
 }
 
+.gap-tiny {
+  gap: 0.25em;
+}
+
 .row-gap {
   column-gap: 1em;
 }

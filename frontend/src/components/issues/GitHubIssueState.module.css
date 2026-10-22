@@ -9,3 +9,6 @@
 .github-issue-not-planned {
   color: var(--fgColor-muted);
 }
+.github-pull-request-closed {
+  color: var(--fgColor-closed);
+}

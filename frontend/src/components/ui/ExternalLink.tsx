@@ -21,7 +21,10 @@ export function ExternalLink({
   return (
     <a href={href} target={target} rel={rel} className={className} title={title}>
       {children}
-      <ExternalLinkIcon size=".9em" style="margin-left: .2em; vertical-align: -0.05em;" />
+      <span className="no-line-breaks">
+        {"⁠"}
+        <ExternalLinkIcon size=".9em" style="margin-left: .2em; vertical-align: -0.05em;" />
+      </span>
     </a>
   );
 }

@@ -174,9 +174,41 @@ def test_issue_detail_github_issue_state(
     assert response.data["github_issue_state"] == ["ISSUE", "CLOSED", "COMPLETED"]
 
 
+def test_issue_detail_github_closing_pull_requests(
+    make_issue: Callable[..., NixpkgsIssue],
+    make_github_item: Callable[..., GitHubItem],
+) -> None:
+    client = APIClient()
+    issue = make_issue()
+    github_issue = make_github_item(
+        1,
+        GitHubItem.Kind.ISSUE,
+        EventType.ISSUE | EventType.OPENED,
+        EventType.ISSUE | EventType.CLOSED | EventType.COMPLETED,
+    )
+    issue.github_items.add(github_issue)
+    pull_request = make_github_item(
+        2,
+        GitHubItem.Kind.PULL_REQUEST,
+        EventType.PULL_REQUEST | EventType.OPENED,
+        EventType.PULL_REQUEST | EventType.CLOSED | EventType.MERGED,
+    )
+    pull_request.closes.create(issue=github_issue)
+
+    response = client.get(detail_url(issue.code))
+    assert response.status_code == 200
+    assert response.data["github_closing_pull_requests"] == [
+        {
+            "url": "https://github.com/NixOS/nixpkgs/pull/2",
+            "state": ["PULL_REQUEST", "CLOSED", "MERGED"],
+        }
+    ]
+
+
 def test_list_issues_query_count_independent_of_issue_count(
     make_container: Callable[..., Container],
     make_issue: Callable[..., NixpkgsIssue],
+    make_github_item: Callable[..., GitHubItem],
 ) -> None:
     client = APIClient()
 
@@ -192,6 +224,11 @@ def test_list_issues_query_count_independent_of_issue_count(
             event_type=EventType.ISSUE | EventType.CLOSED | EventType.COMPLETED,
             occurred_at=timezone.now(),
         )
+        make_github_item(
+            100 + number,
+            GitHubItem.Kind.PULL_REQUEST,
+            EventType.PULL_REQUEST | EventType.OPENED,
+        ).closes.create(issue=item)
 
     def count_queries() -> int:
         with CaptureQueriesContext(connection) as queries:
