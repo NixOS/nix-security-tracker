@@ -1,5 +1,6 @@
 from typing import cast
 
+from django.template.defaultfilters import truncatewords
 from drf_spectacular.utils import extend_schema_field
 from rest_framework import serializers
 from rest_framework.utils.serializer_helpers import ReturnList
@@ -12,6 +13,7 @@ from shared.models.issue import EventType
 class IssueSerializer(serializers.ModelSerializer):
     """A Nixpkgs security issue (a group of published suggestions)."""
 
+    title = serializers.SerializerMethodField()
     github_issue_url = serializers.SerializerMethodField()
     github_issue_state = serializers.SerializerMethodField()
     suggestions = serializers.SerializerMethodField()
@@ -35,6 +37,17 @@ class IssueSerializer(serializers.ModelSerializer):
             "title": {"required": True},
             "status": {"required": True},
         }
+
+    @extend_schema_field(serializers.CharField())
+    def get_title(self, obj: NixpkgsIssue) -> str:
+        if obj.title:
+            return obj.title
+        match list(obj.suggestions.all()):
+            case [suggestion]:
+                payload = suggestion.cached.payload
+                return payload["title"] or truncatewords(payload["description"], 10)
+            case _:
+                return ""
 
     @extend_schema_field(serializers.URLField(allow_null=True))
     def get_github_issue_url(self, obj: NixpkgsIssue) -> str | None:
