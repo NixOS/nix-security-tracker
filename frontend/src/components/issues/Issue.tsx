@@ -12,7 +12,12 @@ import {
 import { ExternalLink } from "../ui/ExternalLink";
 import { LegendCard } from "../ui/LegendCard";
 import { GitHubIssueState } from "./GitHubIssueState";
+import { GitHubPullRequestState } from "./GitHubPullRequestState";
 import { IssueViewToggle } from "./IssueViewToggle";
+
+function gitHubNumber(url: string): string {
+  return `#${url.split("/").pop()}`;
+}
 
 type Props = {
   issue: IssueType;
@@ -27,7 +32,7 @@ export function Issue({
   allowViewModeClear = false,
   inheritedSuggestionViewMode = DEFAULT_SUGGESTION_VIEW_MODE,
 }: Props) {
-  const { code, title, github_issue_url, github_issue_state } = issue;
+  const { code, title, github_issue_url, github_issue_state, github_closing_pull_requests } = issue;
 
   const [ownViewMode, setOwnViewMode] = useState<IssueViewMode | undefined>(undefined);
   const [ownSuggestionViewMode, setOwnSuggestionViewMode] = useState<
@@ -45,15 +50,6 @@ export function Issue({
         <GlobeCheckIcon size="1em" />
         <Link href={`/issues/${code}`}>{code}</Link>
       </div>
-      {github_issue_url && (
-        /* FIXME(@fricklerhandwerk): Move the GitHub issue state into the card once the issue activity log lands, so the legend carries no variable data. */
-        <div className="row centered gap-small">
-          {github_issue_state && (
-            <GitHubIssueState state={github_issue_state} testId={`issue-${code}-github-state`} />
-          )}
-          <ExternalLink href={github_issue_url}>GitHub</ExternalLink>
-        </div>
-      )}
     </>
   );
 
@@ -71,32 +67,72 @@ export function Issue({
 
   return (
     <LegendCard legend={legend} viewToggle={viewToggle} testId={`issue-${code}`}>
-      <div className="column gap-small">
-        {viewMode === "collapsed" && title && (
-          <span data-testid={`issue-${code}-title`}>{title}</span>
+      <div className="column gap">
+        {viewMode !== "collapsed" && github_issue_url && (
+          <div className="row centered gap-small wrap">
+            <span>GitHub:</span>
+            <span className="row centered gap-tiny">
+              {github_issue_state && (
+                <GitHubIssueState
+                  state={github_issue_state}
+                  testId={`issue-${code}-github-state`}
+                />
+              )}
+              <ExternalLink href={github_issue_url}>{gitHubNumber(github_issue_url)}</ExternalLink>
+            </span>
+            {github_closing_pull_requests.length > 0 && <span>closed by</span>}
+            {github_closing_pull_requests.map((pullRequest) => (
+              <span key={pullRequest.url} className="row centered gap-tiny">
+                <GitHubPullRequestState state={pullRequest.state} />
+                <ExternalLink href={pullRequest.url}>{gitHubNumber(pullRequest.url)}</ExternalLink>
+              </span>
+            ))}
+          </div>
         )}
-        {viewMode !== "collapsed" && title && (
-          <div className="bold text-l" data-testid={`issue-${code}-title`}>
-            {title}
+        {viewMode === "collapsed" && (
+          <div className="row gap centered">
+            <div className="row gap-small">
+              {github_issue_state && (
+                <GitHubIssueState
+                  state={github_issue_state}
+                  testId={`issue-${code}-github-state`}
+                />
+              )}
+              {github_issue_url && (
+                <ExternalLink href={github_issue_url}>
+                  {gitHubNumber(github_issue_url)}
+                </ExternalLink>
+              )}
+            </div>
+            {title && <span data-testid={`issue-${code}-title`}>{title}</span>}
+          </div>
+        )}
+        {viewMode === "expanded" && (
+          <div className="row gap centered spread">
+            {title && (
+              <div className="bold text-l" data-testid={`issue-${code}-title`}>
+                {title}
+              </div>
+            )}
+            {issue.suggestions.length > 1 && (
+              <div className="row gap centered">
+                <EyeIcon size="1em" />
+                <SuggestionViewToggle
+                  value={suggestionToggleValue}
+                  onChange={setOwnSuggestionViewMode}
+                  allowClear={allowViewModeClear}
+                  iconOnly
+                  currentValue={inheritedSuggestionViewMode}
+                  testId={`issue-${code}-suggestions-view-toggle`}
+                />
+              </div>
+            )}
           </div>
         )}
       </div>
 
       {viewMode === "expanded" && issue.suggestions.length > 0 && (
         <div className="column gap-big stretched">
-          {issue.suggestions.length > 1 && (
-            <div className="row gap centered justify-right">
-              <EyeIcon size="1em" />
-              <SuggestionViewToggle
-                value={suggestionToggleValue}
-                onChange={setOwnSuggestionViewMode}
-                allowClear={allowViewModeClear}
-                iconOnly
-                currentValue={inheritedSuggestionViewMode}
-                testId={`issue-${code}-suggestions-view-toggle`}
-              />
-            </div>
-          )}
           {issue.suggestions.map((suggestion) =>
             typeof suggestion === "number" ? null : (
               <Suggestion
