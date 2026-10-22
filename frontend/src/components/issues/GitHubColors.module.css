@@ -1,11 +1,14 @@
 @import "@primer/primitives/dist/css/functional/themes/light.css";
 
-.github-issue-open {
+.github-open {
   color: var(--fgColor-open);
 }
-.github-issue-done {
+.github-done {
   color: var(--fgColor-done);
 }
 .github-issue-not-planned {
   color: var(--fgColor-muted);
+}
+.github-pull-request-closed {
+  color: var(--fgColor-closed);
 }

@@ -1,4 +1,4 @@
-from typing import cast
+from typing import Any, cast
 
 from django.template.defaultfilters import truncatewords
 from drf_spectacular.utils import extend_schema_field
@@ -7,15 +7,78 @@ from rest_framework.utils.serializer_helpers import ReturnList
 
 from api.suggestions.serializers import SuggestionSerializer
 from shared.models import NixpkgsIssue
-from shared.models.issue import EventType
+from shared.models.issue import EventType, GitHubItem
+
+
+def state_names(item_type: EventType) -> list[str]:
+    """
+    Names of all flags occurring in valid event combinations for the given item type.
+    """
+    valid = [EventType(v) for v in range(1, 2 * max(EventType)) if EventType.valid(v)]
+    return [
+        cast(str, flag.name)
+        for flag in EventType
+        if flag != item_type and any(flag in v for v in valid if item_type in v)
+    ]
+
+
+GITHUB_ISSUE_STATES = state_names(EventType.ISSUE)
+GITHUB_PULL_REQUEST_STATES = state_names(EventType.PULL_REQUEST)
+
+
+class GitHubStateField(serializers.ListField):
+    def __init__(self, choices: list[str], **kwargs: Any) -> None:
+        super().__init__(
+            child=serializers.ChoiceField(choices=choices),
+            read_only=True,
+            **kwargs,
+        )
+
+    def to_representation(self, data: EventType) -> list[str]:
+        return [
+            cast(str, flag.name) for flag in data if flag.name in self.child.choices
+        ]
+
+
+class GitHubPullRequestSerializer(serializers.ModelSerializer):
+    """A GitHub pull request and its current state."""
+
+    url = serializers.URLField(read_only=True)
+    state = GitHubStateField(GITHUB_PULL_REQUEST_STATES)
+
+    class Meta:
+        model = GitHubItem
+        fields = ["url", "number", "state"]
+
+
+class GitHubIssueSerializer(serializers.ModelSerializer):
+    """A GitHub issue, its current state, and the pull requests closing it."""
+
+    url = serializers.URLField(read_only=True)
+    state = GitHubStateField(GITHUB_ISSUE_STATES)
+    closed_by = serializers.SerializerMethodField()
+
+    class Meta:
+        model = GitHubItem
+        fields = ["url", "number", "state", "closed_by"]
+
+    @extend_schema_field(GitHubPullRequestSerializer(many=True))
+    def get_closed_by(self, obj: GitHubItem) -> ReturnList:
+        pull_requests = sorted(
+            (reference.pull_request for reference in obj.closed_by.all()),
+            key=lambda pull_request: pull_request.number,
+        )
+        return cast(
+            ReturnList,
+            GitHubPullRequestSerializer(pull_requests, many=True).data,
+        )
 
 
 class IssueSerializer(serializers.ModelSerializer):
     """A Nixpkgs security issue (a group of published suggestions)."""
 
     title = serializers.SerializerMethodField()
-    github_issue_url = serializers.SerializerMethodField()
-    github_issue_state = serializers.SerializerMethodField()
+    github_issue = GitHubIssueSerializer(read_only=True, allow_null=True)
     suggestions = serializers.SerializerMethodField()
 
     class Meta:
@@ -27,8 +90,7 @@ class IssueSerializer(serializers.ModelSerializer):
             "status",
             "created_at",
             "updated_at",
-            "github_issue_url",
-            "github_issue_state",
+            "github_issue",
             "suggestions",
         ]
         # `title`/`status` have model defaults, but always present on read.
@@ -48,20 +110,6 @@ class IssueSerializer(serializers.ModelSerializer):
                 return payload["title"] or truncatewords(payload["description"], 10)
             case _:
                 return ""
-
-    @extend_schema_field(serializers.URLField(allow_null=True))
-    def get_github_issue_url(self, obj: NixpkgsIssue) -> str | None:
-        return obj.github_issue_url
-
-    @extend_schema_field(
-        serializers.ListField(
-            child=serializers.ChoiceField(choices=[flag.name for flag in EventType]),
-            allow_null=True,
-        )
-    )
-    def get_github_issue_state(self, obj: NixpkgsIssue) -> list[str] | None:
-        item = obj.github_issue
-        return [cast(str, flag.name) for flag in item.state] if item else None
 
     @extend_schema_field(
         {

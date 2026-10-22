@@ -45,7 +45,7 @@ def test_list_issues_paginated_shape(
     assert result["code"] == issue.code
     assert result["title"] == issue.title
     assert result["status"] == issue.status
-    assert result["github_issue_url"] is None
+    assert result["github_issue"] is None
     assert result["suggestions"] == [s.pk for s in issue.suggestions.all()]
 
 
@@ -113,23 +113,28 @@ def test_issue_detail_expand_suggestions(
     assert suggestions[0]["cve_id"] == suggestion.cve.cve_id
 
 
-def test_issue_detail_github_issue_url(
+def test_issue_detail_github_issue(
     make_issue: Callable[..., NixpkgsIssue],
+    make_github_item: Callable[..., GitHubItem],
 ) -> None:
     client = APIClient()
     issue = make_issue()
-    issue.github_items.create(
-        owner="NixOS",
-        repository="nixpkgs",
-        number=1,
-        kind=GitHubItem.Kind.ISSUE,
+    issue.github_items.add(
+        make_github_item(
+            1,
+            GitHubItem.Kind.ISSUE,
+            EventType.ISSUE | EventType.CLOSED | EventType.COMPLETED,
+        )
     )
 
     response = client.get(detail_url(issue.code))
     assert response.status_code == 200
-    assert (
-        response.data["github_issue_url"] == "https://github.com/NixOS/nixpkgs/issues/1"
-    )
+    assert response.data["github_issue"] == {
+        "url": "https://github.com/NixOS/nixpkgs/issues/1",
+        "number": 1,
+        "state": ["CLOSED", "COMPLETED"],
+        "closed_by": [],
+    }
 
 
 def test_issue_detail_not_found(db: None) -> None:
@@ -154,30 +159,42 @@ def test_issue_detail_only_lists_its_own_suggestions(
     assert not set(ids) & {s.pk for s in issue2.suggestions.all()}
 
 
-def test_issue_detail_github_issue_state(
+def test_issue_detail_github_closing_pull_requests(
     make_issue: Callable[..., NixpkgsIssue],
+    make_github_item: Callable[..., GitHubItem],
 ) -> None:
     client = APIClient()
     issue = make_issue()
-    item = issue.github_items.create(
-        owner="NixOS",
-        repository="nixpkgs",
-        number=1,
-        kind=GitHubItem.Kind.ISSUE,
+    github_issue = make_github_item(
+        1,
+        GitHubItem.Kind.ISSUE,
+        EventType.ISSUE | EventType.OPENED,
+        EventType.ISSUE | EventType.CLOSED | EventType.COMPLETED,
     )
-    item.events.create(
-        event_type=EventType.ISSUE | EventType.CLOSED | EventType.COMPLETED,
-        occurred_at=timezone.now(),
+    issue.github_items.add(github_issue)
+    pull_request = make_github_item(
+        2,
+        GitHubItem.Kind.PULL_REQUEST,
+        EventType.PULL_REQUEST | EventType.OPENED,
+        EventType.PULL_REQUEST | EventType.CLOSED | EventType.MERGED,
     )
+    pull_request.closes.create(issue=github_issue)
 
     response = client.get(detail_url(issue.code))
     assert response.status_code == 200
-    assert response.data["github_issue_state"] == ["ISSUE", "CLOSED", "COMPLETED"]
+    assert response.data["github_issue"]["closed_by"] == [
+        {
+            "url": "https://github.com/NixOS/nixpkgs/pull/2",
+            "number": 2,
+            "state": ["CLOSED", "MERGED"],
+        }
+    ]
 
 
 def test_list_issues_query_count_independent_of_issue_count(
     make_container: Callable[..., Container],
     make_issue: Callable[..., NixpkgsIssue],
+    make_github_item: Callable[..., GitHubItem],
 ) -> None:
     client = APIClient()
 
@@ -193,6 +210,11 @@ def test_list_issues_query_count_independent_of_issue_count(
             event_type=EventType.ISSUE | EventType.CLOSED | EventType.COMPLETED,
             occurred_at=timezone.now(),
         )
+        make_github_item(
+            100 + number,
+            GitHubItem.Kind.PULL_REQUEST,
+            EventType.PULL_REQUEST | EventType.OPENED,
+        ).closes.create(issue=item)
 
     def count_queries() -> int:
         with CaptureQueriesContext(connection) as queries:
