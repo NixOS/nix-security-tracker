@@ -263,7 +263,7 @@ def create_gh_issue(
 
         lines = []
         for attribute_name in order:
-            pull_requests = f"https://github.com/NixOS/nixpkgs/pulls?q=sort%3Aupdated-desc+is%3Apr+{quote(attribute_name)}+in%3Atitle+-%3E+in%3Atitle"
+            pull_requests = f"https://github.com/NixOS/nixpkgs/pulls?q=sort%3Aupdated-desc+is%3Apr+{quote(attribute_name)}+in%3Atitle"
             package = f"- `{attribute_name}` ([pull requests]({pull_requests}))"
             version_lines = [
                 f"  - {version}@{branch}"
