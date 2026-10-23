@@ -1,14 +1,19 @@
+from collections import defaultdict
+from itertools import batched
 from typing import Any
 
+from django.conf import settings
 from django.core.management.base import BaseCommand
+from django.db import transaction
 from django.db.models import Max
 
 from shared.models.nix_evaluation import NixDerivation, NixEvaluation
-from shared.package_clustering import cluster_packages
+from shared.models.package import Package
+from shared.package_clustering import cluster_packages, set_package_maintainers
 
 
 class Command(BaseCommand):
-    help = "Backfill package assignments for existing derivations."
+    help = "Backfill package assignments for existing derivations, and package maintainers from the tracking branch."
 
     def handle(self, *args: Any, **options: Any) -> None:
         # Snapshot the cutoff before any work begins.
@@ -40,3 +45,48 @@ class Command(BaseCommand):
                 f"updated {result.attrpaths_updated}, created {result.attrpaths_created} attrpaths."
             )
         )
+
+        self.backfill_maintainers()
+
+    def backfill_maintainers(self) -> None:
+        """
+        Set maintainers of packages that have none"
+        """
+        package_ids = list(
+            Package.objects.filter(maintainers__isnull=True).values_list(
+                "pk", flat=True
+            )
+        )
+        if not package_ids:
+            self.stdout.write("No packages without maintainers; nothing to do.")
+            return
+
+        self.stdout.write(
+            f"Setting maintainers of {len(package_ids)} packages without maintainers..."
+        )
+        for batch in batched(package_ids, settings.PACKAGE_CLUSTERING_BATCH_SIZE):
+            maintainer_sources: dict[int, set[int]] = defaultdict(set)
+            latest_evaluation: dict[int, int] = {}
+            for package_id, evaluation_id, metadata_id in (
+                NixDerivation.objects.filter(
+                    package_link__package_id__in=batch,
+                    parent_evaluation__state=NixEvaluation.EvaluationState.COMPLETED,
+                    parent_evaluation__on_branches__name=settings.TRACKING_BRANCH,
+                    metadata__isnull=False,
+                )
+                .order_by("package_link__package_id", "-parent_evaluation__updated_at")
+                .values_list(
+                    "package_link__package_id", "parent_evaluation_id", "metadata_id"
+                )
+            ):
+                # Rows come newest first per package, so the first evaluation seen is the latest one.
+                # only derivations from the latest evaluation pass and older ones are skipped.
+                if (
+                    latest_evaluation.setdefault(package_id, evaluation_id)
+                    == evaluation_id
+                ):
+                    maintainer_sources[package_id].add(metadata_id)
+            with transaction.atomic():
+                set_package_maintainers(maintainer_sources)
+
+        self.stdout.write(self.style.SUCCESS("Done."))
