@@ -18,6 +18,8 @@ from shared.models.nix_evaluation import (
     NixChannel,
     NixDerivation,
     NixEvaluation,
+    NixMaintainer,
+    NixpkgsBranch,
 )
 from shared.models.package import Package, PackageAttrpath, PackageDerivation
 from shared.package_clustering import cluster_packages, package_from_attrs
@@ -468,3 +470,73 @@ def test_homepage_change_within_batch(
     pkg = PackageDerivation.objects.get(derivation=drv_next).package
     assert pkg.homepage == homepage_foo
     assert pkg.description == "Something new"
+
+
+def test_maintainers_from_tracking_branch(
+    drv: NixDerivation,
+) -> None:
+    """
+    Clustering a derivation on the tracking branch gives its package the derivation's maintainers.
+    """
+    cluster_packages(NixDerivation.objects.filter(pk=drv.pk))
+
+    package = PackageDerivation.objects.get(derivation=drv).package
+    assert drv.metadata
+    assert list(package.maintainers.all()) == list(drv.metadata.maintainers.all())
+
+
+def test_maintainers_only_from_tracking_branch(
+    make_branch: Callable[..., NixpkgsBranch],
+    make_channel: Callable[..., NixChannel],
+    make_evaluation: Callable[..., NixEvaluation],
+    make_drv: Callable[..., NixDerivation],
+    make_maintainer: Callable[..., NixMaintainer],
+) -> None:
+    """
+    Derivations off the tracking branch leave package maintainers alone, and the tracking branch replaces them.
+    """
+    stable = make_evaluation(
+        channel=make_channel(
+            channel_branch="nixos-26.05-small",
+            release_branch=make_branch(name="release-26.05"),
+        )
+    )
+    rolling = make_evaluation(
+        channel=make_channel(channel_branch=settings.TRACKING_BRANCH)
+    )
+    stable_maintainer = make_maintainer(github_id=1, github="stable")
+    old_maintainer = make_maintainer(github_id=2, github="old")
+    new_maintainer = make_maintainer(github_id=3, github="new")
+
+    drv = make_drv(evaluation=stable, version="1.0", maintainer=stable_maintainer)
+    cluster_packages(NixDerivation.objects.filter(pk=drv.pk))
+    package = PackageDerivation.objects.get(derivation=drv).package
+    assert list(package.maintainers.all()) == []
+
+    drv = make_drv(evaluation=rolling, version="2.0", maintainer=old_maintainer)
+    cluster_packages(NixDerivation.objects.filter(pk=drv.pk))
+    assert list(package.maintainers.all()) == [old_maintainer]
+
+    drv = make_drv(evaluation=rolling, version="3.0", maintainer=new_maintainer)
+    cluster_packages(NixDerivation.objects.filter(pk=drv.pk))
+    assert list(package.maintainers.all()) == [new_maintainer]
+
+    drv = make_drv(evaluation=stable, version="4.0", maintainer=stable_maintainer)
+    cluster_packages(NixDerivation.objects.filter(pk=drv.pk))
+    assert list(package.maintainers.all()) == [new_maintainer]
+
+
+def test_backfill_package_maintainers(
+    drv: NixDerivation,
+    maintainer: NixMaintainer,
+) -> None:
+    """
+    The backfill sets maintainers of packages clustered before maintainers were tracked.
+    """
+    cluster_packages(NixDerivation.objects.filter(pk=drv.pk))
+    package = PackageDerivation.objects.get(derivation=drv).package
+    package.maintainers.clear()
+
+    call_command("backfill_package_clustering", stdout=StringIO())
+
+    assert list(package.maintainers.all()) == [maintainer]

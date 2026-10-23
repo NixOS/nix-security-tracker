@@ -1,11 +1,12 @@
 import logging
+from collections import defaultdict
 from dataclasses import dataclass
 from itertools import groupby
 
 import pglock
 from django.conf import settings
 from django.db import transaction
-from django.db.models import QuerySet
+from django.db.models import Exists, OuterRef, QuerySet
 
 from shared.cache_suggestions import parse_drv_name
 from shared.models.nix_evaluation import NixDerivation, NixDerivationMeta
@@ -73,6 +74,7 @@ def _cluster_batch(
 
     Newly created packages inherit `homepage` and `description` from the derivation that brought them in.
     For existing packages, `homepage` and `description` are overwritten only when `update_packages`.
+    Maintainers are replaced by those of the package's derivations on the tracking branch, if the batch has any, since that's the source of truth for maintainers.
     After assignment, `homepage` and `description` are nulled on the clustered derivations since the deduplicated values now live on the package.
     """
     with transaction.atomic():
@@ -94,6 +96,14 @@ def _cluster_batch(
         drvs: list[dict] = list(
             NixDerivation.objects.filter(pk__in=batch_pks, package_link__isnull=True)
             .select_for_update(skip_locked=True, of=("self",))
+            .annotate(
+                on_tracking_branch=Exists(
+                    NixDerivation.objects.filter(
+                        pk=OuterRef("pk"),
+                        parent_evaluation__on_branches__name=settings.TRACKING_BRANCH,
+                    )
+                )
+            )
             .values_list(
                 "pk",
                 "attribute",
@@ -102,6 +112,7 @@ def _cluster_batch(
                 "metadata_id",
                 "metadata__homepage",
                 "metadata__description",
+                "on_tracking_branch",
                 named=True,
             )
             .order_by("derivation_path")
@@ -117,6 +128,9 @@ def _cluster_batch(
 
         # NOTE(@fricklerhandwerk): Extracted query into procedure to instrument testing against race conditions.
         attrpath_to_pkg = package_from_attrs(drvs)
+
+        # Metadata of the derivations on the tracking branch, per package, to take maintainers from.
+        maintainer_sources: dict[int, set[int]] = defaultdict(set)
 
         new_links: list[PackageDerivation] = []
         new_attrpaths: list[PackageAttrpath] = []
@@ -175,9 +189,12 @@ def _cluster_batch(
                     )
                 new_links.append(PackageDerivation(derivation_id=drv.pk, package=pkg))
                 done.append(drv.metadata_id)
+                if drv.on_tracking_branch:
+                    maintainer_sources[pkg.pk].add(drv.metadata_id)
 
         PackageAttrpath.objects.bulk_create(new_attrpaths, ignore_conflicts=True)
         PackageDerivation.objects.bulk_create(new_links, ignore_conflicts=True)
+        set_package_maintainers(maintainer_sources)
 
         if to_update:
             # Keep the current homepage where updating it would collapse two distinct packages sharing a name.
@@ -215,6 +232,31 @@ def _cluster_batch(
         packages_created=len(created),
         attrpaths_updated=len(attrpath_to_pkg),
         attrpaths_created=len(new_attrpaths),
+    )
+
+
+def set_package_maintainers(maintainer_sources: dict[int, set[int]]) -> None:
+    """
+    Replace the maintainers of each package with the maintainers in the given derivation metadata.
+    """
+    if not maintainer_sources:
+        return
+    meta_to_pkg = {
+        meta_id: pkg_id
+        for pkg_id, meta_ids in maintainer_sources.items()
+        for meta_id in meta_ids
+    }
+    maintainers = {
+        (meta_to_pkg[meta_id], maintainer_id)
+        for meta_id, maintainer_id in NixDerivationMeta.maintainers.through.objects.filter(
+            nixderivationmeta_id__in=meta_to_pkg
+        ).values_list("nixderivationmeta_id", "nixmaintainer_id")
+    }
+    package_maintainer = Package.maintainers.through
+    package_maintainer.objects.filter(package_id__in=maintainer_sources).delete()
+    package_maintainer.objects.bulk_create(
+        package_maintainer(package_id=pkg_id, nixmaintainer_id=maintainer_id)
+        for pkg_id, maintainer_id in maintainers
     )
 
 
