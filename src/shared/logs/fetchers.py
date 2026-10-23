@@ -248,7 +248,7 @@ def fetch_status_events_for_package(package_name: str) -> list[RawEventType]:
 
     status_qs = _annotate_username(
         CVEDerivationClusterProposalStatusEvent.objects.select_related("pgh_context")
-        .exclude(pgh_label="insert")
+        .exclude(pgh_label__in=["insert", "rematch"])
         .filter(pgh_obj_id__in=suggestion_ids, pgh_created_at__gte=cutoff)
     )
     for status_event in status_qs.iterator():

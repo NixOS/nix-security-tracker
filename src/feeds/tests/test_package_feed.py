@@ -1,11 +1,13 @@
 from collections.abc import Callable
 from datetime import timedelta
+from xml.etree import ElementTree
 
 from django.test import Client
 from django.urls import reverse
 from django.utils import timezone
 from freezegun import freeze_time
 
+from shared.listeners.automatic_linkage import refresh_suggestion_derivation_links
 from shared.models.linkage import (
     CVEDerivationClusterProposal,
     PackageOverlay,
@@ -60,6 +62,26 @@ def test_feed_contains_status_change_event(
     )
     content = response.content.decode()
     assert "accepted" in content
+
+
+def test_feed_excludes_rematch_event(
+    client: Client,
+    cached_suggestion: CVEDerivationClusterProposal,
+    drv: NixDerivation,
+) -> None:
+    def entries() -> list[str]:
+        response = client.get(
+            reverse("feeds:package_feed", kwargs={"package_name": drv.attribute})
+        )
+        feed = ElementTree.fromstring(response.content)
+        return [
+            entry.findtext("{http://www.w3.org/2005/Atom}id", "")
+            for entry in feed.findall("{http://www.w3.org/2005/Atom}entry")
+        ]
+
+    before = entries()
+    refresh_suggestion_derivation_links(cached_suggestion)
+    assert entries() == before
 
 
 def test_feed_item_links_to_suggestion_detail(
