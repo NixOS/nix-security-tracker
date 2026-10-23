@@ -482,7 +482,7 @@ in
           # FIXME(@fricklerhandwerk): This only needs to run once, since new suggestions get the data automatically.
           # Remove before the next deployment to production.
           nix-security-tracker-backfill-package-links = {
-            description = "Web security tracker - backfill package links for existing proposals";
+            description = "Web security tracker - backfill package links for existing proposals and package maintainers";
             after = [
               "network.target"
               "postgresql.service"
@@ -497,6 +497,7 @@ in
             serviceConfig.Type = "oneshot";
             script = ''
               ${manage.name} backfill_proposal_package_links
+              ${manage.name} backfill_package_maintainers
             '';
           };
 
