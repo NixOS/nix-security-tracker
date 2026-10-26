@@ -9,9 +9,9 @@
       },
       "branch": "main",
       "submodules": false,
-      "revision": "3daa710894355fa2fad8243380af373a2b4046ef",
-      "url": "https://github.com/ryantm/agenix/archive/3daa710894355fa2fad8243380af373a2b4046ef.tar.gz",
-      "hash": "sha256-n7wew722m1OTBT9DOIMxNX/NF4zfsSUABAO5eW3wikE="
+      "revision": "5e5b88a0c8e56f291a108c2fe9934054d9745b2e",
+      "url": "https://github.com/ryantm/agenix/archive/5e5b88a0c8e56f291a108c2fe9934054d9745b2e.tar.gz",
+      "hash": "sha256-8tKjSQajD3mUND1GaAuaWTcuyUpgcGsh5V+l4ibzC7U="
     },
     "disko": {
       "type": "GitRelease",
@@ -31,9 +31,9 @@
     },
     "github-graphql-schema": {
       "type": "Url",
-      "url": "https://raw.githubusercontent.com/github/docs/3a3bc2063e4d9cab232c6026a0bf4166a2a1f8d8/src/graphql/data/fpt/schema.docs.graphql",
+      "url": "https://raw.githubusercontent.com/github/docs/84e5873ca02ab2b097154aa7815eb4454d11535b/src/graphql/data/fpt/schema.docs.graphql",
       "unpack": false,
-      "hash": "sha256-SJ0lWiEr9f7MDTHpMHrbr/Lb/d5vkrXchTf51MdP94M="
+      "hash": "sha256-7mkIlq59kSZ2XGpmAXS0DJ0ZdLcNs2r4VZEXucSnt6Y="
     },
     "grafana-dashboard-node": {
       "type": "Url",
@@ -56,9 +56,9 @@
       },
       "branch": "main",
       "submodules": false,
-      "revision": "4174d23b131593463280dce6decee5d564868cc5",
-      "url": "https://github.com/nixos/infra/archive/4174d23b131593463280dce6decee5d564868cc5.tar.gz",
-      "hash": "sha256-sIFH8qHCEWd/ZOzvGhnzARXOMyk6v5pduYNjxWsBwA4="
+      "revision": "b2df9c170b6ba58bd26f8088be456c34400fb6b9",
+      "url": "https://github.com/nixos/infra/archive/b2df9c170b6ba58bd26f8088be456c34400fb6b9.tar.gz",
+      "hash": "sha256-PRwJO4ghvm9eMvNcjRvhmle+TkcTnr7LDkuYJXIbJkY="
     },
     "nixos-logo": {
       "type": "Url",
@@ -70,8 +70,8 @@
       "type": "Channel",
       "name": "nixpkgs-unstable",
       "artifact": "nixexprs.tar.xz",
-      "url": "https://releases.nixos.org/nixpkgs/nixpkgs-26.11pre1093421.f20cd90e28fe/nixexprs.tar.xz",
-      "hash": "sha256-MTJCMrhDFb+GRbLxBPTp8kB4dDlO+egmQ5qsJgYuaWw="
+      "url": "https://releases.nixos.org/nixpkgs/nixpkgs-26.11pre1100667.674a2028661e/nixexprs.tar.xz",
+      "hash": "sha256-GNxqGToDYDZH2M4YeIj5nLPEyljtn3hEdIFY1/JNm0M="
     },
     "pre-commit-hooks": {
       "type": "Git",
