@@ -30,7 +30,17 @@ in
     defaultGateway = "65.21.200.129";
   };
 
-  services.zfs.autoScrub.enable = true;
+  services = {
+    journald.upload = {
+      enable = true;
+      settings.Upload.URL = "http://127.0.0.1:9428/insert/journald";
+    };
+    prometheus.enable = true;
+    victorialogs = {
+      enable = true;
+    };
+    zfs.autoScrub.enable = true;
+  };
 
   system.stateVersion = "25.11";
 }
