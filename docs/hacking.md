@@ -121,21 +121,23 @@ Set up [SSH access to the development VM](#ssh-access-to-the-development-vm), an
 
 ```nix
 # .local/default.nix
-{ pkgs, ... }: {
-  environment.systemPackages = with pkgs; [
-    xauth
-  ];
-
+{ ... }: {
   services.openssh.settings.X11Forwarding = true;
 
-  services.nix-security-tracker = {
-    secrets.Xauthority = "/root/.Xauthority";
-    env.XAUTHORITY = "/run/credentials/manage.service/Xauthority";
-    pass-env = [
-      "DISPLAY"
-      "PWDEBUG"
-    ];
+  services.nix-security-tracker.pass-env = [
+    "DISPLAY"
+    "PWDEBUG"
+  ];
+
+  # Set up credentials so our `systemd-run` wrpaper can pick them up.
+  systemd.tmpfiles.rules = [ "f /root/.Xauthority 0600" ];
+  systemd.services."manage-" = {
+    overrideStrategy = "asDropin";
+    enableDefaultPath = false;
+    serviceConfig.LoadCredential = "Xauthority:/root/.Xauthority";
+    environment.XAUTHORITY = "%d/Xauthority";
   };
+
 }
 ```
 
@@ -152,7 +154,7 @@ ssh -X root@localhost -p 20022
 Test whether the setup works:
 
 ```console
-manage test -- --pyargs webview.tests.test_login --headed --slowmo 5000
+manage test -- --pyargs webview.tests.frontend.test_app_loads --headed --slowmo 5000
 ```
 
 This should open a chromium window.
