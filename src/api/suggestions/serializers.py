@@ -209,7 +209,7 @@ class ActivityLogReferenceSerializer(serializers.Serializer):
     name = serializers.CharField(allow_null=True)
 
 
-class ActivityLogPackageSerializer(serializers.Serializer):
+class PackageSummarySerializer(serializers.Serializer):
     id = serializers.IntegerField()
     name = serializers.CharField()
     homepage = serializers.CharField(allow_null=True)
@@ -221,7 +221,7 @@ class ActivityLogEntrySerializer(serializers.Serializer):
     username = serializers.CharField(allow_null=True)
     status_value = serializers.CharField(allow_null=True, default=None)
     rejection_reason = serializers.CharField(allow_null=True, default=None)
-    packages = ActivityLogPackageSerializer(many=True, default=list)
+    packages = PackageSummarySerializer(many=True, default=list)
     maintainers = MaintainerSerializer(many=True, default=list)
     references = ActivityLogReferenceSerializer(many=True, default=list)
 
@@ -356,10 +356,10 @@ class SuggestionSerializer(serializers.Serializer):
 
 
 class SharedPackageSerializer(serializers.Serializer):
-    """A package attribute every selected suggestion holds in the same state."""
+    """A package every selected suggestion holds in the same state."""
 
     state = serializers.ChoiceField(choices=SharedValueState.choices)
-    attribute = serializers.CharField(source="value")
+    package = PackageSummarySerializer(source="value")
 
 
 class SharedMaintainerSerializer(serializers.Serializer):

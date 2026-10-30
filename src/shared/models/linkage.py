@@ -79,7 +79,7 @@ class SharedValueState(models.TextChoices):
 
 @dataclass(frozen=True)
 class SharedValue:
-    """A package attribute, maintainer or reference held in the same state by a whole selection."""
+    """A package, maintainer or reference held in the same state by a whole selection."""
 
     state: SharedValueState
     value: Any
@@ -98,16 +98,16 @@ class SharedState:
     references: list[SharedValue]
 
 
-class JSONObjectKeys(models.Func):
+class JSONPathQueryArray(models.Func):
     """
-    The keys of the JSON object nested under `path`, as a JSON array of strings.
+    The items matched by the JSON path `$.<path>`, as a JSON array.
 
     Lets a query read which packages a cached payload holds without carrying back the
     packages themselves, which are an order of magnitude larger.
     """
 
     function = "jsonb_path_query_array"
-    template = "%(function)s(%(expressions)s, '$.%(path)s.keyvalue().key')"
+    template = "%(function)s(%(expressions)s, '$.%(path)s')"
 
     def __init__(self, expression: str, path: str, **extra: Any) -> None:
         super().__init__(
@@ -368,9 +368,11 @@ class CVEDerivationClusterProposalQuerySet(models.QuerySet):
 
         rows = list(
             self.annotate(
-                payload_package_keys=JSONObjectKeys("cached__payload", "packages"),
-                payload_original_package_keys=JSONObjectKeys(
-                    "cached__payload", "original_packages"
+                payload_package_ids=JSONPathQueryArray(
+                    "cached__payload", "packages[*].id"
+                ),
+                payload_original_package_ids=JSONPathQueryArray(
+                    "cached__payload", "original_packages[*].id"
                 ),
                 payload_maintainers=KeyTransform(
                     "categorized_maintainers", "cached__payload"
@@ -382,8 +384,8 @@ class CVEDerivationClusterProposalQuerySet(models.QuerySet):
                 "status",
                 "in_issue_draft",
                 "comment",
-                "payload_package_keys",
-                "payload_original_package_keys",
+                "payload_package_ids",
+                "payload_original_package_ids",
                 "payload_maintainers",
                 "payload_references",
             )
@@ -392,7 +394,7 @@ class CVEDerivationClusterProposalQuerySet(models.QuerySet):
         statuses = set()
         drafts = set()
         comments = set()
-        packages: list[tuple[dict, dict]] = []
+        package_ids: list[tuple[dict, dict]] = []
         maintainers: list[tuple[dict, dict]] = []
         references: list[tuple[dict, dict]] = []
         for (
@@ -407,14 +409,10 @@ class CVEDerivationClusterProposalQuerySet(models.QuerySet):
             statuses.add(status)
             drafts.add(in_issue_draft)
             comments.add(comment or "")
-            packages.append(
+            package_ids.append(
                 (
-                    {attribute: attribute for attribute in active_packages},
-                    {
-                        attribute: attribute
-                        for attribute in original_packages
-                        if attribute not in active_packages
-                    },
+                    {pk: pk for pk in active_packages},
+                    {pk: pk for pk in original_packages if pk not in active_packages},
                 )
             )
             maintainers.append(
@@ -430,11 +428,32 @@ class CVEDerivationClusterProposalQuerySet(models.QuerySet):
                 )
             )
 
+        # Only the shared packages are loaded, once for the whole selection.
+        shared_package_ids = _shared_values(package_ids, sort_key=lambda v: v)
+        packages_by_id = Package.objects.in_bulk(
+            [shared.value for shared in shared_package_ids]
+        )
+        packages = sorted(
+            (
+                SharedValue(
+                    state=shared.state,
+                    value={
+                        "id": package.pk,
+                        "name": package.name,
+                        "homepage": package.homepage,
+                    },
+                )
+                for shared in shared_package_ids
+                if (package := packages_by_id.get(shared.value)) is not None
+            ),
+            key=lambda shared: (shared.value["name"], shared.value["id"]),
+        )
+
         return SharedState(
             status=next(iter(statuses)) if len(statuses) == 1 else None,
             in_issue_draft=next(iter(drafts)) if len(drafts) == 1 else None,
             comment=next(iter(comments)) if len(comments) == 1 else None,
-            packages=_shared_values(packages, sort_key=lambda v: v),
+            packages=packages,
             maintainers=_shared_values(maintainers, sort_key=lambda v: v["github"]),
             references=_shared_values(
                 references,

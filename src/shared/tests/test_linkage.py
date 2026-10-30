@@ -702,7 +702,9 @@ def test_refresh_replaces_stale_package_links(
     PackageDerivation.objects.create(derivation=new_drv, package=fresh_pkg)
 
     suggestion = make_suggestion(
-        container=cve, drvs={old_drv: ProvenanceFlags.PACKAGE_NAME_MATCH}
+        container=cve,
+        drvs={old_drv: ProvenanceFlags.PACKAGE_NAME_MATCH},
+        package_links=False,
     )
     PackageClusterProposalLink.objects.create(
         proposal=suggestion,
@@ -733,7 +735,9 @@ def test_refresh_clears_package_links_when_rejected(
     PackageDerivation.objects.create(derivation=drv, package=pkg)
 
     suggestion = make_suggestion(
-        container=cve, drvs={drv: ProvenanceFlags.PACKAGE_NAME_MATCH}
+        container=cve,
+        drvs={drv: ProvenanceFlags.PACKAGE_NAME_MATCH},
+        package_links=False,
     )
     PackageClusterProposalLink.objects.create(
         proposal=suggestion,
