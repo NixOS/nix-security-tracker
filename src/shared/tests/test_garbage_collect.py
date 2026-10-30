@@ -129,7 +129,6 @@ def test_preserves_proposal_with_maintainer_overlay(
     elif type == "package":
         PackageOverlay.objects.create(
             type=PackageOverlay.Type.IGNORED,
-            package_attribute="foo",
             package=PackageAttrpath.objects.get(attrpath="foo").package,
             suggestion=suggestion,
         )

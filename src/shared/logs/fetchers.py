@@ -18,6 +18,7 @@ from pghistory.models import EventQuerySet
 
 from shared.logs.events import (
     Maintainer,
+    Package,
     RawCreationEvent,
     RawEventType,
     RawMaintainerEvent,
@@ -136,7 +137,7 @@ def fetch_suggestion_events(
         )
 
     package_qs = _annotate_username(
-        PackageOverlayEvent.objects.select_related("pgh_context").filter(
+        PackageOverlayEvent.objects.select_related("pgh_context", "package").filter(
             suggestion_id__in=suggestion_ids
         )
     )
@@ -147,7 +148,11 @@ def fetch_suggestion_events(
                 timestamp=pkg_event.pgh_created_at,
                 username=pkg_event.username,
                 action=pkg_event.pgh_label,
-                package_attribute=pkg_event.package_attribute,
+                package=Package(
+                    id=pkg_event.package.id,
+                    name=pkg_event.package.name,
+                    homepage=pkg_event.package.homepage,
+                ),
             )
         )
 
@@ -208,7 +213,7 @@ def fetch_status_events_for_package(package_name: str) -> list[RawEventType]:
         # This trades against the case where users who *did* query the feed *before* the package got ignored will never get notified that the event was irrelevant.
         # We deem it to be more beneficial like this than the other way round.
         .exclude(
-            package_overlays__package_attribute=package_name,
+            package_overlays__package__attrpaths__attrpath=package_name,
             package_overlays__type=PackageOverlay.Type.IGNORED,
         )
         .distinct()

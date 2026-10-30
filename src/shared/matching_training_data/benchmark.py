@@ -21,6 +21,7 @@ from shared.listeners.automatic_linkage import (
 from shared.matching_training_data.serializers import (
     _TRAINING_ORG_UUID,
     BENCHMARK_RELEASE_BRANCH,
+    overlay_attributes,
     pick_first_container,
 )
 from shared.models.linkage import CVEDerivationClusterProposal, PackageOverlay
@@ -33,9 +34,9 @@ def label_sets(
     Return kept fingerprints and ignored package attributes for a proposal.
     """
     ignored = {
-        overlay.package_attribute
-        for overlay in original_match.package_overlays.all()
-        if overlay.type == PackageOverlay.Type.IGNORED
+        attribute
+        for attribute, overlay_type in overlay_attributes(original_match)
+        if overlay_type == PackageOverlay.Type.IGNORED
     }
     if original_match.status == CVEDerivationClusterProposal.Status.REJECTED:
         return set(), ignored

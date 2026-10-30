@@ -6,6 +6,7 @@ from pydantic import BaseModel
 
 from shared.logs.events import (
     Maintainer,
+    Package,
     RawCreationEvent,
     RawEventType,
     RawMaintainerEvent,
@@ -47,7 +48,7 @@ class FoldedPackageEvent(FoldedEvent):
     """A folded package event that can represent single or bulk operations."""
 
     action: Literal["package.restore", "package.ignore"]
-    package_names: list[str]  # Always a list, even for single packages
+    packages: list[Package]  # Always a list, even for single packages
 
 
 class FoldedMaintainerEvent(FoldedEvent):
@@ -102,8 +103,9 @@ def batch_events(
                 and event.username == accumulator.username
                 and event.suggestion_id == accumulator.suggestion_id
             ):
-                # Continue accumulating packages
-                accumulator.package_names.append(event.package_attribute)
+                # Continue accumulating packages, once per package
+                if all(p["id"] != event.package["id"] for p in accumulator.packages):
+                    accumulator.packages.append(event.package)
                 accumulator.timestamp = event.timestamp
             else:
                 # End current accumulator, start new one
@@ -114,7 +116,7 @@ def batch_events(
                     timestamp=event.timestamp,
                     username=event.username,
                     action=event.action,
-                    package_names=[event.package_attribute],
+                    packages=[event.package],
                 )
 
         elif isinstance(event, RawReferenceEvent):

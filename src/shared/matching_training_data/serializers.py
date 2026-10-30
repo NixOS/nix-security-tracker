@@ -12,6 +12,7 @@ Serializers are named after the models they read/write. Export with
 from __future__ import annotations
 
 import uuid
+from collections import defaultdict
 from typing import Any, cast
 
 from django.db import transaction
@@ -19,6 +20,7 @@ from rest_framework import serializers
 
 from shared import models
 from shared.evaluation import DerivationKey, derivation_as_key
+from shared.models.linkage import PackageClusterProposalLink
 from shared.package_clustering import cluster_packages
 
 SCHEMA_VERSION = 1
@@ -63,6 +65,29 @@ def pick_first_container(
     return (
         proposal.cve.container.filter(affected__package_name__isnull=False).first()
         or proposal.cve.container.first()
+    )
+
+
+def overlay_attributes(
+    proposal: models.CVEDerivationClusterProposal,
+) -> list[tuple[str, str]]:
+    """
+    Return `(attribute, type)` for each attribute path of the proposal's derivations whose package has an overlay.
+    Overlays apply to packages, while the wire format records attribute paths.
+    """
+    types = {
+        overlay.package_id: overlay.type for overlay in proposal.package_overlays.all()
+    }
+    return sorted(
+        {
+            (attribute, types[package_id])
+            for attribute, package_id in proposal.derivationclusterproposallink_set.filter(
+                derivation__package_link__package_id__in=types
+            ).values_list(
+                "derivation__attribute",
+                "derivation__package_link__package_id",
+            )
+        }
     )
 
 
@@ -154,15 +179,11 @@ class DerivationClusterProposalLink(serializers.ModelSerializer):
         return cast(dict[str, Any], super().to_representation(instance))
 
 
-class PackageOverlay(serializers.ModelSerializer):
+class PackageOverlay(serializers.Serializer):
+    """An overlay as it applies to one attribute path of the overlaid package."""
+
+    package_attribute = serializers.CharField(max_length=255)
     type = serializers.ChoiceField(choices=models.PackageOverlay.Type.choices)
-
-    class Meta:
-        model = models.PackageOverlay
-        fields = ("package_attribute", "type")
-
-    def to_representation(self, instance: models.PackageOverlay) -> dict[str, Any]:
-        return cast(dict[str, Any], super().to_representation(instance))
 
 
 class CVEDerivationClusterProposal(serializers.ModelSerializer):
@@ -228,11 +249,11 @@ class CVEDerivationClusterProposal(serializers.ModelSerializer):
     def get_ignored_packages(
         self, obj: models.CVEDerivationClusterProposal
     ) -> list[str]:
-        return sorted(
-            overlay.package_attribute
-            for overlay in obj.package_overlays.all()
-            if overlay.type == models.PackageOverlay.Type.IGNORED
-        )
+        return [
+            attribute
+            for attribute, overlay_type in overlay_attributes(obj)
+            if overlay_type == models.PackageOverlay.Type.IGNORED
+        ]
 
     def get_kept_derivations(
         self, obj: models.CVEDerivationClusterProposal
@@ -271,11 +292,8 @@ class CVEDerivationClusterProposal(serializers.ModelSerializer):
             )
         ]
         overlays = [
-            PackageOverlay().to_representation(overlay)
-            for overlay in instance.package_overlays.order_by(
-                "package_attribute",
-                "type",
-            )
+            {"package_attribute": attribute, "type": overlay_type}
+            for attribute, overlay_type in overlay_attributes(instance)
         ]
 
         return {
@@ -423,14 +441,28 @@ class CVEDerivationClusterProposal(serializers.ModelSerializer):
                 pk__in=[drv.pk for drv in by_fingerprint.values()]
             )
         )
+        # Link the packages alongside the derivations, as matching does.
+        package_flags: dict[int, int] = defaultdict(int)
+        for package_id, flags in proposal.derivationclusterproposallink_set.filter(
+            derivation__package_link__isnull=False
+        ).values_list("derivation__package_link__package_id", "provenance_flags"):
+            package_flags[package_id] |= flags
+        PackageClusterProposalLink.objects.bulk_create(
+            PackageClusterProposalLink(
+                proposal=proposal,
+                package_id=package_id,
+                provenance_flags=models.ProvenanceFlags(flags),
+            )
+            for package_id, flags in package_flags.items()
+        )
         for overlay in overlays_data:
-            models.PackageOverlay.objects.create(
+            # Several attribute paths of the same package collapse onto one overlay.
+            models.PackageOverlay.objects.get_or_create(
                 suggestion=proposal,
-                package_attribute=overlay["package_attribute"],
                 package=models.PackageAttrpath.objects.get(
                     attrpath=overlay["package_attribute"]
                 ).package,
-                type=overlay["type"],
+                defaults={"type": overlay["type"]},
             )
 
         return proposal

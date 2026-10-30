@@ -8,10 +8,17 @@ from datetime import datetime
 from itertools import chain
 from typing import Any, overload
 
-from django.db.models import Case, IntegerField, Prefetch, Q, When
+from django.db.models import (
+    Case,
+    IntegerField,
+    Prefetch,
+    Q,
+    When,
+    prefetch_related_objects,
+)
 from pydantic import BaseModel, field_serializer
 
-from shared.models import NixDerivation, NixMaintainer
+from shared.models import NixDerivation, NixEvaluation, NixMaintainer
 from shared.models.cached import CachedSuggestions
 from shared.models.cve import AffectedProduct, Metric, Reference, Version
 from shared.models.linkage import (
@@ -20,6 +27,8 @@ from shared.models.linkage import (
     PackageOverlay,
     ReferenceUrlOverlay,
 )
+from shared.models.package import Package as PackageModel
+from shared.models.package import PackageDerivation
 
 logger = logging.getLogger(__name__)
 
@@ -60,19 +69,26 @@ class CachedSuggestion(BaseModel):
         matrix: str | None = None
         github_id: int
 
-    class Package(BaseModel):
+    class Attrpath(BaseModel):
+        attrpath: str
         branches: dict[str, "CachedSuggestion.PackageOnBranch"] = {}
-        derivation_ids: list[int] = []
-        maintainers: list["CachedSuggestion.Maintainer"] = []
+
+    class Package(BaseModel):
+        id: int
+        name: str
+        homepage: str | None = None
         description: str | None = None
+        # Attribute paths of the package that the suggestion matched, each with its own versions, since a package can have several on the same branch.
+        attrpaths: list["CachedSuggestion.Attrpath"] = []
+        maintainers: list["CachedSuggestion.Maintainer"] = []
 
     pk: int
     cve_id: str
     title: str | None
     description: str | None
     affected_products: dict[str, "CachedSuggestion.AffectedProduct"]
-    original_packages: dict[str, Package]
-    packages: dict[str, Package]
+    original_packages: list[Package]
+    packages: list[Package]
     # NOTE(@fricklerhandwerk): These are converted with `to_dict()` naively, we're not doing anything interesting to them here.
     metrics: list[dict]
 
@@ -111,19 +127,20 @@ class CachedSuggestion(BaseModel):
 
 
 def apply_package_overlays(
-    packages: dict, edits: list[PackageOverlay]
-) -> dict[str, CachedSuggestion.Package]:
+    packages: list[CachedSuggestion.Package],
+    package_overlays: Iterable[PackageOverlay],
+) -> list[CachedSuggestion.Package]:
     """
-    Returns the packages dict with user-supplied package edits applied.
+    Returns the packages with user-supplied package edits applied.
     Packages marked for removal are filtered out.
     """
     to_skip = {
-        edit.package_attribute
-        for edit in edits
-        if edit.type == PackageOverlay.Type.IGNORED
+        overlay.package_id
+        for overlay in package_overlays
+        if overlay.type == PackageOverlay.Type.IGNORED
     }
 
-    return {attr: data for attr, data in packages.items() if attr not in to_skip}
+    return [package for package in packages if package.id not in to_skip]
 
 
 def to_dict(instance: Any) -> dict[str, Any]:
@@ -215,31 +232,20 @@ def cache_new_suggestions(suggestion: CVEDerivationClusterProposal) -> None:
             cpe.name for cpe in affected_product.cpes.all()
         )
 
-    derivations = list(
-        suggestion.derivations.select_related(
-            "metadata",
-            "package_link__package",
-            "parent_evaluation",
-        )
-        .prefetch_related(
-            "parent_evaluation__on_branches",
+    linked_packages = [
+        link.package
+        for link in suggestion.package_links.select_related("package").prefetch_related(
             Prefetch(
-                "metadata__maintainers",
-                queryset=NixMaintainer.objects.distinct(),
-                to_attr="prefetched_maintainers",
-            ),
+                "package__maintainers",
+                queryset=NixMaintainer.objects.order_by("github_id"),
+            )
         )
-        # Oldest first, primary key is tie breaker.
-        # That way the most recent information will end up being displayed.
-        # Sorting in the database is surely faster than conditional update in Python, since there's a low limit of `settings.MAX_MATCHES`
-        .order_by("parent_evaluation__updated_at", "pk")
-        .all()
-    )
+    ]
 
     prefetched_metrics = Metric.objects.filter(container__cve=suggestion.cve).order_by(
         "-format"
     )
-    original_packages = channel_structure(all_versions, derivations)
+    original_packages = group_by_package(all_versions, linked_packages)
     maintainer_overlays = list(
         suggestion.maintainer_overlays.select_related("maintainer").all()
     )
@@ -323,41 +329,67 @@ def src_position_url(commit_sha1: str, position: str | None) -> str | None:
     return None
 
 
-def channel_structure(
-    version_constraints: list[Version], derivations: list[NixDerivation]
-) -> dict[str, CachedSuggestion.Package]:
+def group_by_package(
+    version_constraints: list[Version],
+    linked_packages: list[PackageModel],
+) -> list[CachedSuggestion.Package]:
     """
-    For a list of derivations and a list of version constraints that all belong to the same package, massage the data so that it can be rendered easily in the suggestions view
+    Collect the packages of a suggestion, with the version of each of their attribute paths on each branch.
+    Versions are taken from the packages' derivations on the latest completed evaluation of each branch.
     """
-    packages = dict()
-    for derivation in derivations:
-        attribute_path = derivation.attribute
-        _, package_version = parse_drv_name(derivation.name)
-        if attribute_path not in packages:
-            packages[attribute_path] = CachedSuggestion.Package()
-        packages[attribute_path].derivation_ids.append(derivation.pk)
-        is_tracking = derivation.parent_evaluation.is_on_tracking_branch
-        if derivation.metadata and is_tracking:
-            packages[attribute_path].description = derivation.metadata.get_description()
-            packages[attribute_path].maintainers = [
-                CachedSuggestion.Maintainer.model_validate(to_dict(m))
-                for m in derivation.metadata.prefetched_maintainers
-            ]
-        status = is_version_affected(
-            [c.affects(package_version) for c in version_constraints]
-        )
-        src_position = get_src_position(derivation)
-        updated = derivation.parent_evaluation.updated_at
-        for branch in derivation.parent_evaluation.on_branches.all():
-            packages[attribute_path].branches[branch.name] = (
-                CachedSuggestion.PackageOnBranch(
-                    version=package_version,
-                    status=status,
-                    src_position=src_position,
-                    updated=updated,
-                )
+    prefetch_related_objects(
+        linked_packages,
+        Prefetch(
+            "derivations",
+            queryset=PackageDerivation.objects.filter(
+                derivation__parent_evaluation__in=NixEvaluation.objects.latest_completed_per_branch(),
             )
-    return packages
+            .select_related(
+                "derivation__metadata",
+                "derivation__parent_evaluation",
+            )
+            .prefetch_related("derivation__parent_evaluation__on_branches")
+            # Oldest first, primary key is tie breaker.
+            # That way the most recent information will end up being displayed.
+            .order_by("derivation__parent_evaluation__updated_at", "derivation_id"),
+            to_attr="latest_derivations",
+        ),
+    )
+    packages = []
+    for package in linked_packages:
+        attrpaths: dict[str, CachedSuggestion.Attrpath] = dict()
+        for link in package.latest_derivations:
+            derivation = link.derivation
+            if derivation.attribute not in attrpaths:
+                attrpaths[derivation.attribute] = CachedSuggestion.Attrpath(
+                    attrpath=derivation.attribute
+                )
+            _, version = parse_drv_name(derivation.name)
+            on_branch = CachedSuggestion.PackageOnBranch(
+                version=version,
+                status=is_version_affected(
+                    [c.affects(version) for c in version_constraints]
+                ),
+                src_position=get_src_position(derivation),
+                updated=derivation.parent_evaluation.updated_at,
+            )
+            for branch in derivation.parent_evaluation.on_branches.all():
+                attrpaths[derivation.attribute].branches[branch.name] = on_branch
+        packages.append(
+            CachedSuggestion.Package(
+                id=package.pk,
+                name=package.name,
+                homepage=package.homepage,
+                description=package.description,
+                attrpaths=sorted(attrpaths.values(), key=lambda a: a.attrpath),
+                maintainers=[
+                    CachedSuggestion.Maintainer.model_validate(to_dict(m))
+                    for m in package.maintainers.all()
+                ],
+            )
+        )
+
+    return sorted(packages, key=lambda package: (package.name, package.id))
 
 
 def parse_drv_name(name: str) -> tuple[str, str]:
@@ -377,7 +409,7 @@ def parse_drv_name(name: str) -> tuple[str, str]:
 
 
 def maintainers_list(
-    packages: dict, edits: list[MaintainerOverlay]
+    packages: list[dict[str, Any]], edits: list[MaintainerOverlay]
 ) -> list[CachedSuggestion.Maintainer]:
     """
     Returns a deduplicated list (by GitHub ID) of all the maintainers, as dicts,
@@ -400,7 +432,7 @@ def maintainers_list(
     ]
 
     maintainers: list[CachedSuggestion.Maintainer] = list()
-    all_maintainers = [m for pkg in packages.values() for m in pkg["maintainers"]]
+    all_maintainers = [m for pkg in packages for m in pkg["maintainers"]]
 
     for m in itertools.chain(all_maintainers, to_add):
         if m.github_id not in to_skip_or_seen:
@@ -468,8 +500,8 @@ def categorize_url_references(
 
 
 def categorize_maintainers(
-    original_packages: dict[str, CachedSuggestion.Package],
-    active_packages: dict[str, CachedSuggestion.Package],
+    original_packages: list[CachedSuggestion.Package],
+    active_packages: list[CachedSuggestion.Package],
     maintainer_overlays: list[MaintainerOverlay],
 ) -> CachedSuggestion.CategorizedMaintainers:
     """
@@ -484,7 +516,7 @@ def categorize_maintainers(
     """
     # Collect all original maintainers from all original packages (deduplicated by github_id)
     original_maintainers_dict: dict[int, CachedSuggestion.Maintainer] = {}
-    for package in original_packages.values():
+    for package in original_packages:
         for maintainer in package.maintainers:
             original_maintainers_dict[maintainer.github_id] = maintainer
 
@@ -493,7 +525,7 @@ def categorize_maintainers(
     # Maintainers of currently active packages
     active_package_maintainer_ids = {
         maintainer.github_id
-        for package in active_packages.values()
+        for package in active_packages
         for maintainer in package.maintainers
     }
 

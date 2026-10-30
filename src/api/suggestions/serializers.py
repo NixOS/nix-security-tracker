@@ -63,9 +63,8 @@ class SuggestionMaintainerDeleteSerializer(serializers.Serializer):
 class SuggestionPackageUpdateSerializer(serializers.Serializer):
     """Request body for ignore/restore package PATCH operations."""
 
-    package_attribute = serializers.CharField(
-        max_length=255,
-        help_text="Attribute name of the package to ignore or restore.",
+    package_id = serializers.IntegerField(
+        help_text="ID of the package to ignore or restore.",
     )
     ignored = serializers.BooleanField(
         help_text="Set to true to ignore the package, false to restore it.",
@@ -157,17 +156,24 @@ class SuggestionPackageOnBranchSerializer(serializers.Serializer):
     src_position = serializers.CharField(allow_null=True)
 
 
-class SuggestionPackageSerializer(serializers.Serializer):
+class SuggestionAttrpathSerializer(serializers.Serializer):
+    attrpath = serializers.CharField()
     branches = serializers.DictField(child=SuggestionPackageOnBranchSerializer())
-    derivation_ids = serializers.ListField(child=serializers.IntegerField())
-    maintainers = MaintainerSerializer(many=True)
+
+
+class SuggestionPackageSerializer(serializers.Serializer):
+    id = serializers.IntegerField()
+    name = serializers.CharField()
+    homepage = serializers.CharField(allow_null=True)
     description = serializers.CharField(allow_null=True)
+    attrpaths = SuggestionAttrpathSerializer(many=True)
+    maintainers = MaintainerSerializer(many=True)
 
 
 class SuggestionCategorizedPackagesSerializer(serializers.Serializer):
-    original = serializers.DictField(child=SuggestionPackageSerializer())
-    active = serializers.DictField(child=SuggestionPackageSerializer())
-    ignored = serializers.DictField(child=SuggestionPackageSerializer())
+    original = SuggestionPackageSerializer(many=True)
+    active = SuggestionPackageSerializer(many=True)
+    ignored = SuggestionPackageSerializer(many=True)
 
 
 class SuggestionAffectedProductSerializer(serializers.Serializer):
@@ -272,25 +278,24 @@ class SuggestionSerializer(serializers.Serializer):
             for k, v in data.items()
         ]
 
-    @extend_schema_field(serializers.DictField(child=SuggestionPackageSerializer()))
-    def get_packages(self, obj: CVEDerivationClusterProposal) -> dict:
+    @extend_schema_field(SuggestionPackageSerializer(many=True))
+    def get_packages(self, obj: CVEDerivationClusterProposal) -> list:
         data = self._payload(obj)["packages"]
-        return {k: SuggestionPackageSerializer(v).data for k, v in data.items()}
+        return [SuggestionPackageSerializer(package).data for package in data]
 
-    @extend_schema_field(serializers.DictField(child=SuggestionPackageSerializer()))
-    def get_original_packages(self, obj: CVEDerivationClusterProposal) -> dict:
+    @extend_schema_field(SuggestionPackageSerializer(many=True))
+    def get_original_packages(self, obj: CVEDerivationClusterProposal) -> list:
         data = self._payload(obj)["original_packages"]
-        return {k: SuggestionPackageSerializer(v).data for k, v in data.items()}
+        return [SuggestionPackageSerializer(package).data for package in data]
 
-    @extend_schema_field(serializers.DictField(child=SuggestionPackageSerializer()))
-    def get_ignored_packages(self, obj: CVEDerivationClusterProposal) -> dict:
-        original_packages = self._payload(obj)["original_packages"]
-        packages = self._payload(obj)["packages"]
-        return {
-            k: SuggestionPackageSerializer(v).data
-            for k, v in original_packages.items()
-            if k not in packages
-        }
+    @extend_schema_field(SuggestionPackageSerializer(many=True))
+    def get_ignored_packages(self, obj: CVEDerivationClusterProposal) -> list:
+        active_ids = {package["id"] for package in self._payload(obj)["packages"]}
+        return [
+            SuggestionPackageSerializer(package).data
+            for package in self._payload(obj)["original_packages"]
+            if package["id"] not in active_ids
+        ]
 
     @extend_schema_field(MetricSerializer(many=True))
     def get_metrics(self, obj: CVEDerivationClusterProposal) -> list:
@@ -437,7 +442,8 @@ def folded_event_to_dict(event: FoldedEventType) -> dict:
         base["status_value"] = event.status_value
         base["rejection_reason"] = event.rejection_reason
     elif isinstance(event, FoldedPackageEvent):
-        base["package_names"] = event.package_names
+        # TODO(@adekoder): We need to update this to include additional package details in the activity logs API
+        base["package_names"] = [p["name"] for p in event.packages]
     elif isinstance(event, FoldedMaintainerEvent):
         base["maintainers"] = [dict(m) for m in event.maintainers]
     elif isinstance(event, FoldedReferenceEvent):

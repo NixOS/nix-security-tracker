@@ -248,15 +248,17 @@ def create_gh_issue(
         order: list[str] = []
         packages: dict[str, dict[str, list[str]]] = {}
         for cs in cached_suggestions:
-            for attribute_name, pkg in cs.payload["packages"].items():
-                if attribute_name not in packages:
-                    packages[attribute_name] = {}
-                    order.append(attribute_name)
-                for branch, package in pkg["branches"].items():
-                    if package["version"]:
-                        versions = packages[attribute_name].setdefault(branch, [])
-                        if package["version"] not in versions:
-                            versions.append(package["version"])
+            for pkg in cs.payload["packages"]:
+                for attrpath in pkg["attrpaths"]:
+                    attribute_name = attrpath["attrpath"]
+                    if attribute_name not in packages:
+                        packages[attribute_name] = {}
+                        order.append(attribute_name)
+                    for branch, package in attrpath["branches"].items():
+                        if package["version"]:
+                            versions = packages[attribute_name].setdefault(branch, [])
+                            if package["version"] not in versions:
+                                versions.append(package["version"])
 
         if not packages:
             return ""

@@ -181,7 +181,6 @@ def test_ignored_package_not_listed(
     )
     PackageOverlay.objects.create(
         suggestion=suggestion,
-        package_attribute="bar",
         package=Package.objects.get(name="bar"),
         type=PackageOverlay.Type.IGNORED,
     )
