@@ -123,10 +123,17 @@ function actionName(entry: ActivityLogEntry): string {
 // Items batched into a single entry (e.g. several packages ignored at once), along with the kind label used to describe them (e.g. "packages").
 // null means the entry doesn't carry a list of objects.
 function entryObjectGroup(entry: ActivityLogEntry): { kind: string; items: ObjectItem[] } | null {
-  if (entry.package_names && entry.package_names.length > 0) {
+  if (entry.packages && entry.packages.length > 0) {
     return {
       kind: "packages",
-      items: entry.package_names.map((name) => ({ key: name, node: <span>{name}</span> })),
+      items: entry.packages.map((p) => ({
+        key: String(p.id),
+        node: p.homepage ? (
+          <ExternalLink href={p.homepage}>{p.name}</ExternalLink>
+        ) : (
+          <span>{p.name}</span>
+        ),
+      })),
     };
   }
   if (entry.references && entry.references.length > 0) {

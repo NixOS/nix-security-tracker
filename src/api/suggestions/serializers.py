@@ -209,13 +209,19 @@ class ActivityLogReferenceSerializer(serializers.Serializer):
     name = serializers.CharField(allow_null=True)
 
 
+class ActivityLogPackageSerializer(serializers.Serializer):
+    id = serializers.IntegerField()
+    name = serializers.CharField()
+    homepage = serializers.CharField(allow_null=True)
+
+
 class ActivityLogEntrySerializer(serializers.Serializer):
     action = serializers.CharField()
     timestamp = serializers.DateTimeField()
     username = serializers.CharField(allow_null=True)
     status_value = serializers.CharField(allow_null=True, default=None)
     rejection_reason = serializers.CharField(allow_null=True, default=None)
-    package_names = serializers.ListField(child=serializers.CharField(), default=list)
+    packages = ActivityLogPackageSerializer(many=True, default=list)
     maintainers = MaintainerSerializer(many=True, default=list)
     references = ActivityLogReferenceSerializer(many=True, default=list)
 
@@ -432,7 +438,7 @@ def folded_event_to_dict(event: FoldedEventType) -> dict:
         "username": event.username,
         "status_value": None,
         "rejection_reason": None,
-        "package_names": [],
+        "packages": [],
         "maintainers": [],
         "references": [],
     }
@@ -442,8 +448,7 @@ def folded_event_to_dict(event: FoldedEventType) -> dict:
         base["status_value"] = event.status_value
         base["rejection_reason"] = event.rejection_reason
     elif isinstance(event, FoldedPackageEvent):
-        # TODO(@adekoder): We need to update this to include additional package details in the activity logs API
-        base["package_names"] = [p["name"] for p in event.packages]
+        base["packages"] = [dict(p) for p in event.packages]
     elif isinstance(event, FoldedMaintainerEvent):
         base["maintainers"] = [dict(m) for m in event.maintainers]
     elif isinstance(event, FoldedReferenceEvent):

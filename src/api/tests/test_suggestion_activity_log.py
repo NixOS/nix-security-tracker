@@ -1,12 +1,14 @@
 from collections.abc import Callable
 
+from django.contrib.auth.models import User
 from rest_framework.reverse import reverse
 from rest_framework.test import APIClient
 
 from shared.listeners.automatic_linkage import refresh_suggestion_derivation_links
 from shared.models.issue import NixpkgsIssue
-from shared.models.linkage import CVEDerivationClusterProposal
-from shared.models.nix_evaluation import NixEvaluation
+from shared.models.linkage import CVEDerivationClusterProposal, ProvenanceFlags
+from shared.models.nix_evaluation import NixDerivation, NixEvaluation
+from shared.models.package import PackageAttrpath
 
 
 def test_detail_activity_log_null_by_default(
@@ -145,3 +147,50 @@ def test_rematch_dismissal_is_not_attributed_to_anyone(
         and e["status_value"] == CVEDerivationClusterProposal.Status.REJECTED
     )
     assert dismissal["username"] is None
+
+
+def test_ignored_packages_appear_in_activity_log(
+    make_drv: Callable[..., NixDerivation],
+    make_cached_suggestion: Callable[..., CVEDerivationClusterProposal],
+    committer: User,
+    client: APIClient,
+) -> None:
+    """
+    Packages ignored in a row fold into one activity log entry that carries each package's id, name and homepage.
+    """
+    drv1 = make_drv(pname="package1")
+    drv2 = make_drv(pname="package2")
+    suggestion = make_cached_suggestion(
+        drvs={
+            drv1: ProvenanceFlags.PACKAGE_NAME_MATCH,
+            drv2: ProvenanceFlags.PACKAGE_NAME_MATCH,
+        },
+    )
+    packages = [
+        PackageAttrpath.objects.get(attrpath=attrpath).package
+        for attrpath in ["package1", "package2"]
+    ]
+    client.force_login(committer)
+    for package in packages:
+        response = client.patch(
+            reverse(
+                "cvederivationclusterproposal-packages", kwargs={"pk": suggestion.pk}
+            ),
+            {"package_id": package.pk, "ignored": True},
+            format="json",
+        )
+        assert response.status_code == 204
+
+    response = client.get(
+        reverse("cvederivationclusterproposal-detail", kwargs={"pk": suggestion.pk}),
+        {"activity_log": "true"},
+    )
+    assert response.status_code == 200
+    entries = [
+        e for e in response.data["activity_log"] if e["action"] == "package.ignore"
+    ]
+    assert len(entries) == 1
+    assert entries[0]["packages"] == [
+        {"id": package.pk, "name": package.name, "homepage": package.homepage}
+        for package in packages
+    ]
