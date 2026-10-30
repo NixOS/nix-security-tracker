@@ -1,8 +1,8 @@
-import type { SuggestionPackages } from "@/api/generated/models";
+import type { SuggestionPackage } from "@/api/generated/models";
 import { Package } from "./Package";
 
 type Props = {
-  packages: SuggestionPackages;
+  packages: readonly SuggestionPackage[];
   suggestionId: number;
   editable: boolean;
   isIgnored: boolean;
@@ -11,11 +11,9 @@ type Props = {
 export function PackagesList({ packages, suggestionId, editable, isIgnored }: Props) {
   return (
     <ul className="column dividers">
-      {Object.entries(packages).map(([attr, pkg]) => (
-        <li key={attr}>
+      {packages.map((pkg) => (
+        <li key={pkg.id}>
           <Package
-            key={attr}
-            attr={attr}
             pkg={pkg}
             suggestionId={suggestionId}
             editable={editable}
