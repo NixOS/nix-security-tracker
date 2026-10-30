@@ -1,10 +1,10 @@
-import type { SuggestionPackages } from "@/api/generated/models";
+import type { SuggestionPackage } from "@/api/generated/models";
 import { PackagesList } from "./PackagesList";
 
 type Props = {
   suggestionId: number;
-  active: SuggestionPackages;
-  ignored: SuggestionPackages;
+  active: readonly SuggestionPackage[];
+  ignored: readonly SuggestionPackage[];
   editable: boolean;
 };
 
@@ -17,11 +17,9 @@ export function CategorizedPackagesList({ suggestionId, active, ignored, editabl
         editable={editable}
         isIgnored={false}
       />
-      {Object.keys(ignored).length > 0 && (
+      {ignored.length > 0 && (
         <details className="column gap">
-          <summary className="text-l bold text-gray">
-            Ignored packages ({Object.keys(ignored).length})
-          </summary>
+          <summary className="text-l bold text-gray">Ignored packages ({ignored.length})</summary>
           <PackagesList
             packages={ignored}
             suggestionId={suggestionId}

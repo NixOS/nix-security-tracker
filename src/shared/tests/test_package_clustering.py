@@ -11,9 +11,11 @@ from django.core.management import call_command
 from django.db import close_old_connections
 
 from shared.cache_suggestions import parse_drv_name
+from shared.channels import SuggestionRefreshChannel
 from shared.listeners.package_clustering import (
     cluster_after_evaluation,
 )
+from shared.models.linkage import CVEDerivationClusterProposal, ProvenanceFlags
 from shared.models.nix_evaluation import (
     NixChannel,
     NixDerivation,
@@ -269,6 +271,55 @@ def test_listener_clusters_on_completed(
     )
 
     assert PackageDerivation.objects.filter(derivation=drv).exists()
+
+
+def test_listener_refreshes_suggestions_through_package_links(
+    make_branch: Callable[..., NixpkgsBranch],
+    make_channel: Callable[..., NixChannel],
+    make_evaluation: Callable[..., NixEvaluation],
+    make_drv: Callable[..., NixDerivation],
+    make_suggestion: Callable[..., CVEDerivationClusterProposal],
+    django_capture_on_commit_callbacks: Callable[..., Any],
+) -> None:
+    """
+    A completed evaluation refreshes the suggestions whose packages it contains, even when they matched derivations on another branch.
+    """
+    stable = make_evaluation(
+        channel=make_channel(
+            channel_branch="nixos-26.05-small",
+            release_branch=make_branch(name="release-26.05"),
+        )
+    )
+    linked = make_suggestion(
+        drvs={
+            make_drv(pname="foo", evaluation=stable): ProvenanceFlags.PACKAGE_NAME_MATCH
+        }
+    )
+    unrelated = make_suggestion(
+        drvs={
+            make_drv(pname="bar", evaluation=stable): ProvenanceFlags.PACKAGE_NAME_MATCH
+        }
+    )
+    rolling = make_evaluation(
+        channel=make_channel(channel_branch=settings.TRACKING_BRANCH)
+    )
+    make_drv(pname="foo", version="2.0", evaluation=rolling)
+
+    with (
+        mock.patch("shared.listeners.package_clustering.pgpubsub.notify") as notify,
+        django_capture_on_commit_callbacks(execute=True),
+    ):
+        cluster_after_evaluation(
+            old=NixEvaluation(state=NixEvaluation.EvaluationState.IN_PROGRESS),
+            new=rolling,
+        )
+
+    notified = {call.kwargs["pk"] for call in notify.call_args_list}
+    assert linked.pk in notified
+    assert unrelated.pk not in notified
+    assert all(
+        call.args == (SuggestionRefreshChannel,) for call in notify.call_args_list
+    )
 
 
 def test_backfill_no_evaluations(db: None) -> None:
