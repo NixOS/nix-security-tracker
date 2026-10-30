@@ -81,12 +81,15 @@ in
       "d ${cfg.settings.METRICS_TEXTFILE_DIR} 2750 ${app} ${metrics-group} -"
     ];
 
-    systemd.services.nix-security-tracker-migrations = {
-      before = [
-        "prometheus-node-exporter.service"
-        "prometheus-postgres-exporter.service"
-        "prometheus-sql-exporter.service"
-      ];
+    systemd.services = {
+      prometheus-node-exporter.serviceConfig.SupplementaryGroups = [ metrics-group ];
+      nix-security-tracker-migrations = {
+        before = [
+          "prometheus-node-exporter.service"
+          "prometheus-postgres-exporter.service"
+          "prometheus-sql-exporter.service"
+        ];
+      };
     };
   };
 }
