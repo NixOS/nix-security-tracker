@@ -35,7 +35,12 @@ function suggestionMatchesFilters(
     return false;
   }
 
-  if (filters.packageFilter && !(filters.packageFilter in suggestion.packages)) {
+  if (
+    filters.packageFilter &&
+    !suggestion.packages.some((pkg) =>
+      pkg.attrpaths.some((a) => a.attrpath === filters.packageFilter),
+    )
+  ) {
     return false;
   }
 

@@ -9,7 +9,7 @@ import type {
   PatchedSuggestionPackageUpdate,
   Suggestion,
   SuggestionCategorizedMaintainers,
-  SuggestionPackages,
+  SuggestionPackage,
 } from "@/api/generated/models";
 import { getApiErrorMessage } from "@/utils/apiError";
 import {
@@ -35,19 +35,19 @@ export function usePackageMutation(suggestionId: number) {
         const previous = getCachedSuggestion(queryClient, suggestionId);
 
         setCachedSuggestion(queryClient, suggestionId, (prev) => {
-          const { package_attribute, ignored } = data;
-          if (!package_attribute) return prev;
+          const { package_id, ignored } = data;
+          if (package_id === undefined) return prev;
 
           const fromKey = ignored ? "packages" : "ignored_packages";
           const toKey = ignored ? "ignored_packages" : "packages";
-          const moving = prev[fromKey][package_attribute];
+          const moving = prev[fromKey].find((pkg) => pkg.id === package_id);
           if (!moving) return prev;
 
-          const { [package_attribute]: _removed, ...fromRest } = prev[fromKey];
           const newPackages = {
             ...prev,
-            [fromKey]: fromRest,
-            [toKey]: { ...prev[toKey], [package_attribute]: moving },
+            [fromKey]: prev[fromKey].filter((pkg) => pkg.id !== package_id),
+            // Same order as the server, so the list doesn't jump when the suggestion is refetched.
+            [toKey]: [...prev[toKey], moving].sort(compareSuggestionPackages),
           };
 
           // Packages moving in/out of `active` change which maintainers count as active (auto ignore/restore maintainers).
@@ -100,15 +100,20 @@ export function usePackageMutation(suggestionId: number) {
  * Used to give instant feedback (in the maintainer section) to the user when a package is ignored/restored.
  */
 function recomputeCategorizedMaintainers(
-  activePackages: SuggestionPackages,
+  activePackages: readonly SuggestionPackage[],
   previous: SuggestionCategorizedMaintainers,
 ): SuggestionCategorizedMaintainers {
   const activePackageMaintainerIds = new Set(
-    Object.values(activePackages).flatMap((pkg) => pkg.maintainers.map((m) => m.github_id)),
+    activePackages.flatMap((pkg) => pkg.maintainers.map((m) => m.github_id)),
   );
 
   return {
     ...previous,
     orphan: previous.original.filter((m) => !activePackageMaintainerIds.has(m.github_id)),
   };
+}
+
+/** Order of packages in a suggestion, as sorted by the server: by name, then by id. */
+function compareSuggestionPackages(a: SuggestionPackage, b: SuggestionPackage): number {
+  return a.name < b.name ? -1 : a.name > b.name ? 1 : a.id - b.id;
 }
