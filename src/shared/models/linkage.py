@@ -1061,7 +1061,7 @@ class PackageOverlay(Overlay):
     class Meta(Overlay.Meta):
         constraints = [
             models.UniqueConstraint(
-                fields=["suggestion", "package_id"],
+                fields=["suggestion", "package"],
                 name="unique_package_overlay_per_suggestion",
             )
         ]
