@@ -13,29 +13,35 @@ from webview.models import SuggestionNotification as Notification
 logger = logging.getLogger(__name__)
 
 
-def _matching_subscribed_packages(notification: Notification, profile: Profile) -> dict:
-    """Packages in the notification's suggestion that the user manually subscribed to."""
-    suggestion_packages = notification.suggestion.cached.payload.get("packages", {})
+def _matching_subscribed_packages(
+    notification: Notification, profile: Profile
+) -> list[str]:
+    """Attribute paths in the notification's suggestion that the user manually subscribed to."""
+    suggestion_packages = notification.suggestion.cached.payload.get("packages", [])
     subscribed_attrs = set(profile.package_subscriptions)
-    return {
-        attr: pdata
-        for attr, pdata in suggestion_packages.items()
-        if attr in subscribed_attrs
-    }
+    return [
+        a["attrpath"]
+        for pdata in suggestion_packages
+        for a in pdata["attrpaths"]
+        if a["attrpath"] in subscribed_attrs
+    ]
 
 
-def _matching_maintained_packages(notification: Notification, profile: Profile) -> dict:
-    """Packages in the notification's suggestion that the user maintains."""
-    suggestion_packages = notification.suggestion.cached.payload.get("packages", {})
+def _matching_maintained_packages(
+    notification: Notification, profile: Profile
+) -> list[str]:
+    """Attribute paths of packages in the notification's suggestion that the user maintains."""
+    suggestion_packages = notification.suggestion.cached.payload.get("packages", [])
     username = profile.user.username
-    return {
-        attr: pdata
-        for attr, pdata in suggestion_packages.items()
+    return [
+        a["attrpath"]
+        for pdata in suggestion_packages
         if any(
             maintainer.get("github") == username
             for maintainer in pdata.get("maintainers", [])
         )
-    }
+        for a in pdata["attrpaths"]
+    ]
 
 
 def create_package_subscription_notifications(
@@ -193,7 +199,7 @@ def send_notification_email(user: User, notification: Notification) -> None:
         message_parts.extend(
             [
                 "Packages you follow that may be affected:",
-                *[f"  - {pkg}" for pkg in matching_subscribed_packages.keys()],
+                *[f"  - {pkg}" for pkg in matching_subscribed_packages],
                 "",
             ]
         )
@@ -202,7 +208,7 @@ def send_notification_email(user: User, notification: Notification) -> None:
         message_parts.extend(
             [
                 "Packages you maintain that may be affected:",
-                *[f"  - {pkg}" for pkg in matching_maintained_packages.keys()],
+                *[f"  - {pkg}" for pkg in matching_maintained_packages],
                 "",
             ]
         )

@@ -660,7 +660,9 @@ def test_refresh_creates_package_links_alongside_drv_links(
     PackageDerivation.objects.create(derivation=new_drv, package=pkg)
 
     suggestion = make_suggestion(
-        container=cve, drvs={old_drv: ProvenanceFlags.PACKAGE_NAME_MATCH}
+        container=cve,
+        drvs={old_drv: ProvenanceFlags.PACKAGE_NAME_MATCH},
+        package_links=False,
     )
     assert not PackageClusterProposalLink.objects.filter(proposal=suggestion).exists()
 

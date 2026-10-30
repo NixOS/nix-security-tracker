@@ -161,7 +161,14 @@ class SuggestionFilterSet(filters.FilterSet):
         ]
 
     def filter_package(self, queryset: QuerySet, name: str, value: str) -> QuerySet:
-        return queryset.filter(cached__payload__packages__has_key=value)
+        package_id = (
+            PackageAttrpath.objects.filter(attrpath=value)
+            .values_list("package_id", flat=True)
+            .first()
+        )
+        if package_id is None:
+            return queryset.none()
+        return queryset.filter(cached__payload__packages__contains=[{"id": package_id}])
 
     def filter_affected_product(
         self, queryset: CVEDerivationClusterProposalQuerySet, name: str, value: str
@@ -817,14 +824,15 @@ class SuggestionViewSet(ListModelMixin, RetrieveModelMixin, viewsets.GenericView
             instance.ensure_fresh_cache()
             payload = instance.cached.payload
             active = payload["packages"]
+            active_ids = {package["id"] for package in active}
             data = {
                 "original": payload["original_packages"],
                 "active": active,
-                "ignored": {
-                    k: v
-                    for k, v in payload["original_packages"].items()
-                    if k not in active
-                },
+                "ignored": [
+                    package
+                    for package in payload["original_packages"]
+                    if package["id"] not in active_ids
+                ],
             }
             return Response(SuggestionCategorizedPackagesSerializer(data).data)
         elif request.method == "PATCH":
@@ -834,13 +842,9 @@ class SuggestionViewSet(ListModelMixin, RetrieveModelMixin, viewsets.GenericView
             instance.ensure_fresh_cache()
             try:
                 if serializer.validated_data["ignored"]:
-                    instance.ignore_package(
-                        serializer.validated_data["package_attribute"]
-                    )
+                    instance.ignore_package(serializer.validated_data["package_id"])
                 else:
-                    instance.restore_package(
-                        serializer.validated_data["package_attribute"]
-                    )
+                    instance.restore_package(serializer.validated_data["package_id"])
             except ValidationError as e:
                 raise DRFValidationError(e.message_dict)
             return Response(status=204)
@@ -962,14 +966,12 @@ class SuggestionViewSet(ListModelMixin, RetrieveModelMixin, viewsets.GenericView
     def bulk_packages(self, request: Request) -> Response:
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
-        package_attribute = serializer.validated_data["package_attribute"]
+        package_id = serializer.validated_data["package_id"]
         if serializer.validated_data["ignored"]:
             return self.bulk_response(
-                lambda queryset: queryset.ignore_package(package_attribute)
+                lambda queryset: queryset.ignore_package(package_id)
             )
-        return self.bulk_response(
-            lambda queryset: queryset.restore_package(package_attribute)
-        )
+        return self.bulk_response(lambda queryset: queryset.restore_package(package_id))
 
     @extend_schema(
         operation_id="bulkUpdateSuggestionMaintainer",

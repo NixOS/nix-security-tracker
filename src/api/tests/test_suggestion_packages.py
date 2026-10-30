@@ -7,14 +7,23 @@ from rest_framework.test import APIClient
 
 from shared.models.linkage import CVEDerivationClusterProposal, ProvenanceFlags
 from shared.models.nix_evaluation import NixDerivation, NixMaintainer
+from shared.models.package import PackageAttrpath
 
 PACKAGE_ATTRIBUTE_1 = "package1"
 PACKAGE_ATTRIBUTE_2 = "package2"
-PACKAGE_ATTRIBUTE_NON_EXISTING = "foo"
+NON_EXISTING_PACKAGE_ID = -1
 
 
 def url(id: int) -> str:
     return reverse("cvederivationclusterproposal-packages", kwargs={"pk": id})
+
+
+def package_id(attrpath: str) -> int:
+    return PackageAttrpath.objects.get(attrpath=attrpath).package_id
+
+
+def ids(packages: list[dict]) -> set[int]:
+    return {package["id"] for package in packages}
 
 
 @pytest.fixture
@@ -42,9 +51,9 @@ def test_get_packages_anonymous(
     assert "original" in data
     assert "active" in data
     assert "ignored" in data
-    assert PACKAGE_ATTRIBUTE_1 in data["original"]
-    assert PACKAGE_ATTRIBUTE_1 in data["active"]
-    assert data["ignored"] == {}
+    assert package_id(PACKAGE_ATTRIBUTE_1) in ids(data["original"])
+    assert package_id(PACKAGE_ATTRIBUTE_1) in ids(data["active"])
+    assert data["ignored"] == []
 
 
 def test_get_packages_not_found(
@@ -61,7 +70,7 @@ def test_patch_ignore_unauthenticated(
     client = APIClient()
     response = client.patch(
         url(suggestion_with_packages.pk),
-        {"package_attribute": PACKAGE_ATTRIBUTE_1, "ignored": True},
+        {"package_id": package_id(PACKAGE_ATTRIBUTE_1), "ignored": True},
         format="json",
     )
     assert response.status_code == 401
@@ -75,7 +84,7 @@ def test_patch_ignore_non_committer(
     client.force_login(user)
     response = client.patch(
         url(suggestion_with_packages.pk),
-        {"package_attribute": PACKAGE_ATTRIBUTE_1, "ignored": True},
+        {"package_id": package_id(PACKAGE_ATTRIBUTE_1), "ignored": True},
         format="json",
     )
     assert response.status_code == 403
@@ -89,7 +98,7 @@ def test_patch_ignore_package_not_found(
     client.force_login(committer)
     response = client.patch(
         url(suggestion_with_packages.pk),
-        {"package_attribute": PACKAGE_ATTRIBUTE_NON_EXISTING, "ignored": True},
+        {"package_id": NON_EXISTING_PACKAGE_ID, "ignored": True},
         format="json",
     )
     assert response.status_code == 400
@@ -103,7 +112,7 @@ def test_patch_ignore_package_success(
     client.force_login(committer)
     response = client.patch(
         url(suggestion_with_packages.pk),
-        {"package_attribute": PACKAGE_ATTRIBUTE_1, "ignored": True},
+        {"package_id": package_id(PACKAGE_ATTRIBUTE_1), "ignored": True},
         format="json",
     )
     assert response.status_code == 204
@@ -112,8 +121,8 @@ def test_patch_ignore_package_success(
     get_response = client.get(url(suggestion_with_packages.pk))
     assert get_response.status_code == 200
     data = get_response.data
-    assert PACKAGE_ATTRIBUTE_1 not in data["active"]
-    assert PACKAGE_ATTRIBUTE_1 in data["ignored"]
+    assert package_id(PACKAGE_ATTRIBUTE_1) not in ids(data["active"])
+    assert package_id(PACKAGE_ATTRIBUTE_1) in ids(data["ignored"])
 
 
 def test_patch_ignore_package_already_ignored(
@@ -125,13 +134,13 @@ def test_patch_ignore_package_already_ignored(
     # First ignore
     client.patch(
         url(suggestion_with_packages.pk),
-        {"package_attribute": PACKAGE_ATTRIBUTE_1, "ignored": True},
+        {"package_id": package_id(PACKAGE_ATTRIBUTE_1), "ignored": True},
         format="json",
     )
     # Second ignore should fail
     response = client.patch(
         url(suggestion_with_packages.pk),
-        {"package_attribute": PACKAGE_ATTRIBUTE_1, "ignored": True},
+        {"package_id": package_id(PACKAGE_ATTRIBUTE_1), "ignored": True},
         format="json",
     )
     assert response.status_code == 400
@@ -143,7 +152,7 @@ def test_patch_restore_unauthenticated(
     client = APIClient()
     response = client.patch(
         url(suggestion_with_packages.pk),
-        {"package_attribute": PACKAGE_ATTRIBUTE_1, "ignored": False},
+        {"package_id": package_id(PACKAGE_ATTRIBUTE_1), "ignored": False},
         format="json",
     )
     assert response.status_code == 401
@@ -157,7 +166,7 @@ def test_patch_restore_non_committer(
     client.force_login(user)
     response = client.patch(
         url(suggestion_with_packages.pk),
-        {"package_attribute": PACKAGE_ATTRIBUTE_1, "ignored": False},
+        {"package_id": package_id(PACKAGE_ATTRIBUTE_1), "ignored": False},
         format="json",
     )
     assert response.status_code == 403
@@ -172,7 +181,7 @@ def test_patch_restore_package_not_ignored(
     # Not yet ignored, so restoring should fail
     response = client.patch(
         url(suggestion_with_packages.pk),
-        {"package_attribute": PACKAGE_ATTRIBUTE_1, "ignored": False},
+        {"package_id": package_id(PACKAGE_ATTRIBUTE_1), "ignored": False},
         format="json",
     )
     assert response.status_code == 400
@@ -187,13 +196,13 @@ def test_patch_restore_package_success(
     # First ignore
     client.patch(
         url(suggestion_with_packages.pk),
-        {"package_attribute": PACKAGE_ATTRIBUTE_1, "ignored": True},
+        {"package_id": package_id(PACKAGE_ATTRIBUTE_1), "ignored": True},
         format="json",
     )
     # Then restore
     response = client.patch(
         url(suggestion_with_packages.pk),
-        {"package_attribute": PACKAGE_ATTRIBUTE_1, "ignored": False},
+        {"package_id": package_id(PACKAGE_ATTRIBUTE_1), "ignored": False},
         format="json",
     )
     assert response.status_code == 204
@@ -202,8 +211,8 @@ def test_patch_restore_package_success(
     get_response = client.get(url(suggestion_with_packages.pk))
     assert get_response.status_code == 200
     data = get_response.data
-    assert PACKAGE_ATTRIBUTE_1 in data["active"]
-    assert PACKAGE_ATTRIBUTE_1 not in data["ignored"]
+    assert package_id(PACKAGE_ATTRIBUTE_1) in ids(data["active"])
+    assert package_id(PACKAGE_ATTRIBUTE_1) not in ids(data["ignored"])
 
 
 def test_patch_ignore_restore_package_updates_maintainer_orphan_status(
@@ -241,7 +250,7 @@ def test_patch_ignore_restore_package_updates_maintainer_orphan_status(
 
     response = client.patch(
         url(suggestion.pk),
-        {"package_attribute": PACKAGE_ATTRIBUTE_1, "ignored": True},
+        {"package_id": package_id(PACKAGE_ATTRIBUTE_1), "ignored": True},
         format="json",
     )
     assert response.status_code == 204
@@ -261,7 +270,7 @@ def test_patch_ignore_restore_package_updates_maintainer_orphan_status(
     # Restoring the package clears the orphan status.
     response = client.patch(
         url(suggestion.pk),
-        {"package_attribute": PACKAGE_ATTRIBUTE_1, "ignored": False},
+        {"package_id": package_id(PACKAGE_ATTRIBUTE_1), "ignored": False},
         format="json",
     )
     assert response.status_code == 204
@@ -309,7 +318,7 @@ def test_restore_package_brings_back_maintainer_ignored_while_orphaned(
     # Ignore package1, its only maintainer becomes orphan.
     response = client.patch(
         url(suggestion.pk),
-        {"package_attribute": PACKAGE_ATTRIBUTE_1, "ignored": True},
+        {"package_id": package_id(PACKAGE_ATTRIBUTE_1), "ignored": True},
         format="json",
     )
     assert response.status_code == 204
@@ -325,7 +334,7 @@ def test_restore_package_brings_back_maintainer_ignored_while_orphaned(
     # Restore package1: the maintainer should come back as `ignored`, not `active`.
     response = client.patch(
         url(suggestion.pk),
-        {"package_attribute": PACKAGE_ATTRIBUTE_1, "ignored": False},
+        {"package_id": package_id(PACKAGE_ATTRIBUTE_1), "ignored": False},
         format="json",
     )
     assert response.status_code == 204

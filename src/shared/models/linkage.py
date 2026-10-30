@@ -19,7 +19,7 @@ from django.utils.translation import gettext_lazy as _
 import shared.models.cached
 from shared.models.cve import AffectedProduct, CveRecord, Reference
 from shared.models.nix_evaluation import NixDerivation, NixMaintainer, TimeStampMixin
-from shared.models.package import Package, PackageAttrpath
+from shared.models.package import Package
 
 
 class Overlay(models.Model):
@@ -301,19 +301,19 @@ class CVEDerivationClusterProposalQuerySet(models.QuerySet):
             lambda suggestion: suggestion.set_in_issue_draft(in_issue_draft),
         )
 
-    def ignore_package(self, package_attribute: str) -> int:
+    def ignore_package(self, package_id: int) -> int:
         """Ignore a package on every selected suggestion."""
         return self._apply_to_each(
-            lambda suggestion: suggestion.check_ignore_package(package_attribute),
-            lambda suggestion: suggestion.ignore_package(package_attribute),
+            lambda suggestion: suggestion.check_ignore_package(package_id),
+            lambda suggestion: suggestion.ignore_package(package_id),
             fresh_cache=True,
         )
 
-    def restore_package(self, package_attribute: str) -> int:
+    def restore_package(self, package_id: int) -> int:
         """Restore a package on every selected suggestion."""
         return self._apply_to_each(
-            lambda suggestion: suggestion.check_restore_package(package_attribute),
-            lambda suggestion: suggestion.restore_package(package_attribute),
+            lambda suggestion: suggestion.check_restore_package(package_id),
+            lambda suggestion: suggestion.restore_package(package_id),
             fresh_cache=True,
         )
 
@@ -567,54 +567,47 @@ class CVEDerivationClusterProposal(TimeStampMixin):
             cache_new_suggestions(self)
             self.refresh_from_db()
 
-    def check_ignore_package(self, package_attribute: str) -> None:
+    def check_ignore_package(self, package_id: int) -> None:
         """
         Raise unless this package can be ignored on this suggestion.
         """
         original_packages = self.cached.payload["original_packages"]
-        if package_attribute not in original_packages:
-            raise ValidationError(
-                {"package_attribute": "Package not found in the suggestion"}
-            )
+        if all(package["id"] != package_id for package in original_packages):
+            raise ValidationError({"package_id": "Package not found in the suggestion"})
         if self.package_overlays.filter(
-            package_attribute=package_attribute,
+            package_id=package_id,
             type=PackageOverlay.Type.IGNORED,
         ).exists():
-            raise ValidationError({"package_attribute": "Package is already ignored"})
+            raise ValidationError({"package_id": "Package is already ignored"})
 
-    def ignore_package(self, package_attribute: str) -> None:
+    def ignore_package(self, package_id: int) -> None:
         """Ignore a package, updating the overlay and the cache."""
         with transaction.atomic():
-            self.check_ignore_package(package_attribute)
+            self.check_ignore_package(package_id)
             self.package_overlays.get_or_create(
-                package_attribute=package_attribute,
-                defaults={
-                    "type": PackageOverlay.Type.IGNORED,
-                    "package_id": PackageAttrpath.objects.get(
-                        attrpath=package_attribute
-                    ).package.id,
-                },
+                package_id=package_id,
+                defaults={"type": PackageOverlay.Type.IGNORED},
             )
             self._recompute_package_cache()
 
-    def check_restore_package(self, package_attribute: str) -> None:
+    def check_restore_package(self, package_id: int) -> None:
         """
         Raise unless this package can be restored on this suggestion.
         """
         if not self.package_overlays.filter(
-            package_attribute=package_attribute,
+            package_id=package_id,
             type=PackageOverlay.Type.IGNORED,
         ).exists():
             raise ValidationError(
-                {"package_attribute": "No ignore overlay found for this package"}
+                {"package_id": "No ignore overlay found for this package"}
             )
 
-    def restore_package(self, package_attribute: str) -> None:
+    def restore_package(self, package_id: int) -> None:
         """Restore a previously ignored package."""
         with transaction.atomic():
-            self.check_restore_package(package_attribute)
+            self.check_restore_package(package_id)
             overlay = self.package_overlays.get(
-                package_attribute=package_attribute,
+                package_id=package_id,
                 type=PackageOverlay.Type.IGNORED,
             )
             overlay.delete()
@@ -629,18 +622,17 @@ class CVEDerivationClusterProposal(TimeStampMixin):
             categorize_maintainers,
         )
 
-        self.cached.payload["packages"] = apply_package_overlays(
-            self.cached.payload["original_packages"],
+        original_packages = [
+            CachedSuggestion.Package.model_validate(package)
+            for package in self.cached.payload["original_packages"]
+        ]
+        active_packages = apply_package_overlays(
+            original_packages,
             self.package_overlays.all(),
         )
-        original_packages = {
-            k: CachedSuggestion.Package.model_validate(v)
-            for k, v in self.cached.payload["original_packages"].items()
-        }
-        active_packages = {
-            k: CachedSuggestion.Package.model_validate(v)
-            for k, v in self.cached.payload["packages"].items()
-        }
+        self.cached.payload["packages"] = [
+            package.model_dump(mode="json") for package in active_packages
+        ]
         self.cached.payload["categorized_maintainers"] = categorize_maintainers(
             original_packages,
             active_packages,
@@ -1055,8 +1047,6 @@ class PackageOverlay(Overlay):
     An element in the overlay set of packages of a suggestion.
     """
 
-    package_attribute = models.CharField(max_length=255)
-
     package = models.ForeignKey(
         Package,
         on_delete=models.RESTRICT,
@@ -1071,7 +1061,7 @@ class PackageOverlay(Overlay):
     class Meta(Overlay.Meta):
         constraints = [
             models.UniqueConstraint(
-                fields=["suggestion", "package_attribute"],
+                fields=["suggestion", "package_id"],
                 name="unique_package_overlay_per_suggestion",
             )
         ]

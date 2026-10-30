@@ -368,14 +368,17 @@ def test_bulk_packages_ignores_a_package_everywhere(
 ) -> None:
     response = staff_client.patch(
         f"{PACKAGES_URL}?package={drv.attribute}",
-        {"package_attribute": drv.attribute, "ignored": True},
+        {"package_id": drv.package_link.package_id, "ignored": True},
         format="json",
     )
     assert response.status_code == 200
     assert response.data == {"affected": len(pending_suggestions)}
+    package_id = drv.package_link.package_id
     for suggestion in pending_suggestions:
         suggestion.refresh_from_db()
-        assert drv.attribute not in suggestion.cached.payload["packages"]
+        assert package_id not in {
+            p["id"] for p in suggestion.cached.payload["packages"]
+        }
 
 
 def test_bulk_packages_restores_a_package_everywhere(
@@ -384,17 +387,18 @@ def test_bulk_packages_restores_a_package_everywhere(
     staff_client: APIClient,
 ) -> None:
     for suggestion in pending_suggestions:
-        suggestion.ignore_package(drv.attribute)
+        suggestion.ignore_package(drv.package_link.package_id)
     response = staff_client.patch(
         f"{PACKAGES_URL}?status=pending",
-        {"package_attribute": drv.attribute, "ignored": False},
+        {"package_id": drv.package_link.package_id, "ignored": False},
         format="json",
     )
     assert response.status_code == 200
     assert response.data == {"affected": len(pending_suggestions)}
+    package_id = drv.package_link.package_id
     for suggestion in pending_suggestions:
         suggestion.refresh_from_db()
-        assert drv.attribute in suggestion.cached.payload["packages"]
+        assert package_id in {p["id"] for p in suggestion.cached.payload["packages"]}
 
 
 def test_bulk_packages_refuses_a_selection_missing_the_package(
@@ -409,14 +413,15 @@ def test_bulk_packages_refuses_a_selection_missing_the_package(
     )
     response = staff_client.patch(
         f"{PACKAGES_URL}?status=pending",
-        {"package_attribute": drv.attribute, "ignored": True},
+        {"package_id": drv.package_link.package_id, "ignored": True},
         format="json",
     )
     assert response.status_code == 400
     assert list(response.data["reasons"]) == [str(other.pk)]
+    package_id = drv.package_link.package_id
     for suggestion in pending_suggestions:
         suggestion.refresh_from_db()
-        assert drv.attribute in suggestion.cached.payload["packages"]
+        assert package_id in {p["id"] for p in suggestion.cached.payload["packages"]}
 
 
 def test_bulk_maintainers_ignores_a_maintainer_everywhere(
