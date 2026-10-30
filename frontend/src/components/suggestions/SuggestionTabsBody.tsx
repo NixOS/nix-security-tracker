@@ -47,7 +47,7 @@ export function SuggestionTabsBody({ suggestion, userCanEdit }: Props) {
         "affected-products",
         <AffectedProductsTree affectedProducts={affected_products} />,
       ),
-    Object.keys(packages).length + Object.keys(ignored_packages).length > 0 &&
+    packages.length + ignored_packages.length > 0 &&
       sectionTab(
         "packages",
         <CategorizedPackagesList

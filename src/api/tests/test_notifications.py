@@ -35,15 +35,15 @@ def test_list_notifications_authenticated(
     assert results[0]["suggestion_id"] == db_notifications[0].suggestion_id
 
     maintained = results[0]["matching_maintained_packages"]
-    assert isinstance(maintained, dict)
+    assert isinstance(maintained, list)
     assert len(maintained) == 1
-    pkg_data = next(iter(maintained.values()))
-    assert "branches" in pkg_data
+    pkg_data = maintained[0]
+    assert "attrpaths" in pkg_data
     assert "description" in pkg_data
     assert "maintainers" in pkg_data
 
     subscribed = results[0]["matching_subscribed_packages"]
-    assert isinstance(subscribed, dict)
+    assert isinstance(subscribed, list)
     assert len(subscribed) == 0
 
     assert results[0]["is_obsolete"] is False
@@ -155,9 +155,9 @@ def test_list_notifications_shows_both_types(
     )
     assert suggestion_result["message"] is None
 
-    assert isinstance(suggestion_result["matching_maintained_packages"], dict)
+    assert isinstance(suggestion_result["matching_maintained_packages"], list)
     assert len(suggestion_result["matching_maintained_packages"]) == 1
-    assert isinstance(suggestion_result["matching_subscribed_packages"], dict)
+    assert isinstance(suggestion_result["matching_subscribed_packages"], list)
     assert len(suggestion_result["matching_subscribed_packages"]) == 0
 
 

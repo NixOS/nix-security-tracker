@@ -18,6 +18,7 @@ from pghistory.models import EventQuerySet
 
 from shared.logs.events import (
     Maintainer,
+    Package,
     RawCreationEvent,
     RawEventType,
     RawMaintainerEvent,
@@ -136,7 +137,7 @@ def fetch_suggestion_events(
         )
 
     package_qs = _annotate_username(
-        PackageOverlayEvent.objects.select_related("pgh_context").filter(
+        PackageOverlayEvent.objects.select_related("pgh_context", "package").filter(
             suggestion_id__in=suggestion_ids
         )
     )
@@ -147,7 +148,11 @@ def fetch_suggestion_events(
                 timestamp=pkg_event.pgh_created_at,
                 username=pkg_event.username,
                 action=pkg_event.pgh_label,
-                package_attribute=pkg_event.package_attribute,
+                package=Package(
+                    id=pkg_event.package.id,
+                    name=pkg_event.package.name,
+                    homepage=pkg_event.package.homepage,
+                ),
             )
         )
 
@@ -189,26 +194,26 @@ def fetch_suggestion_events(
     return result
 
 
-def fetch_status_events_for_package(package_name: str) -> list[RawEventType]:
+def fetch_status_events_for_attribute(attribute: str) -> list[RawEventType]:
     """Fetch all creation and status-change events for suggestions that include
     the given package attribute as an active (non-ignored) package.
 
     Returns a flat list of RawCreationEvent and RawStatusEvent objects sorted
     with the most recent events first.
     """
-    if not NixDerivation.objects.filter(attribute=package_name).exists():
+    if not NixDerivation.objects.filter(attribute=attribute).exists():
         return []
 
     suggestion_ids = list(
         CVEDerivationClusterProposal.objects.filter(
-            derivations__attribute=package_name,
+            derivations__attribute=attribute,
         )
         # This will not display any events to users who query the feed after the package got ignored.
         # That is by design, to avoid noise.
         # This trades against the case where users who *did* query the feed *before* the package got ignored will never get notified that the event was irrelevant.
         # We deem it to be more beneficial like this than the other way round.
         .exclude(
-            package_overlays__package_attribute=package_name,
+            package_overlays__package__attrpaths__attrpath=attribute,
             package_overlays__type=PackageOverlay.Type.IGNORED,
         )
         .distinct()

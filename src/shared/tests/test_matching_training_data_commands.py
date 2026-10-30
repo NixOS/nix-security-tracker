@@ -28,7 +28,8 @@ from shared.models.linkage import (
     ProvenanceFlags,
 )
 from shared.models.nix_evaluation import NixChannel, NixDerivation, NixEvaluation
-from shared.models.package import Package
+from shared.models.package import PackageAttrpath
+from shared.package_clustering import cluster_packages
 
 
 def _export(proposal: CVEDerivationClusterProposal) -> dict[str, Any]:
@@ -275,10 +276,10 @@ def test_import_roundtrip_from_page_files(
         derivation=ignored,
         provenance_flags=int(ProvenanceFlags.PACKAGE_NAME_MATCH),
     )
+    cluster_packages(NixDerivation.objects.filter(pk__in=[drv.pk, ignored.pk]))
     PackageOverlay.objects.create(
         suggestion=proposal,
-        package_attribute="foobar.tests",
-        package=Package.objects.get_or_create(name="foobar.tests")[0],
+        package=PackageAttrpath.objects.get(attrpath="foobar.tests").package,
         type=PackageOverlay.Type.IGNORED,
     )
 

@@ -63,11 +63,17 @@ class RawStatusEvent(RawEvent):
         return False
 
 
+class Package(TypedDict):
+    id: int
+    name: str
+    homepage: str | None
+
+
 class RawPackageEvent(RawEvent):
     """Raw package change event."""
 
     action: Literal["package.restore", "package.ignore"]
-    package_attribute: str
+    package: Package
 
     def is_canceled_by(self, other: "RawEvent") -> bool:
         """Check if this package event is canceled by another package event."""
@@ -75,7 +81,7 @@ class RawPackageEvent(RawEvent):
             return False
 
         if isinstance(other, RawPackageEvent):
-            return self.package_attribute == other.package_attribute and {
+            return self.package["id"] == other.package["id"] and {
                 self.action,
                 other.action,
             } == {"package.restore", "package.ignore"}

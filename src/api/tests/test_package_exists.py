@@ -8,8 +8,8 @@ from rest_framework.test import APIClient
 from shared.models.nix_evaluation import NixDerivation
 
 
-def url(package_name: str) -> str:
-    return reverse("package-exists", kwargs={"package_name": package_name})
+def url(attribute: str) -> str:
+    return reverse("package-exists", kwargs={"attribute": attribute})
 
 
 @pytest.mark.django_db

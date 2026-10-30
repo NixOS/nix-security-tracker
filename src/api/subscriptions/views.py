@@ -34,7 +34,7 @@ class SubscriptionsViewSet(viewsets.GenericViewSet):
         )
 
     class AddPackageSubscriptionSerializer(serializers.Serializer):
-        package_name = serializers.CharField(
+        attribute_name = serializers.CharField(
             help_text="Nixpkgs attribute name of the package to subscribe to (e.g. 'firefox', 'python311Packages.requests')",
         )
 
@@ -138,21 +138,21 @@ class SubscriptionsViewSet(viewsets.GenericViewSet):
             input_serializer = self.AddPackageSubscriptionSerializer(data=request.data)
             input_serializer.is_valid(raise_exception=True)
             validated: dict[str, Any] = input_serializer.validated_data  # type: ignore[assignment]
-            package_name = str(validated["package_name"]).strip()
+            attribute = str(validated["attribute_name"]).strip()
 
-            if not PackageAttrpath.objects.filter(attrpath=package_name).exists():
+            if not PackageAttrpath.objects.filter(attrpath=attribute).exists():
                 return Response(
-                    {"detail": f"Package '{package_name}' does not exist."},
+                    {"detail": f"Package '{attribute}' does not exist."},
                     status=status.HTTP_400_BAD_REQUEST,
                 )
 
-            if package_name in profile.package_subscriptions:
+            if attribute in profile.package_subscriptions:
                 return Response(
-                    {"detail": f"You are already subscribed to '{package_name}'."},
+                    {"detail": f"You are already subscribed to '{attribute}'."},
                     status=status.HTTP_409_CONFLICT,
                 )
 
-            profile.subscribe_to_package(package_name)
+            profile.subscribe_to_package(attribute)
             serializer = self.get_serializer(
                 {"packages": profile.package_subscriptions}
             )
@@ -180,28 +180,28 @@ class SubscriptionsViewSet(viewsets.GenericViewSet):
     @action(
         detail=False,
         methods=["GET", "DELETE"],
-        url_path=r"packages/(?P<package_name>[^/]+)",
+        url_path=r"packages/(?P<attribute>[^/]+)",
         serializer_class=PackageSubscriptionsSerializer,
     )
-    def package(self, request: Request, package_name: str) -> Response:
+    def package(self, request: Request, attribute: str) -> Response:
         profile = request.user.profile
         if request.method == "GET":
-            if not PackageAttrpath.objects.filter(attrpath=package_name).exists():
+            if not PackageAttrpath.objects.filter(attrpath=attribute).exists():
                 return Response(
-                    {"detail": f"Package '{package_name}' does not exist."},
+                    {"detail": f"Package '{attribute}' does not exist."},
                     status=status.HTTP_404_NOT_FOUND,
                 )
             serializer = self.PackageSubscriptionStatusSerializer(
-                {"subscribed": package_name in profile.package_subscriptions}
+                {"subscribed": attribute in profile.package_subscriptions}
             )
             return Response(serializer.data, status=status.HTTP_200_OK)
         elif request.method == "DELETE":
-            if package_name not in profile.package_subscriptions:
+            if attribute not in profile.package_subscriptions:
                 return Response(
-                    {"detail": f"You are not subscribed to '{package_name}'."},
+                    {"detail": f"You are not subscribed to '{attribute}'."},
                     status=status.HTTP_404_NOT_FOUND,
                 )
-            profile.unsubscribe_from_package(package_name)
+            profile.unsubscribe_from_package(attribute)
             serializer = self.get_serializer(
                 {"packages": profile.package_subscriptions}
             )

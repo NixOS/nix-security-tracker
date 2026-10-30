@@ -42,7 +42,7 @@ export function SuggestionDetailedBody({ suggestion, userCanEdit }: Props) {
         )}
 
         {/* Packages */}
-        {Object.keys(packages).length + Object.keys(ignored_packages).length > 0 && (
+        {packages.length + ignored_packages.length > 0 && (
           <CategorizedPackagesList
             suggestionId={id}
             original={original_packages}

@@ -73,7 +73,9 @@ def test_suggestion_detail_shows_packages(
     expect(
         page.get_by_role("heading", name="Matching in Nixpkgs", exact=True)
     ).to_be_visible()
-    attribute = next(iter(cached_suggestion.cached.payload["packages"]))
+    attribute = cached_suggestion.cached.payload["packages"][0]["attrpaths"][0][
+        "attrpath"
+    ]
     expect(page.get_by_role("heading", name=attribute, level=3)).to_be_visible()
 
 

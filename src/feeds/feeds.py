@@ -15,7 +15,7 @@ from shared.logs.events import (
     RawEventType,
     RawStatusEvent,
 )
-from shared.logs.fetchers import fetch_status_events_for_package
+from shared.logs.fetchers import fetch_status_events_for_attribute
 from shared.models.linkage import CVEDerivationClusterProposal
 from shared.models.nix_evaluation import NixDerivation
 
@@ -52,22 +52,22 @@ def _describe_event(event: RawEventType) -> str:
 class PackageFeed(Feed):
     feed_type = Atom1Feed
 
-    def get_object(self, request: object, package_name: str) -> str:  # type: ignore[override]  # base returns None
-        if not NixDerivation.objects.filter(attribute=package_name).exists():
-            raise ObjectDoesNotExist(f"No package '{package_name}'")
-        return package_name
+    def get_object(self, request: object, attribute: str) -> str:  # type: ignore[override]  # base returns None
+        if not NixDerivation.objects.filter(attribute=attribute).exists():
+            raise ObjectDoesNotExist(f"No package '{attribute}'")
+        return attribute
 
-    def title(self, package_name: str) -> str:
-        return f"Activity involving package '{package_name}'"
+    def title(self, attribute: str) -> str:
+        return f"Activity involving package '{attribute}'"
 
-    def link(self, package_name: str) -> str:
-        return f"/suggestions?package={quote(package_name, safe='')}"
+    def link(self, attribute: str) -> str:
+        return f"/suggestions?package={quote(attribute, safe='')}"
 
-    def description(self, package_name: str) -> str:
-        return f"Status changes for suggestions involving package '{package_name}' on Nixpkgs security tracker. Including creation of new suggestions, dismissal, acceptance, and publication. After a package is ignored on a suggestion, related events are no longer tracked."
+    def description(self, attribute: str) -> str:
+        return f"Status changes for suggestions involving package '{attribute}' on Nixpkgs security tracker. Including creation of new suggestions, dismissal, acceptance, and publication. After a package is ignored on a suggestion, related events are no longer tracked."
 
-    def items(self, package_name: str) -> list[FeedItem]:
-        events = fetch_status_events_for_package(package_name)
+    def items(self, attribute: str) -> list[FeedItem]:
+        events = fetch_status_events_for_attribute(attribute)
 
         suggestion_ids = list({e.suggestion_id for e in events})
         suggestions = {

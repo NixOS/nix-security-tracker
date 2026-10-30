@@ -17,6 +17,10 @@ def url(id: int) -> str:
     return reverse("cvederivationclusterproposal-packages", kwargs={"pk": id})
 
 
+def attributes(packages: list[dict]) -> set[str]:
+    return {a["attrpath"] for package in packages for a in package["attrpaths"]}
+
+
 @pytest.fixture
 def suggestion_with_packages(
     make_drv: Callable[..., NixDerivation],
@@ -42,9 +46,9 @@ def test_get_packages_anonymous(
     assert "original" in data
     assert "active" in data
     assert "ignored" in data
-    assert PACKAGE_ATTRIBUTE_1 in data["original"]
-    assert PACKAGE_ATTRIBUTE_1 in data["active"]
-    assert data["ignored"] == {}
+    assert PACKAGE_ATTRIBUTE_1 in attributes(data["original"])
+    assert PACKAGE_ATTRIBUTE_1 in attributes(data["active"])
+    assert data["ignored"] == []
 
 
 def test_get_packages_not_found(
@@ -112,8 +116,8 @@ def test_patch_ignore_package_success(
     get_response = client.get(url(suggestion_with_packages.pk))
     assert get_response.status_code == 200
     data = get_response.data
-    assert PACKAGE_ATTRIBUTE_1 not in data["active"]
-    assert PACKAGE_ATTRIBUTE_1 in data["ignored"]
+    assert PACKAGE_ATTRIBUTE_1 not in attributes(data["active"])
+    assert PACKAGE_ATTRIBUTE_1 in attributes(data["ignored"])
 
 
 def test_patch_ignore_package_already_ignored(
@@ -202,8 +206,8 @@ def test_patch_restore_package_success(
     get_response = client.get(url(suggestion_with_packages.pk))
     assert get_response.status_code == 200
     data = get_response.data
-    assert PACKAGE_ATTRIBUTE_1 in data["active"]
-    assert PACKAGE_ATTRIBUTE_1 not in data["ignored"]
+    assert PACKAGE_ATTRIBUTE_1 in attributes(data["active"])
+    assert PACKAGE_ATTRIBUTE_1 not in attributes(data["ignored"])
 
 
 def test_patch_ignore_restore_package_updates_maintainer_orphan_status(
@@ -338,3 +342,58 @@ def test_restore_package_brings_back_maintainer_ignored_while_orphaned(
     assert only_maintainer_of_package1.github_id in ignored_ids
     assert only_maintainer_of_package1.github_id not in active_ids
     assert only_maintainer_of_package1.github_id not in orphan_ids
+
+
+def test_packages_do_not_expose_internal_ids(
+    suggestion_with_packages: CVEDerivationClusterProposal,
+) -> None:
+    response = APIClient().get(url(suggestion_with_packages.pk))
+    assert response.status_code == 200
+    for package in response.data["original"]:
+        assert "id" not in package
+
+
+def test_patch_ignore_any_attribute_ignores_the_whole_package(
+    make_drv: Callable[..., NixDerivation],
+    make_cached_suggestion: Callable[..., CVEDerivationClusterProposal],
+    committer: User,
+    client: APIClient,
+) -> None:
+    """
+    Two attribute paths of the same package address the same package: ignoring one ignores both.
+    """
+    drv = make_drv(pname="package", attribute="package")
+    other_drv = make_drv(pname="package", attribute="package_other")
+    suggestion = make_cached_suggestion(
+        drvs={
+            drv: ProvenanceFlags.PACKAGE_NAME_MATCH,
+            other_drv: ProvenanceFlags.PACKAGE_NAME_MATCH,
+        },
+    )
+    [package] = client.get(url(suggestion.pk)).data["active"]
+    assert {a["attrpath"] for a in package["attrpaths"]} == {
+        "package",
+        "package_other",
+    }
+
+    client.force_login(committer)
+    response = client.patch(
+        url(suggestion.pk),
+        {"package_attribute": "package_other", "ignored": True},
+        format="json",
+    )
+    assert response.status_code == 204
+    data = client.get(url(suggestion.pk)).data
+    assert data["active"] == []
+    assert attributes(data["ignored"]) == {"package", "package_other"}
+
+    response = client.patch(
+        url(suggestion.pk),
+        {"package_attribute": "package", "ignored": False},
+        format="json",
+    )
+    assert response.status_code == 204
+    assert attributes(client.get(url(suggestion.pk)).data["active"]) == {
+        "package",
+        "package_other",
+    }

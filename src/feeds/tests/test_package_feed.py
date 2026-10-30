@@ -11,13 +11,14 @@ from shared.listeners.automatic_linkage import refresh_suggestion_derivation_lin
 from shared.models.linkage import (
     CVEDerivationClusterProposal,
     PackageOverlay,
+    ProvenanceFlags,
 )
 from shared.models.nix_evaluation import NixDerivation
 
 
 def test_feed_unknown_package_fails(client: Client, db: None) -> None:
     response = client.get(
-        reverse("feeds:package_feed", kwargs={"package_name": "nonexistent"})
+        reverse("feeds:package_feed", kwargs={"attribute": "nonexistent"})
     )
     assert response.status_code == 404
 
@@ -29,7 +30,7 @@ def test_feed_known_package_succeeds(
 ) -> None:
 
     response = client.get(
-        reverse("feeds:package_feed", kwargs={"package_name": drv.attribute})
+        reverse("feeds:package_feed", kwargs={"attribute": drv.attribute})
     )
     assert response.status_code == 200
     assert "application/atom+xml" in response["Content-Type"]
@@ -41,7 +42,7 @@ def test_feed_contains_creation_event(
     drv: NixDerivation,
 ) -> None:
     response = client.get(
-        reverse("feeds:package_feed", kwargs={"package_name": drv.attribute})
+        reverse("feeds:package_feed", kwargs={"attribute": drv.attribute})
     )
     assert response.status_code == 200
     content = response.content.decode()
@@ -58,7 +59,7 @@ def test_feed_contains_status_change_event(
     cached_suggestion.change_status(CVEDerivationClusterProposal.Status.ACCEPTED)
 
     response = client.get(
-        reverse("feeds:package_feed", kwargs={"package_name": drv.attribute})
+        reverse("feeds:package_feed", kwargs={"attribute": drv.attribute})
     )
     content = response.content.decode()
     assert "accepted" in content
@@ -71,7 +72,7 @@ def test_feed_excludes_rematch_event(
 ) -> None:
     def entries() -> list[str]:
         response = client.get(
-            reverse("feeds:package_feed", kwargs={"package_name": drv.attribute})
+            reverse("feeds:package_feed", kwargs={"attribute": drv.attribute})
         )
         feed = ElementTree.fromstring(response.content)
         return [
@@ -90,7 +91,7 @@ def test_feed_item_links_to_suggestion_detail(
     drv: NixDerivation,
 ) -> None:
     response = client.get(
-        reverse("feeds:package_feed", kwargs={"package_name": drv.attribute})
+        reverse("feeds:package_feed", kwargs={"attribute": drv.attribute})
     )
     content = response.content.decode()
     suggestion_url = f"/suggestions/by-id/{cached_suggestion.pk}"
@@ -103,7 +104,7 @@ def test_feed_contains_cve_link(
     drv: NixDerivation,
 ) -> None:
     response = client.get(
-        reverse("feeds:package_feed", kwargs={"package_name": drv.attribute})
+        reverse("feeds:package_feed", kwargs={"attribute": drv.attribute})
     )
     content = response.content.decode()
     assert cached_suggestion.cve.cve_id in content
@@ -117,19 +118,43 @@ def test_feed_excludes_suggestion_with_ignored_package(
     # Ignore the package in the suggestion
     PackageOverlay.objects.create(
         suggestion=cached_suggestion,
-        package_attribute=drv.attribute,
         package=drv.package_link.package,
         type=PackageOverlay.Type.IGNORED,
     )
 
     response = client.get(
-        reverse("feeds:package_feed", kwargs={"package_name": drv.attribute})
+        reverse("feeds:package_feed", kwargs={"attribute": drv.attribute})
     )
     assert response.status_code == 200
     content = response.content.decode()
     # No entries should appear for this suggestion
     suggestion_url = f"/suggestions/by-id/{cached_suggestion.pk}"
     assert suggestion_url not in content
+
+
+def test_feed_of_other_attribute_excludes_suggestion_with_ignored_package(
+    client: Client,
+    make_drv: Callable[..., NixDerivation],
+    make_cached_suggestion: Callable[..., CVEDerivationClusterProposal],
+) -> None:
+    """Ignoring a package through one attribute path hides the suggestion from the feeds of all its attribute paths."""
+    drv = make_drv(pname="foo", attribute="foo")
+    alias = make_drv(pname="foo", attribute="fooAlias")
+    suggestion = make_cached_suggestion(
+        drvs={
+            drv: ProvenanceFlags.PACKAGE_NAME_MATCH,
+            alias: ProvenanceFlags.PACKAGE_NAME_MATCH,
+        },
+    )
+    suggestion_url = f"/suggestions/by-id/{suggestion.pk}"
+    feed_url = reverse("feeds:package_feed", kwargs={"attribute": alias.attribute})
+    assert suggestion_url in client.get(feed_url).content.decode()
+
+    suggestion.ignore_package(drv.attribute)
+
+    response = client.get(feed_url)
+    assert response.status_code == 200
+    assert suggestion_url not in response.content.decode()
 
 
 def test_feed_auto_dismiss_not_in_feed(
@@ -142,7 +167,7 @@ def test_feed_auto_dismiss_not_in_feed(
     )
     suggestion_url = f"/suggestions/by-id/{suggestion.pk}"
     response = client.get(
-        reverse("feeds:package_feed", kwargs={"package_name": drv.attribute})
+        reverse("feeds:package_feed", kwargs={"attribute": drv.attribute})
     )
     content = response.content.decode()
     assert suggestion_url not in content
@@ -157,7 +182,7 @@ def test_feed_excludes_events_older_than_30_days(
     # so the cutoff (frozen_now - 30 days) falls after the event timestamp.
     with freeze_time(timezone.now() + timedelta(days=31)):
         response = client.get(
-            reverse("feeds:package_feed", kwargs={"package_name": drv.attribute})
+            reverse("feeds:package_feed", kwargs={"attribute": drv.attribute})
         )
     assert response.status_code == 200
     content = response.content.decode()

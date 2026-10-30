@@ -24,7 +24,7 @@ urlpatterns = [
     path("v1/me", CurrentUserView.as_view(), name="current-user"),
     path("v1/server-info", ServerInfoView.as_view(), name="server-info"),
     path(
-        "v1/packages/<path:package_name>/exists",
+        "v1/packages/<path:attribute>/exists",
         PackageExistsView.as_view(),
         name="package-exists",
     ),

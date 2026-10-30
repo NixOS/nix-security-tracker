@@ -4,13 +4,13 @@ import { ExternalLink } from "@/components/ui/ExternalLink";
 import { usePackageMutation } from "@/hooks/usePackage";
 import { useSuggestionListFilterHref, withPackageFilter } from "@/hooks/useSuggestionListFilters";
 import { formatTime } from "@/utils/date";
+import { packageAttrpath } from "@/utils/package";
 import { FilterShortcut } from "./FilterShortcut";
 import { IgnoreRestoreButton } from "./IgnoreRestoreButton";
 import styles from "./Package.module.css";
 import { SuggestionItemRow } from "./SuggestionItemCollection";
 
 type Props = {
-  attr: string;
   pkg: SuggestionPackage;
   suggestionId: number;
   editable: boolean;
@@ -23,14 +23,17 @@ function versionStatusClass(status: string | null): string {
   return "";
 }
 
-export function Package({ attr, pkg, suggestionId, editable, isIgnored }: Props) {
+export function Package({ pkg, suggestionId, editable, isIgnored }: Props) {
   const mutation = usePackageMutation(suggestionId);
   const filterHref = useSuggestionListFilterHref();
+
+  const attrpath = packageAttrpath(pkg);
+  const attribute = attrpath.attrpath;
 
   function handleClick() {
     mutation.mutate({
       id: suggestionId,
-      data: { package_attribute: attr, ignored: !isIgnored },
+      data: { package_attribute: attribute, ignored: !isIgnored },
     });
   }
 
@@ -51,18 +54,24 @@ export function Package({ attr, pkg, suggestionId, editable, isIgnored }: Props)
       <div className="row gap align-start wrap">
         <div className="column">
           <div className={`row gap-small ${styles.packageTitle}`}>
-            <h3 className="bold">{attr}</h3>
+            <h3 className="bold">
+              {pkg.homepage ? (
+                <ExternalLink href={pkg.homepage}>{pkg.name}</ExternalLink>
+              ) : (
+                pkg.name
+              )}
+            </h3>
             <FilterShortcut
-              href={filterHref(withPackageFilter(attr))}
-              label={`Filter suggestions by package '${attr}'`}
+              href={filterHref(withPackageFilter(attribute))}
+              label={`Filter suggestions by package '${attribute}'`}
             />
           </div>
           <p className={`${styles.packageTitle}`}>{pkg.description}</p>
         </div>
 
-        {Object.keys(pkg.branches).length > 0 && (
+        {Object.keys(attrpath.branches).length > 0 && (
           <ul className={`column gap-small ${styles.details}`}>
-            {Object.entries(pkg.branches).map(([branch, info]) => (
+            {Object.entries(attrpath.branches).map(([branch, info]) => (
               <li key={branch} className="inline-row gap-small">
                 <span className={styles.branch}>{branch}</span>
                 {info.version ? (

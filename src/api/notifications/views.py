@@ -71,34 +71,30 @@ class NotificationSerializer(serializers.ModelSerializer):
             return notif.message
         return None
 
-    @extend_schema_field(serializers.DictField(child=SuggestionPackageSerializer()))
-    def get_matching_maintained_packages(
-        self, notif: Notification
-    ) -> dict[str, Any] | None:
+    @extend_schema_field(SuggestionPackageSerializer(many=True))
+    def get_matching_maintained_packages(self, notif: Notification) -> list[Any] | None:
         username = self.context["request"].user.username
         if isinstance(notif, SuggestionNotification):
             cached = CachedSuggestion.model_validate(notif.suggestion.cached.payload)
-            return {
-                pname: SuggestionPackageSerializer(pkg).data
-                for pname, pkg in cached.packages.items()
+            return [
+                SuggestionPackageSerializer(pkg).data
+                for pkg in cached.packages
                 if any(m.github == username for m in pkg.maintainers)
-            }
+            ]
         return None
 
-    @extend_schema_field(serializers.DictField(child=SuggestionPackageSerializer()))
-    def get_matching_subscribed_packages(
-        self, notif: Notification
-    ) -> dict[str, Any] | None:
+    @extend_schema_field(SuggestionPackageSerializer(many=True))
+    def get_matching_subscribed_packages(self, notif: Notification) -> list[Any] | None:
         if isinstance(notif, SuggestionNotification):
             cached = CachedSuggestion.model_validate(notif.suggestion.cached.payload)
             subscribed_attrs = set(
                 self.context["request"].user.profile.package_subscriptions
             )
-            return {
-                attr: SuggestionPackageSerializer(cached.packages[attr]).data
-                for attr in cached.packages
-                if attr in subscribed_attrs
-            }
+            return [
+                SuggestionPackageSerializer(pkg).data
+                for pkg in cached.packages
+                if subscribed_attrs.intersection(a.attrpath for a in pkg.attrpaths)
+            ]
         return None
 
     def get_suggestion_id(self, notif: Notification) -> int | None:

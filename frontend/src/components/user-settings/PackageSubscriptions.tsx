@@ -29,7 +29,7 @@ function PackageListSkeleton() {
 
 export function PackageSubscriptions() {
   const queryClient = useQueryClient();
-  const [packageName, setPackageName] = useState("");
+  const [attribute, setAttribute] = useState("");
   const [addError, setAddError] = useState<string | null>(null);
 
   const { data, isLoading, isError } = useListPackageSubscriptions();
@@ -41,7 +41,7 @@ export function PackageSubscriptions() {
           getListPackageSubscriptionsQueryKey(),
           result,
         );
-        setPackageName("");
+        setAttribute("");
         setAddError(null);
       },
       onError: (err) => {
@@ -56,7 +56,7 @@ export function PackageSubscriptions() {
 
   const { mutate: removePackage } = useRemovePackageSubscription({
     mutation: {
-      onMutate: async ({ packageName: name }) => {
+      onMutate: async ({ attribute: name }) => {
         const queryKey = getListPackageSubscriptionsQueryKey();
         await queryClient.cancelQueries({ queryKey });
         const previous = queryClient.getQueryData<PackageSubscriptionsData>(queryKey);
@@ -97,11 +97,11 @@ export function PackageSubscriptions() {
             type="text"
             className="rounded border box compact join-item"
             placeholder="Package name"
-            value={packageName}
-            onInput={(e) => setPackageName((e.target as HTMLInputElement).value)}
+            value={attribute}
+            onInput={(e) => setAttribute((e.target as HTMLInputElement).value)}
             onKeyDown={(e) => {
-              if (e.key === "Enter" && packageName.trim() && !isAdding) {
-                addPackage({ data: { package_name: packageName.trim() } });
+              if (e.key === "Enter" && attribute.trim() && !isAdding) {
+                addPackage({ data: { attribute_name: attribute.trim() } });
               }
             }}
             disabled={isAdding}
@@ -109,8 +109,8 @@ export function PackageSubscriptions() {
           <button
             type="button"
             className="btn btn-green join-item"
-            disabled={isAdding || !packageName.trim()}
-            onClick={() => addPackage({ data: { package_name: packageName.trim() } })}
+            disabled={isAdding || !attribute.trim()}
+            onClick={() => addPackage({ data: { attribute_name: attribute.trim() } })}
           >
             <InlineIcon icon={PackagePlusIcon} />
             Subscribe
@@ -132,7 +132,7 @@ export function PackageSubscriptions() {
               <button
                 type="button"
                 className="btn btn-gray"
-                onClick={() => removePackage({ packageName: pkg })}
+                onClick={() => removePackage({ attribute: pkg })}
               >
                 <InlineIcon icon={PackageMinusIcon} />
                 Unsubscribe

@@ -30,7 +30,7 @@ def cluster_after_evaluation(old: NixEvaluation, new: NixEvaluation) -> None:
         f"updated {result.attrpaths_updated}, created {result.attrpaths_created} attrpaths."
     )
 
-    # Schedule a refresh of derivation links and suggestion caches for every suggestion affected by this evaluation's clustering.
+    # Schedule a refresh of derivation links and suggestion caches for every suggestion whose packages are in this evaluation, since cached versions come from the packages' latest derivations.
     def _run_after_commit() -> None:
         suggestion_pks = (
             CVEDerivationClusterProposal.objects.filter(

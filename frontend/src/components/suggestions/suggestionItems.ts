@@ -2,11 +2,10 @@ import type {
   Maintainer,
   SuggestionCategorizedMaintainers,
   SuggestionCategorizedUrlReferences,
-  SuggestionOriginalPackages,
   SuggestionPackage,
-  SuggestionPackages,
   SuggestionUrlReference,
 } from "@/api/generated/models";
+import { packageAttrpath } from "@/utils/package";
 
 /** How an item relates to its suggestion, which decides its display and available action. */
 export type ItemState = "active" | "ignored" | "added";
@@ -51,22 +50,19 @@ export function referenceRows({
   );
 }
 
-export type PackageEntry = { attribute: string; pkg: SuggestionPackage };
-
 export function packageRows(
-  original: SuggestionOriginalPackages,
-  active: SuggestionPackages,
-  ignored: SuggestionPackages,
-): ItemRow<PackageEntry>[] {
-  const entries = (packages: SuggestionPackages) =>
-    Object.entries(packages).map(([attribute, pkg]) => ({ attribute, pkg }));
+  original: readonly SuggestionPackage[],
+  active: readonly SuggestionPackage[],
+  ignored: readonly SuggestionPackage[],
+): ItemRow<SuggestionPackage>[] {
+  const key = (pkg: SuggestionPackage) => packageAttrpath(pkg).attrpath;
   return inOriginalOrder(
-    Object.keys(original),
+    original.map(key),
     [
-      { state: "active", items: entries(active) },
-      { state: "ignored", items: entries(ignored) },
+      { state: "active", items: active },
+      { state: "ignored", items: ignored },
     ],
-    (entry) => entry.attribute,
+    key,
   );
 }
 

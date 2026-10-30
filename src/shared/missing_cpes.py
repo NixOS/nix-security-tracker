@@ -40,15 +40,19 @@ def missing_cpes() -> list[MissingCPEs]:
     ignored = set(
         PackageOverlay.objects.filter(
             suggestion__in=curated, type=PackageOverlay.Type.IGNORED
-        ).values_list("suggestion_id", "package_attribute")
+        ).values_list("suggestion_id", "package_id")
     )
     attributes: dict[int, set[str]] = defaultdict(set)
-    for proposal, attribute in (
+    for proposal, attribute, package in (
         curated.filter(derivationclusterproposallink__isnull=False)
-        .values_list("pk", "derivationclusterproposallink__derivation__attribute")
+        .values_list(
+            "pk",
+            "derivationclusterproposallink__derivation__attribute",
+            "derivationclusterproposallink__derivation__package_link__package_id",
+        )
         .distinct()
     ):
-        if (proposal, attribute) not in ignored:
+        if (proposal, package) not in ignored:
             attributes[proposal].add(attribute)
 
     # Take CPE information from each curated CVE

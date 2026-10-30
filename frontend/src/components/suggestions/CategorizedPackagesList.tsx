@@ -1,4 +1,4 @@
-import type { SuggestionOriginalPackages, SuggestionPackages } from "@/api/generated/models";
+import type { SuggestionPackage } from "@/api/generated/models";
 import { Package } from "./Package";
 import { SuggestionItemCollection } from "./SuggestionItemCollection";
 import { SuggestionSectionHeading } from "./SuggestionSectionHeadings";
@@ -6,9 +6,9 @@ import { packageRows } from "./suggestionItems";
 
 type Props = {
   suggestionId: number;
-  original: SuggestionOriginalPackages;
-  active: SuggestionPackages;
-  ignored: SuggestionPackages;
+  original: readonly SuggestionPackage[];
+  active: readonly SuggestionPackage[];
+  ignored: readonly SuggestionPackage[];
   editable: boolean;
 };
 
@@ -27,8 +27,7 @@ export function CategorizedPackagesList({
       dividers
       renderRow={({ item, state }) => (
         <Package
-          attr={item.attribute}
-          pkg={item.pkg}
+          pkg={item}
           suggestionId={suggestionId}
           editable={editable}
           isIgnored={state === "ignored"}

@@ -12,6 +12,7 @@ import {
   getMatchingSubscribedPackages,
   isNotificationObsolete,
 } from "@/utils/notificationMatching";
+import { packageAttrpath } from "@/utils/package";
 
 type Props = {
   notification: Notification;
@@ -24,19 +25,18 @@ function MatchingPackages({
   testId,
 }: {
   title: string;
-  packages: Record<string, SuggestionPackage>;
+  packages: readonly SuggestionPackage[];
   testId: string;
 }) {
-  const entries = Object.entries(packages);
-  if (entries.length === 0) return null;
+  if (packages.length === 0) return null;
 
   return (
     <div className="column gap-small" data-testid={testId}>
       <h3 className="bold text-l text-gray">{title}</h3>
       <ul className="row gap wrap">
-        {entries.map(([attr, _]) => (
-          <li key={attr}>
-            <span className="bold">{attr}</span>
+        {packages.map((pkg) => (
+          <li key={packageAttrpath(pkg).attrpath}>
+            <span className="bold">{pkg.name}</span>
           </li>
         ))}
       </ul>

@@ -156,7 +156,9 @@ def test_packages_add_success(
 ) -> None:
     drv = make_drv(attribute="firefox")
     make_package(drv)
-    response = client.post(PACKAGES_URL, {"package_name": drv.attribute}, format="json")
+    response = client.post(
+        PACKAGES_URL, {"attribute_name": drv.attribute}, format="json"
+    )
     assert response.status_code == status.HTTP_201_CREATED
     assert drv.attribute in response.data["packages"]
     user.profile.refresh_from_db()
@@ -172,19 +174,21 @@ def test_packages_add_duplicate(
     drv = make_drv(attribute="firefox")
     make_package(drv)
     user.profile.subscribe_to_package(drv.attribute)
-    response = client.post(PACKAGES_URL, {"package_name": drv.attribute}, format="json")
+    response = client.post(
+        PACKAGES_URL, {"attribute_name": drv.attribute}, format="json"
+    )
     assert response.status_code == status.HTTP_409_CONFLICT
 
 
 def test_packages_add_nonexistent_package(client: APIClient, user: User) -> None:
     response = client.post(
-        PACKAGES_URL, {"package_name": "nonexistent-package"}, format="json"
+        PACKAGES_URL, {"attribute_name": "nonexistent-package"}, format="json"
     )
     assert response.status_code == status.HTTP_400_BAD_REQUEST
 
 
-def test_packages_add_empty_package_name(client: APIClient, user: User) -> None:
-    response = client.post(PACKAGES_URL, {"package_name": ""}, format="json")
+def test_packages_add_empty_attribute_name(client: APIClient, user: User) -> None:
+    response = client.post(PACKAGES_URL, {"attribute_name": ""}, format="json")
     assert response.status_code == status.HTTP_400_BAD_REQUEST
 
 
@@ -212,7 +216,7 @@ def test_packages_unauthenticated() -> None:
     anon = APIClient()
     response = anon.get(PACKAGES_URL)
     assert response.status_code == status.HTTP_401_UNAUTHORIZED
-    response = anon.post(PACKAGES_URL, {"package_name": "firefox"}, format="json")
+    response = anon.post(PACKAGES_URL, {"attribute_name": "firefox"}, format="json")
     assert response.status_code == status.HTTP_401_UNAUTHORIZED
     response = anon.delete(f"{PACKAGES_URL}/firefox")
     assert response.status_code == status.HTTP_401_UNAUTHORIZED
