@@ -60,6 +60,7 @@ from shared.models.linkage import (
     BulkValidationError,
     CVEDerivationClusterProposalQuerySet,
 )
+from shared.models.package import PackageAttrpath
 
 
 class CanEditSuggestion(BasePermission):
