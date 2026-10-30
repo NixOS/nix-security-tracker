@@ -28,6 +28,8 @@ def test_deleting_package_with_overlay_is_restricted(
     """A package that overlays refer to cannot be deleted."""
     pkg = drv.package_link.package
     cached_suggestion.ignore_package(pkg.id)
+    # Links to suggestions protect the package as well, so drop them to only check the overlay.
+    cached_suggestion.package_links.all().delete()
 
     with pytest.raises(RestrictedError):
         pkg.delete()

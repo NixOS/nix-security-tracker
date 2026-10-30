@@ -18,6 +18,7 @@ from shared.models.nix_evaluation import (
     NixpkgsBranch,
 )
 from shared.models.package import Package
+from shared.package_clustering import cluster_packages
 
 
 # The Pydantic class for the cached value gives us some assurance about the shape of the data, but ultimately we probabyly want property tests here.
@@ -255,3 +256,26 @@ def test_cache_keeps_versions_per_attrpath(
         for a in package["attrpaths"]
     }
     assert versions == {"foo_1": {"1.0"}, "foo_2": {"2.0"}}
+
+
+def test_cache_lists_unmatched_attrpaths_of_linked_packages(
+    cve: Container,
+    make_drv: Callable[..., NixDerivation],
+    make_suggestion: Callable[..., CVEDerivationClusterProposal],
+) -> None:
+    """
+    Attribute paths come from the linked packages, so those the suggestion did not match are listed too.
+    """
+    matched = make_drv(pname="foo", attribute="foo")
+    unmatched = make_drv(pname="foo", attribute="foo_unmatched")
+    suggestion = make_suggestion(
+        container=cve, drvs={matched: ProvenanceFlags.PACKAGE_NAME_MATCH}
+    )
+    cluster_packages(NixDerivation.objects.filter(pk=unmatched.pk))
+    assert unmatched.package_link.package == matched.package_link.package
+
+    cache_new_suggestions(suggestion)
+
+    cached = CachedSuggestions.objects.get(proposal=suggestion)
+    [package] = cached.payload["packages"]
+    assert [a["attrpath"] for a in package["attrpaths"]] == ["foo", "foo_unmatched"]
