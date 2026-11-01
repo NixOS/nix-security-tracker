@@ -64,14 +64,16 @@
     query = "
             WITH latest AS (
               SELECT DISTINCT ON (channel_id)
-                channel_id, state, commit_sha1, updated_at, elapsed
-              FROM shared_nixevaluation
+                b.nixpkgsbranch_id AS channel_id, state, commit_sha1, updated_at, elapsed
+              FROM shared_nixevaluation e
+              JOIN shared_nixevaluation_on_branches b ON b.nixevaluation_id = e.id
               ORDER BY channel_id, updated_at DESC
             ),
             latest_successful AS (
               SELECT DISTINCT ON (channel_id)
-                channel_id, commit_sha1, updated_at
-              FROM shared_nixevaluation
+                b.nixpkgsbranch_id AS channel_id, commit_sha1, updated_at
+              FROM shared_nixevaluation e
+              JOIN shared_nixevaluation_on_branches b ON b.nixevaluation_id = e.id
               WHERE state = 'COMPLETED'
               ORDER BY channel_id, updated_at DESC
             )
@@ -100,8 +102,8 @@
               END::float AS latest_successful_updated,
               CASE WHEN s.commit_sha1 IS NOT NULL AND s.commit_sha1 = c.head_sha1_commit THEN 1 ELSE 0 END::float AS latest_successful_at_head
             FROM shared_nixchannel c
-            LEFT JOIN latest l ON l.channel_id = c.channel_branch
-            LEFT JOIN latest_successful s ON s.channel_id = c.channel_branch
+            LEFT JOIN latest l ON l.channel_id = c.release_branch_id
+            LEFT JOIN latest_successful s ON s.channel_id = c.release_branch_id
             WHERE c.state IN ('deprecated', 'beta', 'stable', 'rolling')
             ORDER BY c.channel_branch
           ";
