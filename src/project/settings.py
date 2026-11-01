@@ -269,7 +269,7 @@ class Settings(BaseSettings):
 
             Bulk operations rewrite the denormalized cache of every affected suggestion in a single transaction, so an unbounded selection would hold locks for a long time.
             """,
-            default=100,
+            default=1000,
         )
 
         @model_validator(mode="after")
