@@ -1133,7 +1133,7 @@
           },
           "editorMode": "code",
           "exemplar": false,
-          "expr": "sql_channel_evaluation_status{sql_job=\"sectracker\", instance=\"$Instance\"}",
+          "expr": "last_over_time(sql_channel_evaluation_status{sql_job=\"sectracker\", instance=\"$Instance\"}[1h])",
           "format": "table",
           "instant": true,
           "legendFormat": "__auto",
