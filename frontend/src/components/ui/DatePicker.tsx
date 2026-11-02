@@ -149,13 +149,13 @@ function ViewControl() {
         aria-label="Previous"
         className={`cursor-pointer ${styles.navigation}`}
       >
-        <ChevronLeftIcon size="1em" />
+        <ChevronLeftIcon />
       </DatePickerPrevTrigger>
       <DatePickerViewTrigger className={`cursor-pointer ${styles.navigation}`}>
         <DatePickerRangeText />
       </DatePickerViewTrigger>
       <DatePickerNextTrigger aria-label="Next" className={`cursor-pointer ${styles.navigation}`}>
-        <ChevronRightIcon size="1em" />
+        <ChevronRightIcon />
       </DatePickerNextTrigger>
     </DatePickerViewControl>
   );
@@ -164,7 +164,7 @@ function ViewControl() {
 function CalendarTrigger({ label }: { label: string }) {
   return (
     <DatePickerTrigger aria-label={label} className={`cursor-pointer ${styles.trigger}`}>
-      <CalendarDaysIcon size="1em" />
+      <CalendarDaysIcon />
     </DatePickerTrigger>
   );
 }

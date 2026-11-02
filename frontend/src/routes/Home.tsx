@@ -1,7 +1,8 @@
 import { LayersIcon, MoveDownIcon, UserCogIcon, UserIcon, UserShieldIcon } from "lucide-preact";
 import { Link } from "wouter-preact";
-import { SuggestionStatusIcon } from "@/components/suggestions/SuggestionStatusIcon";
+import { suggestionStatusIcon } from "@/components/suggestions/suggestionStatusIcon";
 import { ExternalLink } from "@/components/ui/ExternalLink";
+import { InlineIcon } from "@/components/ui/InlineIcon";
 import { paths } from "@/routes/paths";
 
 export function Home() {
@@ -50,10 +51,10 @@ export function Home() {
         <MoveDownIcon strokeWidth={0.8} size="2em" />
         <Link
           href={`${paths.suggestions}?status=pending`}
-          className="box rounded border row gap-small centered justify-center"
-          style="min-width: 20em"
+          className="box rounded border"
+          style="min-width: 20em; text-align: center"
         >
-          <SuggestionStatusIcon status="pending" size="1em" />
+          <InlineIcon icon={suggestionStatusIcon("pending")} />
           Untriaged suggestions
         </Link>
         <div className="row gap-big">
@@ -61,11 +62,8 @@ export function Home() {
             <MoveDownIcon strokeWidth={0.8} size="2em" />
             <div>Team rejects</div>
             <MoveDownIcon strokeWidth={0.8} size="2em" />
-            <Link
-              href={`${paths.suggestions}?status=rejected`}
-              className="box rounded border row gap-small centered"
-            >
-              <SuggestionStatusIcon status="rejected" size="1em" />
+            <Link href={`${paths.suggestions}?status=rejected`} className="box rounded border">
+              <InlineIcon icon={suggestionStatusIcon("rejected")} />
               Dismissed suggestions
             </Link>
             <div>CVEs that already were classified by a human as not affecting Nixpkgs</div>
@@ -74,11 +72,8 @@ export function Home() {
             <MoveDownIcon strokeWidth={0.8} size="2em" />
             <div>Team accepts</div>
             <MoveDownIcon strokeWidth={0.8} size="2em" />
-            <Link
-              href={`${paths.suggestions}?status=accepted`}
-              className="box rounded border row gap-small centered"
-            >
-              <SuggestionStatusIcon status="accepted" size="1em" />
+            <Link href={`${paths.suggestions}?status=accepted`} className="box rounded border">
+              <InlineIcon icon={suggestionStatusIcon("accepted")} />
               Accepted suggestions
             </Link>
             <div>May need further refinement</div>
@@ -89,17 +84,14 @@ export function Home() {
             <MoveDownIcon strokeWidth={0.8} size="2em" />
             <div>Bundle related suggestions</div>
             <MoveDownIcon strokeWidth={0.8} size="2em" />
-            <Link
-              href={`${paths.suggestions}?in_issue_draft=true`}
-              className="box rounded border row gap-small centered"
-            >
-              <LayersIcon size="1em" />
+            <Link href={`${paths.suggestions}?in_issue_draft=true`} className="box rounded border">
+              <InlineIcon icon={LayersIcon} />
               Issue draft
             </Link>
             <div>CVEs that users have bundled together for the next GitHub issue</div>
             <MoveDownIcon strokeWidth={0.8} size="2em" />
-            <Link href={paths.issues} className="box rounded border row gap-small centered">
-              <SuggestionStatusIcon status="published" size="1em" />
+            <Link href={paths.issues} className="box rounded border">
+              <InlineIcon icon={suggestionStatusIcon("published")} />
               Nixpkgs issues
             </Link>
             <div>

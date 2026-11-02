@@ -5,6 +5,7 @@ import { Issue } from "@/components/issues/Issue";
 import { IssueViewToggle } from "@/components/issues/IssueViewToggle";
 import { SuggestionViewToggle } from "@/components/suggestions/SuggestionViewToggle";
 import { Collapsible } from "@/components/ui/Collapsible";
+import { InlineIcon } from "@/components/ui/InlineIcon";
 import { Pagination } from "@/components/ui/Pagination";
 import { Skeleton } from "@/components/ui/Skeleton";
 import { useIssueListViewMode } from "@/hooks/useIssueViewMode";
@@ -52,9 +53,9 @@ export function IssueList() {
     <div className="column gap-big centered">
       <div className="column gap full-width">
         <div className="row gap centered justify-right">
-          <div className="row gap-small centered">
-            <EyeIcon size="1em" />
-            <span>Issues view mode</span>
+          <div>
+            <InlineIcon icon={EyeIcon} />
+            Issues view mode
           </div>
           <IssueViewToggle
             value={issueViewMode}
@@ -65,9 +66,9 @@ export function IssueList() {
 
         <Collapsible open={issueViewMode === "expanded"}>
           <div className="row gap centered justify-right">
-            <div className="row gap-small centered">
-              <EyeIcon size="1em" />
-              <span>Suggestions view mode</span>
+            <div>
+              <InlineIcon icon={EyeIcon} />
+              Suggestions view mode
             </div>
             <SuggestionViewToggle
               value={suggestionViewMode}

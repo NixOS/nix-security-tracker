@@ -1,11 +1,13 @@
 import { TabContent, TabList, TabsRoot, TabTrigger } from "@ark-ui/react";
+import type { LucideIcon } from "lucide-preact";
 import type { ComponentChildren } from "preact";
+import { InlineIcon } from "./InlineIcon";
 import styles from "./Tabs.module.css";
 
 export type Tab = {
   value: string;
   label: string;
-  icon?: ComponentChildren;
+  icon?: LucideIcon;
   content: ComponentChildren;
 };
 
@@ -27,13 +29,9 @@ export function Tabs({ value, onValueChange, tabs, lazyMount, compact = false }:
     >
       <TabList className={`row ${styles.tabList}`}>
         {tabs.map((tab) => (
-          <TabTrigger
-            key={tab.value}
-            value={tab.value}
-            className={`row gap-small centered ${styles.tab}`}
-          >
-            {tab.icon}
-            <span>{tab.label}</span>
+          <TabTrigger key={tab.value} value={tab.value} className={styles.tab}>
+            {tab.icon && <InlineIcon icon={tab.icon} />}
+            {tab.label}
           </TabTrigger>
         ))}
       </TabList>

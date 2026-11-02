@@ -4,6 +4,7 @@ import { Link } from "wouter-preact";
 import type { Issue as IssueType } from "@/api/generated/models";
 import { Suggestion } from "@/components/suggestions/Suggestion";
 import { SuggestionViewToggle } from "@/components/suggestions/SuggestionViewToggle";
+import { InlineIcon, RawInlineIcon } from "@/components/ui/InlineIcon";
 import type { IssueViewMode } from "@/hooks/useIssueViewMode";
 import {
   DEFAULT_SUGGESTION_VIEW_MODE,
@@ -12,7 +13,7 @@ import {
 import { issuePath } from "@/routes/paths";
 import { ExternalLink } from "../ui/ExternalLink";
 import { LegendCard } from "../ui/LegendCard";
-import { GitHubIssueState } from "./GitHubIssueState";
+import { GitHubIssueStateIcon } from "./GitHubIssueState";
 import { IssueViewToggle } from "./IssueViewToggle";
 
 type Props = {
@@ -42,15 +43,20 @@ export function Issue({
 
   const legend = (
     <>
-      <div className="row gap-small centered">
-        <GlobeCheckIcon size="1em" />
+      <div>
+        <InlineIcon icon={GlobeCheckIcon} />
         <Link href={issuePath(code)}>{code}</Link>
       </div>
       {github_issue_url && (
         /* FIXME(@fricklerhandwerk): Move the GitHub issue state into the card once the issue activity log lands, so the legend carries no variable data. */
-        <div className="row centered gap-small">
+        <div>
           {github_issue_state && (
-            <GitHubIssueState state={github_issue_state} testId={`issue-${code}-github-state`} />
+            <RawInlineIcon>
+              <GitHubIssueStateIcon
+                state={github_issue_state}
+                testId={`issue-${code}-github-state`}
+              />
+            </RawInlineIcon>
           )}
           <ExternalLink href={github_issue_url}>GitHub</ExternalLink>
         </div>
@@ -87,7 +93,7 @@ export function Issue({
         <div className="column gap-big stretched">
           {issue.suggestions.length > 1 && (
             <div className="row gap centered justify-right">
-              <EyeIcon size="1em" />
+              <EyeIcon />
               <SuggestionViewToggle
                 value={suggestionToggleValue}
                 onChange={setOwnSuggestionViewMode}

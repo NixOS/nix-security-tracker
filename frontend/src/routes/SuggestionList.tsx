@@ -6,6 +6,7 @@ import { IssueDraftPanel } from "@/components/suggestions/IssueDraftPanel";
 import { Suggestion } from "@/components/suggestions/Suggestion";
 import { SuggestionFilters } from "@/components/suggestions/SuggestionFilters";
 import { SuggestionViewToggle } from "@/components/suggestions/SuggestionViewToggle";
+import { InlineIcon } from "@/components/ui/InlineIcon";
 import { Pagination } from "@/components/ui/Pagination";
 import { Skeleton } from "@/components/ui/Skeleton";
 import {
@@ -102,9 +103,9 @@ export function SuggestionList() {
         />
         <IssueDraftPanel open={showIssueDraftPanel} />
         <div className="row gap centered grow justify-right">
-          <div className="row gap-small centered">
-            <EyeIcon size="1em" />
-            <span>View</span>
+          <div>
+            <InlineIcon icon={EyeIcon} />
+            View
           </div>
           <SuggestionViewToggle
             value={viewMode}

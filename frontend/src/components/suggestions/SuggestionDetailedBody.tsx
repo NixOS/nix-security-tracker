@@ -1,5 +1,6 @@
 import { BugIcon, LinkIcon, PackageIcon, UserIcon } from "lucide-preact";
 import type { Suggestion as SuggestionType } from "@/api/generated/models";
+import { InlineIcon } from "@/components/ui/InlineIcon";
 import { AffectedProductsTree } from "./AffectedProductsTree";
 import { CategorizedMaintainersList } from "./CategorizedMaintainersList";
 import { CategorizedPackagesList } from "./CategorizedPackagesList";
@@ -33,8 +34,8 @@ export function SuggestionDetailedBody({ suggestion, userCanEdit }: Props) {
         {/* References */}
         {categorized_url_references.original.length > 0 && (
           <div className="rounded border box column gap">
-            <h2 className="text-l bold text-gray row gap-small centered">
-              <LinkIcon size="1em" />
+            <h2 className="text-l bold text-gray">
+              <InlineIcon icon={LinkIcon} />
               References
             </h2>
             <CategorizedReferencesList
@@ -48,8 +49,8 @@ export function SuggestionDetailedBody({ suggestion, userCanEdit }: Props) {
         {/* Affected products */}
         {affected_products.length > 0 && (
           <div className="rounded border box column gap">
-            <h2 className="text-l bold text-gray row gap-small centered">
-              <BugIcon size="1em" />
+            <h2 className="text-l bold text-gray">
+              <InlineIcon icon={BugIcon} />
               Affected products
             </h2>
             <AffectedProductsTree affectedProducts={affected_products} />
@@ -59,8 +60,8 @@ export function SuggestionDetailedBody({ suggestion, userCanEdit }: Props) {
         {/* Packages */}
         {Object.keys(packages).length + Object.keys(ignored_packages).length > 0 && (
           <div className="rounded border box column gap">
-            <h2 className="text-l bold text-gray row gap-small centered">
-              <PackageIcon size="1em" />
+            <h2 className="text-l bold text-gray">
+              <InlineIcon icon={PackageIcon} />
               Matching in nixpkgs
             </h2>
             <CategorizedPackagesList
@@ -75,8 +76,8 @@ export function SuggestionDetailedBody({ suggestion, userCanEdit }: Props) {
         {/* Maintainers */}
         {categorized_maintainers.original.length > 0 && (
           <div className="rounded border box column gap">
-            <h2 className="text-l bold text-gray row gap-small centered">
-              <UserIcon size="1em" />
+            <h2 className="text-l bold text-gray">
+              <InlineIcon icon={UserIcon} />
               Maintainers
             </h2>
             <CategorizedMaintainersList

@@ -1,5 +1,6 @@
 import { UserPlusIcon } from "lucide-preact";
 import { useState } from "preact/hooks";
+import { InlineIcon } from "@/components/ui/InlineIcon";
 import { Spinner } from "@/components/ui/Spinner";
 import { useAddMaintainerMutation } from "@/hooks/useMaintainer";
 import { getApiErrorMessage } from "@/utils/apiError";
@@ -38,11 +39,11 @@ export function MaintainerAddForm({ suggestionId }: Props) {
           />
           <button
             type="button"
-            className="btn btn-green join-item row gap-small centered"
+            className="btn btn-green join-item"
             disabled={mutation.isPending || !githubHandle.trim()}
             onClick={handleAdd}
           >
-            <UserPlusIcon size="1em" />
+            <InlineIcon icon={UserPlusIcon} />
             Add
           </button>
         </div>

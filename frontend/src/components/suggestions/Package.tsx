@@ -1,6 +1,7 @@
 import { PackageMinusIcon, PackagePlusIcon } from "lucide-preact";
 import type { SuggestionPackage } from "@/api/generated/models";
 import { ExternalLink } from "@/components/ui/ExternalLink";
+import { InlineIcon } from "@/components/ui/InlineIcon";
 import { usePackageMutation } from "@/hooks/usePackage";
 import { useSuggestionListFilterHref, withPackageFilter } from "@/hooks/useSuggestionListFilters";
 import { formatTime } from "@/utils/date";
@@ -37,11 +38,11 @@ export function Package({ attr, pkg, suggestionId, editable, isIgnored }: Props)
       {editable && (
         <button
           type="button"
-          className={`btn ${isIgnored ? "btn-green" : "btn-gray"} row gap-small centered`}
+          className={`btn ${isIgnored ? "btn-green" : "btn-gray"}`}
           onClick={handleClick}
           disabled={mutation.isPending}
         >
-          {isIgnored ? <PackagePlusIcon size="1em" /> : <PackageMinusIcon size="1em" />}
+          <InlineIcon icon={isIgnored ? PackagePlusIcon : PackageMinusIcon} />
           {isIgnored ? "Restore" : "Ignore"}
         </button>
       )}

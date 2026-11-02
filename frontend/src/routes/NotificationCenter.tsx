@@ -3,6 +3,7 @@ import { useSearchParams } from "wouter-preact";
 import { useListNotifications } from "@/api/generated/endpoints";
 import { NotificationItem } from "@/components/notifications/NotificationItem";
 import { SuggestionViewToggle } from "@/components/suggestions/SuggestionViewToggle";
+import { InlineIcon } from "@/components/ui/InlineIcon";
 import { Pagination } from "@/components/ui/Pagination";
 import { Skeleton } from "@/components/ui/Skeleton";
 import { useAuth } from "@/hooks/useAuth";
@@ -78,31 +79,31 @@ export function NotificationCenter() {
         <div className="row gap-small">
           <button
             type="button"
-            className="btn btn-gray row gap-small centered"
+            className="btn btn-gray"
             onClick={() => markAllReadMutation.mutate()}
             disabled={markAllReadMutation.isPending || isLoading || !data}
             data-testid="notifications-mark-all-read"
           >
-            <BellCheckIcon size="1em" />
+            <InlineIcon icon={BellCheckIcon} />
             Mark all as read
           </button>
           <button
             type="button"
-            className="btn btn-red row gap-small centered"
+            className="btn btn-red"
             onClick={handleClearRead}
             disabled={clearReadMutation.isPending}
             data-testid="notifications-clear-read"
           >
-            <BellMinusIcon size="1em" />
+            <InlineIcon icon={BellMinusIcon} />
             Clear read
           </button>
         </div>
       </div>
 
       <div className="row gap centered justify-right full-width">
-        <div className="row gap-small centered">
-          <EyeIcon size="1em" />
-          <span>Suggestions view mode</span>
+        <div>
+          <InlineIcon icon={EyeIcon} />
+          Suggestions view mode
         </div>
         <SuggestionViewToggle
           value={suggestionViewMode}

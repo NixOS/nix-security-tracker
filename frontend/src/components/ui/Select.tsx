@@ -48,7 +48,7 @@ export function Select({ value, options, onValueChange, label }: Props) {
         >
           <SelectValueText />
           <SelectIndicator className="row centered">
-            <ChevronDownIcon size="1em" />
+            <ChevronDownIcon />
           </SelectIndicator>
         </SelectTrigger>
       </SelectControl>

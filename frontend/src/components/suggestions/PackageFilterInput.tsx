@@ -37,7 +37,7 @@ export function PackageFilterInput({ packageFilter, setPackageFilter }: Props) {
     <div
       className={`row centered gap-small bg-gray-light rounded-full ${styles.pill} ${active ? "bg-nixos-blue text-white" : ""}`}
     >
-      <PackageIcon size="1em" />
+      <PackageIcon />
       <input
         ref={inputRef}
         type="text"
@@ -55,11 +55,11 @@ export function PackageFilterInput({ packageFilter, setPackageFilter }: Props) {
           aria-label={`Atom feed for package '${packageFilter}'`}
           className={styles.feed}
         >
-          <RssIcon size="1em" />
+          <RssIcon />
         </a>
       ) : (
         <span className={`${styles.feed} ${styles.hidden}`} aria-hidden="true">
-          <RssIcon size="1em" />
+          <RssIcon />
         </span>
       )}
       <button
@@ -73,7 +73,7 @@ export function PackageFilterInput({ packageFilter, setPackageFilter }: Props) {
           inputRef.current?.focus();
         }}
       >
-        <XIcon size="1em" />
+        <XIcon />
       </button>
     </div>
   );

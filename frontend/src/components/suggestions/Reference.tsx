@@ -1,6 +1,7 @@
 import { LinkIcon, UnlinkIcon } from "lucide-preact";
 import type { SuggestionUrlReference } from "@/api/generated/models";
 import { ExternalLink } from "@/components/ui/ExternalLink";
+import { InlineIcon } from "@/components/ui/InlineIcon";
 import { useReferenceMutation } from "@/hooks/useReference";
 import { ReferenceTag } from "./ReferenceTag";
 
@@ -31,11 +32,11 @@ export function Reference({ reference, suggestionId, editable, isIgnored }: Prop
       {editable && (
         <button
           type="button"
-          className={`btn ${isIgnored ? "btn-green" : "btn-gray"} row gap-small centered`}
+          className={`btn ${isIgnored ? "btn-green" : "btn-gray"}`}
           onClick={handleClick}
           disabled={mutation.isPending}
         >
-          {isIgnored ? <LinkIcon size="1em" /> : <UnlinkIcon size="1em" />}
+          <InlineIcon icon={isIgnored ? LinkIcon : UnlinkIcon} />
           {isIgnored ? "Restore" : "Ignore"}
         </button>
       )}

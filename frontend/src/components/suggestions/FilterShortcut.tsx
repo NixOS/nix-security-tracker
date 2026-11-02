@@ -24,7 +24,7 @@ export function FilterShortcut({ href, label }: Props) {
         window.scrollTo({ top: 0 });
       }}
     >
-      <SearchIcon size="1em" />
+      <SearchIcon />
     </Link>
   );
 }
