@@ -79,7 +79,7 @@ export function DateRangeFilterInput({
       className={`row centered gap-small bg-gray-light rounded-full ${styles.pill} ${active ? "bg-nixos-blue text-white" : ""}`}
       data-testid="suggestion-date-filter"
     >
-      <CalendarIcon size="1em" />
+      <CalendarIcon />
       <span>Created</span>
       <Select
         value={mode}
@@ -127,7 +127,7 @@ export function DateRangeFilterInput({
           setCreatedAtRange("", "");
         }}
       >
-        <XIcon size="1em" />
+        <XIcon />
       </button>
     </div>
   );

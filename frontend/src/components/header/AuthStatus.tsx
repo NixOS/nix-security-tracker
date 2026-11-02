@@ -49,20 +49,20 @@ export function AuthStatus() {
           {
             value: "subscriptions",
             label: "Subscriptions",
-            icon: <BellIcon size="1em" />,
+            icon: <BellIcon />,
             onSelect: () => setLocation(paths.userSubscriptions),
           },
           {
             value: "tokens",
             label: "API Tokens",
-            icon: <KeyRoundIcon size="1em" />,
+            icon: <KeyRoundIcon />,
             onSelect: () => setLocation(paths.userTokens),
           },
           { type: "separator" },
           {
             value: "logout",
             label: "Logout",
-            icon: <LogOutIcon size="1em" />,
+            icon: <LogOutIcon />,
             onSelect: logout,
           },
         ]}

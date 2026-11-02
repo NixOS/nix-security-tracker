@@ -4,15 +4,15 @@ import type {
   SuggestionRejectionReason,
   SuggestionStatusEnum,
 } from "@/api/generated/models";
+import { InlineIcon } from "@/components/ui/InlineIcon";
 import { issuePath } from "@/routes/paths";
-import { SuggestionStatusIcon } from "./SuggestionStatusIcon";
+import { suggestionStatusIcon } from "./suggestionStatusIcon";
 
 type Props = {
   status: SuggestionStatusEnum;
   rejectionReason?: SuggestionRejectionReason;
   /** @nullable */
   issueCode?: string | null;
-  iconOnly?: boolean;
 };
 
 export function statusLabel(status: SuggestionStatusEnum): string {
@@ -49,19 +49,17 @@ export function rejectionReasonLabel(rejection_reason: RejectionReasonEnum): str
   }
 }
 
-export function SuggestionStatus({ status, rejectionReason, issueCode, iconOnly = false }: Props) {
+export function SuggestionStatus({ status, rejectionReason, issueCode }: Props) {
+  const StatusIcon = suggestionStatusIcon(status);
   return (
-    <div className="row gap-small centered">
-      <SuggestionStatusIcon status={status} size="1em" />
-      {!iconOnly && (
+    <div>
+      <InlineIcon icon={StatusIcon} />
+      {statusLabel(status)}
+      {rejectionReason && ` (${rejectionReasonLabel(rejectionReason)})`}
+      {status === "published" && issueCode && (
         <>
-          <span>{statusLabel(status)}</span>
-          {rejectionReason && <span>({rejectionReasonLabel(rejectionReason)})</span>}
-          {status === "published" && issueCode && (
-            <span>
-              (<Link href={issuePath(issueCode)}>Issue</Link>)
-            </span>
-          )}
+          {" "}
+          (<Link href={issuePath(issueCode)}>Issue</Link>)
         </>
       )}
     </div>

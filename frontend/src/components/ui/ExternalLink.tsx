@@ -1,5 +1,6 @@
 import { ExternalLinkIcon } from "lucide-preact";
 import type { ComponentChild } from "preact";
+import { InlineIcon } from "./InlineIcon";
 
 type ExternalLinkProps = {
   href: string;
@@ -21,10 +22,7 @@ export function ExternalLink({
   return (
     <a href={href} target={target} rel={rel} className={className} title={title}>
       {children}
-      <span className="no-line-breaks">
-        {"⁠"}
-        <ExternalLinkIcon size=".9em" style="margin-left: .2em; vertical-align: -0.05em;" />
-      </span>
+      <InlineIcon icon={ExternalLinkIcon} size=".9em" after />
     </a>
   );
 }

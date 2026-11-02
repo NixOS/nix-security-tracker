@@ -1,0 +1,23 @@
+.before,
+.after {
+  white-space: nowrap;
+}
+
+.before svg,
+.after svg {
+  vertical-align: -0.125em;
+}
+
+/* Prevent line breaks around the icon with a word joiner */
+.before::after,
+.after::before {
+  content: "\2060" / "";
+}
+
+.before {
+  margin-inline-end: 0.3em;
+}
+
+.after {
+  margin-inline-start: 0.3em;
+}

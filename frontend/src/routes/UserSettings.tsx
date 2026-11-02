@@ -57,13 +57,13 @@ export function UserSettings() {
               {
                 value: "subscriptions",
                 label: "Subscriptions",
-                icon: <BellIcon size="1em" />,
+                icon: BellIcon,
                 content: <Subscriptions />,
               },
               {
                 value: "tokens",
                 label: "API Tokens",
-                icon: <KeyRoundIcon size="1em" />,
+                icon: KeyRoundIcon,
                 content: <ApiToken />,
               },
             ]}

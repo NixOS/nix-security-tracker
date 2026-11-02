@@ -38,7 +38,7 @@ export function AffectedProductFilterInput({
     <div
       className={`row centered gap-small bg-gray-light rounded-full ${styles.pill} ${active ? "bg-nixos-blue text-white" : ""}`}
     >
-      <BugIcon size="1em" />
+      <BugIcon />
       <input
         ref={productRef}
         type="text"
@@ -74,7 +74,7 @@ export function AffectedProductFilterInput({
           productRef.current?.focus();
         }}
       >
-        <XIcon size="1em" />
+        <XIcon />
       </button>
     </div>
   );

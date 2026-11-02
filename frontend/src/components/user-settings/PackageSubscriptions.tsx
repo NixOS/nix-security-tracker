@@ -9,6 +9,7 @@ import {
   useRemovePackageSubscription,
 } from "@/api/generated/endpoints";
 import type { PackageSubscriptions as PackageSubscriptionsData } from "@/api/generated/models";
+import { InlineIcon } from "@/components/ui/InlineIcon";
 import { Skeleton } from "@/components/ui/Skeleton";
 import { Spinner } from "@/components/ui/Spinner";
 
@@ -107,11 +108,11 @@ export function PackageSubscriptions() {
           />
           <button
             type="button"
-            className="btn btn-green join-item row gap-small centered"
+            className="btn btn-green join-item"
             disabled={isAdding || !packageName.trim()}
             onClick={() => addPackage({ data: { package_name: packageName.trim() } })}
           >
-            <PackagePlusIcon size="1em" />
+            <InlineIcon icon={PackagePlusIcon} />
             Subscribe
           </button>
         </div>
@@ -130,10 +131,10 @@ export function PackageSubscriptions() {
             <li key={pkg} className="row gap-small centered">
               <button
                 type="button"
-                className="btn btn-gray row gap-small centered"
+                className="btn btn-gray"
                 onClick={() => removePackage({ packageName: pkg })}
               >
-                <PackageMinusIcon size="1em" />
+                <InlineIcon icon={PackageMinusIcon} />
                 Unsubscribe
               </button>
               <div>{pkg}</div>

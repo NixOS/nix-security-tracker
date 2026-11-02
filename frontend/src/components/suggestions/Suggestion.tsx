@@ -3,6 +3,7 @@ import { useState } from "preact/hooks";
 import { Link } from "wouter-preact";
 import type { Suggestion as SuggestionType } from "@/api/generated/models";
 import { ExternalLink } from "@/components/ui/ExternalLink";
+import { InlineIcon } from "@/components/ui/InlineIcon";
 import { LegendCard } from "@/components/ui/LegendCard";
 import { useAuth } from "@/hooks/useAuth";
 import {
@@ -17,6 +18,7 @@ import { SuggestionDetailedBody } from "./SuggestionDetailedBody";
 import { SuggestionStatus } from "./SuggestionStatus";
 import { SuggestionTabsBody } from "./SuggestionTabsBody";
 import { SuggestionViewToggle } from "./SuggestionViewToggle";
+import { suggestionStatusIcon } from "./suggestionStatusIcon";
 
 type Props = {
   suggestion: SuggestionType;
@@ -46,13 +48,13 @@ export function Suggestion({
 
   const cveLegend = (
     <>
-      <div className="row gap-small centered">
-        <ShieldIcon size="1em" />
+      <span>
+        <InlineIcon icon={ShieldIcon} />
         <Link href={suggestionPath(id)}>{cve_id}</Link>
-      </div>
-      <div>
+      </span>
+      <span>
         (<ExternalLink href={nvdUrl}>NVD</ExternalLink>)
-      </div>
+      </span>
     </>
   );
 
@@ -80,11 +82,10 @@ export function Suggestion({
         dashed={dimmed}
         testId={`suggestion-${id}-collapsed`}
       >
-        <div className="row gap centered">
-          <div data-testid={`suggestion-${id}-status`} className="contents">
-            <SuggestionStatus status={status} rejectionReason={rejection_reason} iconOnly />
-          </div>
-          {displayedTitle && <div>{displayedTitle}</div>}
+        {/* NOTE(@florentc): This div row is not needed in theory. This is just to prevent long labels from wrapping under the icon because it turns out to render better in this specific case. */}
+        <div className="row">
+          <InlineIcon icon={suggestionStatusIcon(status)} data-testid={`suggestion-${id}-status`} />
+          {displayedTitle && <>{displayedTitle}</>}
         </div>
       </LegendCard>
     );
@@ -97,46 +98,48 @@ export function Suggestion({
       dashed={dimmed}
       testId={`suggestion-${id}`}
     >
-      {/* Header */}
-      <div className="column gap">
-        <div className="column full-width">
-          <div className="row gap spread align-start">
-            <SuggestionStatus
-              status={status}
-              rejectionReason={rejection_reason}
-              issueCode={issue_code}
-            />
-            <ActivityLogToggle
-              suggestionId={id}
-              open={activityLogOpen}
-              onToggle={() => setActivityLogOpen((v) => !v)}
-            />
+      <div className="column gap-big">
+        {/* Header */}
+        <div className="column gap">
+          <div className="column full-width">
+            <div className="row gap spread align-start">
+              <SuggestionStatus
+                status={status}
+                rejectionReason={rejection_reason}
+                issueCode={issue_code}
+              />
+              <ActivityLogToggle
+                suggestionId={id}
+                open={activityLogOpen}
+                onToggle={() => setActivityLogOpen((v) => !v)}
+              />
+            </div>
+            <ActivityLogPanel suggestionId={id} open={activityLogOpen} />
           </div>
-          <ActivityLogPanel suggestionId={id} open={activityLogOpen} />
+
+          <details>
+            <summary>
+              {metrics.length > 0 && <SeverityBadge metrics={metrics} />}
+              <span className="bold text-l">
+                {title || (description ? `${description.slice(0, 80)}…` : cve_id)}
+              </span>
+            </summary>
+            {description && <p>{description}</p>}
+          </details>
         </div>
 
-        <details>
-          <summary>
-            {metrics.length > 0 && <SeverityBadge metrics={metrics} />}
-            <span className="bold text-l">
-              {title || (description ? `${description.slice(0, 80)}…` : cve_id)}
-            </span>
-          </summary>
-          {description && <p>{description}</p>}
-        </details>
+        {viewMode === "compact" && (
+          <SuggestionCompactBody suggestion={suggestion} userCanEdit={userCanEdit} />
+        )}
+
+        {viewMode === "tabs" && (
+          <SuggestionTabsBody suggestion={suggestion} userCanEdit={userCanEdit} />
+        )}
+
+        {viewMode === "detailed" && (
+          <SuggestionDetailedBody suggestion={suggestion} userCanEdit={userCanEdit} />
+        )}
       </div>
-
-      {viewMode === "compact" && (
-        <SuggestionCompactBody suggestion={suggestion} userCanEdit={userCanEdit} />
-      )}
-
-      {viewMode === "tabs" && (
-        <SuggestionTabsBody suggestion={suggestion} userCanEdit={userCanEdit} />
-      )}
-
-      {viewMode === "detailed" && (
-        <SuggestionDetailedBody suggestion={suggestion} userCanEdit={userCanEdit} />
-      )}
     </LegendCard>
   );
 }

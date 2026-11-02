@@ -25,7 +25,7 @@ export function LegendCard({ legend, viewToggle, dashed = false, testId, childre
     >
       <div className={`row gap-small ${styles.legend}`}>{legend}</div>
       <div className={styles.legendRight}>{viewToggle}</div>
-      {children}
+      <div>{children}</div>
     </article>
   );
 }

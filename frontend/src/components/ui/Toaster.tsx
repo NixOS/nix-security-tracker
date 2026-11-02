@@ -53,7 +53,7 @@ export function Toaster({ toaster }: ToasterProps) {
             </ToastTitle>
             {toast.description && <ToastDescription>{toast.description}</ToastDescription>}
             <ToastCloseTrigger className={`row centered ${styles.closeTrigger}`}>
-              <XIcon size="1em" />
+              <XIcon />
             </ToastCloseTrigger>
           </ToastRoot>
         );

@@ -4,6 +4,7 @@ import {
   ChevronRightIcon,
   InboxIcon,
   LinkIcon,
+  type LucideIcon,
   PackageMinusIcon,
   PackagePlusIcon,
   RefreshCwIcon,
@@ -18,12 +19,13 @@ import { useGetSuggestionActivityLog } from "@/api/generated/endpoints";
 import { type ActivityLogEntry, SuggestionStatusEnum } from "@/api/generated/models";
 import { Collapsible } from "@/components/ui/Collapsible";
 import { ExternalLink } from "@/components/ui/ExternalLink";
+import { InlineIcon } from "@/components/ui/InlineIcon";
 import { Skeleton } from "@/components/ui/Skeleton";
 import { Spinner } from "@/components/ui/Spinner";
 import { useTick } from "@/hooks/useTick";
 import { formatTime } from "@/utils/date";
 import styles from "./ActivityLog.module.css";
-import { SuggestionStatusIcon } from "./SuggestionStatusIcon";
+import { suggestionStatusIcon } from "./suggestionStatusIcon";
 
 // Re-render frequency for relative-time displays updates
 const TICK_INTERVAL_MS = 10_000;
@@ -73,22 +75,29 @@ function classifyAction(entry: ActivityLogEntry): ActionCategory {
   };
 }
 
-function entryIcon(entry: ActivityLogEntry) {
-  const size = "1em";
+function entryIcon(entry: ActivityLogEntry): LucideIcon | null {
   const category = classifyAction(entry);
+  if (category.kind === "status") {
+    return category.value ? suggestionStatusIcon(category.value) : null;
+  }
+  return actionIcon(entry, category);
+}
+
+function actionIcon(
+  entry: ActivityLogEntry,
+  category: Exclude<ActionCategory, { kind: "status" }>,
+): LucideIcon {
   switch (category.kind) {
     case "create":
-      return entry.rejection_reason ? <Trash2Icon size={size} /> : <InboxIcon size={size} />;
+      return entry.rejection_reason ? Trash2Icon : InboxIcon;
     case "package":
-      return category.restored ? <PackagePlusIcon size={size} /> : <PackageMinusIcon size={size} />;
+      return category.restored ? PackagePlusIcon : PackageMinusIcon;
     case "reference":
-      return category.restored ? <LinkIcon size={size} /> : <UnlinkIcon size={size} />;
+      return category.restored ? LinkIcon : UnlinkIcon;
     case "maintainer":
-      return category.op === "add" ? <UserPlusIcon size={size} /> : <UserMinusIcon size={size} />;
+      return category.op === "add" ? UserPlusIcon : UserMinusIcon;
     case "rematch":
-      return <RefreshCwIcon size={size} />;
-    case "status":
-      return category.value ? <SuggestionStatusIcon status={category.value} size="1em" /> : null;
+      return RefreshCwIcon;
   }
 }
 
@@ -186,6 +195,7 @@ function EntryRow({ entry }: { entry: ActivityLogEntry }) {
   const items = group?.items ?? null;
   const expandable = !!items && items.length > 1;
   const [expanded, setExpanded] = useState(false);
+  const icon = entryIcon(entry);
 
   function toggle() {
     if (expandable) setExpanded((v) => !v);
@@ -193,8 +203,8 @@ function EntryRow({ entry }: { entry: ActivityLogEntry }) {
 
   const objectCell = items ? (
     items.length > 1 ? (
-      <span className="row gap-small centered">
-        {expanded ? <ChevronDownIcon size="1em" /> : <ChevronRightIcon size="1em" />}
+      <span>
+        <InlineIcon icon={expanded ? ChevronDownIcon : ChevronRightIcon} />
         {items.length} {group?.kind}
       </span>
     ) : (
@@ -229,8 +239,10 @@ function EntryRow({ entry }: { entry: ActivityLogEntry }) {
         <td>
           {entry.username ? <strong>@{entry.username}</strong> : <span>security tracker</span>}
         </td>
-        <td>{entryIcon(entry)}</td>
-        <td>{actionName(entry)}</td>
+        <td>
+          {icon && <InlineIcon icon={icon} />}
+          {actionName(entry)}
+        </td>
         <td>{objectCell}</td>
       </tr>
       {expandable &&
@@ -278,7 +290,7 @@ export function ActivityLogToggle({ suggestionId, open, onToggle }: Props) {
       aria-expanded={open}
       data-testid={`suggestion-${suggestionId}-activity-log-toggle`}
     >
-      {open ? <ChevronDownIcon size="1em" /> : <ChevronRightIcon size="1em" />}
+      {open ? <ChevronDownIcon /> : <ChevronRightIcon />}
       {isFetching && <Spinner />}
       {open ? (
         <span>Activity log</span>
