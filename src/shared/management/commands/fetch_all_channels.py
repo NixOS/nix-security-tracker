@@ -64,6 +64,8 @@ def fetch_from_monitoring() -> list[MonitoredChannel]:
         # https://github.com/NixOS/infra/blob/795508213eb35eee099b1b8d12dd46a9f7b03697/build/pluto/prometheus/exporters/channel.nix#L4-L6
         # channel structure:
         # https://github.com/NixOS/infra/blob/795508213eb35eee099b1b8d12dd46a9f7b03697/channels.nix
+        # Example for the shape of the response:
+        # //nix/tests/channels.nix
         settings.CHANNEL_MONITORING_URL,
         timeout=settings.NETWORK_REQUEST_TIMEOUT,
     )
