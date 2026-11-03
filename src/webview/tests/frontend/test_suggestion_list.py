@@ -706,3 +706,40 @@ def test_suggestion_detail_shortcut_opens_list_with_only_that_filter(
         + "?"
         + urlencode({"package": package.attribute})
     )
+
+
+# FIXME(@fricklerhandwerk): Remove when https://github.com/chakra-ui/zag/pull/3586 makes it into our dependencies.
+HOLD_TIMERS = """
+window.__heldTimers = [];
+window.__holdTimers = false;
+const realSetTimeout = window.setTimeout.bind(window);
+window.setTimeout = (callback, delay, ...args) => {
+    if (!window.__holdTimers) return realSetTimeout(callback, delay, ...args);
+    window.__heldTimers.push(() => callback(...args));
+    return 0;
+};
+window.__releaseTimers = async () => {
+    window.__holdTimers = false;
+    window.__heldTimers.splice(0).forEach((run) => run());
+    await new Promise((resolve) => queueMicrotask(resolve));
+};
+"""
+
+
+def test_date_picker_race_condition(
+    live_server: LiveServer,
+    page: Page,
+) -> None:
+    page.add_init_script(HOLD_TIMERS)
+    page.goto(live_server.url + SUGGESTION_LIST)
+    select_date_filter_mode(page, "between")
+
+    page.evaluate("window.__holdTimers = true")
+    start = page.get_by_label("Created on or after", exact=True)
+    start.fill("2026-03-09")
+    start.press("Enter")
+    end = page.get_by_label("Created on or before", exact=True)
+    end.focus()
+    page.evaluate("window.__releaseTimers()")
+
+    expect(end).to_have_value("")
