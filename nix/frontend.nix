@@ -6,6 +6,12 @@
 }:
 let
   schema = callPackage ./schema.nix { };
+  # The date picker's deferred input sync can write the start date into the end input of a range.
+  # FIXME(@fricklerhandwerk): Drop this once the upstream fix makes it into our dependencies:
+  # https://github.com/chakra-ui/zag/pull/3586
+  patch-dependencies = ''
+    patch -p1 -d node_modules/@zag-js/date-picker < ${./zag-date-picker-stale-input.patch}
+  '';
 in
 buildNpmPackage (finalAttrs: {
   pname = "nix-security-tracker-frontend";
@@ -25,6 +31,7 @@ buildNpmPackage (finalAttrs: {
 
   # Generate the Orval API client from the OpenAPI schema before building.
   preBuild = ''
+    ${patch-dependencies}
     cp ${schema} schema.yaml
     npm run generate-api:local
   '';
@@ -49,6 +56,7 @@ buildNpmPackage (finalAttrs: {
     preBuild = "";
     dontBuild = true;
     installPhase = ''
+      ${patch-dependencies}
       mkdir $out
       mv node_modules $out/
       mkdir $out/node_modules/.vite
