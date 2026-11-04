@@ -1,37 +1,7 @@
-.pill {
-  padding: 0.35em 0.8em;
-}
-
-.input {
-  border: none;
-  outline: none;
-  background: transparent;
-  color: inherit;
-  font: inherit;
+.product {
   width: 12em;
-}
-
-.input::placeholder {
-  color: inherit;
-  opacity: 0.6;
-}
-
-.input:disabled {
-  opacity: 0.5;
 }
 
 .version {
   width: 6em;
-}
-
-.clear {
-  border: none;
-  background: none;
-  color: inherit;
-  padding: 0;
-  display: flex;
-}
-
-.clear:disabled {
-  visibility: hidden;
 }
