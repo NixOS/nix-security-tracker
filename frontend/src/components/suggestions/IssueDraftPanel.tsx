@@ -1,7 +1,7 @@
 import { SendIcon, Trash2Icon } from "lucide-preact";
 import { useState } from "preact/hooks";
 import { Collapsible } from "@/components/ui/Collapsible";
-import { Spinner } from "@/components/ui/Spinner";
+import { InlineIcon } from "@/components/ui/InlineIcon";
 import { useIssueDraftPublishMutation } from "@/hooks/useIssueDraftPublish";
 import { useIssueDraftResetMutation } from "@/hooks/useIssueDraftReset";
 
@@ -33,20 +33,20 @@ export function IssueDraftPanel({ open }: Props) {
         />
         <button
           type="button"
-          className="btn btn-gray row gap-small centered"
+          className="btn btn-gray"
           onClick={() => resetMutation.mutate()}
           disabled={resetMutation.isPending}
         >
-          <Trash2Icon size="1em" />
+          <InlineIcon icon={Trash2Icon} />
           Reset draft
         </button>
         <button
           type="button"
-          className="btn btn-green row gap-small centered"
+          className="btn btn-green"
           onClick={publish}
           disabled={publishMutation.isPending || !title.trim()}
         >
-          {publishMutation.isPending ? <Spinner /> : <SendIcon size="1em" />}
+          <InlineIcon icon={SendIcon} pending={publishMutation.isPending} />
           Publish
         </button>
       </div>

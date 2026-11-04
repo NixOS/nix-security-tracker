@@ -1133,7 +1133,7 @@
           },
           "editorMode": "code",
           "exemplar": false,
-          "expr": "sql_channel_evaluation_status{sql_job=\"sectracker\", instance=\"$Instance\"}",
+          "expr": "last_over_time(sql_channel_evaluation_status{sql_job=\"sectracker\", instance=\"$Instance\"}[1h])",
           "format": "table",
           "instant": true,
           "legendFormat": "__auto",
@@ -1270,7 +1270,7 @@
         {
           "disableTextWrap": false,
           "editorMode": "code",
-          "expr": "pg_database_size_bytes{datname=\"nix-security-tracker\"}",
+          "expr": "pg_database_size_bytes{datname=\"nix-security-tracker\", instance=\"$Instance\"}",
           "fullMetaSearch": false,
           "includeNullMetadata": true,
           "legendFormat": "__auto",

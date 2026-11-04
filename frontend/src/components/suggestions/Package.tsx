@@ -1,8 +1,11 @@
 import { PackageMinusIcon, PackagePlusIcon } from "lucide-preact";
 import type { SuggestionPackage } from "@/api/generated/models";
 import { ExternalLink } from "@/components/ui/ExternalLink";
+import { InlineIcon } from "@/components/ui/InlineIcon";
 import { usePackageMutation } from "@/hooks/usePackage";
+import { useSuggestionListFilterHref, withPackageFilter } from "@/hooks/useSuggestionListFilters";
 import { formatTime } from "@/utils/date";
+import { FilterShortcut } from "./FilterShortcut";
 import styles from "./Package.module.css";
 
 type Props = {
@@ -21,6 +24,7 @@ function versionStatusClass(status: string | null): string {
 
 export function Package({ attr, pkg, suggestionId, editable, isIgnored }: Props) {
   const mutation = usePackageMutation(suggestionId);
+  const filterHref = useSuggestionListFilterHref();
 
   function handleClick() {
     mutation.mutate({
@@ -34,16 +38,22 @@ export function Package({ attr, pkg, suggestionId, editable, isIgnored }: Props)
       {editable && (
         <button
           type="button"
-          className={`btn ${isIgnored ? "btn-green" : "btn-gray"} row gap-small centered`}
+          className={`btn ${isIgnored ? "btn-green" : "btn-gray"}`}
           onClick={handleClick}
           disabled={mutation.isPending}
         >
-          {isIgnored ? <PackagePlusIcon size="1em" /> : <PackageMinusIcon size="1em" />}
+          <InlineIcon icon={isIgnored ? PackagePlusIcon : PackageMinusIcon} />
           {isIgnored ? "Restore" : "Ignore"}
         </button>
       )}
       <div className="column">
-        <h3 className={`bold ${styles.packageTitle}`}>{attr}</h3>
+        <div className={`row gap-small ${styles.packageTitle}`}>
+          <h3 className="bold">{attr}</h3>
+          <FilterShortcut
+            href={filterHref(withPackageFilter(attr))}
+            label={`Filter suggestions by package '${attr}'`}
+          />
+        </div>
         <p className={`${styles.packageTitle}`}>{pkg.description}</p>
       </div>
 

@@ -1,24 +1,30 @@
+import { useQuery } from "@tanstack/react-query";
 import { ApiError } from "@/api/client";
-import { useV1MeRetrieve } from "@/api/generated/endpoints";
-import type { CurrentUser } from "@/api/generated/models";
+import { getV1MeRetrieveQueryKey, v1MeRetrieve } from "@/api/generated/endpoints";
 import { getCsrfToken } from "@/utils/csrf";
 
 export function useAuth() {
-  const { data, isLoading, error } = useV1MeRetrieve({
-    query: {
-      staleTime: 5 * 60_000, // user info rarely changes
-      retry: false,
+  const { data, isLoading, error } = useQuery({
+    queryKey: getV1MeRetrieveQueryKey(),
+    queryFn: async ({ signal }) => {
+      try {
+        return await v1MeRetrieve(undefined, signal);
+      } catch (e) {
+        // NOTE(@florentc): a 401 is the normal "logged out" answer, not a failure.
+        // Returning null keeps the query in a success state and avoids refetching over and over.
+        if (e instanceof ApiError && e.status === 401) return null;
+        throw e;
+      }
     },
+    staleTime: Infinity, // login and logout both reload the page
+    retry: false,
   });
 
-  // Treat 401 as "not authenticated" rather than an error
-  const isUnauthenticated = error instanceof ApiError && error.status === 401;
-
   return {
-    user: (data as CurrentUser | undefined) ?? null,
+    user: data ?? null,
     isAuthenticated: data != null,
-    isLoading: isLoading && !isUnauthenticated,
-    error: isUnauthenticated ? null : error,
+    isLoading,
+    error,
   };
 }
 

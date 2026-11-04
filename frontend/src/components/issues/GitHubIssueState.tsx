@@ -23,29 +23,29 @@ export function gitHubIssueStateLabel(state: readonly GithubIssueStateEnum[]): s
   return "Closed";
 }
 
-function GitHubIssueStateIcon({ state }: { state: readonly GithubIssueStateEnum[] }) {
+function gitHubIssueStateIconStyle(state: readonly GithubIssueStateEnum[]) {
   if (!state.includes("CLOSED")) {
-    return <CircleDotIcon size="1em" className={styles["github-issue-open"]} />;
+    return { Icon: CircleDotIcon, className: styles["github-issue-open"] };
   }
   if (state.includes("COMPLETED")) {
-    return <CircleCheckIcon size="1em" className={styles["github-issue-done"]} />;
+    return { Icon: CircleCheckIcon, className: styles["github-issue-done"] };
   }
-  return <CircleSlashIcon size="1em" className={styles["github-issue-not-planned"]} />;
+  return { Icon: CircleSlashIcon, className: styles["github-issue-not-planned"] };
 }
 
-export function GitHubIssueState({ state, testId }: Props) {
+export function GitHubIssueStateIcon({ state, testId }: Props) {
   const label = gitHubIssueStateLabel(state);
+  const { Icon, className } = gitHubIssueStateIconStyle(state);
   return (
-    <span
-      className="row centered"
+    <Icon
+      className={className}
       role="img"
-      title={label}
       aria-label={label}
       data-testid={testId}
       data-color-mode="light"
       data-light-theme="light"
     >
-      <GitHubIssueStateIcon state={state} />
-    </span>
+      <title>{label}</title>
+    </Icon>
   );
 }

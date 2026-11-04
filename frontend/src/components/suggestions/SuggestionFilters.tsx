@@ -1,12 +1,14 @@
 import { LayersIcon } from "lucide-preact";
 import type { ListSuggestionsStatusItem } from "@/api/generated/models";
 import { ListSuggestionsStatusItem as Status } from "@/api/generated/models";
+import { InlineIcon } from "@/components/ui/InlineIcon";
 import { PillToggleGroup, type ToggleGroupOption } from "@/components/ui/PillToggleGroup";
 import type { SuggestionListFilters } from "@/hooks/useSuggestionListFilters";
+import { AffectedProductFilterInput } from "./AffectedProductFilterInput";
 import { DateRangeFilterInput } from "./DateRangeFilterInput";
 import { PackageFilterInput } from "./PackageFilterInput";
 import { statusLabel } from "./SuggestionStatus";
-import { SuggestionStatusIcon } from "./SuggestionStatusIcon";
+import { suggestionStatusIcon } from "./suggestionStatusIcon";
 
 const STATUS_OPTIONS: ToggleGroupOption[] = [
   Status.rejected,
@@ -16,10 +18,10 @@ const STATUS_OPTIONS: ToggleGroupOption[] = [
 ].map((status) => ({
   value: status,
   label: (
-    <span className="row gap-small centered">
-      <SuggestionStatusIcon status={status} size="1em" />
+    <>
+      <InlineIcon icon={suggestionStatusIcon(status)} />
       {statusLabel(status)}
-    </span>
+    </>
   ),
 }));
 
@@ -32,10 +34,10 @@ const TOGGLE_OPTIONS: ToggleGroupOption[] = [
   {
     value: ISSUE_DRAFT_VALUE,
     label: (
-      <span className="row gap-small centered">
-        <LayersIcon size="1em" />
+      <>
+        <InlineIcon icon={LayersIcon} />
         Issue draft
-      </span>
+      </>
     ),
   },
   STATUS_OPTIONS[3],
@@ -46,6 +48,7 @@ type Props = {
   setStatuses: (statuses: ListSuggestionsStatusItem[]) => void;
   setInIssueDraft: (inIssueDraft: boolean) => void;
   setPackageFilter: (packageFilter: string) => void;
+  setAffectedProductFilter: (product: string, version: string) => void;
   setCreatedAtRange: (after: string, before: string) => void;
 };
 
@@ -70,6 +73,7 @@ export function SuggestionFilters({
   setStatuses,
   setInIssueDraft,
   setPackageFilter,
+  setAffectedProductFilter,
   setCreatedAtRange,
 }: Props) {
   const toggleValue = filters.inIssueDraft
@@ -78,15 +82,20 @@ export function SuggestionFilters({
 
   return (
     <div className="column gap" data-testid="suggestion-filters">
+      <PillToggleGroup
+        value={toggleValue}
+        options={TOGGLE_OPTIONS}
+        onItemClick={(value, event) => {
+          const next = nextToggleSelection(toggleValue, value, event);
+          setInIssueDraft(next.includes(ISSUE_DRAFT_VALUE));
+          setStatuses(next.filter((v) => v !== ISSUE_DRAFT_VALUE) as ListSuggestionsStatusItem[]);
+        }}
+      />
       <div className="row gap row-gap-big wrap align-center">
-        <PillToggleGroup
-          value={toggleValue}
-          options={TOGGLE_OPTIONS}
-          onItemClick={(value, event) => {
-            const next = nextToggleSelection(toggleValue, value, event);
-            setInIssueDraft(next.includes(ISSUE_DRAFT_VALUE));
-            setStatuses(next.filter((v) => v !== ISSUE_DRAFT_VALUE) as ListSuggestionsStatusItem[]);
-          }}
+        <AffectedProductFilterInput
+          affectedProduct={filters.affectedProduct}
+          affectedProductVersion={filters.affectedProductVersion}
+          setAffectedProductFilter={setAffectedProductFilter}
         />
         <PackageFilterInput
           packageFilter={filters.packageFilter}

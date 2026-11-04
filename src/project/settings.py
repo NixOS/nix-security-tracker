@@ -259,8 +259,8 @@ class Settings(BaseSettings):
             default=100 * 64 // 2,
         )
         API_THROTTLE_ANONYMOUS: str = "30/min"
-        API_THROTTLE_AUTHENTICATED: str = "120/min"
-        API_THROTTLE_SECURITY_TEAM: str = "2000/min"
+        API_THROTTLE_AUTHENTICATED: str = "600/min"
+        API_THROTTLE_SECURITY_TEAM: str = "3000/min"
         API_BULK_THROTTLE_AUTHENTICATED: str = "5/min"
         API_BULK_THROTTLE_SECURITY_TEAM: str = "30/min"
         API_BULK_MAX_AFFECTED: int = Field(
@@ -269,7 +269,7 @@ class Settings(BaseSettings):
 
             Bulk operations rewrite the denormalized cache of every affected suggestion in a single transaction, so an unbounded selection would hold locks for a long time.
             """,
-            default=100,
+            default=1000,
         )
 
         @model_validator(mode="after")

@@ -3,6 +3,7 @@ import logging
 import re
 import urllib.parse
 from collections import defaultdict
+from collections.abc import Iterable
 from datetime import datetime
 from itertools import chain
 from typing import Any, overload
@@ -409,6 +410,24 @@ def maintainers_list(
     return maintainers
 
 
+def merge_url_references(
+    url: str, entries: Iterable[tuple[str, Iterable[str]]]
+) -> CachedSuggestion.CategorizedUrlReferences.UrlReference:
+    """
+    Merge several `(name, tags)` descriptions of one URL into a single reference.
+
+    The name is the one they all share (ignoring empty names), or empty in case of
+    mismatch. Tags are merged.
+    """
+    entries = list(entries)
+    names = {name for name, _ in entries if name}
+    return CachedSuggestion.CategorizedUrlReferences.UrlReference(
+        url=url,
+        name=next(iter(names)) if len(names) == 1 else "",
+        tags={tag for _, tags in entries for tag in tags},
+    )
+
+
 def categorize_url_references(
     references: list[Reference],
     reference_url_overlays: list[ReferenceUrlOverlay],
@@ -418,20 +437,9 @@ def categorize_url_references(
     Groups references by URL and combines their tags.
     """
 
-    # Group by URL and combine names and tags
-    url_dict: dict[str, dict[str, Any]] = defaultdict(
-        lambda: {"name": None, "tags": set()}
-    )
+    by_url: dict[str, list[tuple[str, Iterable[str]]]] = defaultdict(list)
     for ref in references:
-        # We use the common name that references share (ignoring empty names).
-        # In case of mismatch, we fallback to an empty name.
-        if url_dict[ref.url]["name"] is None:
-            url_dict[ref.url]["name"] = ref.name
-        elif ref.name and url_dict[ref.url]["name"] != ref.name:
-            url_dict[ref.url]["name"] = ""
-
-        # Tags are merged
-        url_dict[ref.url]["tags"].update(tag.value for tag in ref.tags.all())
+        by_url[ref.url].append((ref.name, [tag.value for tag in ref.tags.all()]))
 
     ignored_urls = {
         o.reference_url
@@ -443,10 +451,8 @@ def categorize_url_references(
     active_url_references = []
     ignored_url_references = []
 
-    for url, data in url_dict.items():
-        ref = CachedSuggestion.CategorizedUrlReferences.UrlReference(
-            url=url, name=data["name"] or "", tags=data["tags"]
-        )
+    for url, entries in by_url.items():
+        ref = merge_url_references(url, entries)
         original_url_references.append(ref)
 
         if url in ignored_urls:

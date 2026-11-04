@@ -57,7 +57,7 @@ function TreeNodes({ nodes, parentIndexPath, renderItem }: TreeNodesProps) {
                   className={`row gap-small centered cursor-pointer ${styles.branchControl}`}
                 >
                   <TreeViewBranchIndicator className={styles.branchIndicator}>
-                    <ChevronRightIcon size="1em" />
+                    <ChevronRightIcon />
                   </TreeViewBranchIndicator>
                   <TreeViewBranchText className="bold">{node.label}</TreeViewBranchText>
                   {node.count !== undefined && <span className="text-gray">{node.count}</span>}

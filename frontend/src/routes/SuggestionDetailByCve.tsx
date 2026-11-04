@@ -1,14 +1,16 @@
 import { useEffect } from "preact/hooks";
+import type { RouteParams } from "regexparam";
 import { useLocation, useParams } from "wouter-preact";
 import { ApiError } from "@/api/client";
 import { useGetSuggestionByCve } from "@/api/generated/endpoints";
 import { Skeleton } from "@/components/ui/Skeleton";
+import { type paths, suggestionPath } from "@/routes/paths";
 
 /**
  * Resolves a suggestion by its CVE ID and redirects to the canonical `by-id` detail page.
  */
 export function SuggestionDetailByCve() {
-  const params = useParams<{ cveId: string }>();
+  const params = useParams<RouteParams<typeof paths.suggestionByCve>>();
   const [, setLocation] = useLocation();
 
   const { data, isLoading, isError, error } = useGetSuggestionByCve(params.cveId, {
@@ -17,7 +19,7 @@ export function SuggestionDetailByCve() {
 
   useEffect(() => {
     if (data) {
-      setLocation(`/suggestions/by-id/${data.id}`, { replace: true });
+      setLocation(suggestionPath(data.id), { replace: true });
     }
   }, [data, setLocation]);
 

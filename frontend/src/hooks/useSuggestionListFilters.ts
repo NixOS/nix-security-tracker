@@ -1,12 +1,15 @@
-import { useSearchParams } from "wouter-preact";
+import { useLocation, useSearchParams } from "wouter-preact";
 import type { ListSuggestionsStatusItem } from "@/api/generated/models";
 import { ListSuggestionsStatusItem as Status } from "@/api/generated/models";
+import { paths } from "@/routes/paths";
 
 /** URL-search-param-backed suggestion list filters. */
 export type SuggestionListFilters = {
   statuses: ListSuggestionsStatusItem[];
   inIssueDraft: boolean;
   packageFilter: string;
+  affectedProduct: string;
+  affectedProductVersion: string;
   createdAtAfter: string;
   createdAtBefore: string;
 };
@@ -25,13 +28,84 @@ function parseDay(value: string | null): string {
 }
 
 function parseFilters(searchParams: URLSearchParams): SuggestionListFilters {
+  const affectedProduct = searchParams.get("affected_product") ?? "";
   return {
     statuses: searchParams.getAll("status").filter(isValidStatus),
     inIssueDraft: searchParams.get("in_issue_draft") === "true",
     packageFilter: searchParams.get("package") ?? "",
+    affectedProduct,
+    // The API rejects a version without a product with a 400, so a hand-edited URL drops it.
+    affectedProductVersion: affectedProduct
+      ? (searchParams.get("affected_product_version") ?? "")
+      : "",
     createdAtAfter: parseDay(searchParams.get("created_at_after")),
     createdAtBefore: parseDay(searchParams.get("created_at_before")),
   };
+}
+
+/** A pure change to the URL search params. */
+export type ParamsUpdate = (params: URLSearchParams) => URLSearchParams;
+
+// An empty value removes the parameter.
+const setParam =
+  (key: string, value: string): ParamsUpdate =>
+  (params) => {
+    const next = new URLSearchParams(params);
+    if (value) {
+      next.set(key, value);
+    } else {
+      next.delete(key);
+    }
+    return next;
+  };
+
+const pipe =
+  (...updates: ParamsUpdate[]): ParamsUpdate =>
+  (params) =>
+    updates.reduce((acc, update) => update(acc), params);
+
+// Invalidate the current page: jump back to page 1.
+const resetPage = setParam("page", "");
+
+export const withPackageFilter = (packageFilter: string): ParamsUpdate =>
+  setParam("package", packageFilter.trim());
+
+// The product and its version are written at once, since the version is meaningless without the product.
+// Omitting the version drops one belonging to a previous product.
+export const withAffectedProductFilter = (product: string, version = ""): ParamsUpdate => {
+  const trimmedProduct = product.trim();
+  return pipe(
+    setParam("affected_product", trimmedProduct),
+    setParam("affected_product_version", trimmedProduct ? version.trim() : ""),
+  );
+};
+
+const withStatuses =
+  (statuses: ListSuggestionsStatusItem[]): ParamsUpdate =>
+  (params) => {
+    const next = new URLSearchParams(params);
+    next.delete("status");
+    for (const status of statuses) next.append("status", status);
+    return next;
+  };
+
+// Both bounds are written at once.
+// It should be a single browser history entry.
+const withCreatedAtRange = (after: string, before: string): ParamsUpdate =>
+  pipe(
+    setParam("created_at_after", parseDay(after)),
+    setParam("created_at_before", parseDay(before)),
+  );
+
+/**
+ * Builds links to the suggestion list with a filter change applied.
+ * On the suggestion list, the other active filters are kept; elsewhere, the link starts from no filter.
+ */
+export function useSuggestionListFilterHref(): (update: ParamsUpdate) => string {
+  const [location] = useLocation();
+  const [searchParams] = useSearchParams();
+  const base = location === paths.suggestions ? searchParams : new URLSearchParams();
+  return (update) => `${paths.suggestions}?${pipe(update, resetPage)(base)}`;
 }
 
 export function useSuggestionListFilters(): {
@@ -39,75 +113,25 @@ export function useSuggestionListFilters(): {
   setStatuses: (statuses: ListSuggestionsStatusItem[]) => void;
   setInIssueDraft: (inIssueDraft: boolean) => void;
   setPackageFilter: (packageFilter: string) => void;
+  setAffectedProductFilter: (product: string, version: string) => void;
   setCreatedAtRange: (after: string, before: string) => void;
 } {
   const [searchParams, setSearchParams] = useSearchParams();
   const filters = parseFilters(searchParams);
 
-  // Any filter change invalidates the current page, so we jump back to page 1.
   // Uses `replace` so typing in the package filter doesn't spam browser history.
-  const updateParams = (mutate: (next: URLSearchParams) => void) => {
-    setSearchParams(
-      (prev) => {
-        const next = new URLSearchParams(prev);
-        mutate(next);
-        next.delete("page");
-        return next;
-      },
-      { replace: true },
-    );
-  };
-
-  const setStatuses = (statuses: ListSuggestionsStatusItem[]) => {
-    updateParams((next) => {
-      next.delete("status");
-      for (const status of statuses) next.append("status", status);
-    });
-  };
-
-  const setInIssueDraft = (inIssueDraft: boolean) => {
-    updateParams((next) => {
-      if (inIssueDraft) {
-        next.set("in_issue_draft", "true");
-      } else {
-        next.delete("in_issue_draft");
-      }
-    });
-  };
-
-  const setPackageFilter = (packageFilter: string) => {
-    updateParams((next) => {
-      const trimmed = packageFilter.trim();
-      if (trimmed) {
-        next.set("package", trimmed);
-      } else {
-        next.delete("package");
-      }
-    });
-  };
-
-  // Both bounds are written at once: a change of filtering mode often moves or drops both of them.
-  // It should be a single history entry.
-  const setCreatedAtRange = (after: string, before: string) => {
-    updateParams((next) => {
-      for (const [param, day] of [
-        ["created_at_after", after],
-        ["created_at_before", before],
-      ]) {
-        if (DAY_PATTERN.test(day)) {
-          next.set(param, day);
-        } else {
-          next.delete(param);
-        }
-      }
-    });
+  const updateParams = (update: ParamsUpdate) => {
+    setSearchParams(pipe(update, resetPage), { replace: true });
   };
 
   return {
     filters,
-    setStatuses,
-    setInIssueDraft,
-    setPackageFilter,
-    setCreatedAtRange,
+    setStatuses: (statuses) => updateParams(withStatuses(statuses)),
+    setInIssueDraft: (inIssueDraft) =>
+      updateParams(setParam("in_issue_draft", inIssueDraft ? "true" : "")),
+    setPackageFilter: (packageFilter) => updateParams(withPackageFilter(packageFilter)),
+    setAffectedProductFilter: (product, version) =>
+      updateParams(withAffectedProductFilter(product, version)),
+    setCreatedAtRange: (after, before) => updateParams(withCreatedAtRange(after, before)),
   };
 }

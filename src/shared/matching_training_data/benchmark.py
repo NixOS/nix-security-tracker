@@ -9,9 +9,10 @@ from __future__ import annotations
 
 import math
 from collections.abc import Iterable
-from dataclasses import dataclass
+from typing import Annotated
 
 from django.db.models import Q, QuerySet
+from pydantic import BaseModel, ConfigDict, PlainSerializer
 
 from shared.evaluation import DerivationKey, derivation_as_key
 from shared.listeners.automatic_linkage import (
@@ -72,22 +73,52 @@ def snr(true_positives: int, false_positives: int) -> float:
     return math.nan
 
 
-@dataclass(frozen=True)
-class ProposalScore:
+def snr_for_json(value: float) -> float | str:
+    """
+    Encode SNR for JSON.
+
+    Finite values stay numbers.
+    Infinity and NaN become strings, which JSON can store.
+    """
+    if math.isinf(value):
+        return "inf"
+    if math.isnan(value):
+        return "nan"
+    return value
+
+
+Snr = Annotated[float, PlainSerializer(snr_for_json, when_used="json")]
+
+
+class ProposalScore(BaseModel):
+    model_config = ConfigDict(frozen=True)
+
     cve_id: str
     true_positives: int
     false_positives: int
     rejection_agree: bool
-    snr: float
+    snr: Snr
 
 
-@dataclass(frozen=True)
-class AggregateReport:
+class AggregateReport(BaseModel):
+    model_config = ConfigDict(frozen=True)
+
     proposals: int
     true_positives: int
     false_positives: int
     rejection_agree_count: int
-    snr: float
+    snr: Snr
+
+
+class BenchmarkReport(BaseModel):
+    """
+    Aggregate and per-CVE scores written by the benchmark command.
+    """
+
+    model_config = ConfigDict(frozen=True)
+
+    aggregate: AggregateReport
+    scores: list[ProposalScore]
 
 
 def rematch(original: CVEDerivationClusterProposal) -> LinkageOutcome:

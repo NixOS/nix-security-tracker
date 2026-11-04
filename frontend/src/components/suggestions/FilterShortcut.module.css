@@ -1,0 +1,23 @@
+.shortcut {
+  display: inline-flex;
+  align-self: center;
+  color: var(--gray);
+  opacity: 0;
+  transition: opacity 0.15s;
+}
+
+:hover > .shortcut,
+.shortcut:focus-visible {
+  opacity: 1;
+}
+
+.shortcut:hover {
+  color: var(--nixos-blue);
+}
+
+/* Touch screens have no hover to reveal the shortcut. */
+@media (hover: none) {
+  .shortcut {
+    opacity: 1;
+  }
+}

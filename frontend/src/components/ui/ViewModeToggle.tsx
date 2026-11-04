@@ -3,6 +3,7 @@ import {
   SegmentedToggleGroup,
   type SegmentedToggleOption,
 } from "@/components/ui/SegmentedToggleGroup";
+import { InlineIcon } from "./InlineIcon";
 
 export type ViewModeOption<T extends string> = { value: T; label: string; Icon: LucideIcon };
 
@@ -40,12 +41,12 @@ export function ViewModeToggle<T extends string>({
     title: iconOnly ? label : undefined,
     current: mode === currentValue,
     label: iconOnly ? (
-      <Icon size="1em" />
+      <Icon />
     ) : (
-      <span className="row gap-small centered">
-        <Icon size="1em" />
+      <>
+        <InlineIcon icon={Icon} />
         {label}
-      </span>
+      </>
     ),
   }));
 

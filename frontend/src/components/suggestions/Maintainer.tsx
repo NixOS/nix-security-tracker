@@ -1,6 +1,7 @@
 import { UserMinusIcon, UserPlusIcon } from "lucide-preact";
 import type { Maintainer as MaintainerType } from "@/api/generated/models";
 import { ExternalLink } from "@/components/ui/ExternalLink";
+import { InlineIcon } from "@/components/ui/InlineIcon";
 import { useDeleteMaintainerMutation, useMaintainerMutation } from "@/hooks/useMaintainer";
 
 type Props = {
@@ -40,11 +41,11 @@ export function Maintainer({ maintainer, suggestionId, editable, kind }: Props) 
       {editable && (
         <button
           type="button"
-          className={`btn ${isIgnored ? "btn-green" : "btn-gray"} row gap-small centered`}
+          className={`btn ${isIgnored ? "btn-green" : "btn-gray"}`}
           onClick={handleClick}
           disabled={mutation.isPending}
         >
-          {isIgnored ? <UserPlusIcon size="1em" /> : <UserMinusIcon size="1em" />}
+          <InlineIcon icon={isIgnored ? UserPlusIcon : UserMinusIcon} />
           {label}
         </button>
       )}

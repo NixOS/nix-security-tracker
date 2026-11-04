@@ -1,5 +1,6 @@
 import { Link } from "wouter-preact";
 import { useGetNotificationsUnreadCount } from "@/api/generated/endpoints";
+import { paths } from "@/routes/paths";
 import { NotificationBell } from "./NotificationBell";
 
 // Poll for new notifications while the bell is mounted (i.e. on every page)
@@ -11,7 +12,7 @@ export function NotificationLink() {
   const unreadCount = data?.unread_count ?? 0;
 
   return (
-    <Link href="/notifications" className={`row centered text-white cursor-pointer`}>
+    <Link href={paths.notifications} className={`row centered text-white cursor-pointer`}>
       <NotificationBell unreadCount={unreadCount} />
     </Link>
   );

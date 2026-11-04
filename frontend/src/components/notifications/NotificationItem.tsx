@@ -2,6 +2,7 @@ import { BellCheckIcon, BellRingIcon } from "lucide-preact";
 import { useListPackageSubscriptions } from "@/api/generated/endpoints";
 import type { Notification, SuggestionPackage } from "@/api/generated/models";
 import { Suggestion } from "@/components/suggestions/Suggestion";
+import { InlineIcon } from "@/components/ui/InlineIcon";
 import { useAuth } from "@/hooks/useAuth";
 import { useToggleNotificationReadMutation } from "@/hooks/useNotificationMutations";
 import type { SuggestionViewMode } from "@/hooks/useSuggestionViewMode";
@@ -115,12 +116,12 @@ export function NotificationItem({ notification, suggestionViewMode = "collapsed
       <div className="row-reverse gap-small">
         <button
           type="button"
-          className="btn btn-gray row gap-small centered"
+          className="btn btn-gray"
           onClick={() => toggleReadMutation.mutate({ id: String(id), data: { is_read: !is_read } })}
           disabled={toggleReadMutation.isPending}
           data-testid={`notification-${id}-toggle-read`}
         >
-          {is_read ? <BellRingIcon size="1em" /> : <BellCheckIcon size="1em" />}
+          <InlineIcon icon={is_read ? BellRingIcon : BellCheckIcon} />
           Mark {is_read ? "unread" : "read"}
         </button>
       </div>

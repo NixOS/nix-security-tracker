@@ -1,11 +1,13 @@
+import type { RouteParams } from "regexparam";
 import { useParams } from "wouter-preact";
 import { ApiError } from "@/api/client";
 import { useGetSuggestion } from "@/api/generated/endpoints";
 import { Suggestion } from "@/components/suggestions/Suggestion";
 import { Skeleton } from "@/components/ui/Skeleton";
+import type { paths } from "@/routes/paths";
 
 export function SuggestionDetail() {
-  const params = useParams<{ id: string }>();
+  const params = useParams<RouteParams<typeof paths.suggestionById>>();
   const id = Number(params.id);
 
   const { data, isLoading, isError, error } = useGetSuggestion(

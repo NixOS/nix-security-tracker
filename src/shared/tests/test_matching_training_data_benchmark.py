@@ -4,9 +4,11 @@ Tests for offline matching benchmark against training labels.
 
 from __future__ import annotations
 
+import json
 import math
 from collections.abc import Callable
 from io import StringIO
+from pathlib import Path
 
 import pytest
 from django.core.management import call_command
@@ -21,8 +23,10 @@ from shared.matching_training_data.benchmark import (
     rematch,
     score_proposal,
     snr,
+    snr_for_json,
 )
-from shared.models.cve import Container
+from shared.matching_training_data.serializers import _TRAINING_ORG_UUID
+from shared.models.cve import Container, Organization
 from shared.models.linkage import (
     CVEDerivationClusterProposal,
     DerivationClusterProposalLink,
@@ -68,6 +72,32 @@ def test_snr() -> None:
     assert math.isnan(snr(0, 0))
     with pytest.raises(ValueError, match="non-negative"):
         snr(-1, 0)
+
+
+def test_snr_for_json() -> None:
+    assert snr_for_json(1.5) == 1.5
+    assert snr_for_json(math.inf) == "inf"
+    assert snr_for_json(math.nan) == "nan"
+
+    score = ProposalScore(
+        cve_id="CVE-1",
+        true_positives=1,
+        false_positives=0,
+        rejection_agree=True,
+        snr=math.inf,
+    )
+    assert score.snr == math.inf
+    assert score.model_dump(mode="json")["snr"] == "inf"
+    assert (
+        AggregateReport(
+            proposals=0,
+            true_positives=0,
+            false_positives=0,
+            rejection_agree_count=0,
+            snr=math.nan,
+        ).model_dump(mode="json")["snr"]
+        == "nan"
+    )
 
 
 def test_aggregate_snr() -> None:
@@ -196,3 +226,51 @@ def test_benchmark_matching_command_summary(
     text = out.getvalue()
     assert "Querying curated matching data..." in text
     assert "true_positives" in text
+
+
+def test_benchmark_matching_writes_json_report(
+    tmp_path: Path,
+    make_container: Callable[..., Container],
+    make_drv: Callable[..., NixDerivation],
+) -> None:
+    pkg = "benchjsonuniq"
+    drv = make_drv(pname=pkg, version="1.0", attribute=pkg)
+    container = make_container(
+        cve_id="CVE-2026-bench-json", package_name=pkg, product=pkg
+    )
+    org, _created = Organization.objects.get_or_create(
+        uuid=_TRAINING_ORG_UUID,
+        defaults={"short_name": "training"},
+    )
+    container.cve.assigner = org
+    container.cve.save(update_fields=["assigner"])
+    _proposal(container, drv)
+
+    report_path = tmp_path / "nested" / "report.json"
+    call_command(
+        "benchmark_matching",
+        "--quiet",
+        "--output",
+        str(report_path),
+    )
+
+    # One accepted link to the package the CVE names.
+    # The matcher sees that same package, so the hit is clean and SNR is infinite.
+    assert json.loads(report_path.read_text()) == {
+        "aggregate": {
+            "proposals": 1,
+            "true_positives": 1,
+            "false_positives": 0,
+            "rejection_agree_count": 1,
+            "snr": "inf",
+        },
+        "scores": [
+            {
+                "cve_id": "CVE-2026-bench-json",
+                "true_positives": 1,
+                "false_positives": 0,
+                "rejection_agree": True,
+                "snr": "inf",
+            }
+        ],
+    }

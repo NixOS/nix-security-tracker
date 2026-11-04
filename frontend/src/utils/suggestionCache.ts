@@ -6,7 +6,7 @@
  * - embedded in a notification list page, or a notification detail query (`suggestion`)
  * These helpers aim to maintain coherent caches across all of the above.
  */
-import type { QueryClient, QueryKey } from "@tanstack/react-query";
+import type { QueryClient, QueryFilters, QueryKey } from "@tanstack/react-query";
 import {
   getGetSuggestionActivityLogQueryKey,
   getGetSuggestionQueryKey,
@@ -23,6 +23,7 @@ import type {
   PaginatedSuggestionList,
   Suggestion,
 } from "@/api/generated/models";
+import { mapPreservingIdentity } from "@/utils/array";
 
 const listQueryKeyPrefix = getListSuggestionsQueryKey();
 const listIssuesUrl = getListIssuesQueryKey()[0];
@@ -67,18 +68,25 @@ function isNotificationDetailQuery(queryKey: QueryKey): boolean {
   return typeof queryKey[0] === "string" && notificationDetailUrlPattern.test(queryKey[0]);
 }
 
+// Every query that may hold a copy of the suggestion, whether as the detail or embedded in a list or issue or notification.
+function suggestionQueryFilters(id: number): QueryFilters[] {
+  return [
+    { queryKey: detailQueryKeyPrefix(id) },
+    { queryKey: listQueryKeyPrefix },
+    { queryKey: getListIssuesQueryKey() },
+    { predicate: (query) => isIssueDetailQuery(query.queryKey) },
+    { queryKey: getListNotificationsQueryKey() },
+    { predicate: (query) => isNotificationDetailQuery(query.queryKey) },
+  ];
+}
+
 export async function cancelCachedSuggestionQueries(
   queryClient: QueryClient,
   id: number,
 ): Promise<void> {
-  await Promise.all([
-    queryClient.cancelQueries({ queryKey: detailQueryKeyPrefix(id) }),
-    queryClient.cancelQueries({ queryKey: listQueryKeyPrefix }),
-    queryClient.cancelQueries({ queryKey: getListIssuesQueryKey() }),
-    queryClient.cancelQueries({ predicate: (query) => isIssueDetailQuery(query.queryKey) }),
-    queryClient.cancelQueries({ queryKey: getListNotificationsQueryKey() }),
-    queryClient.cancelQueries({ predicate: (query) => isNotificationDetailQuery(query.queryKey) }),
-  ]);
+  await Promise.all(
+    suggestionQueryFilters(id).map((filters) => queryClient.cancelQueries(filters)),
+  );
 }
 
 /** Patches a single suggestion (by id) wherever it may be cached, by id equality. */
@@ -91,14 +99,14 @@ export function setCachedSuggestion(
 }
 
 export function invalidateCachedSuggestion(queryClient: QueryClient, id: number): void {
-  queryClient.invalidateQueries({ queryKey: detailQueryKeyPrefix(id) });
-  queryClient.invalidateQueries({ queryKey: listQueryKeyPrefix });
-  queryClient.invalidateQueries({ queryKey: getListIssuesQueryKey() });
-  queryClient.invalidateQueries({ predicate: (query) => isIssueDetailQuery(query.queryKey) });
-  queryClient.invalidateQueries({ queryKey: getListNotificationsQueryKey() });
-  queryClient.invalidateQueries({
-    predicate: (query) => isNotificationDetailQuery(query.queryKey),
-  });
+  for (const filters of suggestionQueryFilters(id)) {
+    queryClient.invalidateQueries(filters);
+  }
+}
+
+/** Refetches the activity log of a suggestion, e.g. after a mutation created a new entry server-side. */
+export function invalidateActivityLog(queryClient: QueryClient, id: number): void {
+  queryClient.invalidateQueries({ queryKey: getGetSuggestionActivityLogQueryKey(id) });
 }
 
 /**
@@ -142,34 +150,24 @@ export function patchCachedSuggestionsMatching(
     (prev) => (prev && predicate(prev) ? updater(prev) : prev),
   );
 
+  const patch = (s: Suggestion) => (predicate(s) ? updater(s) : s);
+  const patchEmbedded = (s: number | Suggestion) => (isEmbeddedSuggestion(s) ? patch(s) : s);
+
   // Standalone suggestion list
   queryClient.setQueriesData<PaginatedSuggestionList>({ queryKey: listQueryKeyPrefix }, (prev) => {
     if (!prev) return prev;
-    let changed = false;
-    const results = prev.results.map((s) => {
-      if (!predicate(s)) return s;
-      changed = true;
-      return updater(s);
-    });
-    return changed ? { ...prev, results } : prev;
+    const results = mapPreservingIdentity(prev.results, patch);
+    return results === prev.results ? prev : { ...prev, results };
   });
 
   // Embedded in issue list pages
   queryClient.setQueriesData<PaginatedIssueList>({ queryKey: getListIssuesQueryKey() }, (prev) => {
     if (!prev) return prev;
-    let listChanged = false;
-    const results = prev.results.map((issue) => {
-      let issueChanged = false;
-      const suggestions = issue.suggestions.map((s) => {
-        if (!isEmbeddedSuggestion(s) || !predicate(s)) return s;
-        issueChanged = true;
-        return updater(s);
-      });
-      if (!issueChanged) return issue;
-      listChanged = true;
-      return { ...issue, suggestions };
+    const results = mapPreservingIdentity(prev.results, (issue) => {
+      const suggestions = mapPreservingIdentity(issue.suggestions, patchEmbedded);
+      return suggestions === issue.suggestions ? issue : { ...issue, suggestions };
     });
-    return listChanged ? { ...prev, results } : prev;
+    return results === prev.results ? prev : { ...prev, results };
   });
 
   // Embedded in an issue detail query
@@ -177,13 +175,8 @@ export function patchCachedSuggestionsMatching(
     { predicate: (query) => isIssueDetailQuery(query.queryKey) },
     (prev) => {
       if (!prev) return prev;
-      let changed = false;
-      const suggestions = prev.suggestions.map((s) => {
-        if (!isEmbeddedSuggestion(s) || !predicate(s)) return s;
-        changed = true;
-        return updater(s);
-      });
-      return changed ? { ...prev, suggestions } : prev;
+      const suggestions = mapPreservingIdentity(prev.suggestions, patchEmbedded);
+      return suggestions === prev.suggestions ? prev : { ...prev, suggestions };
     },
   );
 
@@ -192,13 +185,10 @@ export function patchCachedSuggestionsMatching(
     { queryKey: getListNotificationsQueryKey() },
     (prev) => {
       if (!prev) return prev;
-      let changed = false;
-      const results = prev.results.map((n) => {
-        if (!n.suggestion || !predicate(n.suggestion)) return n;
-        changed = true;
-        return { ...n, suggestion: updater(n.suggestion) };
-      });
-      return changed ? { ...prev, results } : prev;
+      const results = mapPreservingIdentity(prev.results, (n) =>
+        n.suggestion && predicate(n.suggestion) ? { ...n, suggestion: updater(n.suggestion) } : n,
+      );
+      return results === prev.results ? prev : { ...prev, results };
     },
   );
 

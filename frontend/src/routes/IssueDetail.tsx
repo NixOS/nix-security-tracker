@@ -1,11 +1,13 @@
+import type { RouteParams } from "regexparam";
 import { useParams } from "wouter-preact";
 import { ApiError } from "@/api/client";
 import { useGetIssue } from "@/api/generated/endpoints";
 import { Issue } from "@/components/issues/Issue";
 import { Skeleton } from "@/components/ui/Skeleton";
+import type { paths } from "@/routes/paths";
 
 export function IssueDetail() {
-  const params = useParams<{ code: string }>();
+  const params = useParams<RouteParams<typeof paths.issue>>();
   const code = params.code ?? "";
 
   const { data, isLoading, isError, error } = useGetIssue(

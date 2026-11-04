@@ -1,8 +1,8 @@
 import { LayersMinusIcon, LayersPlusIcon, PenToolIcon, SendIcon, Trash2Icon } from "lucide-preact";
 import type { ComponentChild } from "preact";
 import type { SuggestionStatusEnum, SuggestionStatusRejectionReason } from "@/api/generated/models";
+import { InlineIcon } from "@/components/ui/InlineIcon";
 import { Menu } from "@/components/ui/Menu";
-import { Spinner } from "@/components/ui/Spinner";
 import { useSuggestionBundleMutation } from "@/hooks/useSuggestionBundle";
 import { useSuggestionPublishMutation } from "@/hooks/useSuggestionPublish";
 import { useSuggestionStatusMutation } from "@/hooks/useSuggestionStatus";
@@ -60,8 +60,8 @@ export function SuggestionStatusActions({
       {canDismiss && (
         <Menu
           trigger={
-            <div className="btn btn-red row gap-small centered">
-              <Trash2Icon size="1em" />
+            <div className="btn btn-red">
+              <InlineIcon icon={Trash2Icon} />
               Dismiss
             </div>
           }
@@ -84,11 +84,11 @@ export function SuggestionStatusActions({
       {canAccept && (
         <button
           type="button"
-          className="btn btn-green row gap-small centered"
+          className="btn btn-green"
           onClick={accept}
           disabled={mutation.isPending}
         >
-          <PenToolIcon size="1em" />
+          <InlineIcon icon={PenToolIcon} />
           Accept
         </button>
       )}
@@ -96,21 +96,21 @@ export function SuggestionStatusActions({
         <div className="row gap-small centered">
           <button
             type="button"
-            className="btn btn-gray row gap-small centered"
+            className="btn btn-gray"
             onClick={toggleBundle}
             disabled={bundleMutation.isPending}
           >
-            {inIssueDraft ? <LayersMinusIcon size="1em" /> : <LayersPlusIcon size="1em" />}
+            <InlineIcon icon={inIssueDraft ? LayersMinusIcon : LayersPlusIcon} />
             {inIssueDraft ? "Unbundle" : "Bundle"}
           </button>
           {!inIssueDraft && (
             <button
               type="button"
-              className="btn btn-green row gap-small centered"
+              className="btn btn-green"
               onClick={publish}
               disabled={publishMutation.isPending}
             >
-              {publishMutation.isPending ? <Spinner /> : <SendIcon size="1em" />}
+              <InlineIcon icon={SendIcon} pending={publishMutation.isPending} />
               Publish
             </button>
           )}

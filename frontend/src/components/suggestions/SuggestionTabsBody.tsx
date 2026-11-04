@@ -33,7 +33,7 @@ export function SuggestionTabsBody({ suggestion, userCanEdit }: Props) {
     categorized_url_references.original.length > 0 && {
       value: "references",
       label: "References",
-      icon: <LinkIcon size="1em" />,
+      icon: LinkIcon,
       content: (
         <div className="box compact">
           <CategorizedReferencesList
@@ -47,7 +47,7 @@ export function SuggestionTabsBody({ suggestion, userCanEdit }: Props) {
     affected_products.length > 0 && {
       value: "affected-products",
       label: "Affected products",
-      icon: <BugIcon size="1em" />,
+      icon: BugIcon,
       content: (
         <div className="box compact">
           <AffectedProductsTree affectedProducts={affected_products} />
@@ -57,7 +57,7 @@ export function SuggestionTabsBody({ suggestion, userCanEdit }: Props) {
     Object.keys(packages).length + Object.keys(ignored_packages).length > 0 && {
       value: "packages",
       label: "Matching in Nixpkgs",
-      icon: <PackageIcon size="1em" />,
+      icon: PackageIcon,
       content: (
         <div className="box compact">
           <CategorizedPackagesList
@@ -72,7 +72,7 @@ export function SuggestionTabsBody({ suggestion, userCanEdit }: Props) {
     categorized_maintainers.original.length > 0 && {
       value: "maintainers",
       label: "Maintainers",
-      icon: <UserIcon size="1em" />,
+      icon: UserIcon,
       content: (
         <div className="box compact">
           <CategorizedMaintainersList

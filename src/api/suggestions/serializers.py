@@ -1,4 +1,4 @@
-from drf_spectacular.utils import extend_schema_field
+from drf_spectacular.utils import extend_schema_field, extend_schema_serializer
 from rest_framework import serializers
 
 from shared.cvss import compute_cvss_fields
@@ -13,7 +13,11 @@ from shared.logs.batches import (
 )
 from shared.logs.events import remove_canceling_events
 from shared.logs.fetchers import fetch_suggestion_events
-from shared.models.linkage import CVEDerivationClusterProposal
+from shared.models.linkage import (
+    CVEDerivationClusterProposal,
+    SharedState,
+    SharedValueState,
+)
 
 
 class SuggestionReferenceUpdateSerializer(serializers.Serializer):
@@ -338,6 +342,78 @@ class SuggestionSerializer(serializers.Serializer):
         if not instance.comment:
             result.pop("comment", None)
         return result
+
+
+class SharedPackageSerializer(serializers.Serializer):
+    """A package attribute every selected suggestion holds in the same state."""
+
+    state = serializers.ChoiceField(choices=SharedValueState.choices)
+    attribute = serializers.CharField(source="value")
+
+
+class SharedMaintainerSerializer(serializers.Serializer):
+    """A maintainer every selected suggestion holds in the same state."""
+
+    state = serializers.ChoiceField(choices=SharedValueState.choices)
+    maintainer = MaintainerSerializer(source="value")
+
+
+class SharedReferenceSerializer(serializers.Serializer):
+    """A URL reference every selected suggestion holds in the same state."""
+
+    state = serializers.ChoiceField(choices=SharedValueState.choices)
+    reference = SuggestionUrlReferenceSerializer(source="value")
+
+
+@extend_schema_serializer(component_name="SuggestionSharedState")
+class SuggestionSharedStateSerializer(serializers.Serializer):
+    """
+    What a whole selection of suggestions has in common, source for allowed bulk operations.
+    """
+
+    status = serializers.ChoiceField(
+        choices=CVEDerivationClusterProposal.Status.choices,
+        allow_null=True,
+        help_text="The status shared by the whole selection, null when they differ.",
+    )
+    in_issue_draft = serializers.BooleanField(
+        allow_null=True,
+        help_text="Whether the whole selection is in the issue draft, or out of it, null when it is mixed.",
+    )
+    comment = serializers.CharField(
+        allow_null=True,
+        allow_blank=True,
+        help_text="The comment shared by the whole selection, empty when they all hold none, null when they differ.",
+    )
+    packages = SharedPackageSerializer(many=True)
+    maintainers = SharedMaintainerSerializer(many=True)
+    references = SharedReferenceSerializer(many=True)
+
+
+def shared_state_to_dict(shared_state: SharedState) -> dict:
+    """Shape a model-level shared state for the list response."""
+    return dict(SuggestionSharedStateSerializer(shared_state).data)
+
+
+@extend_schema_serializer(component_name="PaginatedSuggestionList", many=False)
+class PaginatedSuggestionListSerializer(serializers.Serializer):
+    """
+    The suggestion list response.
+
+    Declared explicitly rather than left to the paginator, so that the `shared` field
+    added by `SuggestionPagination` appears in the schema and in generated clients.
+    `many=False` keeps drf-spectacular from paginating an already paginated response.
+    """
+
+    count = serializers.IntegerField()
+    next = serializers.URLField(allow_null=True)
+    previous = serializers.URLField(allow_null=True)
+    shared = SuggestionSharedStateSerializer(
+        allow_null=True,
+        required=True,
+        help_text="What the whole filtered selection has in common, null unless asked for with `shared_state`.",
+    )
+    results = SuggestionSerializer(many=True)
 
 
 # FIXME(@florentc): Eventually we'll want to:

@@ -33,7 +33,7 @@ function PaginationPages() {
           </PaginationItem>
         ) : (
           <PaginationEllipsis key={`ellipsis-${index}`} index={index} className="row centered">
-            <EllipsisIcon size="1em" />
+            <EllipsisIcon />
           </PaginationEllipsis>
         ),
       )}
@@ -55,11 +55,11 @@ export function Pagination({ page, count, pageSize, onPageChange }: Props) {
       className="row gap-small stretched"
     >
       <PaginationPrevTrigger className="btn btn-gray row centered" aria-label="Previous page">
-        <ChevronLeftIcon size="1em" />
+        <ChevronLeftIcon />
       </PaginationPrevTrigger>
       <PaginationPages />
       <PaginationNextTrigger className="btn btn-gray row centered" aria-label="Next page">
-        <ChevronRightIcon size="1em" />
+        <ChevronRightIcon />
       </PaginationNextTrigger>
     </PaginationRoot>
   );

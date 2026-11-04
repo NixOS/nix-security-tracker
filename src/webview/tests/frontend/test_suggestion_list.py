@@ -12,7 +12,7 @@ from shared.models.cve import Container
 from shared.models.linkage import CVEDerivationClusterProposal, ProvenanceFlags
 from shared.models.nix_evaluation import NixDerivation
 
-from .routes import SUGGESTION_LIST
+from .routes import SUGGESTION_DETAIL, SUGGESTION_LIST
 
 
 def make_suggestions(
@@ -226,7 +226,7 @@ def test_suggestion_list_package_filter(
     )
 
     page.goto(live_server.url + SUGGESTION_LIST)
-    page.get_by_label("Filter by package").fill(package1.attribute)
+    page.get_by_label("Filter by matching package").fill(package1.attribute)
 
     expect(page.get_by_test_id(f"suggestion-{matching.pk}")).to_be_visible()
     expect(page.get_by_test_id(f"suggestion-{other.pk}")).not_to_be_visible()
@@ -241,7 +241,7 @@ def test_suggestion_list_feed_link_shown_for_existing_package(
     package = make_drv(pname="foo")
 
     page.goto(live_server.url + SUGGESTION_LIST)
-    page.get_by_label("Filter by package").fill(package.attribute)
+    page.get_by_label("Filter by matching package").fill(package.attribute)
 
     expect(
         page.get_by_role("link", name=f"Atom feed for package '{package.attribute}'")
@@ -254,7 +254,7 @@ def test_suggestion_list_feed_link_hidden_for_nonexistent_package(
 ) -> None:
     """The atom feed link is hidden for a package name that doesn't exist."""
     page.goto(live_server.url + SUGGESTION_LIST)
-    page.get_by_label("Filter by package").fill("nonexistent-package-xyz")
+    page.get_by_label("Filter by matching package").fill("nonexistent-package-xyz")
 
     expect(
         page.get_by_role("link", name=re.compile(r"^Atom feed for package"))
@@ -289,7 +289,9 @@ def test_suggestion_list_deep_link_preselects_filter_widgets(
     expect(filters.get_by_role("button", name="Issue draft")).to_have_attribute(
         "data-state", "on"
     )
-    expect(page.get_by_label("Filter by package")).to_have_value(package.attribute)
+    expect(page.get_by_label("Filter by matching package")).to_have_value(
+        package.attribute
+    )
 
 
 def test_suggestion_list_shows_collapsed_card_after_mutation_stops_matching_filter(
@@ -488,3 +490,256 @@ def test_suggestion_list_created_at_clear_resets_both_bounds(
         "anytime"
     )
     expect(page.get_by_label("Created on", exact=True)).to_have_count(0)
+
+
+def test_suggestion_list_affected_product_filter(
+    live_server: LiveServer,
+    page: Page,
+    make_container: Callable[..., Container],
+    make_cached_suggestion: Callable[..., CVEDerivationClusterProposal],
+) -> None:
+    """Typing an affected product only shows suggestions whose CVE lists that product."""
+    matching = make_cached_suggestion(
+        container=make_container(cve_id="CVE-2026-3201", package_name="libfoo")
+    )
+    other = make_cached_suggestion(
+        container=make_container(cve_id="CVE-2026-3202", package_name="libbar")
+    )
+
+    page.goto(live_server.url + SUGGESTION_LIST)
+    page.get_by_label("Filter by affected product", exact=True).fill("libfoo")
+
+    expect(page.get_by_test_id(f"suggestion-{matching.pk}")).to_be_visible()
+    expect(page.get_by_test_id(f"suggestion-{other.pk}")).not_to_be_visible()
+    expect(page).to_have_url(re.compile(r"[?&]affected_product=libfoo"))
+
+
+def test_suggestion_list_affected_product_version_filter(
+    live_server: LiveServer,
+    page: Page,
+    make_container: Callable[..., Container],
+    make_cached_suggestion: Callable[..., CVEDerivationClusterProposal],
+) -> None:
+    """A version narrows the affected product filter down to suggestions where that product carries it."""
+    matching = make_cached_suggestion(
+        container=make_container(
+            cve_id="CVE-2026-3211", package_name="libfoo", affected_version="1.0"
+        )
+    )
+    other = make_cached_suggestion(
+        container=make_container(
+            cve_id="CVE-2026-3212", package_name="libfoo", affected_version="2.0"
+        )
+    )
+
+    page.goto(live_server.url + SUGGESTION_LIST)
+    page.get_by_label("Filter by affected product", exact=True).fill("libfoo")
+    page.get_by_label("Filter by affected product version").fill("1.0")
+
+    expect(page.get_by_test_id(f"suggestion-{matching.pk}")).to_be_visible()
+    expect(page.get_by_test_id(f"suggestion-{other.pk}")).not_to_be_visible()
+    expect(page).to_have_url(re.compile(r"[?&]affected_product_version=1\.0"))
+
+
+def test_suggestion_list_affected_product_deep_link_preselects_inputs(
+    live_server: LiveServer,
+    page: Page,
+) -> None:
+    """Loading the list with affected product query params fills both inputs."""
+    query = urlencode({"affected_product": "libfoo", "affected_product_version": "1.0"})
+    page.goto(live_server.url + SUGGESTION_LIST + "?" + query)
+
+    expect(page.get_by_label("Filter by affected product", exact=True)).to_have_value(
+        "libfoo"
+    )
+    expect(page.get_by_label("Filter by affected product version")).to_have_value("1.0")
+
+
+def test_suggestion_list_affected_product_clear_resets_both_inputs(
+    live_server: LiveServer,
+    page: Page,
+    make_container: Callable[..., Container],
+    make_cached_suggestion: Callable[..., CVEDerivationClusterProposal],
+) -> None:
+    """Clearing the affected product filter empties both inputs and restores all results."""
+    matching = make_cached_suggestion(
+        container=make_container(
+            cve_id="CVE-2026-3221", package_name="libfoo", affected_version="1.0"
+        )
+    )
+    excluded = make_cached_suggestion(
+        container=make_container(cve_id="CVE-2026-3222", package_name="libbar")
+    )
+
+    query = urlencode({"affected_product": "libfoo", "affected_product_version": "1.0"})
+    page.goto(live_server.url + SUGGESTION_LIST + "?" + query)
+    expect(page.get_by_test_id(f"suggestion-{excluded.pk}")).not_to_be_visible()
+
+    page.get_by_role("button", name="Clear affected product filter").click()
+
+    expect(page.get_by_test_id(f"suggestion-{excluded.pk}")).to_be_visible()
+    expect(page.get_by_test_id(f"suggestion-{matching.pk}")).to_be_visible()
+    expect(page.get_by_label("Filter by affected product", exact=True)).to_have_value(
+        ""
+    )
+    expect(page.get_by_label("Filter by affected product version")).to_have_value("")
+    expect(page).not_to_have_url(re.compile(r"affected_product"))
+
+
+def test_suggestion_list_package_shortcut_sets_package_filter(
+    live_server: LiveServer,
+    page: Page,
+    make_drv: Callable[..., NixDerivation],
+    make_container: Callable[..., Container],
+    make_cached_suggestion: Callable[..., CVEDerivationClusterProposal],
+) -> None:
+    """The shortcut next to a matching package filters the list by that package."""
+    package1 = make_drv(pname="foo")
+    package2 = make_drv(pname="bar")
+    matching = make_cached_suggestion(
+        container=make_container(cve_id="CVE-2026-3301"),
+        drvs={package1: ProvenanceFlags.PACKAGE_NAME_MATCH},
+    )
+    other = make_cached_suggestion(
+        container=make_container(cve_id="CVE-2026-3302"),
+        drvs={package2: ProvenanceFlags.PACKAGE_NAME_MATCH},
+    )
+
+    page.goto(live_server.url + SUGGESTION_LIST)
+    page.get_by_test_id(f"suggestion-{matching.pk}").get_by_role(
+        "link", name=f"Filter suggestions by package '{package1.attribute}'"
+    ).click()
+
+    expect(page).to_have_url(
+        re.compile(rf"[?&]package={re.escape(package1.attribute)}(&|$)")
+    )
+    expect(page.get_by_label("Filter by matching package")).to_have_value(
+        package1.attribute
+    )
+    expect(page.get_by_test_id(f"suggestion-{matching.pk}")).to_be_visible()
+    expect(page.get_by_test_id(f"suggestion-{other.pk}")).not_to_be_visible()
+
+
+def test_suggestion_list_affected_product_shortcut_sets_affected_product_filter(
+    live_server: LiveServer,
+    page: Page,
+    make_container: Callable[..., Container],
+    make_cached_suggestion: Callable[..., CVEDerivationClusterProposal],
+) -> None:
+    """The shortcut next to an affected product filters the list by that product."""
+    matching = make_cached_suggestion(
+        container=make_container(cve_id="CVE-2026-3311", package_name="libfoo")
+    )
+    other = make_cached_suggestion(
+        container=make_container(cve_id="CVE-2026-3312", package_name="libbar")
+    )
+
+    page.goto(live_server.url + SUGGESTION_LIST)
+    page.get_by_test_id(f"suggestion-{matching.pk}").get_by_role(
+        "link", name="Filter suggestions by affected product 'libfoo'"
+    ).click()
+
+    expect(page).to_have_url(re.compile(r"[?&]affected_product=libfoo(&|$)"))
+    expect(page.get_by_label("Filter by affected product", exact=True)).to_have_value(
+        "libfoo"
+    )
+    expect(page.get_by_test_id(f"suggestion-{matching.pk}")).to_be_visible()
+    expect(page.get_by_test_id(f"suggestion-{other.pk}")).not_to_be_visible()
+
+
+def test_suggestion_list_shortcut_keeps_other_filters(
+    live_server: LiveServer,
+    page: Page,
+    make_container: Callable[..., Container],
+    make_cached_suggestion: Callable[..., CVEDerivationClusterProposal],
+) -> None:
+    """A shortcut replaces its own filter, keeps the others, and drops the stale version and page."""
+    suggestion = make_cached_suggestion(
+        container=make_container(
+            cve_id="CVE-2026-3321", package_name="libfoo", affected_version="1.0"
+        )
+    )
+
+    query = urlencode(
+        {
+            "status": "pending",
+            "affected_product": "libfoo",
+            "affected_product_version": "1.0",
+        }
+    )
+    page.goto(live_server.url + SUGGESTION_LIST + "?" + query)
+    link = page.get_by_test_id(f"suggestion-{suggestion.pk}").get_by_role(
+        "link", name="Filter suggestions by affected product 'libfoo'"
+    )
+    expect(link).to_have_attribute(
+        "href", re.compile(r"status=pending&affected_product=libfoo$")
+    )
+    link.click()
+
+    expect(page).to_have_url(re.compile(r"[?&]status=pending(&|$)"))
+    expect(page).not_to_have_url(re.compile(r"affected_product_version"))
+    expect(page.get_by_label("Filter by affected product version")).to_have_value("")
+
+
+def test_suggestion_detail_shortcut_opens_list_with_only_that_filter(
+    live_server: LiveServer,
+    page: Page,
+    make_drv: Callable[..., NixDerivation],
+    make_container: Callable[..., Container],
+    make_cached_suggestion: Callable[..., CVEDerivationClusterProposal],
+) -> None:
+    """From a suggestion page, a shortcut opens the suggestion list filtered by that value alone."""
+    package = make_drv(pname="foo")
+    suggestion = make_cached_suggestion(
+        container=make_container(cve_id="CVE-2026-3331"),
+        drvs={package: ProvenanceFlags.PACKAGE_NAME_MATCH},
+    )
+
+    page.goto(live_server.url + SUGGESTION_DETAIL + f"/{suggestion.pk}?foo=bar")
+    page.get_by_role(
+        "link", name=f"Filter suggestions by package '{package.attribute}'"
+    ).click()
+
+    expect(page).to_have_url(
+        live_server.url
+        + SUGGESTION_LIST
+        + "?"
+        + urlencode({"package": package.attribute})
+    )
+
+
+# FIXME(@fricklerhandwerk): Remove when https://github.com/chakra-ui/zag/pull/3586 makes it into our dependencies.
+HOLD_TIMERS = """
+window.__heldTimers = [];
+window.__holdTimers = false;
+const realSetTimeout = window.setTimeout.bind(window);
+window.setTimeout = (callback, delay, ...args) => {
+    if (!window.__holdTimers) return realSetTimeout(callback, delay, ...args);
+    window.__heldTimers.push(() => callback(...args));
+    return 0;
+};
+window.__releaseTimers = async () => {
+    window.__holdTimers = false;
+    window.__heldTimers.splice(0).forEach((run) => run());
+    await new Promise((resolve) => queueMicrotask(resolve));
+};
+"""
+
+
+def test_date_picker_race_condition(
+    live_server: LiveServer,
+    page: Page,
+) -> None:
+    page.add_init_script(HOLD_TIMERS)
+    page.goto(live_server.url + SUGGESTION_LIST)
+    select_date_filter_mode(page, "between")
+
+    page.evaluate("window.__holdTimers = true")
+    start = page.get_by_label("Created on or after", exact=True)
+    start.fill("2026-03-09")
+    start.press("Enter")
+    end = page.get_by_label("Created on or before", exact=True)
+    end.focus()
+    page.evaluate("window.__releaseTimers()")
+
+    expect(end).to_have_value("")

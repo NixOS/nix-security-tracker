@@ -1,4 +1,5 @@
 import { QueryClientProvider } from "@tanstack/react-query";
+import { LucideProvider } from "lucide-preact";
 import { useEffect } from "preact/hooks";
 import { Redirect, Route, Switch } from "wouter-preact";
 import { queryClient } from "@/api/queryClient";
@@ -10,6 +11,7 @@ import { Home } from "@/routes/Home";
 import { IssueDetail } from "@/routes/IssueDetail";
 import { IssueList } from "@/routes/IssueList";
 import { NotificationCenter } from "@/routes/NotificationCenter";
+import { paths } from "@/routes/paths";
 import { SuggestionDetail } from "@/routes/SuggestionDetail";
 import { SuggestionDetailByCve } from "@/routes/SuggestionDetailByCve";
 import { SuggestionList } from "@/routes/SuggestionList";
@@ -33,29 +35,32 @@ export function App() {
 
   return (
     <QueryClientProvider client={queryClient}>
-      <Disclaimer />
-      <HeaderBar />
-      <main>
-        <Switch>
-          <Route path="/suggestions/by-id/:id" component={SuggestionDetail} />
-          <Route path="/suggestions/by-cve/:cveId" component={SuggestionDetailByCve} />
-          <Route path="/suggestions" component={SuggestionList} />
-          <Route path="/issues/:code" component={IssueDetail} />
-          <Route path="/issues" component={IssueList} />
-          <Route path="/notifications" component={NotificationCenter} />
-          <Route path="/" component={Home} />
-          <Route path="/user">
-            <Redirect to="/user/subscriptions" />
-          </Route>
-          <Route path="/user/subscriptions" component={UserSettings} />
-          <Route path="/user/tokens" component={UserSettings} />
-          <Route>
-            <p>Page not found</p>
-          </Route>
-        </Switch>
-      </main>
-      <Footer />
-      <Toaster toaster={toaster} />
+      {/* NOTE(@florentc): Lucide types the provider size as a number, but any CSS length is passed through to the icons. */}
+      <LucideProvider size={"1em" as unknown as number}>
+        <Disclaimer />
+        <HeaderBar />
+        <main>
+          <Switch>
+            <Route path={paths.suggestionById} component={SuggestionDetail} />
+            <Route path={paths.suggestionByCve} component={SuggestionDetailByCve} />
+            <Route path={paths.suggestions} component={SuggestionList} />
+            <Route path={paths.issue} component={IssueDetail} />
+            <Route path={paths.issues} component={IssueList} />
+            <Route path={paths.notifications} component={NotificationCenter} />
+            <Route path={paths.home} component={Home} />
+            <Route path={paths.user}>
+              <Redirect to={paths.userSubscriptions} />
+            </Route>
+            <Route path={paths.userSubscriptions} component={UserSettings} />
+            <Route path={paths.userTokens} component={UserSettings} />
+            <Route>
+              <p>Page not found</p>
+            </Route>
+          </Switch>
+        </main>
+        <Footer />
+        <Toaster toaster={toaster} />
+      </LucideProvider>
     </QueryClientProvider>
   );
 }

@@ -24,7 +24,12 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from api.issues.serializers import IssueSerializer
-from api.params import ACTIVITY_LOG_PARAMETER, activity_log_requested
+from api.params import (
+    ACTIVITY_LOG_PARAMETER,
+    SHARED_STATE_PARAMETER,
+    activity_log_requested,
+    shared_state_requested,
+)
 from api.serializers import ErrorDetailSerializer
 from api.suggestions.serializers import (
     ActivityLogEntrySerializer,
@@ -32,6 +37,7 @@ from api.suggestions.serializers import (
     BulkResultSerializer,
     IssueDraftPublishSerializer,
     MaintainerSerializer,
+    PaginatedSuggestionListSerializer,
     SuggestionBundleSerializer,
     SuggestionCategorizedMaintainersSerializer,
     SuggestionCategorizedPackagesSerializer,
@@ -44,12 +50,16 @@ from api.suggestions.serializers import (
     SuggestionReferenceUpdateSerializer,
     SuggestionSerializer,
     build_activity_log_map,
+    shared_state_to_dict,
 )
 from api.throttling import BulkRateThrottle
 from shared.auth import user_can_edit_suggestion
 from shared.models import CVEDerivationClusterProposal, NixpkgsIssue
 from shared.models.cached import CachedSuggestions
-from shared.models.linkage import BulkValidationError
+from shared.models.linkage import (
+    BulkValidationError,
+    CVEDerivationClusterProposalQuerySet,
+)
 
 
 class CanEditSuggestion(BasePermission):
@@ -86,6 +96,15 @@ class SuggestionStatusSerializer(serializers.ModelSerializer):
 class SuggestionPagination(PageNumberPagination):
     page_size = 10  # TODO(@florentc): Allow the user to change it within limits
 
+    # What the whole filtered selection has in common, when requested and small enough.
+    # Set by the list action before pagination, since it describes the selection rather than the page.
+    shared: dict | None = None
+
+    def get_paginated_response(self, data: list) -> Response:
+        response = super().get_paginated_response(data)
+        cast(dict, response.data)["shared"] = self.shared
+        return response
+
 
 class SuggestionFilterSet(filters.FilterSet):
     """Filters for the suggestion list endpoint.
@@ -95,6 +114,8 @@ class SuggestionFilterSet(filters.FilterSet):
 
     The creation date filters take whole days (`YYYY-MM-DD`) and both bounds are inclusive.
     Setting both bounds to the same day selects the suggestions created on that day.
+
+    `affected_product_version` requires `affected_product`, and selects suggestions where that same affected product carries the version.
     """
 
     status = filters.MultipleChoiceFilter(
@@ -107,6 +128,14 @@ class SuggestionFilterSet(filters.FilterSet):
     package = filters.CharFilter(
         method="filter_package",
         label="Filter by an active package attribute name (exact match)",
+    )
+    affected_product = filters.CharFilter(
+        method="filter_affected_product",
+        label="Filter by an affected product name, as listed in `affected_products` (exact match)",
+    )
+    affected_product_version = filters.CharFilter(
+        method="filter_affected_product_version",
+        label="Filter by a version or version bound of the affected product (exact match, requires affected_product)",
     )
     created_at_after = filters.DateFilter(
         field_name="created_at",
@@ -125,12 +154,32 @@ class SuggestionFilterSet(filters.FilterSet):
             "status",
             "in_issue_draft",
             "package",
+            "affected_product",
+            "affected_product_version",
             "created_at_after",
             "created_at_before",
         ]
 
     def filter_package(self, queryset: QuerySet, name: str, value: str) -> QuerySet:
         return queryset.filter(cached__payload__packages__has_key=value)
+
+    def filter_affected_product(
+        self, queryset: CVEDerivationClusterProposalQuerySet, name: str, value: str
+    ) -> QuerySet:
+        version = self.form.cleaned_data.get("affected_product_version") or None
+        return queryset.with_affected_product(value, version)
+
+    def filter_affected_product_version(
+        self, queryset: QuerySet, name: str, value: str
+    ) -> QuerySet:
+        # NOTE(@florentc): The version must belong to the filtered affected product, so the product filter applies both.
+        if not self.form.cleaned_data.get("affected_product"):
+            raise DRFValidationError(
+                {
+                    "detail": "Filtering by affected_product_version requires affected_product."
+                }
+            )
+        return queryset
 
 
 # The list filters, as they appear on the bulk operations.
@@ -152,6 +201,16 @@ BULK_FILTER_PARAMETERS = [
         name="package",
         type=str,
         description="Select suggestions holding this active package attribute name (exact match).",
+    ),
+    OpenApiParameter(
+        name="affected_product",
+        type=str,
+        description="Select suggestions whose CVE lists this affected product name, as in `affected_products` (exact match).",
+    ),
+    OpenApiParameter(
+        name="affected_product_version",
+        type=str,
+        description="Select suggestions where the affected product carries this version or version bound (exact match, requires affected_product).",
     ),
 ]
 
@@ -212,6 +271,11 @@ class SuggestionViewSet(ListModelMixin, RetrieveModelMixin, viewsets.GenericView
             .order_by("-updated_at", "-created_at")
         )
 
+    def selection_is_filtered(self) -> bool:
+        """Whether the request narrows the selection down with at least one filter."""
+        request = cast(Request, self.request)
+        return bool(set(self.filterset_class.base_filters) & set(request.query_params))
+
     def get_bulk_queryset(self) -> QuerySet[CVEDerivationClusterProposal]:
         """
         The selection a bulk operation applies to, or an error explaining why there is none.
@@ -220,8 +284,7 @@ class SuggestionViewSet(ListModelMixin, RetrieveModelMixin, viewsets.GenericView
         reach every suggestion, and a selection too large to be modified in a single
         transaction.
         """
-        request = cast(Request, self.request)
-        if not set(self.filterset_class.base_filters) & set(request.query_params):
+        if not self.selection_is_filtered():
             raise DRFValidationError(
                 {
                     "detail": "A bulk operation requires at least one filter: "
@@ -284,11 +347,26 @@ class SuggestionViewSet(ListModelMixin, RetrieveModelMixin, viewsets.GenericView
     @extend_schema(
         operation_id="listSuggestions",
         description="List all suggestions (proposals linking CVEs to derivations), paginated and sorted by most recently modified or created first.",
-        parameters=[ACTIVITY_LOG_PARAMETER],
-        responses={200: SuggestionSerializer(many=True)},
+        parameters=[ACTIVITY_LOG_PARAMETER, SHARED_STATE_PARAMETER],
+        responses={
+            200: PaginatedSuggestionListSerializer,
+            400: ErrorDetailSerializer,
+        },
     )
     def list(self, request: Request) -> Response:
         queryset = self.filter_queryset(self.get_queryset())
+
+        if shared_state_requested(request):
+            # Describes the whole selection rather than the page, and only when a bulk
+            # operation would accept that selection at all: `get_bulk_queryset` refuses
+            # an unfiltered one, and one larger than it may affect.
+            paginator = cast(SuggestionPagination, self.paginator)
+            if (
+                self.selection_is_filtered()
+                and queryset.count() <= settings.API_BULK_MAX_AFFECTED
+            ):
+                paginator.shared = shared_state_to_dict(queryset.shared_state())
+
         page = self.paginate_queryset(queryset)
         objects = page if page is not None else list(queryset)
 

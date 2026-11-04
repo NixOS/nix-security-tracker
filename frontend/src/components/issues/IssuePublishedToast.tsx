@@ -1,5 +1,6 @@
 import { Link } from "wouter-preact";
 import type { Issue } from "@/api/generated/models";
+import { issuePath } from "@/routes/paths";
 import { ExternalLink } from "../ui/ExternalLink";
 
 type Props = {
@@ -10,7 +11,7 @@ export function IssuePublishedToast({ issue }: Props) {
   return (
     <div className="column gap-small">
       <p>{issue.title}</p>
-      <Link href={`/issues/${issue.code}`}>Issue detail on the tracker</Link>
+      <Link href={issuePath(issue.code)}>Issue detail on the tracker</Link>
       {issue.github_issue_url && (
         <ExternalLink href={issue.github_issue_url}>GitHub issue</ExternalLink>
       )}

@@ -6,11 +6,17 @@ import { Tabs } from "@/components/ui/Tabs";
 import { ApiToken } from "@/components/user-settings/ApiToken";
 import { Subscriptions } from "@/components/user-settings/Subscriptions";
 import { useAuth } from "@/hooks/useAuth";
+import { paths } from "@/routes/paths";
 
-type TabValue = "subscriptions" | "tokens";
+const tabPaths = {
+  subscriptions: paths.userSubscriptions,
+  tokens: paths.userTokens,
+};
+
+type TabValue = keyof typeof tabPaths;
 
 function getTabFromLocation(location: string): TabValue {
-  return location.endsWith("/tokens") ? "tokens" : "subscriptions";
+  return location === paths.userTokens ? "tokens" : "subscriptions";
 }
 
 export function UserSettings() {
@@ -45,19 +51,19 @@ export function UserSettings() {
           </div>
           <Tabs
             value={activeTab}
-            onValueChange={(value) => setLocation(`/user/${value}`)}
+            onValueChange={(value) => setLocation(tabPaths[value as TabValue])}
             lazyMount
             tabs={[
               {
                 value: "subscriptions",
                 label: "Subscriptions",
-                icon: <BellIcon size="1em" />,
+                icon: BellIcon,
                 content: <Subscriptions />,
               },
               {
                 value: "tokens",
                 label: "API Tokens",
-                icon: <KeyRoundIcon size="1em" />,
+                icon: KeyRoundIcon,
                 content: <ApiToken />,
               },
             ]}

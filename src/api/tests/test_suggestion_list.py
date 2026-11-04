@@ -6,7 +6,7 @@ from django.utils import timezone
 from rest_framework.reverse import reverse
 from rest_framework.test import APIClient
 
-from shared.models.cve import Container
+from shared.models.cve import Container, Version
 from shared.models.linkage import (
     CVEDerivationClusterProposal,
     ProvenanceFlags,
@@ -45,12 +45,19 @@ def test_suggestion_list_anonymous(
 def test_suggestion_list_paginated_shape(
     make_cached_suggestion: Callable[..., CVEDerivationClusterProposal],
 ) -> None:
-    """The response is paginated with count/next/previous/results."""
+    """The response is paginated with count/next/previous/shared/results."""
     client = APIClient()
     make_cached_suggestion()
     response = client.get(url())
     assert response.status_code == 200
-    assert set(response.data.keys()) == {"count", "next", "previous", "results"}
+    assert set(response.data.keys()) == {
+        "count",
+        "next",
+        "previous",
+        "shared",
+        "results",
+    }
+    assert response.data["shared"] is None
     assert response.data["count"] == 1
     assert len(response.data["results"]) == 1
     assert (
@@ -307,6 +314,170 @@ def test_suggestion_list_combines_filters_with_and(
     ids = [item["id"] for item in response.data["results"]]
     assert ids == [matching.pk]
     assert wrong_status.pk not in ids
+
+
+def test_suggestion_list_filters_by_affected_product(
+    make_cached_suggestion: Callable[..., CVEDerivationClusterProposal],
+    make_container: Callable[..., Container],
+) -> None:
+    client = APIClient()
+    matching = make_cached_suggestion(
+        container=make_container(cve_id="CVE-2026-3001", package_name="foo")
+    )
+    other = make_cached_suggestion(
+        container=make_container(cve_id="CVE-2026-3002", package_name="baz")
+    )
+
+    response = client.get(url(), {"affected_product": "foo"})
+    assert response.status_code == 200
+    ids = [item["id"] for item in response.data["results"]]
+    assert ids == [matching.pk]
+    assert other.pk not in ids
+
+
+def test_suggestion_list_filters_by_affected_product_without_package_name(
+    make_cached_suggestion: Callable[..., CVEDerivationClusterProposal],
+    make_container: Callable[..., Container],
+) -> None:
+    """An affected product without a package name is filtered by its product name, as it is displayed."""
+    client = APIClient()
+    suggestion = make_cached_suggestion(
+        container=make_container(package_name=None, product="bar")
+    )
+
+    response = client.get(url(), {"affected_product": "bar"})
+    assert response.status_code == 200
+    ids = [item["id"] for item in response.data["results"]]
+    assert ids == [suggestion.pk]
+
+
+def test_suggestion_list_filters_by_affected_product_ignores_hidden_product_name(
+    make_cached_suggestion: Callable[..., CVEDerivationClusterProposal],
+    make_container: Callable[..., Container],
+) -> None:
+    """The product name is not matched when the affected product is displayed under its package name."""
+    client = APIClient()
+    make_cached_suggestion(container=make_container(package_name="foo", product="bar"))
+
+    response = client.get(url(), {"affected_product": "bar"})
+    assert response.status_code == 200
+    assert response.data["results"] == []
+
+
+@pytest.mark.parametrize(
+    ("version", "matches"),
+    [
+        pytest.param("1.0", True, id="version"),
+        pytest.param("2.0", True, id="less-than"),
+        pytest.param("3.0", True, id="less-equal"),
+        pytest.param("1.0.1", False, id="no-prefix-match"),
+        pytest.param("1", False, id="no-partial-match"),
+    ],
+)
+def test_suggestion_list_filters_by_affected_product_version(
+    make_cached_suggestion: Callable[..., CVEDerivationClusterProposal],
+    make_container: Callable[..., Container],
+    version: str,
+    matches: bool,
+) -> None:
+    """The version matches exactly any bound of a version entry of the affected product."""
+    client = APIClient()
+    container = make_container(package_name="foo", affected_version="1.0")
+    affected = container.affected.get(package_name="foo")
+    affected.versions.add(
+        Version.objects.create(status=Version.Status.AFFECTED, less_than="2.0"),
+        Version.objects.create(status=Version.Status.AFFECTED, less_equal="3.0"),
+    )
+    suggestion = make_cached_suggestion(container=container)
+
+    response = client.get(
+        url(), {"affected_product": "foo", "affected_product_version": version}
+    )
+    assert response.status_code == 200
+    ids = [item["id"] for item in response.data["results"]]
+    assert ids == ([suggestion.pk] if matches else [])
+
+
+def test_suggestion_list_filters_by_affected_product_version_of_that_product(
+    make_cached_suggestion: Callable[..., CVEDerivationClusterProposal],
+    make_container: Callable[..., Container],
+) -> None:
+    client = APIClient()
+    suggestion = make_cached_suggestion(
+        container=make_container(
+            package_name="foo",
+            affected_version="1.0",
+            extra_affected=[("baz", [(Version.Status.AFFECTED, "2.0")])],
+        )
+    )
+
+    response = client.get(
+        url(), {"affected_product": "foo", "affected_product_version": "1.0"}
+    )
+    assert response.status_code == 200
+    ids = [item["id"] for item in response.data["results"]]
+    assert ids == [suggestion.pk]
+
+    response = client.get(
+        url(), {"affected_product": "foo", "affected_product_version": "2.0"}
+    )
+    assert response.status_code == 200
+    assert response.data["results"] == []
+
+
+def test_suggestion_list_filters_by_affected_product_without_duplicates(
+    make_cached_suggestion: Callable[..., CVEDerivationClusterProposal],
+    make_container: Callable[..., Container],
+) -> None:
+    client = APIClient()
+    suggestion = make_cached_suggestion(
+        container=make_container(
+            package_name="foo",
+            affected_version="1.0",
+            extra_affected=[
+                ("foo", [(Version.Status.AFFECTED, "1.0")]),
+                ("foo", [(Version.Status.UNAFFECTED, "1.0")]),
+            ],
+        )
+    )
+
+    response = client.get(
+        url(), {"affected_product": "foo", "affected_product_version": "1.0"}
+    )
+    assert response.status_code == 200
+    assert response.data["count"] == 1
+    assert [item["id"] for item in response.data["results"]] == [suggestion.pk]
+
+
+def test_suggestion_list_affected_product_version_requires_affected_product(
+    make_cached_suggestion: Callable[..., CVEDerivationClusterProposal],
+) -> None:
+    client = APIClient()
+    make_cached_suggestion()
+
+    response = client.get(url(), {"affected_product_version": "1.0"})
+    assert response.status_code == 400
+    assert "affected_product" in response.data["detail"]
+
+
+def test_suggestion_list_combines_affected_product_with_other_filters(
+    make_cached_suggestion: Callable[..., CVEDerivationClusterProposal],
+    make_container: Callable[..., Container],
+) -> None:
+    client = APIClient()
+    matching = make_cached_suggestion(
+        container=make_container(cve_id="CVE-2026-4001", package_name="foo"),
+        status=CVEDerivationClusterProposal.Status.ACCEPTED,
+    )
+    make_cached_suggestion(
+        container=make_container(cve_id="CVE-2026-4002", package_name="foo"),
+        status=CVEDerivationClusterProposal.Status.PENDING,
+    )
+
+    response = client.get(url(), {"affected_product": "foo", "status": "accepted"})
+    assert response.status_code == 200
+    ids = [item["id"] for item in response.data["results"]]
+    assert ids == [matching.pk]
 
 
 # Creation times of the suggestions used by the creation date filter test, chosen

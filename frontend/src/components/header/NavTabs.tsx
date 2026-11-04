@@ -1,13 +1,14 @@
 import { TabList, TabsRoot, TabTrigger } from "@ark-ui/react";
 import { GlobeCheckIcon, ShieldIcon } from "lucide-preact";
 import { useLocation } from "wouter-preact";
+import { paths } from "@/routes/paths";
 import styles from "./NavTabs.module.css";
 
 type NavTab = "suggestions" | "issues";
 
 function getActiveTab(path: string): NavTab | "" {
-  if (path.startsWith("/suggestions")) return "suggestions";
-  if (path.startsWith("/issues")) return "issues";
+  if (path.startsWith(paths.suggestions)) return "suggestions";
+  if (path.startsWith(paths.issues)) return "issues";
   return "";
 }
 
@@ -27,7 +28,7 @@ export function NavTabs() {
         <TabTrigger
           value="suggestions"
           // NOTE(@florentc): needed to force going back to list when browsing suggestion detail
-          onClick={() => setLocation("/suggestions")}
+          onClick={() => setLocation(paths.suggestions)}
           className={`column centered ${styles.tab} cursor-pointer`}
         >
           <ShieldIcon size="1.5em" />
@@ -36,7 +37,7 @@ export function NavTabs() {
         <TabTrigger
           value="issues"
           // NOTE(@florentc): needed to force going back to list when browsing issue detail
-          onClick={() => setLocation("/issues")}
+          onClick={() => setLocation(paths.issues)}
           className={`column centered ${styles.tab} cursor-pointer`}
         >
           <GlobeCheckIcon size="1.5em" />
