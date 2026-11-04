@@ -19,7 +19,7 @@ from django.utils.translation import gettext_lazy as _
 import shared.models.cached
 from shared.models.cve import AffectedProduct, CveRecord, Reference
 from shared.models.nix_evaluation import NixDerivation, NixMaintainer, TimeStampMixin
-from shared.models.package import Package, PackageAttrpath
+from shared.models.package import Package
 
 
 class Overlay(models.Model):
@@ -79,7 +79,7 @@ class SharedValueState(models.TextChoices):
 
 @dataclass(frozen=True)
 class SharedValue:
-    """A package attribute, maintainer or reference held in the same state by a whole selection."""
+    """A package, maintainer or reference held in the same state by a whole selection."""
 
     state: SharedValueState
     value: Any
@@ -98,16 +98,16 @@ class SharedState:
     references: list[SharedValue]
 
 
-class JSONObjectKeys(models.Func):
+class JSONPathQueryArray(models.Func):
     """
-    The keys of the JSON object nested under `path`, as a JSON array of strings.
+    The items matched by the JSON path `$.<path>`, as a JSON array.
 
     Lets a query read which packages a cached payload holds without carrying back the
     packages themselves, which are an order of magnitude larger.
     """
 
     function = "jsonb_path_query_array"
-    template = "%(function)s(%(expressions)s, '$.%(path)s.keyvalue().key')"
+    template = "%(function)s(%(expressions)s, '$.%(path)s')"
 
     def __init__(self, expression: str, path: str, **extra: Any) -> None:
         super().__init__(
@@ -301,19 +301,19 @@ class CVEDerivationClusterProposalQuerySet(models.QuerySet):
             lambda suggestion: suggestion.set_in_issue_draft(in_issue_draft),
         )
 
-    def ignore_package(self, package_attribute: str) -> int:
+    def ignore_package(self, package_id: int) -> int:
         """Ignore a package on every selected suggestion."""
         return self._apply_to_each(
-            lambda suggestion: suggestion.check_ignore_package(package_attribute),
-            lambda suggestion: suggestion.ignore_package(package_attribute),
+            lambda suggestion: suggestion.check_ignore_package(package_id),
+            lambda suggestion: suggestion.ignore_package(package_id),
             fresh_cache=True,
         )
 
-    def restore_package(self, package_attribute: str) -> int:
+    def restore_package(self, package_id: int) -> int:
         """Restore a package on every selected suggestion."""
         return self._apply_to_each(
-            lambda suggestion: suggestion.check_restore_package(package_attribute),
-            lambda suggestion: suggestion.restore_package(package_attribute),
+            lambda suggestion: suggestion.check_restore_package(package_id),
+            lambda suggestion: suggestion.restore_package(package_id),
             fresh_cache=True,
         )
 
@@ -368,9 +368,11 @@ class CVEDerivationClusterProposalQuerySet(models.QuerySet):
 
         rows = list(
             self.annotate(
-                payload_package_keys=JSONObjectKeys("cached__payload", "packages"),
-                payload_original_package_keys=JSONObjectKeys(
-                    "cached__payload", "original_packages"
+                payload_package_ids=JSONPathQueryArray(
+                    "cached__payload", "packages[*].id"
+                ),
+                payload_original_package_ids=JSONPathQueryArray(
+                    "cached__payload", "original_packages[*].id"
                 ),
                 payload_maintainers=KeyTransform(
                     "categorized_maintainers", "cached__payload"
@@ -382,8 +384,8 @@ class CVEDerivationClusterProposalQuerySet(models.QuerySet):
                 "status",
                 "in_issue_draft",
                 "comment",
-                "payload_package_keys",
-                "payload_original_package_keys",
+                "payload_package_ids",
+                "payload_original_package_ids",
                 "payload_maintainers",
                 "payload_references",
             )
@@ -392,7 +394,7 @@ class CVEDerivationClusterProposalQuerySet(models.QuerySet):
         statuses = set()
         drafts = set()
         comments = set()
-        packages: list[tuple[dict, dict]] = []
+        package_ids: list[tuple[dict, dict]] = []
         maintainers: list[tuple[dict, dict]] = []
         references: list[tuple[dict, dict]] = []
         for (
@@ -407,14 +409,10 @@ class CVEDerivationClusterProposalQuerySet(models.QuerySet):
             statuses.add(status)
             drafts.add(in_issue_draft)
             comments.add(comment or "")
-            packages.append(
+            package_ids.append(
                 (
-                    {attribute: attribute for attribute in active_packages},
-                    {
-                        attribute: attribute
-                        for attribute in original_packages
-                        if attribute not in active_packages
-                    },
+                    {pk: pk for pk in active_packages},
+                    {pk: pk for pk in original_packages if pk not in active_packages},
                 )
             )
             maintainers.append(
@@ -430,11 +428,32 @@ class CVEDerivationClusterProposalQuerySet(models.QuerySet):
                 )
             )
 
+        # Only the shared packages are loaded, once for the whole selection.
+        shared_package_ids = _shared_values(package_ids, sort_key=lambda v: v)
+        packages_by_id = Package.objects.in_bulk(
+            [shared.value for shared in shared_package_ids]
+        )
+        packages = sorted(
+            (
+                SharedValue(
+                    state=shared.state,
+                    value={
+                        "id": package.pk,
+                        "name": package.name,
+                        "homepage": package.homepage,
+                    },
+                )
+                for shared in shared_package_ids
+                if (package := packages_by_id.get(shared.value)) is not None
+            ),
+            key=lambda shared: (shared.value["name"], shared.value["id"]),
+        )
+
         return SharedState(
             status=next(iter(statuses)) if len(statuses) == 1 else None,
             in_issue_draft=next(iter(drafts)) if len(drafts) == 1 else None,
             comment=next(iter(comments)) if len(comments) == 1 else None,
-            packages=_shared_values(packages, sort_key=lambda v: v),
+            packages=packages,
             maintainers=_shared_values(maintainers, sort_key=lambda v: v["github"]),
             references=_shared_values(
                 references,
@@ -567,54 +586,47 @@ class CVEDerivationClusterProposal(TimeStampMixin):
             cache_new_suggestions(self)
             self.refresh_from_db()
 
-    def check_ignore_package(self, package_attribute: str) -> None:
+    def check_ignore_package(self, package_id: int) -> None:
         """
         Raise unless this package can be ignored on this suggestion.
         """
         original_packages = self.cached.payload["original_packages"]
-        if package_attribute not in original_packages:
-            raise ValidationError(
-                {"package_attribute": "Package not found in the suggestion"}
-            )
+        if all(package["id"] != package_id for package in original_packages):
+            raise ValidationError({"package_id": "Package not found in the suggestion"})
         if self.package_overlays.filter(
-            package_attribute=package_attribute,
+            package_id=package_id,
             type=PackageOverlay.Type.IGNORED,
         ).exists():
-            raise ValidationError({"package_attribute": "Package is already ignored"})
+            raise ValidationError({"package_id": "Package is already ignored"})
 
-    def ignore_package(self, package_attribute: str) -> None:
+    def ignore_package(self, package_id: int) -> None:
         """Ignore a package, updating the overlay and the cache."""
         with transaction.atomic():
-            self.check_ignore_package(package_attribute)
+            self.check_ignore_package(package_id)
             self.package_overlays.get_or_create(
-                package_attribute=package_attribute,
-                defaults={
-                    "type": PackageOverlay.Type.IGNORED,
-                    "package_id": PackageAttrpath.objects.get(
-                        attrpath=package_attribute
-                    ).package.id,
-                },
+                package_id=package_id,
+                defaults={"type": PackageOverlay.Type.IGNORED},
             )
             self._recompute_package_cache()
 
-    def check_restore_package(self, package_attribute: str) -> None:
+    def check_restore_package(self, package_id: int) -> None:
         """
         Raise unless this package can be restored on this suggestion.
         """
         if not self.package_overlays.filter(
-            package_attribute=package_attribute,
+            package_id=package_id,
             type=PackageOverlay.Type.IGNORED,
         ).exists():
             raise ValidationError(
-                {"package_attribute": "No ignore overlay found for this package"}
+                {"package_id": "No ignore overlay found for this package"}
             )
 
-    def restore_package(self, package_attribute: str) -> None:
+    def restore_package(self, package_id: int) -> None:
         """Restore a previously ignored package."""
         with transaction.atomic():
-            self.check_restore_package(package_attribute)
+            self.check_restore_package(package_id)
             overlay = self.package_overlays.get(
-                package_attribute=package_attribute,
+                package_id=package_id,
                 type=PackageOverlay.Type.IGNORED,
             )
             overlay.delete()
@@ -629,18 +641,17 @@ class CVEDerivationClusterProposal(TimeStampMixin):
             categorize_maintainers,
         )
 
-        self.cached.payload["packages"] = apply_package_overlays(
-            self.cached.payload["original_packages"],
+        original_packages = [
+            CachedSuggestion.Package.model_validate(package)
+            for package in self.cached.payload["original_packages"]
+        ]
+        active_packages = apply_package_overlays(
+            original_packages,
             self.package_overlays.all(),
         )
-        original_packages = {
-            k: CachedSuggestion.Package.model_validate(v)
-            for k, v in self.cached.payload["original_packages"].items()
-        }
-        active_packages = {
-            k: CachedSuggestion.Package.model_validate(v)
-            for k, v in self.cached.payload["packages"].items()
-        }
+        self.cached.payload["packages"] = [
+            package.model_dump(mode="json") for package in active_packages
+        ]
         self.cached.payload["categorized_maintainers"] = categorize_maintainers(
             original_packages,
             active_packages,
@@ -1055,8 +1066,6 @@ class PackageOverlay(Overlay):
     An element in the overlay set of packages of a suggestion.
     """
 
-    package_attribute = models.CharField(max_length=255)
-
     package = models.ForeignKey(
         Package,
         on_delete=models.RESTRICT,
@@ -1071,7 +1080,7 @@ class PackageOverlay(Overlay):
     class Meta(Overlay.Meta):
         constraints = [
             models.UniqueConstraint(
-                fields=["suggestion", "package_attribute"],
+                fields=["suggestion", "package"],
                 name="unique_package_overlay_per_suggestion",
             )
         ]

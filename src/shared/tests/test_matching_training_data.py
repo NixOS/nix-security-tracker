@@ -19,7 +19,8 @@ from shared.models.linkage import (
     ProvenanceFlags,
 )
 from shared.models.nix_evaluation import NixChannel, NixDerivation, NixEvaluation
-from shared.models.package import Package
+from shared.models.package import PackageAttrpath
+from shared.package_clustering import cluster_packages
 
 
 def test_serializer_export_validates_like_api_payload(
@@ -41,8 +42,7 @@ def test_serializer_export_validates_like_api_payload(
     )
     PackageOverlay.objects.create(
         suggestion=proposal,
-        package_attribute="foo.tests",
-        package=Package.objects.get_or_create(name="foo.tests")[0],
+        package=PackageAttrpath.objects.get(attrpath="foo.tests").package,
         type=PackageOverlay.Type.IGNORED,
     )
 
@@ -145,10 +145,10 @@ def test_export_import_export_roundtrip(
         derivation=ignored,
         provenance_flags=int(ProvenanceFlags.PACKAGE_NAME_MATCH),
     )
+    cluster_packages(NixDerivation.objects.filter(pk__in=[drv.pk, ignored.pk]))
     PackageOverlay.objects.create(
         suggestion=proposal,
-        package_attribute="foobar.tests",
-        package=Package.objects.get_or_create(name="foobar.tests")[0],
+        package=PackageAttrpath.objects.get(attrpath="foobar.tests").package,
         type=PackageOverlay.Type.IGNORED,
     )
     original = dict(serializers.CVEDerivationClusterProposal(proposal).data)
@@ -173,7 +173,9 @@ def test_export_import_export_roundtrip(
     assert imported.cve.cve_id == "CVE-2026-4242"
     assert imported.status == CVEDerivationClusterProposal.Status.ACCEPTED
     assert imported.derivations.count() == 2
-    assert imported.package_overlays.filter(package_attribute="foobar.tests").exists()
+    assert imported.package_overlays.filter(
+        package__attrpaths__attrpath="foobar.tests"
+    ).exists()
     assert (
         imported.derivationclusterproposallink_set.first()
         .derivation.parent_evaluation.on_branches.filter(name=BENCHMARK_RELEASE_BRANCH)

@@ -19,6 +19,12 @@ PACKAGES_URL = reverse("cvederivationclusterproposal-bulk-packages")
 EVERYTHING = "created_at_after=2000-01-01"
 
 
+def summary(drv: NixDerivation) -> dict:
+    """How the shared state reports the package of a derivation."""
+    package = drv.package_link.package
+    return {"id": package.pk, "name": package.name, "homepage": package.homepage}
+
+
 def shared_state(client: APIClient, query: str = EVERYTHING) -> dict | None:
     """The shared state the list endpoint reports for a selection."""
     response = client.get(f"{LIST_URL}?shared_state=true&{query}")
@@ -54,7 +60,7 @@ def test_shared_state_of_a_single_suggestion(
     state = shared_state(anonymous_client)
     assert state is not None
     assert state["comment"] == "foo"
-    assert state["packages"] == [{"state": "active", "attribute": drv.attribute}]
+    assert state["packages"] == [{"state": "active", "package": summary(drv)}]
 
 
 def test_shared_state_of_an_empty_selection(
@@ -179,7 +185,7 @@ def test_shared_active_package(
     for _ in range(2):
         make_cached_suggestion()
     assert shared_state(anonymous_client)["packages"] == [  # type: ignore[index]
-        {"state": "active", "attribute": drv.attribute}
+        {"state": "active", "package": summary(drv)}
     ]
 
 
@@ -189,9 +195,9 @@ def test_shared_ignored_package(
     anonymous_client: APIClient,
 ) -> None:
     for _ in range(2):
-        make_cached_suggestion().ignore_package(drv.attribute)
+        make_cached_suggestion().ignore_package(drv.package_link.package.pk)
     assert shared_state(anonymous_client)["packages"] == [  # type: ignore[index]
-        {"state": "ignored", "attribute": drv.attribute}
+        {"state": "ignored", "package": summary(drv)}
     ]
 
 
@@ -201,7 +207,7 @@ def test_package_in_different_states_is_not_shared(
     anonymous_client: APIClient,
 ) -> None:
     make_cached_suggestion()
-    make_cached_suggestion().ignore_package(drv.attribute)
+    make_cached_suggestion().ignore_package(drv.package_link.package.pk)
     assert shared_state(anonymous_client)["packages"] == []  # type: ignore[index]
 
 
@@ -360,11 +366,11 @@ def test_a_shared_package_is_accepted_by_the_bulk_operation(
 ) -> None:
     suggestions = [make_cached_suggestion() for _ in range(2)]
     packages = shared_state(staff_client, "status=pending")["packages"]  # type: ignore[index]
-    assert packages == [{"state": "active", "attribute": drv.attribute}]
+    assert packages == [{"state": "active", "package": summary(drv)}]
 
     response = staff_client.patch(
         f"{PACKAGES_URL}?status=pending",
-        {"package_attribute": packages[0]["attribute"], "ignored": True},
+        {"package_id": packages[0]["package"]["id"], "ignored": True},
         format="json",
     )
     assert response.status_code == 200

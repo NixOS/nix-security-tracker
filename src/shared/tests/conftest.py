@@ -379,6 +379,8 @@ def make_suggestion(
         age: timedelta = timedelta(0),
         algorithm_version: int | None = None,
         packages: dict[NixDerivation, Package] = {},
+        # Like matching does. Disable to test proposals from before package links existed.
+        package_links: bool = True,
     ) -> CVEDerivationClusterProposal:
         suggestion = CVEDerivationClusterProposal.objects.create(
             status=status,
@@ -404,19 +406,25 @@ def make_suggestion(
                 provenance_flags=provenance,
             )
 
-        package_flags: dict[Package, int] = defaultdict(int)
         for drv, package in packages.items():
             PackageDerivation.objects.create(derivation=drv, package=package)
-            package_flags[package] |= drvs[drv]
-        PackageClusterProposalLink.objects.bulk_create(
-            PackageClusterProposalLink(
-                proposal=suggestion,
-                package=package,
-                provenance_flags=ProvenanceFlags(flags),
-            )
-            for package, flags in package_flags.items()
-        )
         cluster_packages(NixDerivation.objects.filter(pk__in=[drv.pk for drv in drvs]))
+
+        if package_links:
+            flags_by_drv = {drv.pk: flags for drv, flags in drvs.items()}
+            package_flags: dict[int, int] = defaultdict(int)
+            for derivation_id, package_id in PackageDerivation.objects.filter(
+                derivation__in=flags_by_drv
+            ).values_list("derivation_id", "package_id"):
+                package_flags[package_id] |= flags_by_drv[derivation_id]
+            PackageClusterProposalLink.objects.bulk_create(
+                PackageClusterProposalLink(
+                    proposal=suggestion,
+                    package_id=package_id,
+                    provenance_flags=ProvenanceFlags(flags),
+                )
+                for package_id, flags in package_flags.items()
+            )
 
         return suggestion
 
