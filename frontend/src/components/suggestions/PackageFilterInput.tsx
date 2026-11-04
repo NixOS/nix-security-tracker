@@ -1,9 +1,9 @@
-import { PackageIcon, RssIcon, XIcon } from "lucide-preact";
-import { useEffect, useRef, useState } from "preact/hooks";
+import { PackageIcon, RssIcon } from "lucide-preact";
+import { useRef } from "preact/hooks";
 import { useGetPackageExists } from "@/api/generated/endpoints";
+import { FilterPill, filterInputClass } from "@/components/ui/FilterPill";
+import { useDebouncedSync } from "@/hooks/useDebouncedSync";
 import styles from "./PackageFilterInput.module.css";
-
-const DEBOUNCE_PACKAGE_MS = 500;
 
 type Props = {
   packageFilter: string;
@@ -11,40 +11,33 @@ type Props = {
 };
 
 export function PackageFilterInput({ packageFilter, setPackageFilter }: Props) {
-  const [local, setLocal] = useState(packageFilter);
+  const { draft, setDraft, commitNow, pending } = useDebouncedSync(packageFilter, setPackageFilter);
   const inputRef = useRef<HTMLInputElement>(null);
-
-  // Re-sync from the URL (e.g. back/forward navigation, external link).
-  useEffect(() => setLocal(packageFilter), [packageFilter]);
-
-  useEffect(() => {
-    if (local === packageFilter) return;
-    const timeout = setTimeout(() => setPackageFilter(local), DEBOUNCE_PACKAGE_MS);
-    return () => clearTimeout(timeout);
-  }, [local]);
-
-  const active = local !== "";
 
   // A package can have no matching suggestions but still exist (and have a feed).
   // Existence is checked independently of search results.
   const { data: packageExistsResult } = useGetPackageExists(packageFilter, {
     query: { enabled: !!packageFilter },
   });
-  const showFeed =
-    local === packageFilter && !!packageFilter && packageExistsResult?.exists === true;
+  const showFeed = !pending && !!packageFilter && packageExistsResult?.exists === true;
 
   return (
-    <div
-      className={`row centered gap-small bg-gray-light rounded-full ${styles.pill} ${active ? "bg-nixos-blue text-white" : ""}`}
+    <FilterPill
+      icon={PackageIcon}
+      active={draft !== ""}
+      clearLabel="Clear package filter"
+      onClear={() => {
+        commitNow("");
+        inputRef.current?.focus();
+      }}
     >
-      <PackageIcon />
       <input
         ref={inputRef}
         type="text"
         placeholder="Filter by matching package…"
-        value={local}
-        onInput={(e) => setLocal(e.currentTarget.value)}
-        className={styles.input}
+        value={draft}
+        onInput={(e) => setDraft(e.currentTarget.value)}
+        className={`${filterInputClass} ${styles.input}`}
         aria-label="Filter by matching package"
       />
       {showFeed ? (
@@ -62,19 +55,6 @@ export function PackageFilterInput({ packageFilter, setPackageFilter }: Props) {
           <RssIcon />
         </span>
       )}
-      <button
-        type="button"
-        className={`cursor-pointer ${styles.clear}`}
-        aria-label="Clear package filter"
-        disabled={!active}
-        onClick={() => {
-          setLocal("");
-          setPackageFilter("");
-          inputRef.current?.focus();
-        }}
-      >
-        <XIcon />
-      </button>
-    </div>
+    </FilterPill>
   );
 }

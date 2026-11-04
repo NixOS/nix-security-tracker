@@ -1,8 +1,8 @@
-import { CalendarIcon, XIcon } from "lucide-preact";
+import { CalendarIcon } from "lucide-preact";
 import { useState } from "preact/hooks";
 import { DatePicker, DateRangePicker } from "@/components/ui/DatePicker";
+import { FilterPill } from "@/components/ui/FilterPill";
 import { Select, type SelectOption } from "@/components/ui/Select";
-import styles from "./DateRangeFilterInput.module.css";
 
 type Props = {
   createdAtAfter: string;
@@ -75,11 +75,16 @@ export function DateRangeFilterInput({
   };
 
   return (
-    <div
-      className={`row centered gap-small bg-gray-light rounded-full ${styles.pill} ${active ? "bg-nixos-blue text-white" : ""}`}
-      data-testid="suggestion-date-filter"
+    <FilterPill
+      icon={CalendarIcon}
+      active={active}
+      clearLabel="Clear creation date filter"
+      onClear={() => {
+        setPickedMode("anytime");
+        setCreatedAtRange("", "");
+      }}
+      testId="suggestion-date-filter"
     >
-      <CalendarIcon />
       <span>Created</span>
       <Select
         value={mode}
@@ -117,18 +122,6 @@ export function DateRangeFilterInput({
           endLabel="Created on or before"
         />
       )}
-      <button
-        type="button"
-        className={`cursor-pointer ${styles.clear}`}
-        aria-label="Clear creation date filter"
-        disabled={!active}
-        onClick={() => {
-          setPickedMode("anytime");
-          setCreatedAtRange("", "");
-        }}
-      >
-        <XIcon />
-      </button>
-    </div>
+    </FilterPill>
   );
 }
