@@ -255,7 +255,12 @@ in
         };
         ${cfg.domain} = {
           locations = {
-            "/".proxyPass = "http://127.0.0.1:${toString cfg.wsgi-port}";
+            "/" = {
+              proxyPass = "http://127.0.0.1:${toString cfg.wsgi-port}";
+              extraConfig = ''
+                proxy_ignore_client_abort on;
+              '';
+            };
             "/static/".alias = cfg.settings.STATIC_ROOT;
             # Vite-built frontend assets (hashed filenames → immutable cache)
             "/static/vite/" = {
