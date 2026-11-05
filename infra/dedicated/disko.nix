@@ -60,6 +60,10 @@ in
           type = "zfs_fs";
           mountpoint = "/nix/var/nix/db";
         };
+        "victorialogs" = {
+          type = "zfs_fs";
+          mountpoint = "/var/lib/private/victorialogs";
+        };
         "microvms" = {
           type = "zfs_fs";
           mountpoint = "/var/lib/microvms";
