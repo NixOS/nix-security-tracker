@@ -16,7 +16,7 @@ Maps each labeled diagram component to its implementation.
 - [fetch_matching_training_data](../src/shared/management/commands/fetch_matching_training_data.py) / [import_matching_training_data](../src/shared/management/commands/import_matching_training_data.py) / [benchmark_matching](../src/shared/management/commands/benchmark_matching.py) - see [Offline matching training data](./data_ingestion_and_matching.md#offline-matching-training-data)
 - [Evaluate Nixpkgs](../src/shared/listeners/nix_evaluation.py)
 - [CVE matching](../src/shared/listeners/automatic_linkage.py)
-- [WSGI Django](../src/project/asgi.py) (Daphne ASGI in production)
+- [WSGI Django](../src/project/wsgi.py) (Gunicorn WSGI in production)
 
 Related infrastructure:
 
