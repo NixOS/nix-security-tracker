@@ -4,7 +4,14 @@ from django.utils import timezone
 from playwright.sync_api import Page, expect
 from pytest_django.live_server_helper import LiveServer
 
-from shared.models.issue import EventType, GitHubItem, NixpkgsIssue
+from shared.models.issue import (
+    ISSUE_COMPLETED,
+    ISSUE_OPENED,
+    PULL_REQUEST_MERGED,
+    PULL_REQUEST_OPENED,
+    GitHubItem,
+    NixpkgsIssue,
+)
 
 from .routes import ISSUE_DETAIL
 
@@ -68,7 +75,7 @@ def test_issue_detail_shows_closed_github_issue(
         kind=GitHubItem.Kind.ISSUE,
     )
     item.events.create(
-        event_type=EventType.ISSUE | EventType.CLOSED | EventType.COMPLETED,
+        event_type=ISSUE_COMPLETED,
         occurred_at=timezone.now(),
     )
     page.goto(live_server.url + ISSUE_DETAIL + f"/{issue.code}")
@@ -103,15 +110,15 @@ def test_issue_detail_shows_closing_pull_request(
     github_issue = make_github_item(
         1,
         GitHubItem.Kind.ISSUE,
-        EventType.ISSUE | EventType.OPENED,
-        EventType.ISSUE | EventType.CLOSED | EventType.COMPLETED,
+        ISSUE_OPENED,
+        ISSUE_COMPLETED,
     )
     issue.github_items.add(github_issue)
     make_github_item(
         2,
         GitHubItem.Kind.PULL_REQUEST,
-        EventType.PULL_REQUEST | EventType.OPENED,
-        EventType.PULL_REQUEST | EventType.CLOSED | EventType.MERGED,
+        PULL_REQUEST_OPENED,
+        PULL_REQUEST_MERGED,
     ).closes.create(issue=github_issue)
 
     page.goto(live_server.url + ISSUE_DETAIL + f"/{issue.code}")

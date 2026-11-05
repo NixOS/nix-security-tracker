@@ -1,4 +1,5 @@
 import logging
+import sys
 from collections.abc import Iterable
 from enum import STRICT, IntFlag, auto
 from typing import Any
@@ -9,6 +10,7 @@ from django.db import IntegrityError, models, transaction
 from django.db.models.signals import post_save
 from django.dispatch import receiver
 from django.utils import timezone
+from django.utils.functional import classproperty
 from django.utils.translation import gettext_lazy as _
 
 from shared.models.linkage import CVEDerivationClusterProposal
@@ -224,6 +226,12 @@ def generate_code(
         )
 
 
+def export_composites(cls: type["EventType"]) -> type["EventType"]:
+    sys.modules[cls.__module__].__dict__.update(cls.composites)
+    return cls
+
+
+@export_composites
 class EventType(IntFlag, boundary=STRICT):
     ISSUE = auto()
     PULL_REQUEST = auto()
@@ -234,28 +242,23 @@ class EventType(IntFlag, boundary=STRICT):
     DUPLICATE = auto()
     MERGED = auto()
 
+    ISSUE_OPENED = ISSUE | OPENED
+    ISSUE_COMPLETED = ISSUE | CLOSED | COMPLETED
+    ISSUE_NOT_PLANNED = ISSUE | CLOSED | NOT_PLANNED
+    ISSUE_DUPLICATE = ISSUE | CLOSED | DUPLICATE
+    PULL_REQUEST_OPENED = PULL_REQUEST | OPENED
+    PULL_REQUEST_CLOSED = PULL_REQUEST | CLOSED
+    PULL_REQUEST_MERGED = PULL_REQUEST | CLOSED | MERGED
+
+    @classproperty
+    def composites(cls) -> dict[str, "EventType"]:
+        return {
+            name: member for name, member in cls.__members__.items() if len(member) > 1
+        }
+
     @classmethod
     def valid(cls, value: int) -> bool:
-        flags = cls(value)
-
-        if cls.OPENED in flags:
-            return value in (cls.OPENED | cls.ISSUE, cls.OPENED | cls.PULL_REQUEST)
-
-        if cls.CLOSED in flags:
-            if cls.ISSUE in flags:
-                return value in (
-                    cls.CLOSED | cls.ISSUE | cls.COMPLETED,
-                    cls.CLOSED | cls.ISSUE | cls.NOT_PLANNED,
-                    cls.CLOSED | cls.ISSUE | cls.DUPLICATE,
-                )
-            if cls.PULL_REQUEST in flags:
-                return value in (
-                    cls.CLOSED | cls.PULL_REQUEST,
-                    cls.CLOSED | cls.PULL_REQUEST | cls.MERGED,
-                )
-            return False
-
-        return False
+        return value in cls.composites.values()
 
     @classmethod
     def validator(cls, value: int) -> None:
