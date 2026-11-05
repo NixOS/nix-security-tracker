@@ -123,7 +123,7 @@ def test_issue_detail_github_issue(
         make_github_item(
             1,
             GitHubItem.Kind.ISSUE,
-            EventType.ISSUE | EventType.CLOSED | EventType.COMPLETED,
+            EventType.ISSUE_COMPLETED,
         )
     )
 
@@ -132,7 +132,7 @@ def test_issue_detail_github_issue(
     assert response.data["github_issue"] == {
         "url": "https://github.com/NixOS/nixpkgs/issues/1",
         "number": 1,
-        "state": ["CLOSED", "COMPLETED"],
+        "state": "ISSUE_COMPLETED",
         "closed_by": [],
     }
 
@@ -168,15 +168,15 @@ def test_issue_detail_github_closing_pull_requests(
     github_issue = make_github_item(
         1,
         GitHubItem.Kind.ISSUE,
-        EventType.ISSUE | EventType.OPENED,
-        EventType.ISSUE | EventType.CLOSED | EventType.COMPLETED,
+        EventType.ISSUE_OPENED,
+        EventType.ISSUE_COMPLETED,
     )
     issue.github_items.add(github_issue)
     pull_request = make_github_item(
         2,
         GitHubItem.Kind.PULL_REQUEST,
-        EventType.PULL_REQUEST | EventType.OPENED,
-        EventType.PULL_REQUEST | EventType.CLOSED | EventType.MERGED,
+        EventType.PULL_REQUEST_OPENED,
+        EventType.PULL_REQUEST_MERGED,
     )
     pull_request.closes.create(issue=github_issue)
 
@@ -186,7 +186,7 @@ def test_issue_detail_github_closing_pull_requests(
         {
             "url": "https://github.com/NixOS/nixpkgs/pull/2",
             "number": 2,
-            "state": ["CLOSED", "MERGED"],
+            "state": "PULL_REQUEST_MERGED",
         }
     ]
 
@@ -207,13 +207,13 @@ def test_list_issues_query_count_independent_of_issue_count(
             kind=GitHubItem.Kind.ISSUE,
         )
         item.events.create(
-            event_type=EventType.ISSUE | EventType.CLOSED | EventType.COMPLETED,
+            event_type=EventType.ISSUE_COMPLETED,
             occurred_at=timezone.now(),
         )
         make_github_item(
             100 + number,
             GitHubItem.Kind.PULL_REQUEST,
-            EventType.PULL_REQUEST | EventType.OPENED,
+            EventType.PULL_REQUEST_OPENED,
         ).closes.create(issue=item)
 
     def count_queries() -> int:

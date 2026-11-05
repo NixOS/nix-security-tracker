@@ -7,7 +7,11 @@ from github import Github
 
 from shared.ingest_github_events import BATCH_SIZE, sync_github_events
 from shared.models.issue import (
-    EventType,
+    ISSUE_COMPLETED,
+    ISSUE_OPENED,
+    PULL_REQUEST_CLOSED,
+    PULL_REQUEST_MERGED,
+    PULL_REQUEST_OPENED,
     GitHubEvent,
     GitHubItem,
     GitHubSyncError,
@@ -66,13 +70,13 @@ def test_closed_issue_records_close_time(
 
     opened = GitHubEvent.objects.get(
         item__nixpkgs_issues=issue,
-        event_type=EventType.ISSUE | EventType.OPENED,
+        event_type=ISSUE_OPENED,
     )
     assert opened.occurred_at == datetime(2026, 10, 1, tzinfo=UTC)
 
     closed = GitHubEvent.objects.get(
         item__nixpkgs_issues=issue,
-        event_type=EventType.ISSUE | EventType.CLOSED | EventType.COMPLETED,
+        event_type=ISSUE_COMPLETED,
     )
     assert closed.occurred_at == datetime(2026, 10, 2, 12, tzinfo=UTC)
 
@@ -113,12 +117,12 @@ def test_reopened_issue_records_reopen_time(
         .order_by("occurred_at")
         .values_list("event_type", "occurred_at")
     ) == [
-        (EventType.ISSUE | EventType.OPENED, datetime(2026, 10, 1, tzinfo=UTC)),
+        (ISSUE_OPENED, datetime(2026, 10, 1, tzinfo=UTC)),
         (
-            EventType.ISSUE | EventType.CLOSED | EventType.COMPLETED,
+            ISSUE_COMPLETED,
             datetime(2026, 10, 2, 12, tzinfo=UTC),
         ),
-        (EventType.ISSUE | EventType.OPENED, datetime(2026, 10, 3, 12, tzinfo=UTC)),
+        (ISSUE_OPENED, datetime(2026, 10, 3, 12, tzinfo=UTC)),
     ]
 
 
@@ -314,11 +318,11 @@ def test_closing_pull_request_records_history(
         .order_by("occurred_at")
         .values_list("event_type", "occurred_at")
     ) == [
-        (EventType.PULL_REQUEST | EventType.OPENED, datetime(2026, 10, 2, tzinfo=UTC)),
-        (EventType.PULL_REQUEST | EventType.CLOSED, datetime(2026, 10, 3, tzinfo=UTC)),
-        (EventType.PULL_REQUEST | EventType.OPENED, datetime(2026, 10, 4, tzinfo=UTC)),
+        (PULL_REQUEST_OPENED, datetime(2026, 10, 2, tzinfo=UTC)),
+        (PULL_REQUEST_CLOSED, datetime(2026, 10, 3, tzinfo=UTC)),
+        (PULL_REQUEST_OPENED, datetime(2026, 10, 4, tzinfo=UTC)),
         (
-            EventType.PULL_REQUEST | EventType.CLOSED | EventType.MERGED,
+            PULL_REQUEST_MERGED,
             datetime(2026, 10, 5, tzinfo=UTC),
         ),
     ]

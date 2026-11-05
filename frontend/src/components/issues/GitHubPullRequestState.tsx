@@ -7,28 +7,30 @@ import styles from "./GitHubColors.module.css";
 type Props = {
   url: string;
   number: number;
-  state: readonly GithubPullRequestStateEnum[];
+  state: GithubPullRequestStateEnum;
   iconTestId?: string;
 };
 
-function gitHubPullRequestStateLabel(state: readonly GithubPullRequestStateEnum[]): string {
-  if (!state.includes("CLOSED")) {
-    return "Open";
+function gitHubPullRequestStateLabel(state: GithubPullRequestStateEnum): string {
+  switch (state) {
+    case "PULL_REQUEST_OPENED":
+      return "Open";
+    case "PULL_REQUEST_MERGED":
+      return "Merged";
+    case "PULL_REQUEST_CLOSED":
+      return "Closed";
   }
-  if (state.includes("MERGED")) {
-    return "Merged";
-  }
-  return "Closed";
 }
 
-function gitHubPullRequestStateIconStyle(state: readonly GithubPullRequestStateEnum[]) {
-  if (!state.includes("CLOSED")) {
-    return { Icon: GitPullRequestIcon, className: styles["github-open"] };
+function gitHubPullRequestStateIconStyle(state: GithubPullRequestStateEnum) {
+  switch (state) {
+    case "PULL_REQUEST_OPENED":
+      return { Icon: GitPullRequestIcon, className: styles["github-open"] };
+    case "PULL_REQUEST_MERGED":
+      return { Icon: GitMergeIcon, className: styles["github-done"] };
+    case "PULL_REQUEST_CLOSED":
+      return { Icon: GitPullRequestClosedIcon, className: styles["github-pull-request-closed"] };
   }
-  if (state.includes("MERGED")) {
-    return { Icon: GitMergeIcon, className: styles["github-done"] };
-  }
-  return { Icon: GitPullRequestClosedIcon, className: styles["github-pull-request-closed"] };
 }
 
 export function GitHubPullRequestLink({ url, number, state, iconTestId }: Props) {
