@@ -449,7 +449,6 @@ INSTALLED_APPS = [
     "django.contrib.staticfiles",
     "django_prometheus",
     "django_filters",
-    "debug_toolbar",
     # AllAuth config
     "allauth",
     "allauth.account",
@@ -481,7 +480,6 @@ MIDDLEWARE = [
     "django.contrib.auth.middleware.AuthenticationMiddleware",
     "django.contrib.messages.middleware.MessageMiddleware",
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
-    "debug_toolbar.middleware.DebugToolbarMiddleware",
     # Allauth account middleware
     "allauth.account.middleware.AccountMiddleware",
     "pghistory.middleware.HistoryMiddleware",
@@ -654,12 +652,6 @@ if VITE_DEV_SERVER_PORT is None:  # noqa: F821 # pyright: ignore [reportUndefine
 
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 
-# needed for debug_toolbar
-INTERNAL_IPS = [
-    "127.0.0.1",
-    "[::1]",
-]
-
 # This will be synced with GH_COMMITTERS_TEAM in GH_ORGANIZATION.
 DB_COMMITTERS_TEAM = "committers"
 # This will be synced with GH_SECURITY_TEAM in GH_ORGANIZATION
@@ -680,5 +672,13 @@ PGHISTORY_ADMIN_MODEL = "pghistory.MiddlewareEvents"
 
 SESSION_COOKIE_SECURE = not DEBUG  # noqa: F821 # pyright: ignore [reportUndefinedVariable]
 CSRF_COOKIE_SECURE = not DEBUG  # noqa: F821 # pyright: ignore [reportUndefinedVariable]
+
+if DEBUG:  # noqa: F821 # pyright: ignore [reportUndefinedVariable]
+    INSTALLED_APPS.append("debug_toolbar")
+    MIDDLEWARE.insert(
+        MIDDLEWARE.index("allauth.account.middleware.AccountMiddleware"),
+        "debug_toolbar.middleware.DebugToolbarMiddleware",
+    )
+    INTERNAL_IPS = ["127.0.0.1", "::1"]
 
 Path(EVALUATION_LOGS_DIRECTORY).mkdir(exist_ok=True)  # noqa: F821 # pyright: ignore [reportUndefinedVariable]

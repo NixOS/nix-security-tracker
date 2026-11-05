@@ -15,6 +15,7 @@ Including another URLconf
     2. Add a URL to urlpatterns:  path('blog/', include('blog.urls'))
 """
 
+from django.conf import settings
 from django.contrib import admin
 from django.urls import include, path, re_path
 from django.views.decorators.csrf import ensure_csrf_cookie
@@ -34,6 +35,8 @@ urlpatterns = [
     path("admin/", admin.site.urls),
     path("accounts/", include("allauth.urls")),
     path("_allauth/", include("allauth.headless.urls")),
-    path("debug/", include("debug_toolbar.urls")),
     re_path(r"^(?:.*)?$", spa_view, name="spa"),
 ]
+
+if settings.DEBUG:
+    urlpatterns.insert(-1, path("debug/", include("debug_toolbar.urls")))
