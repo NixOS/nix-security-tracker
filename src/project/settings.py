@@ -226,7 +226,7 @@ class Settings(BaseSettings):
         DATABASE_CONN_MAX_AGE: int = Field(
             description="""
             Django CONN_MAX_AGE for the default database connection (in
-            seconds). If the ASGI server is fronted by PgBouncer, it overrides
+            seconds). If the WSGI server is fronted by PgBouncer, it overrides
             this to 0. The direct connections (workers and management commands)
             use this value instead.
             """,
@@ -437,9 +437,7 @@ DEFAULT_SLEEP_WAITING_FOR_EVALUATION_SLOT = 25 * 60
 SECRET_KEY = get_secret("SECRET_KEY")
 
 # Application definition
-ASGI_APPLICATION = "project.asgi.application"
 INSTALLED_APPS = [
-    "daphne",
     "django.contrib.admin",
     "django.contrib.auth",
     "django.contrib.contenttypes",
@@ -456,7 +454,6 @@ INSTALLED_APPS = [
     "allauth.socialaccount",
     "allauth.socialaccount.providers.github",
     "allauth.headless",
-    "channels",
     "pgpubsub",
     "pgtrigger",
     "pghistory",

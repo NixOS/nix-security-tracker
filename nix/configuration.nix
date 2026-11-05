@@ -28,7 +28,7 @@ let
     with ps;
     [
       cfg.package
-      daphne
+      gunicorn
     ]
     ++ cfg.extra-python-packages
   );
@@ -114,6 +114,11 @@ in
       default = "always";
     };
     domain = mkOption { type = types.str; };
+    gunicorn-workers = mkOption {
+      description = "Number of Gunicorn worker processes";
+      type = types.ints.positive;
+      default = 4;
+    };
     wsgi-port = mkOption {
       type = types.port;
       default = 8000;
@@ -216,7 +221,7 @@ in
 
     enablePgbouncer =
       (mkEnableOption ''
-        PgBouncer connection pooling in front of PostgreSQL for the ASGI web server.
+        PgBouncer connection pooling in front of PostgreSQL for the WSGI web server.
 
         When enabled, only `nix-security-tracker-server` connects through
         PgBouncer. The pgpubsub workers and management commands keep direct database
@@ -283,7 +288,7 @@ in
         ensureDatabases = [ "nix-security-tracker" ];
       };
 
-      # PgBouncer fronts only the ASGI web server. Workers and management
+      # PgBouncer fronts only the WSGI web server. Workers and management
       # commands bypass it.
       pgbouncer = mkIf cfg.enablePgbouncer {
         enable = true;
@@ -383,7 +388,7 @@ in
             '';
           };
           nix-security-tracker-server = {
-            description = "Web security tracker ASGI server";
+            description = "Web security tracker WSGI server";
             after = [
               "network.target"
               "postgresql.service"
@@ -400,18 +405,21 @@ in
               TimeoutStartSec = lib.mkDefault "10m";
             };
             script = ''
-              daphne -b 127.0.0.1 -p ${toString cfg.wsgi-port} project.asgi:application
+              gunicorn \
+                --bind 127.0.0.1:${toString cfg.wsgi-port} \
+                --workers ${toString cfg.gunicorn-workers} \
+                project.wsgi:application
             '';
           }
           // optionalAttrs cfg.enablePgbouncer {
-            # When PgBouncer is enabled, the ASGI server connects through it over
+            # When PgBouncer is enabled, the WSGI server connects through it over
             # its unix socket on port 6432
             environment.DATABASE_URL =
               let
                 port = config.services.pgbouncer.settings.pgbouncer.listen_port;
               in
               "postgres:///nix-security-tracker?host=/run/pgbouncer&port=${toString port}";
-            # The ASGI server should not hold Django-level persistent connections
+            # The WSGI server should not hold Django-level persistent connections
             # when PgBouncer multiplexes server connections. Setting
             # CONN_MAX_AGE=0 lets PgBouncer do the pooling. Other services
             # (workers and management commands) keep the value from

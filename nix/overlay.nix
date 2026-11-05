@@ -63,8 +63,7 @@ in
       pyngo
       django-ninja
       django-pgpubsub
-      daphne
-      channels
+      gunicorn
       aiofiles
       sentry-sdk
       django-pghistory

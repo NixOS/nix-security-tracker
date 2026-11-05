@@ -11,7 +11,7 @@ graph TB
     subgraph SecurityTracker ["Security Tracker Host"]
 	  subgraph Web["Web"]
 		  Nginx["Nginx HTTP"]
-		  DaphneAsgi["Daphne ASGI<br/>Django"]
+		  GunicornWsgi["Gunicorn WSGI<br/>Django"]
 	  end
 
 	  subgraph ManageCommands["Management Commands"]
@@ -35,8 +35,8 @@ graph TB
     end
 
 	%% User interactions
-	Users -->|HTTP Request| Nginx -->|Forward| DaphneAsgi -->|Queries| PostgreSQL
-    DaphneAsgi --> GitHub
+	Users -->|HTTP Request| Nginx -->|Forward| GunicornWsgi -->|Queries| PostgreSQL
+    GunicornWsgi --> GitHub
 
     %% Timers
     SystemdTimerChannels -.->|Triggers Daily| FetchAllChannels
@@ -62,7 +62,7 @@ graph TB
 
     class Users userClass
     class GitHub,GitHubNixos,GitHubCVEs,NixMonitoring externalClass
-    class Nginx,DaphneAsgi webClass
+    class Nginx,GunicornWsgi webClass
     class FetchAllChannels,IngestCVEs commandClass
     class SystemdTimerChannels,SystemdTimerCVEs,NixEval,MatchingListener backgroundClass
     class PostgreSQL,LocalGitCheckout,NixStore storageClass
@@ -72,4 +72,4 @@ graph TB
     click IngestCVEs "https://github.com/NixOS/nix-security-tracker/blob/main/src/shared/management/commands/ingest_delta_cve.py" "ingest_delta_cve"
     click NixEval "https://github.com/NixOS/nix-security-tracker/blob/main/src/shared/listeners/nix_evaluation.py" "Evaluate Nixpkgs"
     click MatchingListener "https://github.com/NixOS/nix-security-tracker/blob/main/src/shared/listeners/automatic_linkage.py" "CVE matching"
-    click DaphneAsgi "https://github.com/NixOS/nix-security-tracker/blob/main/src/project/asgi.py" "Daphne ASGI"
+    click GunicornWsgi "https://github.com/NixOS/nix-security-tracker/blob/main/src/project/wsgi.py" "Gunicorn WSGI"
