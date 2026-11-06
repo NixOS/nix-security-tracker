@@ -39,7 +39,7 @@
       "type": "Url",
       "url": "https://grafana.com/api/dashboards/1860/revisions/latest/download",
       "unpack": false,
-      "hash": "sha256-GExrdAnzBtp1Ul13cvcZRbEM6iOtFrXXjEaY6g6lGYY="
+      "hash": "sha256-5Y3cXcU11MkB+U2pZIvD49Wue2946Y4YW86LKJlhzqM="
     },
     "grafana-dashboard-postgres": {
       "type": "Url",

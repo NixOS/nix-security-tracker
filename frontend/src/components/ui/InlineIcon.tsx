@@ -4,6 +4,7 @@ import styles from "./InlineIcon.module.css";
 import { Spinner } from "./Spinner";
 
 type RawProps = {
+  label?: string;
   /** The icon follows its label instead of preceding it. */
   after?: boolean;
   /** The icon element, rendered as is. */
@@ -13,12 +14,17 @@ type RawProps = {
 /**
  * Any icon element placed next to a text label, which never wraps onto a different line than the label.
  */
-export function RawInlineIcon({ after = false, children }: RawProps) {
-  return <span className={after ? styles.after : styles.before}>{children}</span>;
+export function RawInlineIcon({ after = false, label, children }: RawProps) {
+  return (
+    <span className={after ? styles.after : styles.before} title={label}>
+      {children}
+    </span>
+  );
 }
 
 type Props = LucideProps & {
   icon: LucideIcon;
+  label?: string;
   /** The icon follows its label instead of preceding it. */
   after?: boolean;
   /** Show a spinner in place of the icon. */
@@ -28,8 +34,10 @@ type Props = LucideProps & {
 /**
  * Lucide icon placed next to a text label, which never wraps onto a different line than the label.
  */
-export function InlineIcon({ icon: Icon, after, pending = false, ...iconProps }: Props) {
+export function InlineIcon({ icon: Icon, label, after, pending = false, ...iconProps }: Props) {
   return (
-    <RawInlineIcon after={after}>{pending ? <Spinner /> : <Icon {...iconProps} />}</RawInlineIcon>
+    <RawInlineIcon after={after} label={label}>
+      {pending ? <Spinner /> : <Icon {...iconProps} />}
+    </RawInlineIcon>
   );
 }

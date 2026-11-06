@@ -6,6 +6,16 @@ in
 {
   python3 = prev.python3.override {
     packageOverrides = pyfinal: _pyprev: {
+      # FIXME(@erethon): remove once asgiref 3.12.0+ is merged into nixpkgs (it's in staging-next now)
+      asgiref = _pyprev.asgiref.overridePythonAttrs rec {
+        version = "3.13.0";
+        src = final.fetchFromGitHub {
+          owner = "django";
+          repo = "asgiref";
+          tag = version;
+          hash = "sha256-Qsg0PwD6XYZkcBIcnwEjPC+2fCro35MQyXMPWm64014=";
+        };
+      };
       psycopg2 = pyfinal.psycopg;
       # FIXME(@fricklerhandwerk): remove once upstream fix is merged into django-pgpubsub
       # https://github.com/PaulGilmartin/django-pgpubsub/pull/89
@@ -59,9 +69,6 @@ in
       prometheus-client
       pygithub
       requests
-      tqdm
-      pyngo
-      django-ninja
       django-pgpubsub
       daphne
       channels

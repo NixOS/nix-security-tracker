@@ -12,8 +12,8 @@ export function IssuePublishedToast({ issue }: Props) {
     <div className="column gap-small">
       <p>{issue.title}</p>
       <Link href={issuePath(issue.code)}>Issue detail on the tracker</Link>
-      {issue.github_issue_url && (
-        <ExternalLink href={issue.github_issue_url}>GitHub issue</ExternalLink>
+      {issue.github_issue && (
+        <ExternalLink href={issue.github_issue.url}>GitHub issue</ExternalLink>
       )}
     </div>
   );

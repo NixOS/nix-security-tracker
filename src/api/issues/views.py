@@ -42,6 +42,7 @@ class IssueViewSet(ListModelMixin, RetrieveModelMixin, viewsets.GenericViewSet):
                 "suggestions__cached",
                 "suggestions__cve__container__references__tags",
                 "github_items__events",
+                "github_items__closed_by__pull_request__events",
             )
             .order_by("-created_at")
             .distinct()
