@@ -59,9 +59,6 @@ in
       prometheus-client
       pygithub
       requests
-      tqdm
-      pyngo
-      django-ninja
       django-pgpubsub
       daphne
       channels
