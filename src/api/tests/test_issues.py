@@ -1,6 +1,7 @@
 from collections.abc import Callable
 from datetime import timedelta
 
+import pytest
 from django.db import connection
 from django.test.utils import CaptureQueriesContext
 from django.utils import timezone
@@ -82,6 +83,47 @@ def test_list_issues_orders_by_most_recently_created_first(
     assert response.status_code == 200
     codes = [item["code"] for item in response.data["results"]]
     assert codes == [newer.code, older.code]
+
+
+@pytest.mark.parametrize(
+    "state, expected",
+    [
+        ("open", {"open"}),
+        ("closed", {"closed"}),
+        (None, {"open", "closed"}),
+    ],
+)
+def test_list_issues_filter_by_state(
+    make_container: Callable[..., Container],
+    make_issue: Callable[..., NixpkgsIssue],
+    make_github_item: Callable[..., GitHubItem],
+    state: str | None,
+    expected: set[str],
+) -> None:
+    issues = {
+        "open": make_issue(container=make_container(cve_id="CVE-2026-0001")),
+        "closed": make_issue(container=make_container(cve_id="CVE-2026-0002")),
+    }
+    issues["closed"].github_items.add(
+        make_github_item(
+            1,
+            GitHubItem.Kind.ISSUE,
+            EventType.ISSUE_OPENED,
+            EventType.ISSUE_COMPLETED,
+        )
+    )
+
+    response = APIClient().get(list_url(), {"state": state} if state else {})
+
+    assert response.status_code == 200
+    assert {r["code"] for r in response.data["results"]} == {
+        issues[name].code for name in expected
+    }
+
+
+def test_list_issues_rejects_unknown_state(db: None) -> None:
+    response = APIClient().get(list_url(), {"state": "bogus"})
+    assert response.status_code == 400
 
 
 def test_issue_detail_by_code(
