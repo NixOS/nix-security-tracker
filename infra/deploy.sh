@@ -12,6 +12,7 @@ if [[ "$HOST" == "tracker.security.nixos.org" ]]; then
 else
   CONFIG="$DIR/infra/staging.nix" # Default to building for staging
 fi
+DEFAULT_ARGS=(-I "nixos-config=$CONFIG" --use-substitutes)
 # make sure we're building with the version of Nixpkgs under our control
 export NIX_PATH=nixpkgs=$(nix-instantiate --eval -A pkgs.path)
 
@@ -26,7 +27,7 @@ export NIX_PATH=nixpkgs=$(nix-instantiate --eval -A pkgs.path)
 if [[ "$VERB" != "build" ]]; then
   # Perform a dry-activation first.
   echo "dry-activating the configuration first..."
-  nixos-rebuild dry-activate -I nixos-config=$CONFIG --target-host root@$HOST
+  nixos-rebuild dry-activate "${DEFAULT_ARGS[@]}" --target-host root@$HOST
 else
   echo "skipping the dry-activation as we are using an offline verb."
 fi
@@ -34,8 +35,8 @@ fi
 
 if [[ "$VERB" != "build" ]]; then
   echo "$VERB-ing the configuration now."
-  nixos-rebuild $VERB -I nixos-config=$CONFIG --target-host root@$HOST
+  nixos-rebuild $VERB "${DEFAULT_ARGS[@]}" --target-host root@$HOST
 else
   echo "building the configuration now."
-  nixos-rebuild build -I nixos-config=$CONFIG
+  nixos-rebuild build "${DEFAULT_ARGS[@]}"
 fi
