@@ -96,7 +96,7 @@ export function Home() {
             </Link>
             <div>
               Have a persistent identifier and link to{" "}
-              <ExternalLink href="https://github.com/Nix-Security-WG/sectracker-testing/issues?q=is%3Aissue+state%3Aopen">
+              <ExternalLink href="https://github.com/NixOS/nixpkgs/issues?q=is%3Aissue+state%3Aopen+author%3Aapp%2Fnixpkgs-security-tracker">
                 GitHub issues
               </ExternalLink>
               , where maintainers are notified and mitigation is coordinated
