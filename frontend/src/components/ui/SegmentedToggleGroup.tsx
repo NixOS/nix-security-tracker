@@ -18,12 +18,8 @@ export type SegmentedToggleOption = {
 type Props = {
   value: string | undefined;
   options: SegmentedToggleOption[];
-  /**
-   * Used when nested in a `LegendCard`'s border-legend slot: white
-   * background blending into the card, gray (unselected)/black (current)
-   * icons instead of the default gray pill styling.
-   */
-  onLegend?: boolean;
+  /** Smaller and on a white background, e.g. to sit in a `BorderFrame` slot. */
+  compact?: boolean;
   onItemClick: (value: string, event: MouseEvent) => void;
 };
 
@@ -33,15 +29,13 @@ type Props = {
  * `value`/`onItemClick` (to support clearing back to an inherited value), so
  * Ark UI's own `onValueChange` isn't used.
  */
-export function SegmentedToggleGroup({ value, options, onLegend = false, onItemClick }: Props) {
-  const rootClassName = `${styles.segmentedRoot} ${onLegend ? styles.onLegend : ""}`;
-
+export function SegmentedToggleGroup({ value, options, compact = false, onItemClick }: Props) {
   return (
     <ToggleGroupRoot
       value={value ? [value] : []}
       onValueChange={() => {}}
       multiple
-      className={rootClassName}
+      className={`${styles.segmentedRoot} ${compact ? styles.compact : ""}`}
     >
       {options.map((option) => (
         <ToggleGroupItem

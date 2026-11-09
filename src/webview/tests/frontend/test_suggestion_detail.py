@@ -39,7 +39,7 @@ def test_suggestion_detail_shows_references(
     container = make_container(references=[("Ref text", "https://example.com/ref", [])])
     suggestion = make_cached_suggestion(container=container)
     page.goto(live_server.url + SUGGESTION_DETAIL + f"/{suggestion.pk}")
-    expect(page.get_by_role("heading", name="References")).to_be_visible()
+    expect(page.get_by_role("heading", name="References", exact=True)).to_be_visible()
     expect(page.get_by_role("link", name="Ref text")).to_be_visible()
 
 
@@ -53,7 +53,9 @@ def test_suggestion_detail_shows_affected_products(
     The default CVE fixture creates an AffectedProduct with package_name="foo".
     """
     page.goto(live_server.url + SUGGESTION_DETAIL + f"/{cached_suggestion.pk}")
-    expect(page.get_by_role("heading", name="Affected products")).to_be_visible()
+    expect(
+        page.get_by_role("heading", name="Affected products", exact=True)
+    ).to_be_visible()
     package_name = next(iter(cached_suggestion.cached.payload["affected_products"]))
     expect(page.get_by_text(package_name, exact=True).first).to_be_visible()
 
@@ -68,7 +70,9 @@ def test_suggestion_detail_shows_packages(
     The default drv fixture creates a NixDerivation with attribute="foo".
     """
     page.goto(live_server.url + SUGGESTION_DETAIL + f"/{cached_suggestion.pk}")
-    expect(page.get_by_role("heading", name="Matching in nixpkgs")).to_be_visible()
+    expect(
+        page.get_by_role("heading", name="Matching in nixpkgs", exact=True)
+    ).to_be_visible()
     attribute = next(iter(cached_suggestion.cached.payload["packages"]))
     expect(page.get_by_role("heading", name=attribute, level=3)).to_be_visible()
 
@@ -83,7 +87,7 @@ def test_suggestion_detail_shows_maintainers(
     The default drv fixture creates a NixDerivation with a maintainer with github="maintainer".
     """
     page.goto(live_server.url + SUGGESTION_DETAIL + f"/{cached_suggestion.pk}")
-    expect(page.get_by_role("heading", name="Maintainers")).to_be_visible()
+    expect(page.get_by_role("heading", name="Maintainers", exact=True)).to_be_visible()
     github_handle = cached_suggestion.cached.payload["categorized_maintainers"][
         "active"
     ][0]["github"]

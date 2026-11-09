@@ -22,15 +22,15 @@ import { suggestionStatusIcon } from "./suggestionStatusIcon";
 
 type Props = {
   suggestion: SuggestionType;
-  /** Purely visual: flags a suggestion that no longer matches active list filters. Independent of the view mode. */
-  dimmed?: boolean;
+  /** When set, dims (dashed border and collapsed view) the suggestion and provide the reason to assistive tech (aria-description) and tests */
+  dimmedReason?: string;
   inheritedViewMode?: SuggestionViewMode;
   allowViewModeClear?: boolean;
 };
 
 export function Suggestion({
   suggestion,
-  dimmed = false,
+  dimmedReason,
   inheritedViewMode = DEFAULT_SUGGESTION_VIEW_MODE,
   allowViewModeClear = false,
 }: Props) {
@@ -66,9 +66,9 @@ export function Suggestion({
       value={toggleValue}
       onChange={setOwnViewMode}
       iconOnly
+      compact
       allowClear={allowViewModeClear}
       currentValue={inheritedViewMode}
-      onLegend
       testId={`suggestion-${id}-view-toggle`}
     />
   );
@@ -79,7 +79,8 @@ export function Suggestion({
       <LegendCard
         legend={cveLegend}
         viewToggle={viewToggleLegend}
-        dashed={dimmed}
+        dashed={Boolean(dimmedReason)}
+        description={dimmedReason}
         testId={`suggestion-${id}-collapsed`}
       >
         {/* NOTE(@florentc): This div row is not needed in theory. This is just to prevent long labels from wrapping under the icon because it turns out to render better in this specific case. */}
@@ -95,7 +96,8 @@ export function Suggestion({
     <LegendCard
       legend={cveLegend}
       viewToggle={viewToggleLegend}
-      dashed={dimmed}
+      dashed={Boolean(dimmedReason)}
+      description={dimmedReason}
       testId={`suggestion-${id}`}
     >
       <div className="column gap-big">

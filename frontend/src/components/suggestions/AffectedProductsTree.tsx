@@ -1,6 +1,8 @@
-import { ChevronsDownUpIcon, ChevronsUpDownIcon, TargetIcon } from "lucide-preact";
+import { BugIcon, ChevronsDownUpIcon, ChevronsUpDownIcon, TargetIcon } from "lucide-preact";
 import { useMemo, useState } from "preact/hooks";
 import type { SuggestionAffectedProduct } from "@/api/generated/models";
+import { BorderFrame } from "@/components/ui/BorderFrame";
+import { FrameLegend } from "@/components/ui/FrameLegend";
 import { InlineIcon } from "@/components/ui/InlineIcon";
 import { TreeView, type TreeViewNode } from "@/components/ui/TreeView";
 import {
@@ -58,40 +60,55 @@ export function AffectedProductsTree({ affectedProducts }: Props) {
   const setExpandedValue = (value: string[]) => setExpanded({ source: groupedNodes, value });
 
   return (
-    <div className="column gap-small" data-testid="affected-products-tree">
-      {branchIds.length > 0 && (
-        <div className="row gap wrap justify-right">
-          <button type="button" className="cursor-pointer btn" onClick={() => setExpandedValue([])}>
-            <InlineIcon icon={ChevronsDownUpIcon} />
-            Collapse all
-          </button>
-          <button
-            type="button"
-            className="cursor-pointer btn"
-            onClick={() => setExpandedValue(affectedBranchIds(groupedNodes))}
-          >
-            <InlineIcon icon={TargetIcon} />
-            Expand affected
-          </button>
-          <button
-            type="button"
-            className="cursor-pointer btn"
-            onClick={() => setExpandedValue(branchIds)}
-          >
-            <InlineIcon icon={ChevronsUpDownIcon} />
-            Expand all
-          </button>
-        </div>
-      )}
-      <TreeView
-        rootNode={rootNode}
-        expandedValue={expandedValue}
-        onExpandedChange={setExpandedValue}
-        renderItem={(node) => {
-          const { product } = node as AffectedProductTreeViewNode;
-          return product ? <AffectedProduct product={product} /> : null;
-        }}
-      />
-    </div>
+    <BorderFrame
+      as="section"
+      rounded
+      topLeft={
+        <FrameLegend as="h2">
+          <InlineIcon icon={BugIcon} />
+          Affected products
+        </FrameLegend>
+      }
+    >
+      <div className="column gap-small" data-testid="affected-products-tree">
+        {branchIds.length > 0 && (
+          <div className="row gap wrap justify-right">
+            <button
+              type="button"
+              className="cursor-pointer btn"
+              onClick={() => setExpandedValue([])}
+            >
+              <InlineIcon icon={ChevronsDownUpIcon} />
+              Collapse all
+            </button>
+            <button
+              type="button"
+              className="cursor-pointer btn"
+              onClick={() => setExpandedValue(affectedBranchIds(groupedNodes))}
+            >
+              <InlineIcon icon={TargetIcon} />
+              Expand affected
+            </button>
+            <button
+              type="button"
+              className="cursor-pointer btn"
+              onClick={() => setExpandedValue(branchIds)}
+            >
+              <InlineIcon icon={ChevronsUpDownIcon} />
+              Expand all
+            </button>
+          </div>
+        )}
+        <TreeView
+          rootNode={rootNode}
+          expandedValue={expandedValue}
+          onExpandedChange={setExpandedValue}
+          renderItem={(node) => {
+            const { product } = node as AffectedProductTreeViewNode;
+            return product ? <AffectedProduct product={product} /> : null;
+          }}
+        />
+      </div>
+    </BorderFrame>
   );
 }

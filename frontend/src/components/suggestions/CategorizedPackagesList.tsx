@@ -1,35 +1,45 @@
-import type { SuggestionPackages } from "@/api/generated/models";
-import { PackagesList } from "./PackagesList";
+import { PackageIcon } from "lucide-preact";
+import type { SuggestionOriginalPackages, SuggestionPackages } from "@/api/generated/models";
+import { InlineIcon } from "@/components/ui/InlineIcon";
+import { Package } from "./Package";
+import { SuggestionItemCollection } from "./SuggestionItemCollection";
+import { packageRows } from "./suggestionItems";
 
 type Props = {
   suggestionId: number;
+  original: SuggestionOriginalPackages;
   active: SuggestionPackages;
   ignored: SuggestionPackages;
   editable: boolean;
 };
 
-export function CategorizedPackagesList({ suggestionId, active, ignored, editable }: Props) {
+export function CategorizedPackagesList({
+  suggestionId,
+  original,
+  active,
+  ignored,
+  editable,
+}: Props) {
   return (
-    <div className="column gap" data-testid={`suggestion-${suggestionId}-packages`}>
-      <PackagesList
-        packages={active}
-        suggestionId={suggestionId}
-        editable={editable}
-        isIgnored={false}
-      />
-      {Object.keys(ignored).length > 0 && (
-        <details className="column gap">
-          <summary className="text-l bold text-gray">
-            Ignored packages ({Object.keys(ignored).length})
-          </summary>
-          <PackagesList
-            packages={ignored}
-            suggestionId={suggestionId}
-            editable={editable}
-            isIgnored={true}
-          />
-        </details>
+    <SuggestionItemCollection
+      rows={packageRows(original, active, ignored)}
+      label={
+        <>
+          <InlineIcon icon={PackageIcon} />
+          Matching in nixpkgs
+        </>
+      }
+      testId={`suggestion-${suggestionId}-packages`}
+      dividers
+      renderRow={({ item, state }) => (
+        <Package
+          attr={item.attribute}
+          pkg={item.pkg}
+          suggestionId={suggestionId}
+          editable={editable}
+          isIgnored={state === "ignored"}
+        />
       )}
-    </div>
+    />
   );
 }

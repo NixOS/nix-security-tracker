@@ -1,6 +1,4 @@
-import { BugIcon, LinkIcon, PackageIcon, UserIcon } from "lucide-preact";
 import type { Suggestion as SuggestionType } from "@/api/generated/models";
-import { InlineIcon } from "@/components/ui/InlineIcon";
 import { AffectedProductsTree } from "./AffectedProductsTree";
 import { CategorizedMaintainersList } from "./CategorizedMaintainersList";
 import { CategorizedPackagesList } from "./CategorizedPackagesList";
@@ -21,6 +19,7 @@ export function SuggestionDetailedBody({ suggestion, userCanEdit }: Props) {
     in_issue_draft,
     affected_products,
     packages,
+    original_packages,
     ignored_packages,
     categorized_maintainers,
     categorized_url_references,
@@ -33,59 +32,36 @@ export function SuggestionDetailedBody({ suggestion, userCanEdit }: Props) {
       <div className="column gap">
         {/* References */}
         {categorized_url_references.original.length > 0 && (
-          <div className="rounded border box column gap">
-            <h2 className="text-l bold text-gray">
-              <InlineIcon icon={LinkIcon} />
-              References
-            </h2>
-            <CategorizedReferencesList
-              categorizedReferences={categorized_url_references}
-              suggestionId={id}
-              editable={editable}
-            />
-          </div>
+          <CategorizedReferencesList
+            categorizedReferences={categorized_url_references}
+            suggestionId={id}
+            editable={editable}
+          />
         )}
 
         {/* Affected products */}
         {affected_products.length > 0 && (
-          <div className="rounded border box column gap">
-            <h2 className="text-l bold text-gray">
-              <InlineIcon icon={BugIcon} />
-              Affected products
-            </h2>
-            <AffectedProductsTree affectedProducts={affected_products} />
-          </div>
+          <AffectedProductsTree affectedProducts={affected_products} />
         )}
 
         {/* Packages */}
         {Object.keys(packages).length + Object.keys(ignored_packages).length > 0 && (
-          <div className="rounded border box column gap">
-            <h2 className="text-l bold text-gray">
-              <InlineIcon icon={PackageIcon} />
-              Matching in nixpkgs
-            </h2>
-            <CategorizedPackagesList
-              suggestionId={id}
-              active={packages}
-              ignored={ignored_packages}
-              editable={editable}
-            />
-          </div>
+          <CategorizedPackagesList
+            suggestionId={id}
+            original={original_packages}
+            active={packages}
+            ignored={ignored_packages}
+            editable={editable}
+          />
         )}
 
         {/* Maintainers */}
         {categorized_maintainers.original.length > 0 && (
-          <div className="rounded border box column gap">
-            <h2 className="text-l bold text-gray">
-              <InlineIcon icon={UserIcon} />
-              Maintainers
-            </h2>
-            <CategorizedMaintainersList
-              suggestionId={id}
-              categorizedMaintainers={categorized_maintainers}
-              editable={editable}
-            />
-          </div>
+          <CategorizedMaintainersList
+            suggestionId={id}
+            categorizedMaintainers={categorized_maintainers}
+            editable={editable}
+          />
         )}
 
         {/* Comment */}
