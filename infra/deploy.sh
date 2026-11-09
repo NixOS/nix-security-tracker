@@ -14,7 +14,8 @@ else
 fi
 DEFAULT_ARGS=(-I "nixos-config=$CONFIG" --use-substitutes)
 # make sure we're building with the version of Nixpkgs under our control
-export NIX_PATH=nixpkgs=$(nix-instantiate --eval -A pkgs.path)
+NIXPKGS=$(nix-instantiate --eval -A pkgs.path)
+export NIX_PATH="nixpkgs=$NIXPKGS"
 
 # Note: we could refactor the conditional here.
 # But `nixos-rebuild build --target-host ...` requiring network operations is an unexpected bug.
