@@ -550,6 +550,9 @@ REST_FRAMEWORK = {
         "rest_framework.authentication.SessionAuthentication",
     ],
     "DEFAULT_THROTTLE_CLASSES": ["api.throttling.APIRateThrottle"],
+    "DEFAULT_RENDERER_CLASSES": [
+        "rest_framework.renderers.JSONRenderer",
+    ],
 }
 
 # drf-spectacular (openapi generation) settings
