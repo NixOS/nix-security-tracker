@@ -16,6 +16,22 @@ in
           hash = "sha256-Qsg0PwD6XYZkcBIcnwEjPC+2fCro35MQyXMPWm64014=";
         };
       };
+      # FIXME(@fricklerhandwerk): remove once Nixpkgs ships a release that includes the fix for the flaky test
+      # https://github.com/getsentry/sentry-python/issues/8031
+      sentry-sdk = _pyprev.sentry-sdk.overridePythonAttrs (old: rec {
+        version = "2.74.0";
+        src = final.fetchFromGitHub {
+          owner = "getsentry";
+          repo = "sentry-python";
+          tag = version;
+          hash = "sha256-LB8u5yuI47if9rsW9w0d/UsPtj2/6b9yvziaqqxp68E=";
+        };
+        disabledTests = (old.disabledTests or [ ]) ++ [
+          # FIXME(@fricklerhandwerk): remove once the race condition in the test setup is fixed upstream:
+          # https://github.com/getsentry/sentry-python/pull/8228
+          "test_get_current_thread_meta_bad_running_thread"
+        ];
+      });
       psycopg2 = pyfinal.psycopg;
       # FIXME(@fricklerhandwerk): remove once upstream fix is merged into django-pgpubsub
       # https://github.com/PaulGilmartin/django-pgpubsub/pull/89
