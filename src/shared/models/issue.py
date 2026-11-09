@@ -7,6 +7,7 @@ from urllib.parse import urljoin
 
 from django.core.exceptions import ValidationError
 from django.db import IntegrityError, models, transaction
+from django.db.models.functions import Coalesce
 from django.db.models.signals import post_save
 from django.dispatch import receiver
 from django.utils import timezone
@@ -36,7 +37,28 @@ class IssueStatus(models.TextChoices):
 NIXPKGS_ISSUE_CODE_REGEX = r"NIXPKGS-[0-9]{4}-[0-9]{4,19}"
 
 
+def closed_flag(item: str) -> models.Expression:
+    return Coalesce(
+        models.Subquery(
+            GitHubEvent.objects.filter(item=models.OuterRef(item))
+            .order_by("-occurred_at")
+            .values("event_type")[:1]
+        ),
+        0,
+    ).bitand(EventType.CLOSED)
+
+
+class GitHubItemQuerySet(models.QuerySet):
+    def closed(self) -> "GitHubItemQuerySet":
+        return self.alias(closed=closed_flag("pk")).exclude(closed=0)
+
+    def open(self) -> "GitHubItemQuerySet":
+        return self.alias(closed=closed_flag("pk")).filter(closed=0)
+
+
 class GitHubItem(models.Model):
+    objects = GitHubItemQuerySet.as_manager()
+
     class Kind(models.TextChoices):
         # GitHub's own type names, as its API reports them.
         ISSUE = "Issue", _("issue")
@@ -82,8 +104,32 @@ class GitHubItem(models.Model):
         GitHubEvent.objects.bulk_create(events, ignore_conflicts=True)
 
 
+class NixpkgsIssueQuerySet(models.QuerySet):
+    def closed(self) -> "NixpkgsIssueQuerySet":
+        return self.filter(
+            models.Exists(
+                GitHubItem.objects.closed()
+                .filter(
+                    kind=GitHubItem.Kind.ISSUE, nixpkgs_issues=models.OuterRef("pk")
+                )
+                .filter(
+                    ~models.Exists(
+                        GitHubClosingReference.objects.alias(
+                            closed=closed_flag("pull_request")
+                        ).filter(issue=models.OuterRef("pk"), closed=0)
+                    )
+                )
+            )
+        )
+
+    def open(self) -> "NixpkgsIssueQuerySet":
+        return self.exclude(pk__in=self.closed())
+
+
 class NixpkgsIssue(TimeStampMixin):
     """The Nixpkgs version of a cve."""
+
+    objects = NixpkgsIssueQuerySet.as_manager()
 
     code = models.CharField(max_length=len("NIXPKGS-YYYY-") + 19, unique=True)
 
@@ -282,6 +328,9 @@ class GitHubEvent(models.Model):
                 fields=["item", "event_type", "occurred_at"],
                 name="githubevent_unique",
             ),
+        ]
+        indexes = [
+            models.Index(fields=["item", "-occurred_at"]),
         ]
 
 
