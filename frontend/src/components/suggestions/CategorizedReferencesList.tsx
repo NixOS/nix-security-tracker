@@ -1,5 +1,9 @@
+import { LinkIcon } from "lucide-preact";
 import type { SuggestionCategorizedUrlReferences } from "@/api/generated/models";
+import { InlineIcon } from "@/components/ui/InlineIcon";
 import { Reference } from "./Reference";
+import { SuggestionItemCollection } from "./SuggestionItemCollection";
+import { referenceRows } from "./suggestionItems";
 
 type Props = {
   categorizedReferences: SuggestionCategorizedUrlReferences;
@@ -12,38 +16,24 @@ export function CategorizedReferencesList({
   suggestionId,
   editable,
 }: Props) {
-  const { active, ignored } = categorizedReferences;
   return (
-    <div className="column gap" data-testid={`suggestion-${suggestionId}-references`}>
-      <ul className="column gap-small">
-        {active.map((ref) => (
-          <li key={ref.url}>
-            <Reference
-              reference={ref}
-              suggestionId={suggestionId}
-              editable={editable}
-              isIgnored={false}
-            />
-          </li>
-        ))}
-      </ul>
-      {ignored.length > 0 && (
-        <details className="column gap">
-          <summary className="text-l bold text-gray">Ignored references ({ignored.length})</summary>
-          <ul className="column gap-small">
-            {ignored.map((ref) => (
-              <li key={ref.url}>
-                <Reference
-                  reference={ref}
-                  suggestionId={suggestionId}
-                  editable={editable}
-                  isIgnored={true}
-                />
-              </li>
-            ))}
-          </ul>
-        </details>
+    <SuggestionItemCollection
+      rows={referenceRows(categorizedReferences)}
+      label={
+        <>
+          <InlineIcon icon={LinkIcon} />
+          References
+        </>
+      }
+      testId={`suggestion-${suggestionId}-references`}
+      renderRow={({ item, state }) => (
+        <Reference
+          reference={item}
+          suggestionId={suggestionId}
+          editable={editable}
+          isIgnored={state === "ignored"}
+        />
       )}
-    </div>
+    />
   );
 }

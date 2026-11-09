@@ -1,6 +1,7 @@
 .item {
   padding: 0.3em 0.8em;
   background: var(--light-gray);
+  color: inherit;
   flex-grow: 1;
 }
 
@@ -36,16 +37,18 @@
   padding: 0.35em 0.6em;
 }
 
-/* "On legend" variant: used when nested in a LegendCard's border-legend
- * slot. White background blending into the card, gray (unselected) icons. */
-.onLegend .item:not([data-state="on"]) {
-  background: white;
-  color: var(--gray);
+/* The icon matching the inherited/parent-scope view mode is shown in black
+ * instead of the plain unselected color, unless it is itself the current
+ * selection (already highlighted via the selected/"on" state). */
+.item[data-current="true"]:not([data-state="on"]) {
+  color: black;
 }
 
-/* The icon matching the inherited/parent-scope view mode is shown in black
- * instead of the plain unselected gray, unless it is itself the current
- * selection (already highlighted via the selected/"on" state). */
-.onLegend .item[data-current="true"]:not([data-state="on"]) {
-  color: black;
+.compact {
+  font-size: 0.85em;
+}
+
+/* Blends into the white background of a `BorderFrame` slot. */
+.compact .item:not([data-state="on"]) {
+  background: white;
 }

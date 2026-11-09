@@ -1,9 +1,10 @@
 import { LinkIcon, UnlinkIcon } from "lucide-preact";
 import type { SuggestionUrlReference } from "@/api/generated/models";
 import { ExternalLink } from "@/components/ui/ExternalLink";
-import { InlineIcon } from "@/components/ui/InlineIcon";
 import { useReferenceMutation } from "@/hooks/useReference";
+import { IgnoreRestoreButton } from "./IgnoreRestoreButton";
 import { ReferenceTag } from "./ReferenceTag";
+import { SuggestionItemRow } from "./SuggestionItemCollection";
 
 type Props = {
   reference: SuggestionUrlReference;
@@ -28,26 +29,29 @@ export function Reference({ reference, suggestionId, editable, isIgnored }: Prop
   }
 
   return (
-    <div className="row gap centered">
-      {editable && (
-        <button
-          type="button"
-          className={`btn ${isIgnored ? "btn-green" : "btn-gray"}`}
-          onClick={handleClick}
-          disabled={mutation.isPending}
-        >
-          <InlineIcon icon={isIgnored ? LinkIcon : UnlinkIcon} />
-          {isIgnored ? "Restore" : "Ignore"}
-        </button>
-      )}
-      <ExternalLink href={reference.url}>{displayedLabel}</ExternalLink>
-      <ul className="row gap-small">
-        {reference.tags.map((tag) => (
-          <li key={tag}>
-            <ReferenceTag tag={tag} />
-          </li>
-        ))}
-      </ul>
-    </div>
+    <SuggestionItemRow
+      ignored={isIgnored}
+      action={
+        editable && (
+          <IgnoreRestoreButton
+            action={isIgnored ? "restore" : "ignore"}
+            icon={isIgnored ? LinkIcon : UnlinkIcon}
+            onClick={handleClick}
+            disabled={mutation.isPending}
+          />
+        )
+      }
+    >
+      <div className="row gap centered wrap">
+        <ExternalLink href={reference.url}>{displayedLabel}</ExternalLink>
+        <ul className="row gap-small">
+          {reference.tags.map((tag) => (
+            <li key={tag}>
+              <ReferenceTag tag={tag} />
+            </li>
+          ))}
+        </ul>
+      </div>
+    </SuggestionItemRow>
   );
 }

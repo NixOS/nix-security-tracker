@@ -14,6 +14,10 @@ type Props = {
   count: number;
   pageSize: number;
   onPageChange: (page: number) => void;
+  /** Borderless previous/next controls sized to the text, e.g. to sit in a `BorderFrame` slot. */
+  compact?: boolean;
+  /** Id of the element naming this paginator, instead of the generic "pagination". */
+  labelledBy?: string;
 };
 
 function PaginationPages() {
@@ -27,7 +31,7 @@ function PaginationPages() {
             key={`page-${page.value}`}
             type="page"
             value={page.value}
-            className={`rounded ${styles.item}`}
+            className={`btn-plain ${styles.page}`}
           >
             {page.value}
           </PaginationItem>
@@ -41,25 +45,38 @@ function PaginationPages() {
   );
 }
 
-export function Pagination({ page, count, pageSize, onPageChange }: Props) {
+export function Pagination({
+  page,
+  count,
+  pageSize,
+  onPageChange,
+  compact = false,
+  labelledBy,
+}: Props) {
   if (count <= pageSize) {
     return null;
   }
 
+  const triggerClassName = compact
+    ? "btn-plain text-black row centered"
+    : "btn btn-gray row centered";
+  const iconSize = compact ? "1.2em" : undefined;
+
   return (
     <PaginationRoot
+      aria-labelledby={labelledBy}
       count={count}
       pageSize={pageSize}
       page={page}
       onPageChange={(details) => onPageChange(details.page)}
-      className="row gap-small stretched"
+      className={`row stretched ${compact ? styles.compact : "gap-small"}`}
     >
-      <PaginationPrevTrigger className="btn btn-gray row centered" aria-label="Previous page">
-        <ChevronLeftIcon />
+      <PaginationPrevTrigger className={triggerClassName} aria-label="Previous page">
+        <ChevronLeftIcon size={iconSize} />
       </PaginationPrevTrigger>
       <PaginationPages />
-      <PaginationNextTrigger className="btn btn-gray row centered" aria-label="Next page">
-        <ChevronRightIcon />
+      <PaginationNextTrigger className={triggerClassName} aria-label="Next page">
+        <ChevronRightIcon size={iconSize} />
       </PaginationNextTrigger>
     </PaginationRoot>
   );

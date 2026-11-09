@@ -26,13 +26,15 @@
 
 /* Buttons
  *
- * .btn - Base button style to be used on every standard button
+ * .btn - Base colored button style to be used with:
  * .btn-green - Green button variant
  * .btn-gray - Gray button variant
  * .btn-red - Red button variant
  *
  * Usage: Combine .btn with one of the color variants
  * Example: <button class="btn btn-green">Publish</button>
+ *
+ * .btn-plain - Borderless text button blending into its surroundings (e.g. page numbers), used alone without .btn
  *
  * See next section for how to combine buttons with other widgets
  */
@@ -82,6 +84,29 @@
   background-color: var(--red);
   outline-color: var(--red);
   color: white;
+}
+
+.btn-plain {
+  font: inherit;
+  color: inherit;
+  border: none;
+  border-radius: 0.4em;
+  background: transparent;
+  padding: 0.1em 0.3em;
+  min-width: 1.6em;
+}
+
+.btn-plain:not(:disabled) {
+  cursor: pointer;
+}
+
+.btn-plain:not(:disabled):hover {
+  background-color: var(--light-gray);
+}
+
+.btn-plain:disabled {
+  color: var(--gray);
+  cursor: not-allowed;
 }
 
 /* Grouping buttons with other widgets
@@ -268,7 +293,6 @@
  * Spacing (use one or none):
  * .gap, .gap-small, .gap-big - Gap between items
  * .row-gap, .row-gap-small, .row-gap-big - Gap between items in a row, may be combined with `gap` variants (useful when wrapping is possible)
- * .dividers - Display a separation line between items (handles gaps, don't use gap classes)
  *
  * Horizontal separator line:
  * .divider - On an <hr> element: display a horizontal line to separate content.
@@ -378,22 +402,6 @@
 
 .wrap {
   flex-wrap: wrap;
-}
-
-.dividers > *:not(:first-child) {
-  padding-top: 0.5em;
-}
-
-.dividers > *:not(:last-child) {
-  padding-bottom: 0.5em;
-}
-
-.dividers > * {
-  border-bottom: 1px solid var(--gray);
-}
-
-.dividers > *:last-child {
-  border-bottom: none;
 }
 
 .divider {

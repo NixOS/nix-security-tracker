@@ -15,16 +15,13 @@ export function SuggestionCompactBody({ suggestion, userCanEdit }: Props) {
 
   return (
     <div className="column gap-big">
-      <div className="box compact column gap-small">
+      <div className="column gap">
         {categorized_url_references.original.length > 0 && (
-          <>
-            <CategorizedReferencesList
-              categorizedReferences={categorized_url_references}
-              suggestionId={id}
-              editable={userCanEdit && (status === "pending" || status === "accepted")}
-            />
-            <hr className="divider" />
-          </>
+          <CategorizedReferencesList
+            categorizedReferences={categorized_url_references}
+            suggestionId={id}
+            editable={userCanEdit && (status === "pending" || status === "accepted")}
+          />
         )}
 
         {affected_products.length > 0 && (

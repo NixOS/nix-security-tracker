@@ -22,6 +22,7 @@ export function SuggestionTabsBody({ suggestion, userCanEdit }: Props) {
     in_issue_draft,
     affected_products,
     packages,
+    original_packages,
     ignored_packages,
     categorized_maintainers,
     categorized_url_references,
@@ -35,38 +36,31 @@ export function SuggestionTabsBody({ suggestion, userCanEdit }: Props) {
       label: "References",
       icon: LinkIcon,
       content: (
-        <div className="box compact">
-          <CategorizedReferencesList
-            categorizedReferences={categorized_url_references}
-            suggestionId={id}
-            editable={editable}
-          />
-        </div>
+        <CategorizedReferencesList
+          categorizedReferences={categorized_url_references}
+          suggestionId={id}
+          editable={editable}
+        />
       ),
     },
     affected_products.length > 0 && {
       value: "affected-products",
       label: "Affected products",
       icon: BugIcon,
-      content: (
-        <div className="box compact">
-          <AffectedProductsTree affectedProducts={affected_products} />
-        </div>
-      ),
+      content: <AffectedProductsTree affectedProducts={affected_products} />,
     },
     Object.keys(packages).length + Object.keys(ignored_packages).length > 0 && {
       value: "packages",
       label: "Matching in Nixpkgs",
       icon: PackageIcon,
       content: (
-        <div className="box compact">
-          <CategorizedPackagesList
-            suggestionId={id}
-            active={packages}
-            ignored={ignored_packages}
-            editable={editable}
-          />
-        </div>
+        <CategorizedPackagesList
+          suggestionId={id}
+          original={original_packages}
+          active={packages}
+          ignored={ignored_packages}
+          editable={editable}
+        />
       ),
     },
     categorized_maintainers.original.length > 0 && {
@@ -74,13 +68,11 @@ export function SuggestionTabsBody({ suggestion, userCanEdit }: Props) {
       label: "Maintainers",
       icon: UserIcon,
       content: (
-        <div className="box compact">
-          <CategorizedMaintainersList
-            suggestionId={id}
-            categorizedMaintainers={categorized_maintainers}
-            editable={editable}
-          />
-        </div>
+        <CategorizedMaintainersList
+          suggestionId={id}
+          categorizedMaintainers={categorized_maintainers}
+          editable={editable}
+        />
       ),
     },
   ];

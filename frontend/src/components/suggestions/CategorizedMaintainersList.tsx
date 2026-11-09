@@ -1,6 +1,10 @@
+import { UserIcon } from "lucide-preact";
 import type { SuggestionCategorizedMaintainers } from "@/api/generated/models";
+import { InlineIcon } from "@/components/ui/InlineIcon";
 import { Maintainer } from "./Maintainer";
 import { MaintainerAddForm } from "./MaintainerAddForm";
+import { SuggestionItemCollection } from "./SuggestionItemCollection";
+import { maintainerRows } from "./suggestionItems";
 
 type Props = {
   suggestionId: number;
@@ -13,64 +17,25 @@ export function CategorizedMaintainersList({
   categorizedMaintainers,
   editable,
 }: Props) {
-  const { active, ignored, added, orphan } = categorizedMaintainers;
-  // Orphan maintainers (no longer associated with any active package) are kept in the data but hidden from display.
-  const orphanIds = new Set(orphan.map((m) => m.github_id));
-  const visibleActive = active.filter((m) => !orphanIds.has(m.github_id));
-  const visibleIgnored = ignored.filter((m) => !orphanIds.has(m.github_id));
   return (
-    <div className="column gap" data-testid={`suggestion-${suggestionId}-maintainers`}>
-      <ul className="column gap-small">
-        {visibleActive.map((m) => (
-          <li key={m.github_id}>
-            <Maintainer
-              maintainer={m}
-              suggestionId={suggestionId}
-              editable={editable}
-              kind="active"
-            />
-          </li>
-        ))}
-      </ul>
-      {visibleIgnored.length > 0 && (
-        <details className="column gap">
-          <summary className="text-l bold text-gray">
-            Ignored maintainers ({visibleIgnored.length})
-          </summary>
-          <ul className="column gap-small">
-            {visibleIgnored.map((m) => (
-              <li key={m.github_id}>
-                <Maintainer
-                  maintainer={m}
-                  suggestionId={suggestionId}
-                  editable={editable}
-                  kind="ignored"
-                />
-              </li>
-            ))}
-          </ul>
-        </details>
+    <SuggestionItemCollection
+      rows={maintainerRows(categorizedMaintainers)}
+      label={
+        <>
+          <InlineIcon icon={UserIcon} />
+          Maintainers
+        </>
+      }
+      testId={`suggestion-${suggestionId}-maintainers`}
+      renderRow={({ item, state }) => (
+        <Maintainer
+          maintainer={item}
+          suggestionId={suggestionId}
+          editable={editable}
+          kind={state}
+        />
       )}
-      {added.length > 0 && (
-        <details className="column gap">
-          <summary className="text-l bold text-gray">
-            Additional maintainers ({added.length})
-          </summary>
-          <ul className="column gap-small">
-            {added.map((m) => (
-              <li key={m.github_id}>
-                <Maintainer
-                  maintainer={m}
-                  suggestionId={suggestionId}
-                  editable={editable}
-                  kind="added"
-                />
-              </li>
-            ))}
-          </ul>
-        </details>
-      )}
-      {editable && <MaintainerAddForm suggestionId={suggestionId} />}
-    </div>
+      footer={editable && <MaintainerAddForm suggestionId={suggestionId} />}
+    />
   );
 }

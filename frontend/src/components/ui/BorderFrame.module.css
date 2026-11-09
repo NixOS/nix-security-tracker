@@ -1,0 +1,58 @@
+.frame {
+  --frame-padding-x: 1em;
+  --frame-border-width: 1px;
+  /* Distance between a slot and the frame's side. */
+  --slot-inset-base: 0.85em;
+  --slot-inset: var(--slot-inset-base);
+  /* Height of the tallest controls put in slots (e.g. an icon-only view toggle). */
+  --slot-height: 2.2em;
+
+  position: relative;
+  border: var(--frame-border-width) solid var(--gray);
+  padding: 1em var(--frame-padding-x);
+  overflow: visible;
+}
+
+.dashed {
+  border-style: dashed;
+}
+
+/* Slots overhang the border by half their height:
+ * room inside so they don't cover content, and outside so they don't cover neighbours. */
+.withTop {
+  padding-top: calc(var(--slot-height) / 2 + 0.3em);
+  margin-top: calc(var(--slot-height) / 2);
+}
+
+.withBottom {
+  padding-bottom: calc(var(--slot-height) / 2 + 0.3em);
+  margin-bottom: calc(var(--slot-height) / 2);
+}
+
+.alignSlotsWithNested {
+  --slot-inset: calc(var(--slot-inset-base) + var(--frame-padding-x) + var(--frame-border-width));
+}
+
+.slot {
+  position: absolute;
+  background: white;
+  color: var(--gray);
+}
+
+.top {
+  top: 0;
+  transform: translateY(-50%);
+}
+
+.bottom {
+  bottom: 0;
+  transform: translateY(50%);
+}
+
+.left {
+  left: var(--slot-inset);
+}
+
+.right {
+  right: var(--slot-inset);
+}

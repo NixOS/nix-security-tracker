@@ -280,8 +280,10 @@ def test_notifications_list_wide_toggle_switches_to_detailed(
     ).click()
 
     card = as_staff.get_by_test_id(f"suggestion-{suggestion.pk}")
-    expect(card.get_by_role("heading", name="Matching in nixpkgs")).to_be_visible()
-    expect(card.get_by_role("heading", name="Maintainers")).to_be_visible()
+    expect(
+        card.get_by_role("heading", name="Matching in nixpkgs", exact=True)
+    ).to_be_visible()
+    expect(card.get_by_role("heading", name="Maintainers", exact=True)).to_be_visible()
     expect(as_staff).to_have_url(re.compile(r"[?&]suggestionView=detailed"))
 
 
@@ -329,14 +331,16 @@ def test_obsolete_suggestion_is_dimmed_in_notifications(
     # Notifications default to the collapsed suggestion view, which has its own test id.
     card = as_committer.get_by_test_id(f"suggestion-{suggestion.pk}-collapsed")
     expect(card).to_be_visible()
-    expect(card).not_to_have_class(re.compile(r"\bborder-dashed\b"))
+    expect(card).to_have_accessible_description("")
 
     committer.profile.unsubscribe_from_package("foo")
 
     as_committer.reload()
     expect(
         as_committer.get_by_test_id(f"suggestion-{suggestion.pk}-collapsed")
-    ).to_have_class(re.compile(r"\bborder-dashed\b"))
+    ).to_have_accessible_description(
+        "No longer concerns packages you follow or maintain"
+    )
 
 
 @pytest.mark.django_db
@@ -363,7 +367,7 @@ def test_ignoring_last_matching_package_dims_notification_live(
         f"notification-{notification.id}-obsolete"
     )
 
-    expect(collapsed_card).not_to_have_class(re.compile(r"\bborder-dashed\b"))
+    expect(collapsed_card).to_have_accessible_description("")
     expect(maintained_section).to_be_visible()
     expect(obsolete_banner).to_have_count(0)
 
@@ -373,9 +377,11 @@ def test_ignoring_last_matching_package_dims_notification_live(
     ).click()
     card = as_committer.get_by_test_id(f"suggestion-{suggestion.pk}")
     card.get_by_test_id(f"suggestion-{suggestion.pk}-packages").get_by_role(
-        "button", name="Ignore"
+        "button", name="Ignore", exact=True
     ).click()
 
-    expect(card).to_have_class(re.compile(r"\bborder-dashed\b"))
+    expect(card).to_have_accessible_description(
+        "No longer concerns packages you follow or maintain"
+    )
     expect(obsolete_banner).to_be_visible()
     expect(maintained_section).to_have_count(0)

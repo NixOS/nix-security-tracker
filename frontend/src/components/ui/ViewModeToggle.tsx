@@ -21,8 +21,8 @@ type Props<T extends string> = {
    * plain unselected options (unless it is itself the current selection).
    */
   currentValue?: T;
-  /** Used when nested in a `LegendCard`'s border-legend slot. */
-  onLegend?: boolean;
+  /** Smaller and on a white background, e.g. to sit in a `BorderFrame` slot. */
+  compact?: boolean;
 };
 
 /** Generic segmented toggle for switching between view modes (e.g. issue/suggestion display density). */
@@ -34,7 +34,7 @@ export function ViewModeToggle<T extends string>({
   iconOnly = false,
   allowClear = false,
   currentValue,
-  onLegend = false,
+  compact = false,
 }: Props<T>) {
   const options: SegmentedToggleOption[] = modes.map(({ value: mode, label, Icon }) => ({
     value: mode,
@@ -55,7 +55,7 @@ export function ViewModeToggle<T extends string>({
       <SegmentedToggleGroup
         value={value}
         options={options}
-        onLegend={onLegend}
+        compact={compact}
         onItemClick={(clicked) => {
           if (allowClear && clicked === value) {
             onChange(undefined);

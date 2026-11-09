@@ -1,0 +1,12 @@
+/* All labels share one cell, so the button takes the width of the longest one whatever its action. */
+.labels {
+  display: inline-grid;
+}
+
+.labels > * {
+  grid-area: 1 / 1;
+}
+
+.hiddenLabel {
+  visibility: hidden;
+}

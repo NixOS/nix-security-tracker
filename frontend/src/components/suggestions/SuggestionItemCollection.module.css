@@ -1,0 +1,58 @@
+.rows {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5em;
+}
+
+/* Lines between rows, giving the spacing instead of a gap. */
+.dividers {
+  gap: 0;
+}
+
+.dividers > *:not(:first-child) {
+  padding-top: 0.5em;
+}
+
+.dividers > *:not(:last-child) {
+  padding-bottom: 0.5em;
+  border-bottom: 1px solid var(--light-gray);
+}
+
+.row {
+  display: flex;
+  align-items: baseline;
+  gap: 1em;
+}
+
+.action {
+  flex-shrink: 0;
+}
+
+.content {
+  flex: 1;
+  min-width: 0;
+}
+
+.faded {
+  opacity: 0.3;
+}
+
+.ignoredToggle {
+  padding: 0.35em 0.6em;
+  border: 1px solid transparent;
+  border-radius: 0.4em;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+}
+
+.ignoredToggle:hover {
+  color: black;
+}
+
+.ignoredToggle[data-state="on"] {
+  background: var(--nixos-blue);
+  border-color: var(--nixos-blue);
+  color: white;
+  font-weight: bold;
+}

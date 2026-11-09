@@ -143,7 +143,7 @@ export function SuggestionList() {
                   <Suggestion
                     key={suggestion.id}
                     suggestion={suggestion}
-                    dimmed={!matches}
+                    dimmedReason={matches ? undefined : "No longer matches the filters"}
                     inheritedViewMode={matches ? viewMode : "collapsed"}
                     allowViewModeClear
                   />

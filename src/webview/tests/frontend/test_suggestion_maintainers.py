@@ -22,7 +22,7 @@ def test_maintainer_no_ignore_button_for_anonymous(
     page.goto(live_server.url + SUGGESTION_DETAIL + f"/{cached_suggestion.pk}")
     maintainers = page.get_by_test_id(f"suggestion-{cached_suggestion.pk}-maintainers")
     expect(maintainers.get_by_text(f"@{maintainer.github}")).to_be_visible()
-    expect(maintainers.get_by_role("button", name="Ignore")).to_be_hidden()
+    expect(maintainers.get_by_role("button", name="Ignore", exact=True)).to_be_hidden()
 
 
 @pytest.mark.django_db
@@ -36,7 +36,7 @@ def test_maintainer_ignore_button_visible_for_committer(
     maintainers = as_committer.get_by_test_id(
         f"suggestion-{cached_suggestion.pk}-maintainers"
     )
-    expect(maintainers.get_by_role("button", name="Ignore")).to_be_visible()
+    expect(maintainers.get_by_role("button", name="Ignore", exact=True)).to_be_visible()
 
 
 @pytest.mark.django_db
@@ -53,7 +53,7 @@ def test_maintainer_ignore_button_hidden_when_suggestion_rejected(
     as_committer.goto(live_server.url + SUGGESTION_DETAIL + f"/{suggestion.pk}")
     maintainers = as_committer.get_by_test_id(f"suggestion-{suggestion.pk}-maintainers")
     expect(maintainers.get_by_text(f"@{maintainer.github}")).to_be_visible()
-    expect(maintainers.get_by_role("button", name="Ignore")).to_be_hidden()
+    expect(maintainers.get_by_role("button", name="Ignore", exact=True)).to_be_hidden()
 
 
 @pytest.mark.django_db
@@ -62,17 +62,19 @@ def test_maintainer_ignore_moves_to_ignored_section_and_logs_activity(
     as_committer: Page,
     cached_suggestion: CVEDerivationClusterProposal,
 ) -> None:
-    """Clicking Ignore moves the maintainer into the Ignored maintainers section
+    """Clicking Ignore hides the maintainer among ignored ones
     and records an activity log entry."""
     as_committer.goto(live_server.url + SUGGESTION_DETAIL + f"/{cached_suggestion.pk}")
     maintainers = as_committer.get_by_test_id(
         f"suggestion-{cached_suggestion.pk}-maintainers"
     )
 
-    maintainers.get_by_role("button", name="Ignore").click()
+    maintainers.get_by_role("button", name="Ignore", exact=True).click()
 
-    expect(maintainers.get_by_text("Ignored maintainers", exact=False)).to_be_visible()
-    maintainers.get_by_text("Ignored maintainers", exact=False).click()
+    expect(
+        maintainers.get_by_role("button", name="Ignored (1)", exact=True)
+    ).to_be_visible()
+    maintainers.get_by_role("button", name="Ignored (").click()
     expect(maintainers.get_by_role("button", name="Restore")).to_be_visible()
 
     activity_log_toggle = as_committer.get_by_test_id(
@@ -97,14 +99,16 @@ def test_maintainer_restore_moves_back_to_active_section(
         f"suggestion-{cached_suggestion.pk}-maintainers"
     )
 
-    maintainers.get_by_role("button", name="Ignore").click()
-    maintainers.get_by_text("Ignored maintainers", exact=False).click()
+    maintainers.get_by_role("button", name="Ignore", exact=True).click()
+    maintainers.get_by_role("button", name="Ignored (").click()
     expect(maintainers.get_by_role("button", name="Restore")).to_be_visible()
 
     maintainers.get_by_role("button", name="Restore").click()
 
-    expect(maintainers.get_by_role("button", name="Ignore")).to_be_visible()
-    expect(maintainers.get_by_text("Ignored maintainers", exact=False)).to_be_hidden()
+    expect(maintainers.get_by_role("button", name="Ignore", exact=True)).to_be_visible()
+    expect(
+        maintainers.get_by_role("button", name="Ignored (0)", exact=True)
+    ).to_be_visible()
 
 
 @pytest.mark.django_db
@@ -121,12 +125,12 @@ def test_maintainer_ignore_shows_error_toast_on_backend_mismatch(
     maintainers = as_committer.get_by_test_id(
         f"suggestion-{cached_suggestion.pk}-maintainers"
     )
-    expect(maintainers.get_by_role("button", name="Ignore")).to_be_visible()
+    expect(maintainers.get_by_role("button", name="Ignore", exact=True)).to_be_visible()
 
     # Simulate a UI/backend mismatch
     cached_suggestion.ignore_maintainer(maintainer.github_id)
 
-    maintainers.get_by_role("button", name="Ignore").click()
+    maintainers.get_by_role("button", name="Ignore", exact=True).click()
 
     expect(as_committer.get_by_text("Maintainer already ignored")).to_be_visible()
     expect(
@@ -134,7 +138,9 @@ def test_maintainer_ignore_shows_error_toast_on_backend_mismatch(
     ).to_be_visible()
 
     # The suggestion is supposed to have been refreshed so the maintainer should be ignored now
-    expect(maintainers.get_by_text("Ignored maintainers", exact=False)).to_be_visible()
+    expect(
+        maintainers.get_by_role("button", name="Ignored (1)", exact=True)
+    ).to_be_visible()
 
 
 @pytest.mark.django_db
@@ -147,10 +153,12 @@ def test_maintainer_ignore_from_list_updates_the_list_card(
     card = as_committer.get_by_test_id(f"suggestion-{cached_suggestion.pk}")
     maintainers = card.get_by_test_id(f"suggestion-{cached_suggestion.pk}-maintainers")
 
-    maintainers.get_by_role("button", name="Ignore").click()
+    maintainers.get_by_role("button", name="Ignore", exact=True).click()
 
-    expect(maintainers.get_by_text("Ignored maintainers", exact=False)).to_be_visible()
-    maintainers.get_by_text("Ignored maintainers", exact=False).click()
+    expect(
+        maintainers.get_by_role("button", name="Ignored (1)", exact=True)
+    ).to_be_visible()
+    maintainers.get_by_role("button", name="Ignored (").click()
     expect(maintainers.get_by_role("button", name="Restore")).to_be_visible()
 
 
@@ -203,10 +211,6 @@ def test_maintainer_add_new_maintainer_from_github_succeeds(
     maintainers.get_by_placeholder("GitHub username").fill("alice")
     maintainers.get_by_role("button", name="Add").click()
 
-    expect(
-        maintainers.get_by_text("Additional maintainers", exact=False)
-    ).to_be_visible()
-    maintainers.get_by_text("Additional maintainers", exact=False).click()
     expect(maintainers.get_by_text("Alice DeBob")).to_be_visible()
     expect(maintainers.get_by_role("button", name="Delete")).to_be_visible()
 
@@ -275,14 +279,12 @@ def test_maintainer_delete_removes_added_maintainer_and_logs_activity(
     maintainers = as_committer.get_by_test_id(
         f"suggestion-{cached_suggestion.pk}-maintainers"
     )
-    maintainers.get_by_text("Additional maintainers", exact=False).click()
+    expect(maintainers.get_by_role("link", name="Alice DeBob")).to_be_visible()
     expect(maintainers.get_by_role("button", name="Delete")).to_be_visible()
 
     maintainers.get_by_role("button", name="Delete").click()
 
-    expect(
-        maintainers.get_by_text("Additional maintainers", exact=False)
-    ).to_be_hidden()
+    expect(maintainers.get_by_role("link", name="Alice DeBob")).to_have_count(0)
 
     activity_log_toggle = as_committer.get_by_test_id(
         f"suggestion-{cached_suggestion.pk}-activity-log-toggle"

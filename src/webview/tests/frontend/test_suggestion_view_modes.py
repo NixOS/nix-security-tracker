@@ -19,8 +19,10 @@ def test_suggestion_list_defaults_to_detailed_view(
     page.goto(live_server.url + SUGGESTION_LIST)
     card = page.get_by_test_id(f"suggestion-{cached_suggestion.pk}")
     expect(card).to_be_visible()
-    expect(card.get_by_role("heading", name="Matching in nixpkgs")).to_be_visible()
-    expect(card.get_by_role("heading", name="Maintainers")).to_be_visible()
+    expect(
+        card.get_by_role("heading", name="Matching in nixpkgs", exact=True)
+    ).to_be_visible()
+    expect(card.get_by_role("heading", name="Maintainers", exact=True)).to_be_visible()
 
 
 def test_list_wide_toggle_switches_to_collapsed(
@@ -63,8 +65,10 @@ def test_list_wide_toggle_switches_to_compact(
     card = page.get_by_test_id(f"suggestion-{suggestion.pk}")
     expect(card).to_be_visible()
     expect(card.get_by_role("link", name="Ref text")).to_be_visible()
-    expect(card.get_by_role("heading", name="Matching in nixpkgs")).to_have_count(0)
-    expect(card.get_by_role("heading", name="Maintainers")).to_have_count(0)
+    expect(
+        card.get_by_role("heading", name="Matching in nixpkgs", exact=True)
+    ).to_have_count(0)
+    expect(card.get_by_role("heading", name="Maintainers", exact=True)).to_have_count(0)
 
 
 def test_list_wide_toggle_switches_to_tabs(
@@ -100,12 +104,12 @@ def test_per_suggestion_override_only_affects_that_suggestion(
         "button", name="Compact"
     ).click()
 
-    expect(first_card.get_by_role("heading", name="Matching in nixpkgs")).to_have_count(
-        0
-    )
+    expect(
+        first_card.get_by_role("heading", name="Matching in nixpkgs", exact=True)
+    ).to_have_count(0)
     second_card = page.get_by_test_id(f"suggestion-{second.pk}")
     expect(
-        second_card.get_by_role("heading", name="Matching in nixpkgs")
+        second_card.get_by_role("heading", name="Matching in nixpkgs", exact=True)
     ).to_be_visible()
 
 
@@ -135,7 +139,9 @@ def test_filter_mismatch_collapsed_suggestion_can_be_unfolded(
 
     unfolded = as_committer.get_by_test_id(f"suggestion-{suggestion.pk}")
     expect(unfolded).to_be_visible()
-    expect(unfolded.get_by_role("heading", name="Matching in nixpkgs")).to_be_visible()
+    expect(
+        unfolded.get_by_role("heading", name="Matching in nixpkgs", exact=True)
+    ).to_be_visible()
 
 
 def test_suggestion_detail_own_toggle_switches_to_tabs(
