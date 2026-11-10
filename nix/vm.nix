@@ -207,6 +207,7 @@ in
         PYTHONPATH = shared.src.target;
         inherit (pkgs.nix-security-tracker.passthru) PLAYWRIGHT_BROWSERS_PATH;
       };
+      pass-env = [ "MATCHING_TRAINING_DATA_TOKEN" ];
       extra-python-packages = pkgs.nix-security-tracker.passthru.nativeCheckInputs;
       secrets = lib.mapAttrs (name: _: "${shared.credentials.target}/${name}") (
         lib.filterAttrs (_: type: type == "regular") (builtins.readDir shared.credentials.source)
