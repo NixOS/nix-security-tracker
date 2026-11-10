@@ -91,9 +91,6 @@ export MATCHING_TRAINING_DATA_TOKEN=<api-token>
 manage fetch_matching_training_data --output ./training-data/
 ```
 
-`--output` must be an empty directory (the command refuses to overwrite existing files).
-Use `--limit N` to fetch only a sample.
-
 This will produce one JSON file per page fetched.
 
 Import into your local database:
@@ -113,11 +110,6 @@ Score the current matcher against those labels (read-only; does not create propo
 ```console
 manage benchmark_matching
 ```
-
-Reports true positives, false positives, and SNR vs kept derivations and ignored package overlays.
-Prints one line per CVE by default.
-Use `--quiet` for the summary only, and `--limit N` for a sample.
-`--output report.json` saves the aggregate and per-CVE scores.
 
 Remove a previously imported corpus:
 
