@@ -1,7 +1,9 @@
 import { useLocation, useSearchParams } from "wouter-preact";
 import type { ListSuggestionsStatusItem } from "@/api/generated/models";
 import { ListSuggestionsStatusItem as Status } from "@/api/generated/models";
+import { useFilterParams } from "@/hooks/useFilterParams";
 import { paths } from "@/routes/paths";
+import { type ParamsUpdate, pipe, resetPage, setParam } from "@/utils/searchParams";
 
 /** URL-search-param-backed suggestion list filters. */
 export type SuggestionListFilters = {
@@ -42,30 +44,6 @@ function parseFilters(searchParams: URLSearchParams): SuggestionListFilters {
     createdAtBefore: parseDay(searchParams.get("created_at_before")),
   };
 }
-
-/** A pure change to the URL search params. */
-export type ParamsUpdate = (params: URLSearchParams) => URLSearchParams;
-
-// An empty value removes the parameter.
-const setParam =
-  (key: string, value: string): ParamsUpdate =>
-  (params) => {
-    const next = new URLSearchParams(params);
-    if (value) {
-      next.set(key, value);
-    } else {
-      next.delete(key);
-    }
-    return next;
-  };
-
-const pipe =
-  (...updates: ParamsUpdate[]): ParamsUpdate =>
-  (params) =>
-    updates.reduce((acc, update) => update(acc), params);
-
-// Invalidate the current page: jump back to page 1.
-const resetPage = setParam("page", "");
 
 export const withPackageFilter = (packageFilter: string): ParamsUpdate =>
   setParam("package", packageFilter.trim());
@@ -116,13 +94,8 @@ export function useSuggestionListFilters(): {
   setAffectedProductFilter: (product: string, version: string) => void;
   setCreatedAtRange: (after: string, before: string) => void;
 } {
-  const [searchParams, setSearchParams] = useSearchParams();
+  const [searchParams, updateParams] = useFilterParams();
   const filters = parseFilters(searchParams);
-
-  // Uses `replace` so typing in the package filter doesn't spam browser history.
-  const updateParams = (update: ParamsUpdate) => {
-    setSearchParams(pipe(update, resetPage), { replace: true });
-  };
 
   return {
     filters,
