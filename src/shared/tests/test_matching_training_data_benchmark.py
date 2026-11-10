@@ -210,6 +210,26 @@ def test_auto_reject_empty_no_fp(
     assert score.rejection_agree
 
 
+def test_rematch_sees_benchmark_derivations(
+    make_container: Callable[..., Container],
+    make_drv: Callable[..., NixDerivation],
+) -> None:
+    pkg = "benchvisibleuniq"
+    drv = make_drv(
+        pname=pkg,
+        version="1.0",
+        attribute=pkg,
+        evaluation=ensure_benchmark_evaluation(),
+    )
+    container = make_container(
+        cve_id="CVE-2026-bench-visible", package_name=pkg, product=pkg
+    )
+    proposal = _proposal(container, drv)
+
+    score = score_proposal(proposal, rematch(proposal))
+    assert score.true_positives == 1
+
+
 def test_benchmark_matching_command_summary(
     make_container: Callable[..., Container],
     make_drv: Callable[..., NixDerivation],
