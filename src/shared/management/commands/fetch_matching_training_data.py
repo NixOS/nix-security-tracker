@@ -15,9 +15,11 @@ from django.conf import settings
 from django.core.management.base import BaseCommand, CommandError
 from django.urls import reverse
 
+from api.matching.views import MatchingTrainingDataPagination
 from shared.matching_training_data import SCHEMA_VERSION
 
 TOKEN_ENV = "MATCHING_TRAINING_DATA_TOKEN"
+MAX_PAGE_SIZE = MatchingTrainingDataPagination.max_page_size
 
 
 def _resolve_token(cli_token: str | None) -> str:
@@ -31,8 +33,10 @@ def _resolve_token(cli_token: str | None) -> str:
 
 def _page_size(value: str) -> int:
     page_size = int(value)
-    if page_size < 1 or page_size > 100:
-        raise argparse.ArgumentTypeError("--page-size must be between 1 and 100.")
+    if page_size < 1 or page_size > MAX_PAGE_SIZE:
+        raise argparse.ArgumentTypeError(
+            f"--page-size must be between 1 and {MAX_PAGE_SIZE}."
+        )
     return page_size
 
 
@@ -81,27 +85,27 @@ class Command(BaseCommand):
             "--output",
             required=True,
             type=Path,
-            help="Empty directory to write page-*.json and manifest.json into",
+            help="Empty directory for storing output pages and manifest",
         )
         parser.add_argument(
             "--token",
             default=None,
             help=(
-                "Knox API token for a matching_training_data group member. "
+                "API token with permissions to access the training data endpoint"
                 f"Defaults to ${TOKEN_ENV}."
             ),
         )
         parser.add_argument(
             "--page-size",
             type=_page_size,
-            default=100,
-            help="Page size to request (API max is 100). Default: 100.",
+            default=MAX_PAGE_SIZE,
+            help=f"Page size to request (API max is {MAX_PAGE_SIZE}). Default: %(default)s.",
         )
         parser.add_argument(
             "--limit",
             type=_positive_int,
             default=None,
-            help="Stop after writing at most N records (for smoke tests).",
+            help="Stop after writing at most N records.",
         )
 
     def handle(self, *args: Any, **options: Any) -> None:

@@ -63,7 +63,7 @@ DEBUG 2026-06-19 15:50:08,652 evaluation 62141 130663090386624 Parsed 0 maintain
 DEBUG 2026-06-19 15:50:08,652 evaluation 62141 130663090386624 Ingested 0 maintainers for 22023 derivations in 0.000060 s
 ```
 
-### Start matching listeners and ingest CVEs for matching
+### Ingest CVEs for matching
 
 Matching CVEs against Nixpkgs metadata is triggered by `pgpubsub` notifications internally as CVEs are ingested.
 
@@ -83,26 +83,24 @@ This should produce untriaged matches.
 In order to measure matching algorithm accuracy locally when developing, you will need access to production data, which contains past automatic matches curated with corrections by users.
 You need an [API token](https://tracker.security.nixos.org/user/tokens), and permissions to access the endpoint with your user account which you can request by [contacting maintainers](../README.md#contributing).
 
+> [!IMPORTANT]
+> Start from an empty database, as the matcher also considers any other evaluations present and will report spurious false positives.
+> For a fresh one, power off the VM, move `sectracker-local.qcow2` out of the way, and start the VM again.
+
 Fetch paginated user-curated matches.
 Dump size is determined by number of automatically matched derivations (currently ca. 500k items).
 
 ```console
-export MATCHING_TRAINING_DATA_TOKEN=<api-token>
-manage fetch_matching_training_data \
-  --base-url https://tracker.security.nixos.org \
-  --output ./training-data/
+read -rs MATCHING_TRAINING_DATA_TOKEN && export MATCHING_TRAINING_DATA_TOKEN
+manage fetch_matching_training_data --output ./training-data/
 ```
 
-`--output` must be an empty directory (the command refuses to overwrite existing files).
-Use `--limit N` to fetch only a sample.
+> [!NOTE]
+> Relative paths are resolved against `/var/lib/nix-security-tracker` in the development VM.
 
 This will produce one JSON file per page fetched.
 
 Import into your local database:
-
-> [!WARNING]
-> Do _not_ run `manage listen` during import.
-> The command suppresses `pgpubsub` triggers so workers are not flooded with tasks.
 
 ```console
 manage import_matching_training_data --input ./training-data/
@@ -115,11 +113,6 @@ Score the current matcher against those labels (read-only; does not create propo
 ```console
 manage benchmark_matching
 ```
-
-Reports true positives, false positives, and SNR vs kept derivations and ignored package overlays.
-Prints one line per CVE by default.
-Use `--quiet` for the summary only, and `--limit N` for a sample.
-`--output report.json` saves the aggregate and per-CVE scores.
 
 Remove a previously imported corpus:
 
