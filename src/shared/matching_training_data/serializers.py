@@ -39,6 +39,14 @@ def ensure_benchmark_evaluation() -> models.NixEvaluation:
         name=BENCHMARK_RELEASE_BRANCH,
         defaults={"head_sha1_commit": _BENCHMARK_DUMMY_SHA1},
     )
+    models.NixChannel.objects.get_or_create(
+        channel_branch=BENCHMARK_RELEASE_BRANCH,
+        defaults={
+            "release_branch": release_branch,
+            "head_sha1_commit": _BENCHMARK_DUMMY_SHA1,
+            "state": models.NixChannel.ChannelState.UNSTABLE,
+        },
+    )
     evaluation = (
         models.NixEvaluation.objects.filter(
             on_branches=release_branch,
