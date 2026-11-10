@@ -63,7 +63,7 @@ DEBUG 2026-06-19 15:50:08,652 evaluation 62141 130663090386624 Parsed 0 maintain
 DEBUG 2026-06-19 15:50:08,652 evaluation 62141 130663090386624 Ingested 0 maintainers for 22023 derivations in 0.000060 s
 ```
 
-### Start matching listeners and ingest CVEs for matching
+### Ingest CVEs for matching
 
 Matching CVEs against Nixpkgs metadata is triggered by `pgpubsub` notifications internally as CVEs are ingested.
 
