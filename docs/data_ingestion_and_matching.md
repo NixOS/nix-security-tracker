@@ -88,9 +88,7 @@ Dump size is determined by number of automatically matched derivations (currentl
 
 ```console
 export MATCHING_TRAINING_DATA_TOKEN=<api-token>
-manage fetch_matching_training_data \
-  --base-url https://tracker.security.nixos.org \
-  --output ./training-data/
+manage fetch_matching_training_data --output ./training-data/
 ```
 
 `--output` must be an empty directory (the command refuses to overwrite existing files).
