@@ -373,9 +373,12 @@ def test_bulk_packages_ignores_a_package_everywhere(
     )
     assert response.status_code == 200
     assert response.data == {"affected": len(pending_suggestions)}
+    package_id = drv.package_link.package_id
     for suggestion in pending_suggestions:
         suggestion.refresh_from_db()
-        assert drv.attribute not in suggestion.cached.payload["packages"]
+        assert package_id not in {
+            p["id"] for p in suggestion.cached.payload["packages"]
+        }
 
 
 def test_bulk_packages_restores_a_package_everywhere(
@@ -392,9 +395,10 @@ def test_bulk_packages_restores_a_package_everywhere(
     )
     assert response.status_code == 200
     assert response.data == {"affected": len(pending_suggestions)}
+    package_id = drv.package_link.package_id
     for suggestion in pending_suggestions:
         suggestion.refresh_from_db()
-        assert drv.attribute in suggestion.cached.payload["packages"]
+        assert package_id in {p["id"] for p in suggestion.cached.payload["packages"]}
 
 
 def test_bulk_packages_refuses_a_selection_missing_the_package(
@@ -414,9 +418,10 @@ def test_bulk_packages_refuses_a_selection_missing_the_package(
     )
     assert response.status_code == 400
     assert list(response.data["reasons"]) == [str(other.pk)]
+    package_id = drv.package_link.package_id
     for suggestion in pending_suggestions:
         suggestion.refresh_from_db()
-        assert drv.attribute in suggestion.cached.payload["packages"]
+        assert package_id in {p["id"] for p in suggestion.cached.payload["packages"]}
 
 
 def test_bulk_maintainers_ignores_a_maintainer_everywhere(

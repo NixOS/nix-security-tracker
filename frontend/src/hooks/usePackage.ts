@@ -3,9 +3,10 @@ import { getListSuggestionsQueryKey, useUpdateSuggestionPackage } from "@/api/ge
 import type {
   PatchedSuggestionPackageUpdate,
   SuggestionCategorizedMaintainers,
-  SuggestionPackages,
+  SuggestionPackage,
 } from "@/api/generated/models";
 import { optimisticSuggestionHandlers } from "@/hooks/optimisticSuggestion";
+import { comparePackages } from "@/utils/package";
 import { invalidateActivityLog, staleQuietly } from "@/utils/suggestionCache";
 
 type MutationVars = { id: number; data: PatchedSuggestionPackageUpdate };
@@ -20,14 +21,17 @@ export function usePackageMutation(suggestionId: number) {
 
         const fromKey = ignored ? "packages" : "ignored_packages";
         const toKey = ignored ? "ignored_packages" : "packages";
-        const moving = prev[fromKey][package_attribute];
+        // Like the server, any attribute path of a package addresses the whole package.
+        const addressed = (pkg: SuggestionPackage) =>
+          pkg.attrpaths.some((a) => a.attrpath === package_attribute);
+        const moving = prev[fromKey].find(addressed);
         if (!moving) return prev;
 
-        const { [package_attribute]: _removed, ...fromRest } = prev[fromKey];
         const newPackages = {
           ...prev,
-          [fromKey]: fromRest,
-          [toKey]: { ...prev[toKey], [package_attribute]: moving },
+          [fromKey]: prev[fromKey].filter((pkg) => !addressed(pkg)),
+          // Same order as the server, so the list doesn't jump when the suggestion is refetched.
+          [toKey]: [...prev[toKey], moving].sort(comparePackages),
         };
 
         // Packages moving in/out of `active` change which maintainers count as active (auto ignore/restore maintainers).
@@ -60,11 +64,11 @@ export function usePackageMutation(suggestionId: number) {
  * Used to give instant feedback (in the maintainer section) to the user when a package is ignored/restored.
  */
 function recomputeCategorizedMaintainers(
-  activePackages: SuggestionPackages,
+  activePackages: readonly SuggestionPackage[],
   previous: SuggestionCategorizedMaintainers,
 ): SuggestionCategorizedMaintainers {
   const activePackageMaintainerIds = new Set(
-    Object.values(activePackages).flatMap((pkg) => pkg.maintainers.map((m) => m.github_id)),
+    activePackages.flatMap((pkg) => pkg.maintainers.map((m) => m.github_id)),
   );
 
   return {

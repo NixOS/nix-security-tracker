@@ -22,7 +22,7 @@ def test_backfill_creates_package_link_for_clustered_drv(
     """A proposal whose derivation is clustered gets one package link after backfill."""
     pkg = make_package(drv)
     PackageDerivation.objects.create(derivation=drv, package=pkg)
-    suggestion = make_suggestion()
+    suggestion = make_suggestion(package_links=False)
 
     assert not PackageClusterProposalLink.objects.filter(proposal=suggestion).exists()
 
@@ -67,10 +67,11 @@ def test_backfill_aggregates_flags_for_drvs_sharing_a_package(
     PackageDerivation.objects.create(derivation=drv2, package=pkg)
 
     suggestion = make_suggestion(
+        package_links=False,
         drvs={
             drv1: ProvenanceFlags.PACKAGE_NAME_MATCH,
             drv2: ProvenanceFlags.PRODUCT_MATCH,
-        }
+        },
     )
 
     call_command("backfill_proposal_package_links", stdout=StringIO())
@@ -96,10 +97,11 @@ def test_backfill_creates_separate_link_per_package(
     PackageDerivation.objects.create(derivation=drv2, package=pkg2)
 
     suggestion = make_suggestion(
+        package_links=False,
         drvs={
             drv1: ProvenanceFlags.PACKAGE_NAME_MATCH,
             drv2: ProvenanceFlags.PRODUCT_MATCH,
-        }
+        },
     )
 
     call_command("backfill_proposal_package_links", stdout=StringIO())
@@ -127,7 +129,7 @@ def test_backfill_is_idempotent(
     """Running the backfill multiple times does not create duplicate package links."""
     pkg = make_package(drv)
     PackageDerivation.objects.create(derivation=drv, package=pkg)
-    make_suggestion()
+    make_suggestion(package_links=False)
 
     call_command("backfill_proposal_package_links", stdout=StringIO())
     call_command("backfill_proposal_package_links", stdout=StringIO())

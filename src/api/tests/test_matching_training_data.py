@@ -52,7 +52,6 @@ def curated_proposals(
     )
     PackageOverlay.objects.create(
         suggestion=accepted,
-        package_attribute="foo.tests",
         package=Package.objects.get_or_create(name="foo.tests")[0],
         type=PackageOverlay.Type.IGNORED,
     )

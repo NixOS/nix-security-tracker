@@ -2,7 +2,6 @@ from django.conf import settings
 from django.contrib.postgres import fields
 from django.contrib.postgres.indexes import BTreeIndex, GinIndex
 from django.contrib.postgres.search import SearchVectorField
-from django.core.exceptions import ObjectDoesNotExist
 from django.db import models
 from django.db.models import F, Window
 from django.db.models.functions import RowNumber
@@ -125,14 +124,6 @@ class NixDerivationMeta(models.Model):
         indexes = [
             models.Index(fields=["cpe_vendor", "cpe_product"]),
         ]
-
-    def get_description(self) -> str | None:
-        description: str | None = None
-        try:
-            description = self.derivation.package_link.package.description
-        except ObjectDoesNotExist:
-            description = self.description
-        return description
 
     def __str__(self) -> str:
         return self.description or ""

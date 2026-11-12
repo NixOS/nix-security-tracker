@@ -60,6 +60,7 @@ from shared.models.linkage import (
     BulkValidationError,
     CVEDerivationClusterProposalQuerySet,
 )
+from shared.models.package import PackageAttrpath
 
 
 class CanEditSuggestion(BasePermission):
@@ -161,7 +162,13 @@ class SuggestionFilterSet(filters.FilterSet):
         ]
 
     def filter_package(self, queryset: QuerySet, name: str, value: str) -> QuerySet:
-        return queryset.filter(cached__payload__packages__has_key=value)
+        try:
+            attrpath = PackageAttrpath.objects.get(attrpath=value)
+        except PackageAttrpath.DoesNotExist:
+            return queryset.none()
+        return queryset.filter(
+            cached__payload__packages__contains=[{"id": attrpath.package_id}]
+        )
 
     def filter_affected_product(
         self, queryset: CVEDerivationClusterProposalQuerySet, name: str, value: str
@@ -817,14 +824,15 @@ class SuggestionViewSet(ListModelMixin, RetrieveModelMixin, viewsets.GenericView
             instance.ensure_fresh_cache()
             payload = instance.cached.payload
             active = payload["packages"]
+            active_ids = {package["id"] for package in active}
             data = {
                 "original": payload["original_packages"],
                 "active": active,
-                "ignored": {
-                    k: v
-                    for k, v in payload["original_packages"].items()
-                    if k not in active
-                },
+                "ignored": [
+                    package
+                    for package in payload["original_packages"]
+                    if package["id"] not in active_ids
+                ],
             }
             return Response(SuggestionCategorizedPackagesSerializer(data).data)
         elif request.method == "PATCH":

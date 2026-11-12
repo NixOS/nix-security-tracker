@@ -11,6 +11,7 @@ from shared.listeners.automatic_linkage import refresh_suggestion_derivation_lin
 from shared.models.linkage import (
     CVEDerivationClusterProposal,
     PackageOverlay,
+    ProvenanceFlags,
 )
 from shared.models.nix_evaluation import NixDerivation
 
@@ -117,7 +118,6 @@ def test_feed_excludes_suggestion_with_ignored_package(
     # Ignore the package in the suggestion
     PackageOverlay.objects.create(
         suggestion=cached_suggestion,
-        package_attribute=drv.attribute,
         package=drv.package_link.package,
         type=PackageOverlay.Type.IGNORED,
     )
@@ -130,6 +130,31 @@ def test_feed_excludes_suggestion_with_ignored_package(
     # No entries should appear for this suggestion
     suggestion_url = f"/suggestions/by-id/{cached_suggestion.pk}"
     assert suggestion_url not in content
+
+
+def test_feed_of_other_attribute_excludes_suggestion_with_ignored_package(
+    client: Client,
+    make_drv: Callable[..., NixDerivation],
+    make_cached_suggestion: Callable[..., CVEDerivationClusterProposal],
+) -> None:
+    """Ignoring a package through one attribute path hides the suggestion from the feeds of all its attribute paths."""
+    drv = make_drv(pname="foo", attribute="foo")
+    alias = make_drv(pname="foo", attribute="fooAlias")
+    suggestion = make_cached_suggestion(
+        drvs={
+            drv: ProvenanceFlags.PACKAGE_NAME_MATCH,
+            alias: ProvenanceFlags.PACKAGE_NAME_MATCH,
+        },
+    )
+    suggestion_url = f"/suggestions/by-id/{suggestion.pk}"
+    feed_url = reverse("feeds:package_feed", kwargs={"package_name": alias.attribute})
+    assert suggestion_url in client.get(feed_url).content.decode()
+
+    suggestion.ignore_package(drv.attribute)
+
+    response = client.get(feed_url)
+    assert response.status_code == 200
+    assert suggestion_url not in response.content.decode()
 
 
 def test_feed_auto_dismiss_not_in_feed(
