@@ -1,4 +1,5 @@
 import type { ComponentChildren } from "preact";
+import { cx } from "@/utils/className";
 import styles from "./BorderFrame.module.css";
 
 type Props = {
@@ -38,7 +39,7 @@ export function BorderFrame({
 }: Props) {
   const hasTop = Boolean(topLeft || topRight);
   const hasBottom = Boolean(bottomLeft || bottomRight);
-  const className = [
+  const className = cx(
     "column gap",
     styles.frame,
     border === "dashed" && styles.dashed,
@@ -47,9 +48,7 @@ export function BorderFrame({
     alignSlotsWithNested && styles.alignSlotsWithNested,
     hasTop && styles.withTop,
     hasBottom && styles.withBottom,
-  ]
-    .filter(Boolean)
-    .join(" ");
+  );
 
   return (
     <Tag

@@ -1,5 +1,6 @@
 import { type LucideIcon, XIcon } from "lucide-preact";
 import type { ComponentChildren } from "preact";
+import { cx } from "@/utils/className";
 import styles from "./FilterPill.module.css";
 
 /** Class for the text inputs placed inside a filter pill */
@@ -21,7 +22,11 @@ type Props = {
 export function FilterPill({ icon: Icon, active, clearLabel, onClear, testId, children }: Props) {
   return (
     <div
-      className={`row centered gap-small bg-gray-light rounded-full ${styles.pill} ${active ? "bg-nixos-blue text-white" : ""}`}
+      className={cx(
+        "row centered gap-small bg-gray-light rounded-full",
+        styles.pill,
+        active && "bg-nixos-blue text-white",
+      )}
       data-testid={testId}
     >
       <Icon />

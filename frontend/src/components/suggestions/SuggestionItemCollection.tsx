@@ -4,6 +4,7 @@ import { type ComponentChildren, Fragment } from "preact";
 import { useState } from "preact/hooks";
 import { CollectionCard } from "@/components/ui/CollectionCard";
 import { InlineIcon } from "@/components/ui/InlineIcon";
+import { cx } from "@/utils/className";
 import styles from "./SuggestionItemCollection.module.css";
 import type { ItemRow } from "./suggestionItems";
 
@@ -54,7 +55,7 @@ export function SuggestionItemCollection<T>({
       footer={footer}
     >
       {(shownRows) => (
-        <ul className={`${styles.rows} ${dividers ? styles.dividers : ""}`}>
+        <ul className={cx(styles.rows, dividers && styles.dividers)}>
           {shownRows.map((row) => (
             <Fragment key={row.key}>{renderRow(row)}</Fragment>
           ))}
@@ -79,7 +80,7 @@ export function SuggestionItemRow({ action, ignored, children }: RowProps) {
   return (
     <li className={styles.row}>
       {action && <div className={styles.action}>{action}</div>}
-      <div className={`${styles.content} ${ignored ? styles.faded : ""}`}>{children}</div>
+      <div className={cx(styles.content, ignored && styles.faded)}>{children}</div>
     </li>
   );
 }

@@ -1,6 +1,7 @@
 import { ChevronsDownIcon, ChevronsUpIcon } from "lucide-preact";
 import type { ComponentChildren } from "preact";
 import { useId, useState } from "preact/hooks";
+import { cx } from "@/utils/className";
 import { BorderFrame } from "./BorderFrame";
 import { FrameLegend } from "./FrameLegend";
 import { HeightTransition } from "./HeightTransition";
@@ -83,7 +84,7 @@ function ShowMoreButton({ expanded, controls, hiddenCount, onToggle }: ShowMoreB
   return (
     <button
       type="button"
-      className={`btn-plain ${!expanded && "text-black"}`}
+      className={cx("btn-plain", !expanded && "text-black")}
       aria-expanded={expanded}
       aria-controls={controls}
       onClick={onToggle}

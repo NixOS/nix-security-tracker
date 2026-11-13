@@ -23,6 +23,7 @@ import { InlineIcon } from "@/components/ui/InlineIcon";
 import { Skeleton } from "@/components/ui/Skeleton";
 import { Spinner } from "@/components/ui/Spinner";
 import { useTick } from "@/hooks/useTick";
+import { cx } from "@/utils/className";
 import { formatTime } from "@/utils/date";
 import styles from "./ActivityLog.module.css";
 import { suggestionStatusIcon } from "./suggestionStatusIcon";
@@ -285,7 +286,11 @@ export function ActivityLogToggle({ suggestionId, open, onToggle }: Props) {
   return (
     <button
       type="button"
-      className={`row gap-small align-end cursor-pointer ${styles.reminder} ${open ? styles.reminderOpen : ""}`}
+      className={cx(
+        "row gap-small align-end cursor-pointer",
+        styles.reminder,
+        open && styles.reminderOpen,
+      )}
       onClick={onToggle}
       aria-expanded={open}
       data-testid={`suggestion-${suggestionId}-activity-log-toggle`}
@@ -326,7 +331,7 @@ export function ActivityLogPanel({ suggestionId, open }: Omit<Props, "onToggle">
   return (
     <Collapsible open={open}>
       <div
-        className={`${styles.container} ${open ? styles.containerOpen : ""}`}
+        className={cx(styles.container, open && styles.containerOpen)}
         data-testid={`suggestion-${suggestionId}-activity-log`}
       >
         <table className={styles.table}>

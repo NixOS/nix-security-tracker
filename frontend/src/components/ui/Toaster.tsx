@@ -14,6 +14,7 @@ import {
   TriangleAlertIcon,
   XIcon,
 } from "lucide-preact";
+import { cx } from "@/utils/className";
 import styles from "./Toaster.module.css";
 
 type ToasterProps = {
@@ -45,7 +46,12 @@ export function Toaster({ toaster }: ToasterProps) {
         const Icon = typeToIcon[toast.type ?? ""] ?? InfoIcon;
         return (
           <ToastRoot
-            className={`rounded shadow column gap-small ${typeToFg[toast.type ?? ""]} ${typeToBg[toast.type ?? ""] ?? "bg-gray"} ${styles.root}`}
+            className={cx(
+              "rounded shadow column gap-small",
+              typeToFg[toast.type ?? ""],
+              typeToBg[toast.type ?? ""] ?? "bg-gray",
+              styles.root,
+            )}
           >
             <ToastTitle className="row gap-small centered bold">
               <Icon size="1.2em" />

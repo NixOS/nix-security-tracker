@@ -1,5 +1,6 @@
 import { ToggleGroupItem, ToggleGroupRoot } from "@ark-ui/react";
 import type { ComponentChildren } from "preact";
+import { cx } from "@/utils/className";
 import styles from "./SegmentedToggleGroup.module.css";
 
 export type SegmentedToggleOption = {
@@ -35,7 +36,7 @@ export function SegmentedToggleGroup({ value, options, compact = false, onItemCl
       value={value ? [value] : []}
       onValueChange={() => {}}
       multiple
-      className={`${styles.segmentedRoot} ${compact ? styles.compact : ""}`}
+      className={cx(styles.segmentedRoot, compact && styles.compact)}
     >
       {options.map((option) => (
         <ToggleGroupItem
