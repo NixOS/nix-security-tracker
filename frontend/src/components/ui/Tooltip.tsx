@@ -1,5 +1,6 @@
 import { Tooltip as ArkTooltip, Portal } from "@ark-ui/react";
 import type { ComponentChild, ComponentChildren } from "preact";
+import { cx } from "@/utils/className";
 
 type TooltipProps = {
   content: ComponentChildren;
@@ -14,7 +15,7 @@ export function Tooltip({ content, children, compact = false }: TooltipProps) {
       <Portal>
         <ArkTooltip.Positioner>
           <ArkTooltip.Content
-            className={`rounded box border shadow bg-white ${compact && "compact"}`}
+            className={cx("rounded box border shadow bg-white", compact && "compact")}
           >
             {content}
           </ArkTooltip.Content>

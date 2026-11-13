@@ -24,7 +24,7 @@ export function NavTabs() {
       onValueChange={({ value }) => setLocation(`/${value}`)}
       className={styles.tabsRoot}
     >
-      <TabList className={`row ${styles.tabList}`}>
+      <TabList className="row">
         <TabTrigger
           value="suggestions"
           // NOTE(@florentc): needed to force going back to list when browsing suggestion detail
