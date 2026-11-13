@@ -26,9 +26,7 @@ from rest_framework.views import APIView
 from api.issues.serializers import IssueSerializer
 from api.params import (
     ACTIVITY_LOG_PARAMETER,
-    SHARED_STATE_PARAMETER,
     activity_log_requested,
-    shared_state_requested,
 )
 from api.serializers import ErrorDetailSerializer
 from api.suggestions.serializers import (
@@ -37,7 +35,6 @@ from api.suggestions.serializers import (
     BulkResultSerializer,
     IssueDraftPublishSerializer,
     MaintainerSerializer,
-    PaginatedSuggestionListSerializer,
     SuggestionBundleSerializer,
     SuggestionCategorizedMaintainersSerializer,
     SuggestionCategorizedPackagesSerializer,
@@ -49,8 +46,8 @@ from api.suggestions.serializers import (
     SuggestionPackageUpdateSerializer,
     SuggestionReferenceUpdateSerializer,
     SuggestionSerializer,
+    SuggestionSharedStateSerializer,
     build_activity_log_map,
-    shared_state_to_dict,
 )
 from api.throttling import BulkRateThrottle
 from shared.auth import user_can_edit_suggestion
@@ -95,15 +92,6 @@ class SuggestionStatusSerializer(serializers.ModelSerializer):
 
 class SuggestionPagination(PageNumberPagination):
     page_size = 10  # TODO(@florentc): Allow the user to change it within limits
-
-    # What the whole filtered selection has in common, when requested and small enough.
-    # Set by the list action before pagination, since it describes the selection rather than the page.
-    shared: dict | None = None
-
-    def get_paginated_response(self, data: list) -> Response:
-        response = super().get_paginated_response(data)
-        cast(dict, response.data)["shared"] = self.shared
-        return response
 
 
 class SuggestionFilterSet(filters.FilterSet):
@@ -234,6 +222,9 @@ class SuggestionViewSet(ListModelMixin, RetrieveModelMixin, viewsets.GenericView
         }
     )
 
+    # Actions that select suggestions with the list filters.
+    SELECTION_ACTIONS = BULK_ACTIONS | {"list", "bulk_shared_state"}
+
     # Applied on top of the usual rate limit, for bulk operations only.
     bulk_throttle_classes = [BulkRateThrottle]
 
@@ -252,12 +243,12 @@ class SuggestionViewSet(ListModelMixin, RetrieveModelMixin, viewsets.GenericView
     def filter_queryset(self, queryset: QuerySet) -> QuerySet:  # pyright: ignore[reportIncompatibleMethodOverride]
         # Filters (status/in_issue_draft/package) apply to the list action and to the bulk actions, which select what they modify the same way the list selects what it displays.
         # Other actions (retrieve, status, comment, ...) fetch a single suggestion by pk via get_object() and must not be affected by those filters.
-        if self.action != "list" and self.action not in self.BULK_ACTIONS:
+        if self.action not in self.SELECTION_ACTIONS:
             return queryset
         return super().filter_queryset(queryset)
 
     def get_queryset(self) -> QuerySet[CVEDerivationClusterProposal]:  # pyright: ignore[reportIncompatibleMethodOverride]
-        if self.action != "list" and self.action not in self.BULK_ACTIONS:
+        if self.action not in self.SELECTION_ACTIONS:
             return super().get_queryset()
 
         # Only suggestions with fresh cache
@@ -347,26 +338,14 @@ class SuggestionViewSet(ListModelMixin, RetrieveModelMixin, viewsets.GenericView
     @extend_schema(
         operation_id="listSuggestions",
         description="List all suggestions (proposals linking CVEs to derivations), paginated and sorted by most recently modified or created first.",
-        parameters=[ACTIVITY_LOG_PARAMETER, SHARED_STATE_PARAMETER],
+        parameters=[ACTIVITY_LOG_PARAMETER],
         responses={
-            200: PaginatedSuggestionListSerializer,
+            200: SuggestionSerializer(many=True),
             400: ErrorDetailSerializer,
         },
     )
     def list(self, request: Request) -> Response:
         queryset = self.filter_queryset(self.get_queryset())
-
-        if shared_state_requested(request):
-            # Describes the whole selection rather than the page, and only when a bulk
-            # operation would accept that selection at all: `get_bulk_queryset` refuses
-            # an unfiltered one, and one larger than it may affect.
-            paginator = cast(SuggestionPagination, self.paginator)
-            if (
-                self.selection_is_filtered()
-                and queryset.count() <= settings.API_BULK_MAX_AFFECTED
-            ):
-                paginator.shared = shared_state_to_dict(queryset.shared_state())
-
         page = self.paginate_queryset(queryset)
         objects = page if page is not None else list(queryset)
 
@@ -850,6 +829,29 @@ class SuggestionViewSet(ListModelMixin, RetrieveModelMixin, viewsets.GenericView
     # Bulk operations.
     # They mirror the single-suggestion actions above, but apply to every suggestion matching the filters of the list endpoint.
     # They are all-or-nothing: if a single selected suggestion refuses the operation, nothing is modified and the response says which ones refused and why.
+
+    @extend_schema(
+        operation_id="getSuggestionsSharedState",
+        description=(
+            "Report what every suggestion matching the filters has in common, so a client can tell which bulk operations it may offer. "
+            "Accepts the same selections as the bulk operations. "
+            "A bulk operation remains free to refuse what is reported."
+        ),
+        parameters=BULK_FILTER_PARAMETERS,
+        responses={
+            200: SuggestionSharedStateSerializer,
+            400: ErrorDetailSerializer,
+        },
+    )
+    @action(
+        detail=False,
+        methods=["get"],
+        url_path="shared_state",
+        url_name="bulk-shared-state",
+    )
+    def bulk_shared_state(self, request: Request) -> Response:
+        queryset = self.get_bulk_queryset()
+        return Response(SuggestionSharedStateSerializer(queryset.shared_state()).data)
 
     @extend_schema(
         operation_id="bulkChangeSuggestionStatus",

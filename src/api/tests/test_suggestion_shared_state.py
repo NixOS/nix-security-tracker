@@ -13,35 +13,28 @@ REFERENCE_URL = "https://example.com/advisory"
 REFERENCE_NAME = "Advisory"
 
 LIST_URL = reverse("cvederivationclusterproposal-list")
+SHARED_STATE_URL = reverse("cvederivationclusterproposal-bulk-shared-state")
 PACKAGES_URL = reverse("cvederivationclusterproposal-bulk-packages")
 
 # A filter that selects everything, since an unfiltered selection has no shared state.
 EVERYTHING = "created_at_after=2000-01-01"
 
 
-def shared_state(client: APIClient, query: str = EVERYTHING) -> dict | None:
-    """The shared state the list endpoint reports for a selection."""
-    response = client.get(f"{LIST_URL}?shared_state=true&{query}")
+def shared_state(client: APIClient, query: str = EVERYTHING) -> dict:
+    """The shared state reported for a selection."""
+    response = client.get(f"{SHARED_STATE_URL}?{query}")
     assert response.status_code == 200
-    return response.data["shared"]
+    return response.data
 
 
-def test_shared_state_is_null_unless_requested(
+def test_shared_state_of_unfiltered_selection_is_refused(
     make_cached_suggestion: Callable[..., CVEDerivationClusterProposal],
     anonymous_client: APIClient,
 ) -> None:
     make_cached_suggestion()
-    response = anonymous_client.get(f"{LIST_URL}?{EVERYTHING}")
-    assert response.status_code == 200
-    assert response.data["shared"] is None
-
-
-def test_shared_state_of_unfiltered_selection_is_empty(
-    make_cached_suggestion: Callable[..., CVEDerivationClusterProposal],
-    anonymous_client: APIClient,
-) -> None:
-    make_cached_suggestion()
-    assert shared_state(anonymous_client, query="") is None
+    response = anonymous_client.get(SHARED_STATE_URL)
+    assert response.status_code == 400
+    assert "requires at least one filter" in response.data["detail"]
 
 
 def test_shared_state_of_a_single_suggestion(
@@ -76,10 +69,12 @@ def test_shared_state_of_a_selection_larger_than_the_bulk_cap(
     make_cached_suggestion: Callable[..., CVEDerivationClusterProposal],
     anonymous_client: APIClient,
 ) -> None:
-    """Beyond what a bulk operation may affect, there is nothing to report."""
+    """Beyond what a bulk operation may affect, the shared state is refused."""
     for _ in range(2):
         make_cached_suggestion()
-    assert shared_state(anonymous_client) is None
+    response = anonymous_client.get(f"{SHARED_STATE_URL}?{EVERYTHING}")
+    assert response.status_code == 400
+    assert "more than the 1" in response.data["detail"]
 
 
 @override_settings(API_BULK_MAX_AFFECTED=1)
@@ -89,7 +84,9 @@ def test_shared_state_of_a_selection_narrowed_down_to_the_bulk_cap(
 ) -> None:
     make_cached_suggestion()
     make_cached_suggestion(status=CVEDerivationClusterProposal.Status.ACCEPTED)
-    assert shared_state(anonymous_client, "status=accepted") is not None
+    assert shared_state(anonymous_client, "status=accepted")["status"] == (
+        CVEDerivationClusterProposal.Status.ACCEPTED
+    )
 
 
 def test_shared_status_of_a_uniform_selection(
@@ -98,7 +95,7 @@ def test_shared_status_of_a_uniform_selection(
 ) -> None:
     for _ in range(2):
         make_cached_suggestion(status=CVEDerivationClusterProposal.Status.ACCEPTED)
-    assert shared_state(anonymous_client)["status"] == (  # type: ignore[index]
+    assert shared_state(anonymous_client)["status"] == (
         CVEDerivationClusterProposal.Status.ACCEPTED
     )
 
@@ -109,7 +106,7 @@ def test_shared_status_of_a_mixed_selection(
 ) -> None:
     make_cached_suggestion()
     make_cached_suggestion(status=CVEDerivationClusterProposal.Status.ACCEPTED)
-    assert shared_state(anonymous_client)["status"] is None  # type: ignore[index]
+    assert shared_state(anonymous_client)["status"] is None
 
 
 def test_shared_issue_draft_membership(
@@ -121,7 +118,7 @@ def test_shared_issue_draft_membership(
             status=CVEDerivationClusterProposal.Status.ACCEPTED,
             in_issue_draft=True,
         )
-    assert shared_state(anonymous_client)["in_issue_draft"] is True  # type: ignore[index]
+    assert shared_state(anonymous_client)["in_issue_draft"] is True
 
 
 def test_shared_issue_draft_membership_of_a_mixed_selection(
@@ -132,7 +129,7 @@ def test_shared_issue_draft_membership_of_a_mixed_selection(
         status=CVEDerivationClusterProposal.Status.ACCEPTED, in_issue_draft=True
     )
     make_cached_suggestion(status=CVEDerivationClusterProposal.Status.ACCEPTED)
-    assert shared_state(anonymous_client)["in_issue_draft"] is None  # type: ignore[index]
+    assert shared_state(anonymous_client)["in_issue_draft"] is None
 
 
 def test_shared_comment(
@@ -141,7 +138,7 @@ def test_shared_comment(
 ) -> None:
     for _ in range(2):
         make_cached_suggestion(comment="foo")
-    assert shared_state(anonymous_client)["comment"] == "foo"  # type: ignore[index]
+    assert shared_state(anonymous_client)["comment"] == "foo"
 
 
 def test_shared_absence_of_comment(
@@ -150,7 +147,7 @@ def test_shared_absence_of_comment(
 ) -> None:
     for _ in range(2):
         make_cached_suggestion()
-    assert shared_state(anonymous_client)["comment"] == ""  # type: ignore[index]
+    assert shared_state(anonymous_client)["comment"] == ""
 
 
 def test_comment_of_a_selection_saying_different_things(
@@ -159,7 +156,7 @@ def test_comment_of_a_selection_saying_different_things(
 ) -> None:
     make_cached_suggestion(comment="foo")
     make_cached_suggestion(comment="bar")
-    assert shared_state(anonymous_client)["comment"] is None  # type: ignore[index]
+    assert shared_state(anonymous_client)["comment"] is None
 
 
 def test_comment_of_a_selection_only_partly_commented(
@@ -168,7 +165,7 @@ def test_comment_of_a_selection_only_partly_commented(
 ) -> None:
     make_cached_suggestion(comment="foo")
     make_cached_suggestion()
-    assert shared_state(anonymous_client)["comment"] is None  # type: ignore[index]
+    assert shared_state(anonymous_client)["comment"] is None
 
 
 def test_shared_active_package(
@@ -178,7 +175,7 @@ def test_shared_active_package(
 ) -> None:
     for _ in range(2):
         make_cached_suggestion()
-    assert shared_state(anonymous_client)["packages"] == [  # type: ignore[index]
+    assert shared_state(anonymous_client)["packages"] == [
         {"state": "active", "attribute": drv.attribute}
     ]
 
@@ -190,7 +187,7 @@ def test_shared_ignored_package(
 ) -> None:
     for _ in range(2):
         make_cached_suggestion().ignore_package(drv.attribute)
-    assert shared_state(anonymous_client)["packages"] == [  # type: ignore[index]
+    assert shared_state(anonymous_client)["packages"] == [
         {"state": "ignored", "attribute": drv.attribute}
     ]
 
@@ -202,7 +199,7 @@ def test_package_in_different_states_is_not_shared(
 ) -> None:
     make_cached_suggestion()
     make_cached_suggestion().ignore_package(drv.attribute)
-    assert shared_state(anonymous_client)["packages"] == []  # type: ignore[index]
+    assert shared_state(anonymous_client)["packages"] == []
 
 
 def test_package_missing_from_a_suggestion_is_not_shared(
@@ -214,7 +211,7 @@ def test_package_missing_from_a_suggestion_is_not_shared(
     make_cached_suggestion(
         drvs={make_drv(pname="other"): ProvenanceFlags.PACKAGE_NAME_MATCH}
     )
-    assert shared_state(anonymous_client)["packages"] == []  # type: ignore[index]
+    assert shared_state(anonymous_client)["packages"] == []
 
 
 def test_shared_active_maintainer(
@@ -224,7 +221,7 @@ def test_shared_active_maintainer(
 ) -> None:
     for _ in range(2):
         make_cached_suggestion()
-    maintainers = shared_state(anonymous_client)["maintainers"]  # type: ignore[index]
+    maintainers = shared_state(anonymous_client)["maintainers"]
     assert [m["state"] for m in maintainers] == ["active"]
     assert maintainers[0]["maintainer"]["github_id"] == maintainer.github_id
 
@@ -236,7 +233,7 @@ def test_shared_ignored_maintainer(
 ) -> None:
     for _ in range(2):
         make_cached_suggestion().ignore_maintainer(maintainer.github_id)
-    maintainers = shared_state(anonymous_client)["maintainers"]  # type: ignore[index]
+    maintainers = shared_state(anonymous_client)["maintainers"]
     assert [m["state"] for m in maintainers] == ["ignored"]
     assert maintainers[0]["maintainer"]["github_id"] == maintainer.github_id
 
@@ -248,7 +245,7 @@ def test_maintainer_in_different_states_is_not_shared(
 ) -> None:
     make_cached_suggestion()
     make_cached_suggestion().ignore_maintainer(maintainer.github_id)
-    assert shared_state(anonymous_client)["maintainers"] == []  # type: ignore[index]
+    assert shared_state(anonymous_client)["maintainers"] == []
 
 
 @pytest.fixture
@@ -265,7 +262,7 @@ def test_shared_active_reference(
 ) -> None:
     for _ in range(2):
         make_cached_suggestion(container=container_with_reference)
-    references = shared_state(anonymous_client)["references"]  # type: ignore[index]
+    references = shared_state(anonymous_client)["references"]
     assert [r["state"] for r in references] == ["active"]
     assert references[0]["reference"]["url"] == REFERENCE_URL
 
@@ -279,7 +276,7 @@ def test_shared_ignored_reference(
         make_cached_suggestion(container=container_with_reference).ignore_reference(
             REFERENCE_URL
         )
-    references = shared_state(anonymous_client)["references"]  # type: ignore[index]
+    references = shared_state(anonymous_client)["references"]
     assert [r["state"] for r in references] == ["ignored"]
     assert references[0]["reference"]["url"] == REFERENCE_URL
 
@@ -293,7 +290,7 @@ def test_reference_in_different_states_is_not_shared(
     make_cached_suggestion(container=container_with_reference).ignore_reference(
         REFERENCE_URL
     )
-    assert shared_state(anonymous_client)["references"] == []  # type: ignore[index]
+    assert shared_state(anonymous_client)["references"] == []
 
 
 def test_a_shared_reference_is_identified_by_its_url_alone(
@@ -316,7 +313,7 @@ def test_a_shared_reference_is_identified_by_its_url_alone(
                 references=[(name, REFERENCE_URL, tags)],
             )
         )
-    references = shared_state(anonymous_client)["references"]  # type: ignore[index]
+    references = shared_state(anonymous_client)["references"]
     assert [(r["state"], r["reference"]["url"]) for r in references] == [
         ("active", REFERENCE_URL)
     ]
@@ -336,21 +333,8 @@ def test_a_shared_reference_keeps_the_name_the_suggestions_agree_on(
                 references=[(name, REFERENCE_URL, [])],
             )
         )
-    references = shared_state(anonymous_client)["references"]  # type: ignore[index]
+    references = shared_state(anonymous_client)["references"]
     assert references[0]["reference"]["name"] == REFERENCE_NAME
-
-
-def test_shared_state_describes_the_selection_rather_than_the_page(
-    make_cached_suggestion: Callable[..., CVEDerivationClusterProposal],
-    anonymous_client: APIClient,
-) -> None:
-    """Paging through a selection does not change what it has in common."""
-    for _ in range(15):
-        make_cached_suggestion(comment="needs a backport")
-    first_page = shared_state(anonymous_client, f"{EVERYTHING}&page=1")
-    second_page = shared_state(anonymous_client, f"{EVERYTHING}&page=2")
-    assert first_page == second_page
-    assert first_page["comment"] == "needs a backport"  # type: ignore[index]
 
 
 def test_a_shared_package_is_accepted_by_the_bulk_operation(
@@ -359,7 +343,7 @@ def test_a_shared_package_is_accepted_by_the_bulk_operation(
     staff_client: APIClient,
 ) -> None:
     suggestions = [make_cached_suggestion() for _ in range(2)]
-    packages = shared_state(staff_client, "status=pending")["packages"]  # type: ignore[index]
+    packages = shared_state(staff_client, "status=pending")["packages"]
     assert packages == [{"state": "active", "attribute": drv.attribute}]
 
     response = staff_client.patch(
