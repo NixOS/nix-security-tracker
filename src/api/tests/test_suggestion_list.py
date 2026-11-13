@@ -45,19 +45,12 @@ def test_suggestion_list_anonymous(
 def test_suggestion_list_paginated_shape(
     make_cached_suggestion: Callable[..., CVEDerivationClusterProposal],
 ) -> None:
-    """The response is paginated with count/next/previous/shared/results."""
+    """The response is paginated with count/next/previous/results."""
     client = APIClient()
     make_cached_suggestion()
     response = client.get(url())
     assert response.status_code == 200
-    assert set(response.data.keys()) == {
-        "count",
-        "next",
-        "previous",
-        "shared",
-        "results",
-    }
-    assert response.data["shared"] is None
+    assert set(response.data.keys()) == {"count", "next", "previous", "results"}
     assert response.data["count"] == 1
     assert len(response.data["results"]) == 1
     assert (
