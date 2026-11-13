@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "preact/hooks";
 import { useCommentMutation } from "@/hooks/useComment";
+import { cx } from "@/utils/className";
 import styles from "./Comment.module.css";
 
 type SaveState = "idle" | "pending" | "saving" | "saved" | "error";
@@ -71,7 +72,13 @@ export function Comment({ suggestionId, comment, canEdit, compact = false }: Pro
 
   return (
     <textarea
-      className={`box rounded border monospace ${styles.textarea} ${compact && "compact"} ${compact ? styles.compact : ""} ${stateClass}`}
+      className={cx(
+        "box rounded border monospace",
+        styles.textarea,
+        compact && "compact",
+        compact && styles.compact,
+        stateClass,
+      )}
       value={value}
       onInput={handleChange}
       placeholder={

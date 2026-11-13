@@ -8,6 +8,7 @@ import {
   MenuTrigger,
 } from "@ark-ui/react";
 import type { ComponentChildren } from "preact";
+import { cx } from "@/utils/className";
 import styles from "./Menu.module.css";
 
 export type MenuItemConfig = {
@@ -41,7 +42,11 @@ export function Menu({ trigger, items }: MenuProps) {
                 <MenuItem
                   key={entry.value}
                   value={entry.value}
-                  className={`row centered gap-small ${!entry.disabled && "cursor-pointer"} ${styles.item}`}
+                  className={cx(
+                    "row centered gap-small",
+                    !entry.disabled && "cursor-pointer",
+                    styles.item,
+                  )}
                   onSelect={entry.onSelect}
                   disabled={entry.disabled}
                 >
