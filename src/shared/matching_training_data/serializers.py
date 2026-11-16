@@ -431,7 +431,10 @@ class CVEDerivationClusterProposal(serializers.ModelSerializer):
                 pk__in=[drv.pk for drv in by_fingerprint.values()]
             )
         )
+        linked_attributes = {drv.attribute for drv in by_fingerprint.values()}
         for overlay in overlays_data:
+            if overlay["package_attribute"] not in linked_attributes:
+                continue
             models.PackageOverlay.objects.create(
                 suggestion=proposal,
                 package_attribute=overlay["package_attribute"],
