@@ -186,8 +186,9 @@ pkgs.testers.runNixOSTest {
         server.succeed("curl --fail http://localhost:${toString exporters.postgres.port}/metrics")
         server.succeed("curl --fail http://localhost:${toString exporters.sql.port}/metrics")
 
-      with subtest("Check that stylesheet is served"):
-        machine.succeed("curl --fail -H 'Host: example.org' http://localhost/static/nixos-logo.svg")
+      with subtest("Check that logos are served"):
+        for logo in ["nixos-logo.svg", "cveLogo.svg", "nixpkgsLogo.svg"]:
+          machine.succeed(f"curl --fail -H 'Host: example.org' http://localhost/static/{logo}")
 
       with subtest("Check that admin interface is served"):
         server.succeed("curl --fail -L -H 'Host: example.org' http://localhost/admin")

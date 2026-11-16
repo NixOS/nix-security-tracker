@@ -130,6 +130,8 @@ in
       wrapProgram $out/bin/manage.py --prefix PYTHONPATH : "$PYTHONPATH"
       mkdir -p $out/${final.python3.sitePackages}/webview/static/
       cp ${sources.nixos-logo} $out/${final.python3.sitePackages}/webview/static/nixos-logo.svg
+      cp ${sources.cve-logo} $out/${final.python3.sitePackages}/webview/static/cveLogo.svg
+      cp ${sources.nixos-logo-horizontal} $out/${final.python3.sitePackages}/webview/static/nixpkgsLogo.svg
     '';
   };
 }
