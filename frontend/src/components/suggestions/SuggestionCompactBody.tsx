@@ -1,8 +1,7 @@
 import type { Suggestion as SuggestionType } from "@/api/generated/models";
 import { AffectedProductsTree } from "./AffectedProductsTree";
 import { CategorizedReferencesList } from "./CategorizedReferencesList";
-import { Comment } from "./Comment";
-import { SuggestionStatusActions } from "./SuggestionStatusActions";
+import { SuggestionFooter } from "./SuggestionFooter";
 
 type Props = {
   suggestion: SuggestionType;
@@ -10,8 +9,7 @@ type Props = {
 };
 
 export function SuggestionCompactBody({ suggestion, userCanEdit }: Props) {
-  const { id, status, comment, in_issue_draft, affected_products, categorized_url_references } =
-    suggestion;
+  const { id, status, affected_products, categorized_url_references } = suggestion;
 
   return (
     <div className="column gap-big">
@@ -29,20 +27,7 @@ export function SuggestionCompactBody({ suggestion, userCanEdit }: Props) {
         )}
       </div>
 
-      {comment && !userCanEdit && (
-        <Comment suggestionId={id} comment={comment ?? null} canEdit={userCanEdit} compact />
-      )}
-
-      {userCanEdit && (
-        <SuggestionStatusActions
-          suggestionId={id}
-          status={status}
-          comment={comment}
-          inIssueDraft={in_issue_draft}
-        >
-          <Comment suggestionId={id} comment={comment ?? null} canEdit={userCanEdit} compact />
-        </SuggestionStatusActions>
-      )}
+      <SuggestionFooter suggestion={suggestion} userCanEdit={userCanEdit} compact />
     </div>
   );
 }

@@ -6,8 +6,7 @@ import { AffectedProductsTree } from "./AffectedProductsTree";
 import { CategorizedMaintainersList } from "./CategorizedMaintainersList";
 import { CategorizedPackagesList } from "./CategorizedPackagesList";
 import { CategorizedReferencesList } from "./CategorizedReferencesList";
-import { Comment } from "./Comment";
-import { SuggestionStatusActions } from "./SuggestionStatusActions";
+import { SuggestionFooter } from "./SuggestionFooter";
 
 type Props = {
   suggestion: SuggestionType;
@@ -18,8 +17,6 @@ export function SuggestionTabsBody({ suggestion, userCanEdit }: Props) {
   const {
     id,
     status,
-    comment,
-    in_issue_draft,
     affected_products,
     packages,
     original_packages,
@@ -91,20 +88,7 @@ export function SuggestionTabsBody({ suggestion, userCanEdit }: Props) {
         />
       )}
 
-      {comment && !userCanEdit && (
-        <Comment suggestionId={id} comment={comment ?? null} canEdit={userCanEdit} compact />
-      )}
-
-      {userCanEdit && (
-        <SuggestionStatusActions
-          suggestionId={id}
-          status={status}
-          comment={comment}
-          inIssueDraft={in_issue_draft}
-        >
-          <Comment suggestionId={id} comment={comment ?? null} canEdit={userCanEdit} compact />
-        </SuggestionStatusActions>
-      )}
+      <SuggestionFooter suggestion={suggestion} userCanEdit={userCanEdit} compact />
     </div>
   );
 }
