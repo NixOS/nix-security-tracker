@@ -8,11 +8,13 @@ Call the linkage resolver only - do not persist new proposals.
 from __future__ import annotations
 
 import math
+from collections import Counter, defaultdict
 from collections.abc import Iterable
-from typing import Annotated
+from typing import Annotated, Any
 
+from django.contrib.postgres.aggregates import BitOr
 from django.db.models import Q, QuerySet
-from pydantic import BaseModel, ConfigDict, PlainSerializer
+from pydantic import BaseModel, ConfigDict, Field, PlainSerializer, field_serializer
 
 from shared.evaluation import DerivationKey, derivation_as_key
 from shared.listeners.automatic_linkage import (
@@ -20,11 +22,17 @@ from shared.listeners.automatic_linkage import (
     resolve_linkage_candidates,
 )
 from shared.matching_training_data.serializers import (
-    _TRAINING_ORG_UUID,
     BENCHMARK_RELEASE_BRANCH,
+    TRAINING_ORG_UUID,
     pick_first_container,
 )
-from shared.models.linkage import CVEDerivationClusterProposal, PackageOverlay
+from shared.models.linkage import (
+    CVEDerivationClusterProposal,
+    DerivationClusterProposalLink,
+    PackageOverlay,
+    ProvenanceFlags,
+    SuggestionStatus,
+)
 
 
 def label_sets(
@@ -121,6 +129,112 @@ class BenchmarkReport(BaseModel):
     scores: list[ProposalScore]
 
 
+class Tally[Key](BaseModel):
+    """
+    How often each value of some property occurs among the curated matches, before and after curation.
+    """
+
+    matched: Counter[Key] = Field(
+        default_factory=Counter,
+        description="""
+        Occurrences in the linked set, before any curation.
+        """,
+    )
+    kept: Counter[Key] = Field(
+        default_factory=Counter,
+        description="""
+        Occurrences remaining after curation.
+        Always zero for rejected suggestions, because rejection discards the whole match.
+        """,
+    )
+    ignored: Counter[Key] = Field(
+        default_factory=Counter,
+        description="""
+        Occurrences the curator explicitly ignored.
+        Ignore decisions on packages the suggestion does not link are not counted.
+        """,
+    )
+
+    @field_serializer("matched", "kept", "ignored")
+    def serialize_counter(self, counter: Counter[Key]) -> dict[Any, int]:
+        """
+        Name the flags in reports, since their numeric values are meaningless to readers.
+        """
+        return {
+            key.name if isinstance(key, ProvenanceFlags) else key: count
+            for key, count in sorted(counter.items())
+        }
+
+
+class MatchTallies(BaseModel):
+    attribute_counts: dict[SuggestionStatus, Tally[int]] = Field(
+        default_factory=dict,
+        description="""
+        Number of suggestions per number of distinct attribute names.
+        For example, `{1: 5, 3: 2}` means five suggestions with one name and two suggestions with three names.
+        """,
+    )
+    provenance: dict[SuggestionStatus, Tally[ProvenanceFlags]] = Field(
+        default_factory=dict,
+        description="""
+        Number of attribute names per provenance flag, showing which reasons for a match tend to survive curation.
+        An attribute name with several flags counts towards each of them.
+        """,
+    )
+
+
+def tally_matches(proposals: QuerySet[CVEDerivationClusterProposal]) -> MatchTallies:
+    ids = proposals.values("pk")
+    statuses = dict(
+        CVEDerivationClusterProposal.objects.filter(pk__in=ids).values_list(
+            "pk", "status"
+        )
+    )
+    flags_by_proposal: defaultdict[int, dict[str, int]] = defaultdict(dict)
+    for row in (
+        DerivationClusterProposalLink.objects.filter(proposal__in=ids)
+        .values("proposal_id", "derivation__attribute")
+        .annotate(flags=BitOr("provenance_flags"))
+        .order_by()
+        .iterator(chunk_size=10_000)
+    ):
+        flags_by_proposal[row["proposal_id"]][row["derivation__attribute"]] = row[
+            "flags"
+        ]
+    ignored_by_suggestion: defaultdict[int, set[str]] = defaultdict(set)
+    for suggestion_id, attribute in PackageOverlay.objects.filter(
+        suggestion__in=ids, type=PackageOverlay.Type.IGNORED
+    ).values_list("suggestion_id", "package_attribute"):
+        ignored_by_suggestion[suggestion_id].add(attribute)
+
+    tallies = MatchTallies()
+    for proposal_id, proposal_status in statuses.items():
+        flags_by_attribute = flags_by_proposal[proposal_id]
+        matched = set(flags_by_attribute)
+        ignored = matched & ignored_by_suggestion[proposal_id]
+        kept = (
+            set()
+            if proposal_status == CVEDerivationClusterProposal.Status.REJECTED
+            else matched - ignored
+        )
+        status = SuggestionStatus(proposal_status)
+        attribute_counts = tallies.attribute_counts.setdefault(status, Tally[int]())
+        attribute_counts.matched[len(matched)] += 1
+        attribute_counts.kept[len(kept)] += 1
+        attribute_counts.ignored[len(ignored)] += 1
+        provenance = tallies.provenance.setdefault(status, Tally[ProvenanceFlags]())
+        flag_bits = [(flag, flag.value) for flag in ProvenanceFlags]
+        for attribute, attribute_flags in flags_by_attribute.items():
+            for flag, bit in flag_bits:
+                if attribute_flags & bit:
+                    provenance.matched[flag] += 1
+                    if attribute in kept:
+                        provenance.kept[flag] += 1
+                    if attribute in ignored:
+                        provenance.ignored[flag] += 1
+    return tallies
+
+
 def rematch(original: CVEDerivationClusterProposal) -> LinkageOutcome:
     """
     Re-run the matcher on the CVE container from a curated training match.
@@ -188,7 +302,7 @@ def training_corpus_queryset() -> QuerySet[CVEDerivationClusterProposal]:
             Q(
                 derivationclusterproposallink__derivation__parent_evaluation__on_branches__name=BENCHMARK_RELEASE_BRANCH
             )
-            | Q(cve__assigner__uuid=_TRAINING_ORG_UUID)
+            | Q(cve__assigner__uuid=TRAINING_ORG_UUID)
         )
         .distinct()
         .select_related("cve")

@@ -16,6 +16,7 @@ from shared.matching_training_data.benchmark import (
     aggregate,
     rematch,
     score_proposal,
+    tally_matches,
     training_corpus_queryset,
 )
 
@@ -46,10 +47,15 @@ class Command(BaseCommand):
             help="Suppress per-CVE ProposalScore lines (summary only).",
         )
         parser.add_argument(
+            "--tally-only",
+            action="store_true",
+            help="Tally the curated matches without running the matcher.",
+        )
+        parser.add_argument(
             "--output",
             type=Path,
             default=None,
-            help="Write aggregate and per-CVE scores to this JSON file.",
+            help="Write output to this JSON file.",
         )
 
     def handle(self, *args: Any, **options: Any) -> None:
@@ -57,10 +63,22 @@ class Command(BaseCommand):
         quiet: bool = options["quiet"]
         output: Path | None = options["output"]
 
-        self.stdout.write("Querying curated matching data...")
+        self.stderr.write("Querying curated matching data...")
         qs = training_corpus_queryset()
         if limit is not None:
             qs = qs[:limit]
+
+        if options["tally_only"]:
+            tallies = tally_matches(qs)
+            if output is None:
+                self.stdout.write(tallies.model_dump_json(indent=2))
+                return
+            output.parent.mkdir(parents=True, exist_ok=True)
+            output.write_text(
+                tallies.model_dump_json(indent=2) + "\n", encoding="utf-8"
+            )
+            self.stdout.write(f"Wrote match tallies to {output}")
+            return
 
         scores = []
         for i, original in enumerate(qs, start=1):
