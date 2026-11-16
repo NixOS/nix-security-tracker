@@ -237,9 +237,12 @@ class CVEDerivationClusterProposal(serializers.ModelSerializer):
         self, obj: models.CVEDerivationClusterProposal
     ) -> list[str]:
         return sorted(
-            overlay.package_attribute
-            for overlay in obj.package_overlays.all()
-            if overlay.type == models.PackageOverlay.Type.IGNORED
+            obj.package_overlays.filter(
+                type=models.PackageOverlay.Type.IGNORED,
+                package_attribute__in=obj.derivationclusterproposallink_set.values(
+                    "derivation__attribute"
+                ),
+            ).values_list("package_attribute", flat=True)
         )
 
     def get_kept_derivations(
@@ -280,7 +283,11 @@ class CVEDerivationClusterProposal(serializers.ModelSerializer):
         ]
         overlays = [
             PackageOverlay().to_representation(overlay)
-            for overlay in instance.package_overlays.order_by(
+            for overlay in instance.package_overlays.filter(
+                package_attribute__in=instance.derivationclusterproposallink_set.values(
+                    "derivation__attribute"
+                )
+            ).order_by(
                 "package_attribute",
                 "type",
             )
