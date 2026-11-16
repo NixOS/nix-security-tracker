@@ -13,6 +13,12 @@
       "url": "https://github.com/ryantm/agenix/archive/5e5b88a0c8e56f291a108c2fe9934054d9745b2e.tar.gz",
       "hash": "sha256-8tKjSQajD3mUND1GaAuaWTcuyUpgcGsh5V+l4ibzC7U="
     },
+    "cve-logo": {
+      "type": "Url",
+      "url": "https://www.cve.org/Resources/Media/LogoGuidelines/cveLogo.svg",
+      "unpack": false,
+      "hash": "sha256-xVMmlF1k+1gcLeZxoYuYP/xSpL0NpLZiIuFEsMtKhq0="
+    },
     "disko": {
       "type": "GitRelease",
       "repository": {
@@ -65,6 +71,12 @@
       "url": "https://brand.nixos.org/internals/nixos-logomark-white-flat-none.svg",
       "unpack": false,
       "hash": "sha256-00efVhs4+7AOH9Y8Evg1snHLSw54sg06iEEF/LaScwk="
+    },
+    "nixos-logo-horizontal": {
+      "type": "Url",
+      "url": "https://brand.nixos.org/internals/nixos-logo-rainbow-gradient-black-regular-horizontal-none.svg",
+      "unpack": false,
+      "hash": "sha256-WAfvUXklzU+EoSL9hnE46io4youvmCiU17A7cbRyUzY="
     },
     "nixpkgs": {
       "type": "Channel",
