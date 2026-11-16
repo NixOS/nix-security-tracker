@@ -99,7 +99,7 @@ def test_issue_list_wide_suggestion_toggle_affects_every_issue(
         card = page.get_by_test_id(f"suggestion-{suggestion.pk}")
         expect(card).to_be_visible()
         expect(
-            card.get_by_role("heading", name="Matching in nixpkgs", exact=True)
+            card.get_by_role("heading", name="Matching in Nixpkgs", exact=True)
         ).to_have_count(0)
 
 
@@ -128,7 +128,7 @@ def test_per_issue_suggestion_override_only_affects_that_issue(
         first_suggestion_card = page.get_by_test_id(f"suggestion-{suggestion.pk}")
         expect(
             first_suggestion_card.get_by_role(
-                "heading", name="Matching in nixpkgs", exact=True
+                "heading", name="Matching in Nixpkgs", exact=True
             )
         ).to_have_count(0)
     second_suggestion_card = page.get_by_test_id(
@@ -160,7 +160,7 @@ def test_per_suggestion_override_within_an_issue_only_affects_that_suggestion(
     first_card = page.get_by_test_id(f"suggestion-{first.pk}")
     second_card = page.get_by_test_id(f"suggestion-{second.pk}-collapsed")
     expect(
-        first_card.get_by_role("heading", name="Matching in nixpkgs", exact=True)
+        first_card.get_by_role("heading", name="Matching in Nixpkgs", exact=True)
     ).to_have_count(0)
     # Untouched by the override, the sibling suggestion stays at the inherited (collapsed)
     # view mode.

@@ -1,8 +1,7 @@
-import { PackageIcon } from "lucide-preact";
 import type { SuggestionOriginalPackages, SuggestionPackages } from "@/api/generated/models";
-import { InlineIcon } from "@/components/ui/InlineIcon";
 import { Package } from "./Package";
 import { SuggestionItemCollection } from "./SuggestionItemCollection";
+import { SuggestionSectionHeading } from "./SuggestionSectionHeadings";
 import { packageRows } from "./suggestionItems";
 
 type Props = {
@@ -23,12 +22,7 @@ export function CategorizedPackagesList({
   return (
     <SuggestionItemCollection
       rows={packageRows(original, active, ignored)}
-      label={
-        <>
-          <InlineIcon icon={PackageIcon} />
-          Matching in nixpkgs
-        </>
-      }
+      label={<SuggestionSectionHeading section="packages" />}
       testId={`suggestion-${suggestionId}-packages`}
       dividers
       renderRow={({ item, state }) => (

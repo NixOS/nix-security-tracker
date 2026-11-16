@@ -1,8 +1,7 @@
-import { LinkIcon } from "lucide-preact";
 import type { SuggestionCategorizedUrlReferences } from "@/api/generated/models";
-import { InlineIcon } from "@/components/ui/InlineIcon";
 import { Reference } from "./Reference";
 import { SuggestionItemCollection } from "./SuggestionItemCollection";
+import { SuggestionSectionHeading } from "./SuggestionSectionHeadings";
 import { referenceRows } from "./suggestionItems";
 
 type Props = {
@@ -19,12 +18,7 @@ export function CategorizedReferencesList({
   return (
     <SuggestionItemCollection
       rows={referenceRows(categorizedReferences)}
-      label={
-        <>
-          <InlineIcon icon={LinkIcon} />
-          References
-        </>
-      }
+      label={<SuggestionSectionHeading section="references" />}
       testId={`suggestion-${suggestionId}-references`}
       renderRow={({ item, state }) => (
         <Reference
