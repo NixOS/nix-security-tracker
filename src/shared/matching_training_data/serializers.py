@@ -30,7 +30,7 @@ BENCHMARK_RELEASE_BRANCH = "benchmark-master"
 _BENCHMARK_DUMMY_SHA1 = "0" * 40
 
 # Stable org for imported training CVEs
-_TRAINING_ORG_UUID = uuid.UUID("aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee")
+TRAINING_ORG_UUID = uuid.UUID("aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee")
 
 
 def ensure_benchmark_evaluation() -> models.NixEvaluation:
@@ -320,7 +320,7 @@ class CVEDerivationClusterProposal(serializers.ModelSerializer):
 
         models.CveRecord.objects.filter(cve_id=cve_id).delete()
         org, _ = models.Organization.objects.get_or_create(
-            uuid=_TRAINING_ORG_UUID,
+            uuid=TRAINING_ORG_UUID,
             defaults={"short_name": "training-data"},
         )
 

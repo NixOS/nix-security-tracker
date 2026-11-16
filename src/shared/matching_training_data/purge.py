@@ -7,8 +7,8 @@ from __future__ import annotations
 from django.db import transaction
 
 from shared.matching_training_data.serializers import (
-    _TRAINING_ORG_UUID,
     BENCHMARK_RELEASE_BRANCH,
+    TRAINING_ORG_UUID,
 )
 from shared.models.cve import CveRecord
 from shared.models.nix_evaluation import NixDerivation
@@ -24,9 +24,7 @@ def purge_training_corpus() -> dict[str, int]:
     """
     totals: dict[str, int] = {}
 
-    _, cve_details = CveRecord.objects.filter(
-        assigner__uuid=_TRAINING_ORG_UUID
-    ).delete()
+    _, cve_details = CveRecord.objects.filter(assigner__uuid=TRAINING_ORG_UUID).delete()
     for label, count in cve_details.items():
         totals[label] = totals.get(label, 0) + count
 
