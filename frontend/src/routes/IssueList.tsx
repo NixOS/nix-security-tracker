@@ -1,5 +1,4 @@
 import { CircleCheckIcon, CircleDotIcon, EyeIcon } from "lucide-preact";
-import { useSearchParams } from "wouter-preact";
 import { useListIssues } from "@/api/generated/endpoints";
 import { ListIssuesState } from "@/api/generated/models";
 import { Issue } from "@/components/issues/Issue";
@@ -11,18 +10,19 @@ import { Pagination } from "@/components/ui/Pagination";
 import { PillToggleGroup, type ToggleGroupOption } from "@/components/ui/PillToggleGroup";
 import { Skeleton } from "@/components/ui/Skeleton";
 import { useFilterParams } from "@/hooks/useFilterParams";
-import { useIssueListViewMode } from "@/hooks/useIssueViewMode";
-import { useSuggestionListViewMode } from "@/hooks/useSuggestionViewMode";
+import {
+  DEFAULT_ISSUE_VIEW_MODE,
+  ISSUE_VIEW_MODES,
+  ISSUE_VIEW_PARAM,
+} from "@/hooks/useIssueViewMode";
+import { usePageParam } from "@/hooks/usePageParam";
+import { SUGGESTION_VIEW_MODES, SUGGESTION_VIEW_PARAM } from "@/hooks/useSuggestionViewMode";
+import { useViewModeParam } from "@/hooks/useViewModeParam";
 import { getApiErrorMessage } from "@/utils/apiError";
 import { setParam } from "@/utils/searchParams";
 
 // FIXME(@florentc): Hardcoded in the API for now, we should ultimately make it a query param
 const PAGE_SIZE = 10;
-
-function parsePage(searchParams: URLSearchParams): number {
-  const raw = Number(searchParams.get("page"));
-  return Number.isInteger(raw) && raw > 0 ? raw : 1;
-}
 
 const STATE_OPTIONS: ToggleGroupOption[] = [
   {
@@ -51,14 +51,20 @@ function parseState(searchParams: URLSearchParams): ListIssuesState | undefined 
 }
 
 export function IssueList() {
-  const [searchParams, setSearchParams] = useSearchParams();
   const [filterParams, updateFilterParams] = useFilterParams();
-  const page = parsePage(searchParams);
+  const [page, handlePageChange] = usePageParam();
   const state = parseState(filterParams);
-  const { viewMode: issueViewMode, setViewMode: setIssueViewMode } = useIssueListViewMode();
+  const { viewMode: issueViewMode, setViewMode: setIssueViewMode } = useViewModeParam(
+    ISSUE_VIEW_PARAM,
+    ISSUE_VIEW_MODES,
+    DEFAULT_ISSUE_VIEW_MODE,
+  );
   // Nested suggestions default to collapsed in issue lists (unlike the standalone suggestion list).
-  const { viewMode: suggestionViewMode, setViewMode: setSuggestionViewMode } =
-    useSuggestionListViewMode("collapsed");
+  const { viewMode: suggestionViewMode, setViewMode: setSuggestionViewMode } = useViewModeParam(
+    SUGGESTION_VIEW_PARAM,
+    SUGGESTION_VIEW_MODES,
+    "collapsed",
+  );
 
   // Always fetch suggestions regardless of view mode, so toggling an issue's own view mode
   // (or the list-wide one) never changes the query key and re-triggers a full list reload.
@@ -71,19 +77,6 @@ export function IssueList() {
 
   const handleStateClick = (clicked: string) => {
     updateFilterParams(setParam("state", clicked === state ? "" : clicked));
-  };
-
-  const handlePageChange = (newPage: number) => {
-    setSearchParams((prev) => {
-      const next = new URLSearchParams(prev);
-      if (newPage <= 1) {
-        next.delete("page");
-      } else {
-        next.set("page", String(newPage));
-      }
-      return next;
-    });
-    window.scrollTo({ top: 0 });
   };
 
   return (
