@@ -1,9 +1,8 @@
-import { UserIcon } from "lucide-preact";
 import type { SuggestionCategorizedMaintainers } from "@/api/generated/models";
-import { InlineIcon } from "@/components/ui/InlineIcon";
 import { Maintainer } from "./Maintainer";
 import { MaintainerAddForm } from "./MaintainerAddForm";
 import { SuggestionItemCollection } from "./SuggestionItemCollection";
+import { SuggestionSectionHeading } from "./SuggestionSectionHeadings";
 import { maintainerRows } from "./suggestionItems";
 
 type Props = {
@@ -20,12 +19,7 @@ export function CategorizedMaintainersList({
   return (
     <SuggestionItemCollection
       rows={maintainerRows(categorizedMaintainers)}
-      label={
-        <>
-          <InlineIcon icon={UserIcon} />
-          Maintainers
-        </>
-      }
+      label={<SuggestionSectionHeading section="maintainers" />}
       testId={`suggestion-${suggestionId}-maintainers`}
       renderRow={({ item, state }) => (
         <Maintainer

@@ -1,4 +1,4 @@
-import { BugIcon, ChevronsDownUpIcon, ChevronsUpDownIcon, TargetIcon } from "lucide-preact";
+import { ChevronsDownUpIcon, ChevronsUpDownIcon, TargetIcon } from "lucide-preact";
 import { useMemo, useState } from "preact/hooks";
 import type { SuggestionAffectedProduct } from "@/api/generated/models";
 import { BorderFrame } from "@/components/ui/BorderFrame";
@@ -12,6 +12,7 @@ import {
   groupAffectedProducts,
 } from "@/utils/groupAffectedProducts";
 import { AffectedProduct } from "./AffectedProduct";
+import { SuggestionSectionHeading } from "./SuggestionSectionHeadings";
 
 type AffectedProductTreeViewNode = TreeViewNode & {
   product?: SuggestionAffectedProduct;
@@ -65,8 +66,7 @@ export function AffectedProductsTree({ affectedProducts }: Props) {
       rounded
       topLeft={
         <FrameLegend as="h2">
-          <InlineIcon icon={BugIcon} />
-          Affected products
+          <SuggestionSectionHeading section="affected-products" />
         </FrameLegend>
       }
     >

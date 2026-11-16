@@ -281,7 +281,7 @@ def test_notifications_list_wide_toggle_switches_to_detailed(
 
     card = as_staff.get_by_test_id(f"suggestion-{suggestion.pk}")
     expect(
-        card.get_by_role("heading", name="Matching in nixpkgs", exact=True)
+        card.get_by_role("heading", name="Matching in Nixpkgs", exact=True)
     ).to_be_visible()
     expect(card.get_by_role("heading", name="Maintainers", exact=True)).to_be_visible()
     expect(as_staff).to_have_url(re.compile(r"[?&]suggestionView=detailed"))
