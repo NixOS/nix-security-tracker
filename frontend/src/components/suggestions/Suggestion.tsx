@@ -6,6 +6,7 @@ import { ExternalLink } from "@/components/ui/ExternalLink";
 import { InlineIcon } from "@/components/ui/InlineIcon";
 import { LegendCard } from "@/components/ui/LegendCard";
 import { useAuth } from "@/hooks/useAuth";
+import { useInheritedViewMode } from "@/hooks/useInheritedViewMode";
 import {
   DEFAULT_SUGGESTION_VIEW_MODE,
   type SuggestionViewMode,
@@ -40,8 +41,10 @@ export function Suggestion({
   const { user } = useAuth();
   const userCanEdit = Boolean(user?.is_committer || user?.is_admin);
 
-  const [ownViewMode, setOwnViewMode] = useState<SuggestionViewMode | undefined>(undefined);
-  const viewMode = ownViewMode ?? inheritedViewMode;
+  const { viewMode, selectedViewMode, setOwnViewMode } = useInheritedViewMode(
+    inheritedViewMode,
+    allowViewModeClear,
+  );
   const [activityLogOpen, setActivityLogOpen] = useState(false);
 
   const nvdUrl = `https://nvd.nist.gov/vuln/detail/${encodeURIComponent(cve_id)}`;
@@ -58,12 +61,9 @@ export function Suggestion({
     </>
   );
 
-  // Only highlight the toggle when the suggestion has an explicit override of its own
-  const toggleValue = allowViewModeClear ? ownViewMode : viewMode;
-
   const viewToggleLegend = (
     <SuggestionViewToggle
-      value={toggleValue}
+      value={selectedViewMode}
       onChange={setOwnViewMode}
       iconOnly
       compact
