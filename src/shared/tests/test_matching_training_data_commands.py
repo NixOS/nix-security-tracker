@@ -17,8 +17,8 @@ from shared.matching_training_data import SCHEMA_VERSION
 from shared.matching_training_data import serializers as mtd
 from shared.matching_training_data.purge import purge_training_corpus
 from shared.matching_training_data.serializers import (
-    _TRAINING_ORG_UUID,
     BENCHMARK_RELEASE_BRANCH,
+    TRAINING_ORG_UUID,
 )
 from shared.models.cve import Container, CveRecord
 from shared.models.linkage import (
@@ -411,7 +411,7 @@ def test_purge_removes_imported_training_data(tmp_path: Path, db: None) -> None:
 
 
 def test_purge_training_corpus_empty(db: None) -> None:
-    assert not CveRecord.objects.filter(assigner__uuid=_TRAINING_ORG_UUID).exists()
+    assert not CveRecord.objects.filter(assigner__uuid=TRAINING_ORG_UUID).exists()
     assert not NixDerivation.objects.filter(
         parent_evaluation__on_branches__name=BENCHMARK_RELEASE_BRANCH
     ).exists()
@@ -419,7 +419,7 @@ def test_purge_training_corpus_empty(db: None) -> None:
     result = purge_training_corpus()
 
     assert result == {}
-    assert not CveRecord.objects.filter(assigner__uuid=_TRAINING_ORG_UUID).exists()
+    assert not CveRecord.objects.filter(assigner__uuid=TRAINING_ORG_UUID).exists()
     assert not NixDerivation.objects.filter(
         parent_evaluation__on_branches__name=BENCHMARK_RELEASE_BRANCH
     ).exists()

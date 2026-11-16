@@ -6,9 +6,11 @@ from __future__ import annotations
 
 import json
 import math
+from collections import Counter
 from collections.abc import Callable
 from io import StringIO
 from pathlib import Path
+from typing import Any
 
 import pytest
 from django.core.management import call_command
@@ -18,14 +20,16 @@ from shared.matching_training_data import ensure_benchmark_evaluation
 from shared.matching_training_data.benchmark import (
     AggregateReport,
     ProposalScore,
+    Tally,
     aggregate,
     label_sets,
     rematch,
     score_proposal,
     snr,
     snr_for_json,
+    tally_matches,
 )
-from shared.matching_training_data.serializers import _TRAINING_ORG_UUID
+from shared.matching_training_data.serializers import TRAINING_ORG_UUID
 from shared.models.cve import Container, Organization
 from shared.models.linkage import (
     CVEDerivationClusterProposal,
@@ -264,10 +268,10 @@ def test_benchmark_matching_command_summary(
     )
     _proposal(container, drv)
     out = StringIO()
-    call_command("benchmark_matching", stdout=out)
-    text = out.getvalue()
-    assert "Querying curated matching data..." in text
-    assert "true_positives" in text
+    err = StringIO()
+    call_command("benchmark_matching", stdout=out, stderr=err)
+    assert "Querying curated matching data..." in err.getvalue()
+    assert "true_positives" in out.getvalue()
 
 
 def test_benchmark_matching_writes_json_report(
@@ -281,7 +285,7 @@ def test_benchmark_matching_writes_json_report(
         cve_id="CVE-2026-bench-json", package_name=pkg, product=pkg
     )
     org, _created = Organization.objects.get_or_create(
-        uuid=_TRAINING_ORG_UUID,
+        uuid=TRAINING_ORG_UUID,
         defaults={"short_name": "training"},
     )
     container.cve.assigner = org
@@ -318,3 +322,197 @@ def test_benchmark_matching_writes_json_report(
             }
         ],
     }
+
+
+def add_to_training_corpus(container: Container) -> None:
+    org, _created = Organization.objects.get_or_create(
+        uuid=TRAINING_ORG_UUID,
+        defaults={"short_name": "training"},
+    )
+    container.cve.assigner = org
+    container.cve.save(update_fields=["assigner"])
+
+
+@pytest.mark.parametrize(
+    "derivations, overlays, status, matched, kept, ignored",
+    [
+        # Attribute names are counted once however many systems carry them.
+        pytest.param(
+            [("foo", "x86_64-linux"), ("foo", "aarch64-linux")],
+            (),
+            CVEDerivationClusterProposal.Status.ACCEPTED,
+            1,
+            1,
+            0,
+            id="name-counted-once-across-systems",
+        ),
+        pytest.param(
+            [("foo", "x86_64-linux"), ("foo.tests", "x86_64-linux")],
+            ("foo.tests",),
+            CVEDerivationClusterProposal.Status.ACCEPTED,
+            2,
+            1,
+            1,
+            id="ignored-name-is-not-kept",
+        ),
+        # An ignored package the suggestion does not link is not counted.
+        pytest.param(
+            [("baz", "x86_64-linux")],
+            ("gone",),
+            CVEDerivationClusterProposal.Status.PUBLISHED,
+            1,
+            1,
+            0,
+            id="ignore-on-unlinked-package-not-counted",
+        ),
+        pytest.param(
+            [("qux", "x86_64-linux")],
+            (),
+            CVEDerivationClusterProposal.Status.REJECTED,
+            1,
+            0,
+            0,
+            id="rejection-keeps-nothing",
+        ),
+    ],
+)
+def test_tally_matches_counts_attribute_names(
+    make_container: Callable[..., Container],
+    make_drv: Callable[..., NixDerivation],
+    derivations: list[tuple[str, str]],
+    overlays: tuple[str, ...],
+    status: CVEDerivationClusterProposal.Status,
+    matched: int,
+    kept: int,
+    ignored: int,
+) -> None:
+    proposal = _proposal(
+        make_container(cve_id="CVE-2026-lbl", package_name="a"),
+        *(
+            make_drv(pname=attribute, attribute=attribute, system=system)
+            for attribute, system in derivations
+        ),
+        status=status,
+        rejection_reason=(
+            CVEDerivationClusterProposal.RejectionReason.NOT_IN_NIXPKGS
+            if status == CVEDerivationClusterProposal.Status.REJECTED
+            else None
+        ),
+        ignored=overlays,
+    )
+
+    assert tally_matches(
+        CVEDerivationClusterProposal.objects.filter(pk=proposal.pk)
+    ).attribute_counts == {
+        status: Tally[int](
+            matched=Counter({matched: 1}),
+            kept=Counter({kept: 1}),
+            ignored=Counter({ignored: 1}),
+        )
+    }
+
+
+def test_tally_matches_counts_provenance_per_flag(
+    make_container: Callable[..., Container],
+    make_drv: Callable[..., NixDerivation],
+) -> None:
+    container = make_container(cve_id="CVE-2026-lbl-flags", package_name="a")
+    proposal = _proposal(container, ignored=("noisy",))
+    for attr, system, flags in (
+        (
+            "good",
+            "x86_64-linux",
+            ProvenanceFlags.CPE_MATCH | ProvenanceFlags.PRODUCT_MATCH,
+        ),
+        (
+            "good",
+            "aarch64-linux",
+            ProvenanceFlags.CPE_MATCH | ProvenanceFlags.PRODUCT_MATCH,
+        ),
+        (
+            "noisy",
+            "x86_64-linux",
+            ProvenanceFlags.CPE_MATCH | ProvenanceFlags.PACKAGE_NAME_MATCH,
+        ),
+    ):
+        DerivationClusterProposalLink.objects.create(
+            proposal=proposal,
+            derivation=make_drv(pname=attr, attribute=attr, system=system),
+            provenance_flags=int(flags),
+        )
+
+    # An attribute name with several flags counts towards each of them.
+    # Each attribute name counts once, however many systems carry it.
+    assert tally_matches(
+        CVEDerivationClusterProposal.objects.filter(pk=proposal.pk)
+    ).provenance == {
+        CVEDerivationClusterProposal.Status.ACCEPTED: Tally[ProvenanceFlags](
+            matched=Counter(
+                {
+                    ProvenanceFlags.CPE_MATCH: 2,
+                    ProvenanceFlags.PRODUCT_MATCH: 1,
+                    ProvenanceFlags.PACKAGE_NAME_MATCH: 1,
+                }
+            ),
+            kept=Counter(
+                {
+                    ProvenanceFlags.CPE_MATCH: 1,
+                    ProvenanceFlags.PRODUCT_MATCH: 1,
+                    ProvenanceFlags.PACKAGE_NAME_MATCH: 0,
+                }
+            ),
+            ignored=Counter(
+                {
+                    ProvenanceFlags.CPE_MATCH: 1,
+                    ProvenanceFlags.PRODUCT_MATCH: 0,
+                    ProvenanceFlags.PACKAGE_NAME_MATCH: 1,
+                }
+            ),
+        )
+    }
+
+
+def test_tally_matches_accumulates_per_status(
+    make_container: Callable[..., Container],
+    make_drv: Callable[..., NixDerivation],
+) -> None:
+    proposals = [
+        _proposal(
+            make_container(cve_id=cve_id, package_name="a"),
+            make_drv(pname=cve_id, attribute=cve_id),
+        )
+        for cve_id in ("CVE-2026-lbl-one", "CVE-2026-lbl-two")
+    ]
+
+    tallies = tally_matches(
+        CVEDerivationClusterProposal.objects.filter(
+            pk__in=[proposal.pk for proposal in proposals]
+        )
+    )
+
+    assert tallies.attribute_counts[
+        CVEDerivationClusterProposal.Status.ACCEPTED
+    ].matched == Counter({1: 2})
+
+
+def test_tally_only_does_not_run_the_matcher(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    make_container: Callable[..., Container],
+    make_drv: Callable[..., NixDerivation],
+) -> None:
+    container = make_container(cve_id="CVE-2026-lbl-norun", package_name="a")
+    add_to_training_corpus(container)
+    _proposal(container, make_drv(pname="a", attribute="a"))
+
+    def fail(*args: Any, **kwargs: Any) -> None:
+        raise AssertionError("matcher ran")
+
+    monkeypatch.setattr("shared.management.commands.benchmark_matching.rematch", fail)
+    monkeypatch.setattr(
+        "shared.matching_training_data.benchmark.resolve_linkage_candidates", fail
+    )
+    path = tmp_path / "labels.json"
+    call_command("benchmark_matching", "--tally-only", "--quiet", "--output", str(path))
+
+    assert "scores" not in json.loads(path.read_text())
