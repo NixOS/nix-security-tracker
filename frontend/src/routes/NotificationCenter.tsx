@@ -1,5 +1,4 @@
 import { BellCheckIcon, BellMinusIcon, EyeIcon } from "lucide-preact";
-import { useSearchParams } from "wouter-preact";
 import { useListNotifications } from "@/api/generated/endpoints";
 import { NotificationItem } from "@/components/notifications/NotificationItem";
 import { SuggestionViewToggle } from "@/components/suggestions/SuggestionViewToggle";
@@ -11,23 +10,22 @@ import {
   useClearReadNotificationsMutation,
   useMarkAllNotificationsReadMutation,
 } from "@/hooks/useNotificationMutations";
-import { useSuggestionListViewMode } from "@/hooks/useSuggestionViewMode";
+import { usePageParam } from "@/hooks/usePageParam";
+import { SUGGESTION_VIEW_MODES, SUGGESTION_VIEW_PARAM } from "@/hooks/useSuggestionViewMode";
+import { useViewModeParam } from "@/hooks/useViewModeParam";
 import { getApiErrorMessage } from "@/utils/apiError";
 
 // Must match the page size in `src/api/notifications/views.py`.
 const PAGE_SIZE = 10;
 
-function parsePage(searchParams: URLSearchParams): number {
-  const raw = Number(searchParams.get("page"));
-  return Number.isInteger(raw) && raw > 0 ? raw : 1;
-}
-
 export function NotificationCenter() {
   const { isAuthenticated, isLoading: isAuthLoading } = useAuth();
-  const [searchParams, setSearchParams] = useSearchParams();
-  const page = parsePage(searchParams);
-  const { viewMode: suggestionViewMode, setViewMode: setSuggestionViewMode } =
-    useSuggestionListViewMode("collapsed");
+  const [page, handlePageChange] = usePageParam();
+  const { viewMode: suggestionViewMode, setViewMode: setSuggestionViewMode } = useViewModeParam(
+    SUGGESTION_VIEW_PARAM,
+    SUGGESTION_VIEW_MODES,
+    "collapsed",
+  );
 
   // We inline the suggestions and their activity logs in the response
   const { data, isLoading, isError, error } = useListNotifications(
@@ -37,19 +35,6 @@ export function NotificationCenter() {
 
   const markAllReadMutation = useMarkAllNotificationsReadMutation();
   const clearReadMutation = useClearReadNotificationsMutation();
-
-  const handlePageChange = (newPage: number) => {
-    setSearchParams((prev) => {
-      const next = new URLSearchParams(prev);
-      if (newPage <= 1) {
-        next.delete("page");
-      } else {
-        next.set("page", String(newPage));
-      }
-      return next;
-    });
-    window.scrollTo({ top: 0 });
-  };
 
   const handleClearRead = () => {
     if (window.confirm("Delete all of your read notifications? This cannot be undone.")) {

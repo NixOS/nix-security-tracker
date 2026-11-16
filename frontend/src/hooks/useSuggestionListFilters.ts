@@ -3,6 +3,7 @@ import type { ListSuggestionsStatusItem } from "@/api/generated/models";
 import { ListSuggestionsStatusItem as Status } from "@/api/generated/models";
 import { useFilterParams } from "@/hooks/useFilterParams";
 import { paths } from "@/routes/paths";
+import { DAY_PATTERN } from "@/utils/date";
 import { type ParamsUpdate, pipe, resetPage, setParam } from "@/utils/searchParams";
 
 /** URL-search-param-backed suggestion list filters. */
@@ -21,8 +22,6 @@ const VALID_STATUSES = new Set<string>(Object.values(Status));
 function isValidStatus(value: string): value is ListSuggestionsStatusItem {
   return VALID_STATUSES.has(value);
 }
-
-const DAY_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
 
 // The API rejects malformed dates with a 400, so a hand-edited URL is dropped rather than forwarded.
 function parseDay(value: string | null): string {
