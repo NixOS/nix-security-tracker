@@ -1,7 +1,7 @@
 .rows {
   display: flex;
   flex-direction: column;
-  gap: 0.5em;
+  gap: var(--space-s);
 }
 
 /* Lines between rows, giving the spacing instead of a gap. */
@@ -10,18 +10,18 @@
 }
 
 .dividers > *:not(:first-child) {
-  padding-top: 0.5em;
+  padding-top: var(--space-s);
 }
 
 .dividers > *:not(:last-child) {
-  padding-bottom: 0.5em;
-  border-bottom: 1px solid var(--light-gray);
+  padding-bottom: var(--space-s);
+  border-bottom: var(--border-thin) solid var(--light-gray);
 }
 
 .row {
   display: flex;
   align-items: baseline;
-  gap: 1em;
+  gap: var(--space-m);
 }
 
 .action {
@@ -38,9 +38,9 @@
 }
 
 .ignoredToggle {
-  padding: 0.35em 0.6em;
-  border: 1px solid transparent;
-  border-radius: 0.4em;
+  padding: var(--space-xs) var(--space-s);
+  border: var(--border-thin) solid transparent;
+  border-radius: var(--radius);
   background: transparent;
   color: inherit;
   font: inherit;

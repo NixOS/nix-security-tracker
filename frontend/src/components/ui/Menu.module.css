@@ -8,13 +8,13 @@
 }
 
 .groupLabel {
-  padding: 0.5em 1em;
+  padding: var(--space-s) var(--space-m);
   font-weight: bold;
-  font-size: 0.9em;
+  font-size: var(--text-s);
 }
 
 .item {
-  padding: 0.5em 1em;
+  padding: var(--space-s) var(--space-m);
   cursor: pointer;
   outline: none;
 }
@@ -30,7 +30,7 @@
 
 .separator {
   border: none;
-  height: 1px;
+  height: var(--border-thin);
   background-color: var(--light-gray);
-  margin: 0.1em 0;
+  margin: var(--space-3xs) 0;
 }

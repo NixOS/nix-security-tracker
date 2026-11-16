@@ -1,5 +1,5 @@
 .item {
-  padding: 0.3em 0.8em;
+  padding: var(--space-xs) 0.8em;
   background: var(--light-gray);
   color: inherit;
   flex-grow: 1;
@@ -21,12 +21,12 @@
 .segmentedRoot {
   display: flex;
   flex-wrap: wrap;
-  gap: 1px;
+  gap: var(--border-thin);
   /* Shows through the 1px flex gaps as divider lines, both between items in
    * a row and between wrapped rows, without any per-item border hacks. */
   background-color: var(--gray);
-  border: 1px solid var(--gray);
-  border-radius: 0.4em;
+  border: var(--border-thin) solid var(--gray);
+  border-radius: var(--radius);
   max-width: 100%;
   overflow: hidden;
 }
@@ -34,7 +34,7 @@
 .segmentedItem {
   border: none;
   border-radius: 0;
-  padding: 0.35em 0.6em;
+  padding: var(--space-xs) var(--space-s);
 }
 
 /* The icon matching the inherited/parent-scope view mode is shown in black
@@ -45,7 +45,7 @@
 }
 
 .compact {
-  font-size: 0.85em;
+  font-size: var(--text-s);
 }
 
 /* Blends into the white background of a `BorderFrame` slot. */

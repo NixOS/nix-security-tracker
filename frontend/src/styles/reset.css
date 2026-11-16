@@ -46,9 +46,9 @@ body {
 main {
   flex: 1;
   width: 100%;
-  max-width: 70em;
-  margin: 2em auto;
-  padding: 1em;
+  max-width: var(--content-width);
+  margin: var(--space-l) auto;
+  padding: var(--space-m);
 }
 
 /* Remove list styles on lists */

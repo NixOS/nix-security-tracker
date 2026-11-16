@@ -1,4 +1,4 @@
 .legend {
-  padding: 0 0.5em;
+  padding: 0 var(--space-s);
   white-space: nowrap;
 }

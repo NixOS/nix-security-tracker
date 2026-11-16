@@ -15,9 +15,9 @@
 }
 
 .before {
-  margin-inline-end: 0.3em;
+  margin-inline-end: var(--space-xs);
 }
 
 .after {
-  margin-inline-start: 0.3em;
+  margin-inline-start: var(--space-xs);
 }

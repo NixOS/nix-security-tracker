@@ -9,10 +9,10 @@
 }
 
 .tab {
-  padding: 0 1em 0.5em 1em;
+  padding: 0 var(--space-m) var(--space-s) var(--space-m);
   background: none;
   border: none;
-  border-bottom: 0.2em solid transparent;
+  border-bottom: var(--border-thick) solid transparent;
   cursor: pointer;
   font-size: 1em;
   outline: none;

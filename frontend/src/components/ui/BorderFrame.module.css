@@ -1,6 +1,6 @@
 .frame {
-  --frame-padding-x: 1em;
-  --frame-border-width: 1px;
+  --frame-padding-x: var(--space-m);
+  --frame-border-width: var(--border-thin);
   /* Distance between a slot and the frame's side. */
   --slot-inset-base: 0.85em;
   --slot-inset: var(--slot-inset-base);
@@ -9,7 +9,7 @@
 
   position: relative;
   border: var(--frame-border-width) solid var(--gray);
-  padding: 1em var(--frame-padding-x);
+  padding: var(--space-m) var(--frame-padding-x);
   overflow: visible;
 }
 
@@ -20,12 +20,12 @@
 /* Slots overhang the border by half their height:
  * room inside so they don't cover content, and outside so they don't cover neighbours. */
 .withTop {
-  padding-top: calc(var(--slot-height) / 2 + 0.3em);
+  padding-top: calc(var(--slot-height) / 2 + var(--space-xs));
   margin-top: calc(var(--slot-height) / 2);
 }
 
 .withBottom {
-  padding-bottom: calc(var(--slot-height) / 2 + 0.3em);
+  padding-bottom: calc(var(--slot-height) / 2 + var(--space-xs));
   margin-bottom: calc(var(--slot-height) / 2);
 }
 

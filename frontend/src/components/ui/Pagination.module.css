@@ -1,5 +1,5 @@
 .compact {
-  gap: 0.2em;
+  gap: var(--space-2xs);
 }
 
 .page[data-selected] {
