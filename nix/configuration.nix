@@ -165,8 +165,8 @@ in
           let
             parallelism = cfg.suggestionRefreshProcesses + 1; # account for periodic backfill
             # fall back to implicit Postgres defaults
-            connections = cfg.services.postgresql.settings.max_connections or 100;
-            locks = cfg.services.postgresql.settings.max_locks_per_transaction or 64;
+            connections = config.services.postgresql.settings.max_connections or 100;
+            locks = config.services.postgresql.settings.max_locks_per_transaction or 64;
           in
           connections * locks / parallelism * 4 / 5; # add some margin for other transactions
         REVISION =
