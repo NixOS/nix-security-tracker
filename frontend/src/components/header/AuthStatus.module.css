@@ -1,5 +1,5 @@
 .avatar {
-  outline-width: 2px;
+  outline-width: var(--border-thick);
   outline-color: white;
   width: 2em;
   height: 2em;
@@ -22,8 +22,7 @@
   right: -0.5em;
   width: 1.4em;
   height: 1.4em;
-  padding: 0.05em;
-  font-size: 0.9em;
+  font-size: var(--text-s);
   text-align: center;
   background-color: var(--nixos-blue);
 }

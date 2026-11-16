@@ -24,7 +24,7 @@
 }
 
 .viewControl {
-  margin-bottom: 0.5em;
+  margin-bottom: var(--space-s);
 }
 
 .weekDay {
@@ -39,7 +39,7 @@
   background: none;
   color: inherit;
   font: inherit;
-  padding: 0.3em 0.5em;
+  padding: var(--space-xs) var(--space-s);
   text-align: center;
 }
 
@@ -66,5 +66,5 @@
 }
 
 .cell:not([data-disabled]):hover {
-  outline: 1px solid var(--nixos-blue);
+  outline: var(--border-thin) solid var(--nixos-blue);
 }

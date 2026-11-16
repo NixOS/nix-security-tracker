@@ -1,8 +1,8 @@
 .container {
   width: 100%;
   overflow-x: auto;
-  padding: 0.3em;
-  border-radius: 0.4em 0 0.4em 0.4em;
+  padding: var(--space-xs);
+  border-radius: var(--radius) 0 var(--radius) var(--radius);
   transition: background-color 0.2s ease;
 }
 
@@ -12,14 +12,14 @@
 
 .reminder {
   padding: 0;
-  padding-bottom: 0.5em;
-  border-radius: 0.4em 0.4em 0 0;
+  padding-bottom: var(--space-s);
+  border-radius: var(--radius) var(--radius) 0 0;
   transition: background-color 0.2s ease;
 }
 
 .reminderOpen {
-  padding-left: 0.5em;
-  padding-right: 0.5em;
+  padding-left: var(--space-s);
+  padding-right: var(--space-s);
   background-color: var(--light-gray);
 }
 
@@ -29,7 +29,7 @@
 }
 
 .table td {
-  padding: 0.1em 0.3em;
+  padding: var(--space-3xs) var(--space-xs);
   vertical-align: baseline;
   overflow: hidden;
   text-overflow: ellipsis;

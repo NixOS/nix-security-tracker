@@ -4,8 +4,8 @@
  */
 
 .cvss {
-  padding: 0 0.3em;
-  margin: 0 0.3em;
+  padding: 0 var(--space-xs);
+  margin: 0 var(--space-xs);
   font-weight: bold;
   display: inline;
 }

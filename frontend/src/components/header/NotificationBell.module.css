@@ -8,10 +8,10 @@
   position: absolute;
   top: -0.5em;
   right: -0.5em;
-  width: 1.3em;
-  height: 1.3em;
-  padding: 0.1 0.1em;
-  font-size: 0.9em;
+  width: 1.4em;
+  height: 1.4em;
+  padding: var(--space-3xs);
+  font-size: var(--text-s);
   text-align: center;
   background-color: red;
 }

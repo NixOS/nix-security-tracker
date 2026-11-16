@@ -3,10 +3,10 @@
 }
 
 .tab {
-  padding: 0.2em 1em 0.5em 1em;
+  padding: var(--space-2xs) var(--space-m) var(--space-s) var(--space-m);
   background: none;
   border: none;
-  border-radius: 0.6em 0.6em 0 0;
+  border-radius: var(--radius) var(--radius) 0 0;
   color: inherit;
   outline: none;
 }

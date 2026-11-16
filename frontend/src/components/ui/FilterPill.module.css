@@ -1,5 +1,5 @@
 .pill {
-  padding: 0.35em 0.8em;
+  padding: var(--space-xs) 0.8em;
   width: fit-content;
 }
 
