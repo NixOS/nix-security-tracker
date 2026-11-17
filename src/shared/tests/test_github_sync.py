@@ -3,16 +3,17 @@ Test suite for GitHub sync utilities
 """
 
 from typing import Any
+from unittest import mock
 
 from allauth.socialaccount.models import SocialAccount, SocialLogin
-from django.apps import apps
 from django.conf import settings
 from django.contrib.auth.models import User
 from django.test import TestCase
 
 from shared.auth import isadmin, iscommitter
-from shared.auth.github_state import GithubState, set_groups_for_new_user
+from shared.auth.github_state import GithubState, get_github_state
 from shared.auth.github_webhook import handle_webhook
+from shared.listeners.github_teams import set_groups_for_new_user
 
 
 # Mock classes
@@ -123,6 +124,15 @@ def create_users_with_sociallogin(
 
 # Test suite
 class GithubSyncTests(TestCase):
+    def use_github_state(self, gh_state: GithubState) -> None:
+        """
+        Make `get_github_state()` return `gh_state` for the rest of the test.
+        """
+        get_github_state.cache_clear()
+        with mock.patch("shared.auth.github_state.GithubState", return_value=gh_state):
+            get_github_state()
+        self.addCleanup(get_github_state.cache_clear)
+
     @classmethod
     def setUpTestData(cls: Any) -> None:
         # Create users
@@ -264,10 +274,12 @@ class GithubSyncTests(TestCase):
 
     def test_sync_groups_for_new_users(self) -> None:
         # Setup mock GitHub state
-        apps.get_app_config("shared").github_state = GithubState(  # type: ignore
-            github=MockGithub(  # type: ignore
-                security_ids=[self.security_users[0].account.uid],
-                committer_ids=[self.committer_users[0].account.uid],
+        self.use_github_state(
+            GithubState(
+                github=MockGithub(  # type: ignore
+                    security_ids=[self.security_users[0].account.uid],
+                    committer_ids=[self.committer_users[0].account.uid],
+                )
             )
         )
 
@@ -292,7 +304,7 @@ class GithubSyncTests(TestCase):
     def test_sync_groups_from_webhook_payload(self) -> None:
         # Setup mock GitHub state
         gh_state = GithubState(github=MockGithub())  # type: ignore
-        apps.get_app_config("shared").github_state = gh_state  # type: ignore
+        self.use_github_state(gh_state)
 
         # Mocked webhook payloads
         event = "membership"
@@ -343,7 +355,7 @@ class GithubSyncTests(TestCase):
     def test_webhook_missing_user(self) -> None:
         # Avoid caching state issues by properly mocking gh_state
         gh_state = GithubState(github=MockGithub())  # type: ignore
-        apps.get_app_config("shared").github_state = gh_state  # type: ignore
+        self.use_github_state(gh_state)
 
         payload = {
             "action": "added",
@@ -358,7 +370,7 @@ class GithubSyncTests(TestCase):
     def test_webhook_wrong_provider(self) -> None:
         # Avoid caching state issues by properly mocking gh_state
         gh_state = GithubState(github=MockGithub())  # type: ignore
-        apps.get_app_config("shared").github_state = gh_state  # type: ignore
+        self.use_github_state(gh_state)
 
         # Create a malicious Google account using the same UID as an intended victim
         victim_github_uid = 88888
