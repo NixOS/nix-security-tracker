@@ -1,27 +1,22 @@
 """
 Utilities to sync the user groups in our database with GitHub teams in order to correctly map permissions.
 
-We implement a class, an instance of which is lazily attached to the `shared` app config
-(see `SharedConfig.github_state`) in order to conveniently:
+We implement a class, an instance of which is lazily created by `get_github_state()`
+in order to conveniently:
 - cache remote data that only needs to be fetched once
 - access data that needs to be fetched repeatedly
 It will persist for the entire process lifetime.
 
-Importing this module registers a hook to update group memberships on user signup.
+Group memberships of new users are set on sign-up, see `shared.listeners.github_teams`.
 The full sync of all users is run by `manage sync_github_teams`.
 """
 
 import logging
-from typing import Any
+from functools import cache
 
-from allauth.account.signals import user_signed_up
-from allauth.socialaccount.models import SocialLogin
-from django.apps import apps
 from django.conf import settings
 from django.contrib.auth.models import Group, User
-from django.dispatch import receiver
 from github import Github
-from github.NamedUser import NamedUser
 from github.Organization import Organization
 from github.Team import Team
 
@@ -120,23 +115,9 @@ class GithubState:
                 user.groups.remove(self.committers_group)
 
 
-# On social sign up receiver
-@receiver(user_signed_up)
-def set_groups_for_new_user(sociallogin: SocialLogin, **kwargs: dict[str, Any]) -> None:
+@cache
+def get_github_state() -> GithubState:
     """
-    Setup group memberships for a newly created user.
+    GitHub organisation and team handles, fetched on first use and kept for the process lifetime.
     """
-    if sociallogin.account:
-        gh_state = apps.get_app_config("shared").github_state  # type: ignore
-
-        github_id: int = int(sociallogin.account.uid)
-        gh_named_user: NamedUser = gh_state.github.get_user_by_id(user_id=github_id)
-
-        if gh_state.security_team.has_in_members(gh_named_user):
-            sociallogin.account.user.groups.add(gh_state.security_group)
-
-        if gh_state.committers_team.has_in_members(gh_named_user):
-            sociallogin.account.user.groups.add(gh_state.committers_group)
-
-    else:
-        logger.error("Found a user sign up that didn't set an account.")
+    return GithubState()

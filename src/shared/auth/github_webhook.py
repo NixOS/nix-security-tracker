@@ -14,10 +14,11 @@ import hmac
 import json
 import logging
 
-from django.apps import apps
 from django.conf import settings
 from django.http import HttpRequest, HttpResponse, HttpResponseForbidden
 from django.views.decorators.csrf import csrf_exempt
+
+from shared.auth.github_state import get_github_state
 
 logger = logging.getLogger(__name__)
 
@@ -26,7 +27,7 @@ def handle_webhook(event: str, payload: dict) -> None:
     if event == "membership" and "team" in payload:
         logger.info("Webhook received, updating team membership.")
 
-        gh_state = apps.get_app_config("shared").github_state  # type: ignore
+        gh_state = get_github_state()
         gh_state.sync_team_membership_from_webhook(
             action=payload["action"],
             github_team_id=payload["team"]["id"],
