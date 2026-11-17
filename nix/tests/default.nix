@@ -69,7 +69,7 @@ pkgs.testers.runNixOSTest {
           DEBUG = true;
           CHANNEL_MONITORING_URL = "http://localhost:${channels-port}/channels.json";
           GIT_CLONE_URL = "file://${dummy-nixpkgs}";
-          SYNC_GITHUB_STATE_AT_STARTUP = false;
+          SYNC_GITHUB_TEAMS = false;
           GH_ISSUES_PING_MAINTAINERS = true;
           GH_ORGANIZATION = "dummy";
           GH_ISSUES_REPO = "dummy";
