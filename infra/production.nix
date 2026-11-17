@@ -79,7 +79,6 @@ in
     domain = "tracker.security.nixos.org";
 
     settings = {
-      SYNC_GITHUB_TEAMS = true;
       GH_ISSUES_PING_MAINTAINERS = true;
       GH_ORGANIZATION = "nixos";
       GH_ISSUES_REPO = "nixpkgs";

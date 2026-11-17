@@ -86,7 +86,6 @@ in
 
     settings = {
       SHOW_DEMO_DISCLAIMER = true;
-      SYNC_GITHUB_TEAMS = true;
       GH_ISSUES_PING_MAINTAINERS = false;
       GH_ORGANIZATION = "Nix-Security-WG";
       GH_ISSUES_REPO = "sectracker-testing";
