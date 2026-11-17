@@ -13,16 +13,6 @@ in
 
   python3 = prev.python3.override {
     packageOverrides = pyfinal: _pyprev: {
-      # FIXME(@erethon): remove once asgiref 3.12.0+ is merged into nixpkgs (it's in staging-next now)
-      asgiref = _pyprev.asgiref.overridePythonAttrs rec {
-        version = "3.13.0";
-        src = final.fetchFromGitHub {
-          owner = "django";
-          repo = "asgiref";
-          tag = version;
-          hash = "sha256-Qsg0PwD6XYZkcBIcnwEjPC+2fCro35MQyXMPWm64014=";
-        };
-      };
       # FIXME(@fricklerhandwerk): remove once Nixpkgs ships a release that includes the fix for the flaky test
       # https://github.com/getsentry/sentry-python/issues/8031
       sentry-sdk = _pyprev.sentry-sdk.overridePythonAttrs (old: rec {
