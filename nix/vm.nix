@@ -257,6 +257,8 @@ in
         "nix-security-tracker"
       ];
 
+      nix-security-tracker-migrations.serviceConfig.ExecStartPost = "${pkgs.runtimeShell} -c '${pkgs.coreutils}/bin/ln -sf ${pkgs.nix-security-tracker-logos}/* ${cfg.settings.STATIC_ROOT}'";
+
       # Suspending the VM for a longer period will kill `systemd-journald` as stuck because it doesn't report to the watchdog service during that time.
       systemd-journald.serviceConfig.WatchdogSec = 0;
 
