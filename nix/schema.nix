@@ -34,7 +34,6 @@ runCommand "nix-security-tracker-openapi-schema"
     DJANGO_SETTINGS = builtins.toJSON {
       DEBUG = true;
       PRODUCTION = false;
-      SYNC_GITHUB_TEAMS = false;
       REVISION = "schema";
       STATIC_ROOT = "/dummy";
       VITE_DEV_SERVER_PORT = 1337; # Dummy, never used.

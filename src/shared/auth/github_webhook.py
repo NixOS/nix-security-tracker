@@ -24,10 +24,6 @@ logger = logging.getLogger(__name__)
 
 def handle_webhook(event: str, payload: dict) -> None:
     if event == "membership" and "team" in payload:
-        if not settings.SYNC_GITHUB_TEAMS:
-            logger.info("Webhook received, ignoring team membership change.")
-            return
-
         logger.info("Webhook received, updating team membership.")
 
         gh_state = apps.get_app_config("shared").github_state  # type: ignore

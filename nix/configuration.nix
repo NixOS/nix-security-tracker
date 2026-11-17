@@ -22,7 +22,6 @@ let
     ;
   inherit (pkgs) writeScriptBin writeShellApplication stdenv;
   cfg = config.services.nix-security-tracker;
-  syncGithubTeams = cfg.settings.SYNC_GITHUB_TEAMS or false;
 
   pythonEnv = pkgs.python3.withPackages (
     ps:
@@ -325,7 +324,7 @@ in
     };
 
     # Catch up on a missed sync right after boot
-    systemd.timers.nix-security-tracker-github-teams = mkIf syncGithubTeams {
+    systemd.timers.nix-security-tracker-github-teams = {
       timerConfig.Persistent = true;
     };
 
@@ -652,7 +651,7 @@ in
             # Webhook notifications keep group memberships up to date, but GitHub doesn't redeliver
             # the ones we miss, e.g. while down for a deployment. Since group memberships
             # grant permissions, bound how long they can be stale.
-            startAt = lib.optional syncGithubTeams "hourly";
+            startAt = "hourly";
           };
 
           nix-security-tracker-garbage-collection = {

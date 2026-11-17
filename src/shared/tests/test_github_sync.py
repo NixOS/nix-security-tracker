@@ -8,7 +8,7 @@ from allauth.socialaccount.models import SocialAccount, SocialLogin
 from django.apps import apps
 from django.conf import settings
 from django.contrib.auth.models import User
-from django.test import TestCase, override_settings
+from django.test import TestCase
 
 from shared.auth import isadmin, iscommitter
 from shared.auth.github_state import GithubState, set_groups_for_new_user
@@ -122,7 +122,6 @@ def create_users_with_sociallogin(
 
 
 # Test suite
-@override_settings(SYNC_GITHUB_TEAMS=True)
 class GithubSyncTests(TestCase):
     @classmethod
     def setUpTestData(cls: Any) -> None:
@@ -382,32 +381,3 @@ class GithubSyncTests(TestCase):
 
         # Ensure the malicious user did not receive permissions
         self.assertFalse(isadmin(malicious_user))
-
-
-@override_settings(SYNC_GITHUB_TEAMS=False)
-class GithubSyncDisabledTests(TestCase):
-    def test_sign_up_does_not_assign_groups(self) -> None:
-        apps.get_app_config("shared").github_state = GithubState(  # type: ignore
-            github=MockGithub()  # type: ignore
-        )
-        [sociallogin] = create_users_with_sociallogin(
-            name="security-member", uid_offset=10, amount=1
-        )
-        set_groups_for_new_user(sociallogin)
-        self.assertFalse(isadmin(sociallogin.user))
-
-    def test_webhook_is_ignored(self) -> None:
-        gh_state = GithubState(github=MockGithub())  # type: ignore
-        apps.get_app_config("shared").github_state = gh_state  # type: ignore
-        [sociallogin] = create_users_with_sociallogin(
-            name="security-member", uid_offset=10, amount=1
-        )
-        handle_webhook(
-            event="membership",
-            payload={
-                "action": "added",
-                "team": {"id": gh_state.security_team.id},
-                "member": {"id": int(sociallogin.account.uid)},
-            },
-        )
-        self.assertFalse(isadmin(sociallogin.user))

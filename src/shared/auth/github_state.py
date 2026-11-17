@@ -9,7 +9,6 @@ It will persist for the entire process lifetime.
 
 Importing this module registers a hook to update group memberships on user signup.
 The full sync of all users is run by `manage sync_github_teams`.
-All of this is disabled unless `SYNC_GITHUB_TEAMS` is set.
 """
 
 import logging
@@ -127,9 +126,6 @@ def set_groups_for_new_user(sociallogin: SocialLogin, **kwargs: dict[str, Any]) 
     """
     Setup group memberships for a newly created user.
     """
-    if not settings.SYNC_GITHUB_TEAMS:
-        return
-
     if sociallogin.account:
         gh_state = apps.get_app_config("shared").github_state  # type: ignore
 

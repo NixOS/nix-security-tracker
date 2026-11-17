@@ -213,7 +213,6 @@ in
       );
       settings = {
         DEBUG = true;
-        SYNC_GITHUB_TEAMS = false;
         GH_ISSUES_PING_MAINTAINERS = false;
         GH_ORGANIZATION = "Nix-Security-WG";
         GH_ISSUES_REPO = "sectracker-testing";
@@ -248,6 +247,7 @@ in
       nix-security-tracker-fetch-all-channels.startAt = lib.mkForce [ ];
       nix-security-tracker-delta.startAt = lib.mkForce [ ];
       nix-security-tracker-github-events.startAt = lib.mkForce [ ];
+      nix-security-tracker-github-teams.startAt = lib.mkForce [ ];
       nix-security-tracker-garbage-collection.startAt = lib.mkForce [ ];
 
       # The Nixpkgs checkout directory is shared by the host, systemd cannot chown it.
