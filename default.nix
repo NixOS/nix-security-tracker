@@ -81,6 +81,16 @@ rec {
     '';
   };
 
+  # NixOS systems for deployment, see infra/deploy.sh
+  staging = import (pkgs.path + "/nixos") {
+    configuration = ./infra/staging.nix;
+    inherit system;
+  };
+  production = import (pkgs.path + "/nixos") {
+    configuration = ./infra/production.nix;
+    inherit system;
+  };
+
   # commands for CI actions
   ci =
     let

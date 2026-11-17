@@ -8,14 +8,11 @@ DIR=$(git rev-parse --show-toplevel)
 VERB=${1:-switch}
 HOST=${2:-tracker-staging.security.nixos.org}  # Default to staging
 if [[ "$HOST" == "tracker.security.nixos.org" ]]; then
-  CONFIG="$DIR/infra/production.nix"
+  ATTR=production
 else
-  CONFIG="$DIR/infra/staging.nix" # Default to building for staging
+  ATTR=staging # Default to building for staging
 fi
-DEFAULT_ARGS=(-I "nixos-config=$CONFIG" --use-substitutes)
-# make sure we're building with the version of Nixpkgs under our control
-NIXPKGS=$(nix-instantiate --eval -A pkgs.path)
-export NIX_PATH="nixpkgs=$NIXPKGS"
+DEFAULT_ARGS=(--file "$DIR" --attr "$ATTR" --use-substitutes)
 
 # Note: we could refactor the conditional here.
 # But `nixos-rebuild build --target-host ...` requiring network operations is an unexpected bug.
