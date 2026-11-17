@@ -1,5 +1,10 @@
+from functools import cached_property
+from typing import TYPE_CHECKING
+
 from django.apps import AppConfig
-from django.conf import settings
+
+if TYPE_CHECKING:
+    from shared.auth.github_state import GithubState
 
 
 class SharedConfig(AppConfig):
@@ -9,13 +14,17 @@ class SharedConfig(AppConfig):
     def ready(self) -> None:
         import shared.listeners  # noqa
 
-        # TODO: run this as a separate service, as this is almost exclusively a deployment concern
-        if settings.SYNC_GITHUB_STATE_AT_STARTUP:
-            from shared.auth.github_state import GithubState
+        # Registers the sign-up receiver that assigns groups to new users.
+        # Must not touch GitHub or the database: `ready()` runs in every process,
+        # including each web server worker and each management command.
+        # The full sync runs separately, via `manage sync_github_teams`.
+        import shared.auth.github_state  # noqa
 
-            self.github_state = GithubState()
+    @cached_property
+    def github_state(self) -> "GithubState":
+        """
+        GitHub organisation and team handles, fetched on first use and kept for the process lifetime.
+        """
+        from shared.auth.github_state import GithubState
 
-            # Sync the group memberships with the GitHub teams. This is relevant:
-            # - when starting the server for the first time.
-            # - when restarting, in case it missed webhook notifications while being down.
-            self.github_state.sync_groups_with_github_teams()
+        return GithubState()

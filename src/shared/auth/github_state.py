@@ -1,11 +1,15 @@
 """
 Utilities to sync the user groups in our database with GitHub teams in order to correctly map permissions.
 
-We implement a class, an instance of which must be attached to the server on startup in order to conveniently:
-- register a hook to update user information on user signup
+We implement a class, an instance of which is lazily attached to the `shared` app config
+(see `SharedConfig.github_state`) in order to conveniently:
 - cache remote data that only needs to be fetched once
 - access data that needs to be fetched repeatedly
-It will persist for the entire application lifetime.
+It will persist for the entire process lifetime.
+
+Importing this module registers a hook to update group memberships on user signup.
+The full sync of all users is run by `manage sync_github_teams`.
+All of this is disabled unless `SYNC_GITHUB_TEAMS` is set.
 """
 
 import logging
@@ -22,18 +26,20 @@ from github.NamedUser import NamedUser
 from github.Organization import Organization
 from github.Team import Team
 
-from shared.github import get_gh
-
 logger = logging.getLogger(__name__)
-
-logger.info("Syncing initial GitHub state.")
 
 
 class GithubState:
     def __init__(
         self,
-        github: Github = get_gh(per_page=100),  # 100 is the API limit
+        github: Github | None = None,
     ) -> None:
+        if github is None:
+            # Imported here to keep importing this module free of side effects.
+            # FIXME: `shared.github` creates GitHub clients at import time, see [ref:todo-github-connection].
+            from shared.github import get_gh
+
+            github = get_gh(per_page=100)  # 100 is the API limit
         self.github = github
         self.organization: Organization = self.github.get_organization(
             org=settings.GH_ORGANIZATION
@@ -121,6 +127,9 @@ def set_groups_for_new_user(sociallogin: SocialLogin, **kwargs: dict[str, Any]) 
     """
     Setup group memberships for a newly created user.
     """
+    if not settings.SYNC_GITHUB_TEAMS:
+        return
+
     if sociallogin.account:
         gh_state = apps.get_app_config("shared").github_state  # type: ignore
 

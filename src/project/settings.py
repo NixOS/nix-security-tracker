@@ -141,11 +141,13 @@ class Settings(BaseSettings):
             """,
             default=60,
         )
-        SYNC_GITHUB_STATE_AT_STARTUP: bool = Field(
+        SYNC_GITHUB_TEAMS: bool = Field(
             description="""
-            Connect to GitHub when the service is started and update
-            team membership (security team and committers team)
-            of Nixpkgs maintainers in the evaluation database.
+            Keep group memberships of users in the database in sync with
+            their GitHub team memberships (security team and committers team):
+            on sign-up, on GitHub webhook notifications, and with
+            `manage sync_github_teams` (run hourly by the NixOS module).
+            When disabled, all of these are no-ops.
             """
         )
         GH_ISSUES_PING_MAINTAINERS: bool = Field(

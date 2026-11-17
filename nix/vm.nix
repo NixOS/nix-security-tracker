@@ -213,7 +213,7 @@ in
       );
       settings = {
         DEBUG = true;
-        SYNC_GITHUB_STATE_AT_STARTUP = false;
+        SYNC_GITHUB_TEAMS = false;
         GH_ISSUES_PING_MAINTAINERS = false;
         GH_ORGANIZATION = "Nix-Security-WG";
         GH_ISSUES_REPO = "sectracker-testing";
