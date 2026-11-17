@@ -1,7 +1,10 @@
+import { Fragment } from "preact";
 import type { Suggestion as SuggestionType } from "@/api/generated/models";
-import { AffectedProductsTree } from "./AffectedProductsTree";
-import { CategorizedReferencesList } from "./CategorizedReferencesList";
 import { SuggestionFooter } from "./SuggestionFooter";
+import type { SuggestionSectionId } from "./SuggestionSectionHeadings";
+import { suggestionSections } from "./SuggestionSections";
+
+const COMPACT_SECTIONS = new Set<SuggestionSectionId>(["references", "affected-products"]);
 
 type Props = {
   suggestion: SuggestionType;
@@ -9,22 +12,16 @@ type Props = {
 };
 
 export function SuggestionCompactBody({ suggestion, userCanEdit }: Props) {
-  const { id, status, affected_products, categorized_url_references } = suggestion;
+  const sections = suggestionSections(suggestion, userCanEdit).filter((section) =>
+    COMPACT_SECTIONS.has(section.value),
+  );
 
   return (
     <div className="column gap-big">
       <div className="column gap">
-        {categorized_url_references.original.length > 0 && (
-          <CategorizedReferencesList
-            categorizedReferences={categorized_url_references}
-            suggestionId={id}
-            editable={userCanEdit && (status === "pending" || status === "accepted")}
-          />
-        )}
-
-        {affected_products.length > 0 && (
-          <AffectedProductsTree affectedProducts={affected_products} />
-        )}
+        {sections.map((section) => (
+          <Fragment key={section.value}>{section.content}</Fragment>
+        ))}
       </div>
 
       <SuggestionFooter suggestion={suggestion} userCanEdit={userCanEdit} compact />
