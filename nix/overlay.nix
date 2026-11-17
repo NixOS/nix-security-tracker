@@ -4,6 +4,13 @@ let
   meta = with builtins; fromTOML (readFile ../src/pyproject.toml);
 in
 {
+  nix-security-tracker-logos = final.runCommand "nix-security-tracker-logos" { } ''
+    mkdir -p $out
+    cp ${sources.nixos-logo} $out/nixos-logo.svg
+    cp ${sources.cve-logo} $out/cveLogo.svg
+    cp ${sources.nixos-logo-horizontal} $out/nixpkgsLogo.svg
+  '';
+
   python3 = prev.python3.override {
     packageOverrides = pyfinal: _pyprev: {
       # FIXME(@erethon): remove once asgiref 3.12.0+ is merged into nixpkgs (it's in staging-next now)
@@ -113,9 +120,7 @@ in
       chmod +x $out/bin/manage.py
       wrapProgram $out/bin/manage.py --prefix PYTHONPATH : "$PYTHONPATH"
       mkdir -p $out/${final.python3.sitePackages}/webview/static/
-      cp ${sources.nixos-logo} $out/${final.python3.sitePackages}/webview/static/nixos-logo.svg
-      cp ${sources.cve-logo} $out/${final.python3.sitePackages}/webview/static/cveLogo.svg
-      cp ${sources.nixos-logo-horizontal} $out/${final.python3.sitePackages}/webview/static/nixpkgsLogo.svg
+      cp ${final.nix-security-tracker-logos}/* $out/${final.python3.sitePackages}/webview/static/
     '';
   };
 }
