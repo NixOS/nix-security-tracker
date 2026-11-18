@@ -43,7 +43,7 @@ type ObjectItem = { key: string; node: ComponentChildren };
 
 type ActionCategory =
   | { kind: "create" }
-  | { kind: "package"; restored: boolean }
+  | { kind: "package"; op: "add" | "ignore" | "delete" | "restore" }
   | { kind: "reference"; restored: boolean }
   | { kind: "maintainer"; op: "add" | "ignore" | "delete" | "restore" }
   | { kind: "rematch" }
@@ -53,7 +53,14 @@ function classifyAction(entry: ActivityLogEntry): ActionCategory {
   if (entry.action === "create") return { kind: "create" };
   if (entry.action === "rematch") return { kind: "rematch" };
   if (entry.action.startsWith("package.")) {
-    return { kind: "package", restored: entry.action.includes("restore") };
+    const op = entry.action.includes("add")
+      ? "add"
+      : entry.action.includes("ignore")
+        ? "ignore"
+        : entry.action.includes("delete")
+          ? "delete"
+          : "restore";
+    return { kind: "package", op };
   }
   if (entry.action.startsWith("reference.")) {
     return { kind: "reference", restored: entry.action.includes("restore") };
@@ -92,7 +99,9 @@ function actionIcon(
     case "create":
       return entry.rejection_reason ? Trash2Icon : InboxIcon;
     case "package":
-      return category.restored ? PackagePlusIcon : PackageMinusIcon;
+      return category.op === "add" || category.op === "restore"
+        ? PackagePlusIcon
+        : PackageMinusIcon;
     case "reference":
       return category.restored ? LinkIcon : UnlinkIcon;
     case "maintainer":
@@ -109,7 +118,10 @@ function actionName(entry: ActivityLogEntry): string {
     case "create":
       return entry.rejection_reason ? "created & dismissed" : "created suggestion";
     case "package":
-      return category.restored ? "restored package" : "ignored package";
+      if (category.op === "add") return "added package";
+      if (category.op === "ignore") return "ignored package";
+      if (category.op === "delete") return "deleted package";
+      return "restored package";
     case "reference":
       return category.restored ? "restored reference" : "ignored reference";
     case "maintainer":

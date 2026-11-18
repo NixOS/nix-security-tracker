@@ -1,20 +1,22 @@
 import { PackageMinusIcon, PackagePlusIcon } from "lucide-preact";
 import type { SuggestionPackage } from "@/api/generated/models";
 import { ExternalLink } from "@/components/ui/ExternalLink";
-import { usePackageMutation } from "@/hooks/usePackage";
+import { useDeletePackageMutation, usePackageMutation } from "@/hooks/usePackage";
 import { useSuggestionListFilterHref, withPackageFilter } from "@/hooks/useSuggestionListFilters";
 import { formatTime } from "@/utils/date";
 import { FilterShortcut } from "./FilterShortcut";
 import { IgnoreRestoreButton } from "./IgnoreRestoreButton";
 import styles from "./Package.module.css";
 import { SuggestionItemRow } from "./SuggestionItemCollection";
+import type { ItemState } from "./suggestionItems";
 
 type Props = {
   attr: string;
   pkg: SuggestionPackage;
   suggestionId: number;
   editable: boolean;
-  isIgnored: boolean;
+  /** Which category this package is displayed in, and thus which action applies. */
+  kind: ItemState;
 };
 
 function versionStatusClass(status: string | null): string {
@@ -23,15 +25,27 @@ function versionStatusClass(status: string | null): string {
   return "";
 }
 
-export function Package({ attr, pkg, suggestionId, editable, isIgnored }: Props) {
-  const mutation = usePackageMutation(suggestionId);
+export function Package({ attr, pkg, suggestionId, editable, kind }: Props) {
+  const ignoreRestoreMutation = usePackageMutation(suggestionId);
+  const deleteMutation = useDeletePackageMutation(suggestionId);
   const filterHref = useSuggestionListFilterHref();
 
+  const isIgnored = kind === "ignored";
+  const isAdded = kind === "added";
+  const mutation = isAdded ? deleteMutation : ignoreRestoreMutation;
+
   function handleClick() {
-    mutation.mutate({
-      id: suggestionId,
-      data: { package_attributes: [attr], ignored: !isIgnored },
-    });
+    if (isAdded) {
+      deleteMutation.mutate({
+        id: suggestionId,
+        params: { package_attributes: [attr] },
+      });
+    } else {
+      ignoreRestoreMutation.mutate({
+        id: suggestionId,
+        data: { package_attributes: [attr], ignored: !isIgnored },
+      });
+    }
   }
 
   return (
@@ -40,7 +54,7 @@ export function Package({ attr, pkg, suggestionId, editable, isIgnored }: Props)
       action={
         editable && (
           <IgnoreRestoreButton
-            action={isIgnored ? "restore" : "ignore"}
+            action={isAdded ? "delete" : isIgnored ? "restore" : "ignore"}
             icon={isIgnored ? PackagePlusIcon : PackageMinusIcon}
             onClick={handleClick}
             disabled={mutation.isPending}
@@ -60,7 +74,9 @@ export function Package({ attr, pkg, suggestionId, editable, isIgnored }: Props)
           <p className={`${styles.packageTitle}`}>{pkg.description}</p>
         </div>
 
-        {Object.keys(pkg.branches).length > 0 && (
+        {Object.keys(pkg.branches).length === 0 ? (
+          <p className={`text-gray ${styles.details}`}>Not in any tracked channel</p>
+        ) : (
           <ul className={`column gap-small ${styles.details}`}>
             {Object.entries(pkg.branches).map(([branch, info]) => (
               <li key={branch} className="inline-row gap-small">
