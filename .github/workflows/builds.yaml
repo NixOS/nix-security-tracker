@@ -28,6 +28,9 @@ jobs:
           diagnostic-endpoint: ""
       - run: nix-build -A git-hooks
       - run: nix-build -A tests
+      # FIXME(@fricklerhandwerk): Remove together with the patch once Nixpkgs allows disabling writeback separately.
+      # See https://github.com/NixOS/nixpkgs/pull/573600
+      - run: nix-build -A nixpkgs-patched
       - run: |
           nix-build -A ci
           result/bin/deploy build
