@@ -2,12 +2,12 @@ import re
 
 from django.conf import settings
 from django.contrib.postgres import fields
-from django.contrib.postgres.indexes import BTreeIndex, GinIndex
+from django.contrib.postgres.indexes import BTreeIndex, GinIndex, OpClass
 from django.contrib.postgres.search import SearchVectorField
 from django.core.exceptions import ObjectDoesNotExist
 from django.db import models
 from django.db.models import F, Window
-from django.db.models.functions import RowNumber
+from django.db.models.functions import RowNumber, Upper
 from django.utils.translation import gettext_lazy as _
 from pgtrigger import UpdateSearchVector
 
@@ -125,7 +125,11 @@ class NixDerivationMeta(models.Model):
 
     class Meta:  # type: ignore[override]
         indexes = [
-            models.Index(fields=["cpe_vendor", "cpe_product"]),
+            BTreeIndex(
+                Upper("cpe_vendor"),
+                Upper("cpe_product"),
+                name="nixderivationmeta_cpe_upper_idx",
+            ),
         ]
 
     def get_description(self) -> str | None:
@@ -356,6 +360,10 @@ class NixDerivation(models.Model):
     class Meta:  # type: ignore[override]
         indexes = [
             BTreeIndex(fields=["name"]),
+            GinIndex(
+                OpClass(Upper("name"), name="gin_trgm_ops"),
+                name="nixderivation_name_trgm_idx",
+            ),
             BTreeIndex(fields=["attribute"]),
             GinIndex(fields=["search_vector"]),
         ]
