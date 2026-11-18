@@ -83,6 +83,7 @@ def test_snr_for_json() -> None:
         cve_id="CVE-1",
         true_positives=1,
         false_positives=0,
+        unreviewed=0,
         rejection_agree=True,
         snr=math.inf,
     )
@@ -93,6 +94,7 @@ def test_snr_for_json() -> None:
             proposals=0,
             true_positives=0,
             false_positives=0,
+            unreviewed=0,
             rejection_agree_count=0,
             snr=math.nan,
         ).model_dump(mode="json")["snr"]
@@ -107,6 +109,7 @@ def test_aggregate_snr() -> None:
                 cve_id="CVE-1",
                 true_positives=2,
                 false_positives=1,
+                unreviewed=0,
                 rejection_agree=True,
                 snr=2.0,
             ),
@@ -114,6 +117,7 @@ def test_aggregate_snr() -> None:
                 cve_id="CVE-2",
                 true_positives=0,
                 false_positives=1,
+                unreviewed=0,
                 rejection_agree=False,
                 snr=0.0,
             ),
@@ -123,6 +127,7 @@ def test_aggregate_snr() -> None:
         proposals=2,
         true_positives=2,
         false_positives=2,
+        unreviewed=0,
         rejection_agree_count=1,
         snr=1.0,
     )
@@ -186,6 +191,23 @@ def test_ignored_overlay_counts_as_fp(
     score = score_proposal(proposal, rematch(proposal))
     assert score.true_positives == 1
     assert score.false_positives == 1
+
+
+def test_matches_never_shown_to_the_curator_are_unreviewed(
+    make_container: Callable[..., Container],
+    make_drv: Callable[..., NixDerivation],
+) -> None:
+    pkg = "benchnewuniq"
+    kept = make_drv(pname=pkg, attribute=pkg)
+    ignored = make_drv(pname=f"{pkg}-doc", attribute=f"{pkg}-doc")
+    make_drv(pname=f"{pkg}-extra", attribute=f"{pkg}-extra")
+    container = make_container(
+        cve_id="CVE-2026-bench-new", package_name=pkg, product=None
+    )
+    proposal = _proposal(container, kept, ignored, ignored=(f"{pkg}-doc",))
+
+    score = score_proposal(proposal, rematch(proposal))
+    assert (score.true_positives, score.false_positives, score.unreviewed) == (1, 1, 1)
 
 
 def test_auto_reject_empty_no_fp(
@@ -281,6 +303,7 @@ def test_benchmark_matching_writes_json_report(
             "proposals": 1,
             "true_positives": 1,
             "false_positives": 0,
+            "unreviewed": 0,
             "rejection_agree_count": 1,
             "snr": "inf",
         },
@@ -289,6 +312,7 @@ def test_benchmark_matching_writes_json_report(
                 "cve_id": "CVE-2026-bench-json",
                 "true_positives": 1,
                 "false_positives": 0,
+                "unreviewed": 0,
                 "rejection_agree": True,
                 "snr": "inf",
             }
