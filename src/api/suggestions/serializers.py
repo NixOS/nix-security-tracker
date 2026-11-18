@@ -72,6 +72,26 @@ class SuggestionPackageUpdateSerializer(serializers.Serializer):
     )
 
 
+class SuggestionPackageAddSerializer(serializers.Serializer):
+    """Request body for manually adding packages that the matcher did not find."""
+
+    package_attributes = serializers.ListField(
+        child=serializers.CharField(max_length=255),
+        allow_empty=False,
+        help_text="Attribute names to add in one go.",
+    )
+
+
+class SuggestionPackageDeleteSerializer(serializers.Serializer):
+    """Query parameters for deleting manually added packages."""
+
+    package_attributes = serializers.ListField(
+        child=serializers.CharField(max_length=255),
+        allow_empty=False,
+        help_text="Attribute names of the manually added packages to delete.",
+    )
+
+
 class SuggestionCommentSerializer(serializers.Serializer):
     """Serializer for reading or updating a suggestion comment."""
 
@@ -168,6 +188,7 @@ class SuggestionCategorizedPackagesSerializer(serializers.Serializer):
     original = serializers.DictField(child=SuggestionPackageSerializer())
     active = serializers.DictField(child=SuggestionPackageSerializer())
     ignored = serializers.DictField(child=SuggestionPackageSerializer())
+    added = serializers.DictField(child=SuggestionPackageSerializer())
 
 
 class PackageGroupSerializer(serializers.Serializer):
@@ -252,6 +273,7 @@ class SuggestionSerializer(serializers.Serializer):
     ignored_packages = serializers.SerializerMethodField()
     # for UI grouping.
     attribute_package_groups = serializers.SerializerMethodField()
+    added_packages = serializers.SerializerMethodField()
     metrics = serializers.SerializerMethodField()
     categorized_maintainers = serializers.SerializerMethodField()
     categorized_url_references = serializers.SerializerMethodField()
@@ -308,6 +330,15 @@ class SuggestionSerializer(serializers.Serializer):
     def get_attribute_package_groups(self, obj: CVEDerivationClusterProposal) -> list:
         data = self._payload(obj)["attribute_package_groups"]
         return list(PackageGroupSerializer(data, many=True).data)
+
+    @extend_schema_field(serializers.DictField(child=SuggestionPackageSerializer()))
+    def get_added_packages(self, obj: CVEDerivationClusterProposal) -> dict:
+        packages = self._payload(obj)["packages"]
+        return {
+            k: SuggestionPackageSerializer(packages[k]).data
+            for k in obj.added_package_attributes()
+            if k in packages
+        }
 
     @extend_schema_field(MetricSerializer(many=True))
     def get_metrics(self, obj: CVEDerivationClusterProposal) -> list:
