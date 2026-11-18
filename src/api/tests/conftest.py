@@ -27,6 +27,13 @@ def staff_client(staff: User, make_client: Callable[..., APIClient]) -> APIClien
 
 
 @pytest.fixture
+def committer_client(
+    committer: User, make_client: Callable[..., APIClient]
+) -> APIClient:
+    return make_client(committer)
+
+
+@pytest.fixture
 def anonymous_client() -> APIClient:
     return APIClient()
 

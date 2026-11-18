@@ -144,7 +144,7 @@ def test_package_ignore_shows_error_toast_on_backend_mismatch(
     expect(packages.get_by_role("button", name="Ignore", exact=True)).to_be_visible()
 
     # Simulate a UI/backend mismatch
-    suggestion.ignore_package(PACKAGE_ATTRIBUTE)
+    suggestion.ignore_packages([PACKAGE_ATTRIBUTE])
 
     packages.get_by_role("button", name="Ignore", exact=True).click()
 

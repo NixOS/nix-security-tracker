@@ -30,7 +30,7 @@ export function Package({ attr, pkg, suggestionId, editable, isIgnored }: Props)
   function handleClick() {
     mutation.mutate({
       id: suggestionId,
-      data: { package_attribute: attr, ignored: !isIgnored },
+      data: { package_attributes: [attr], ignored: !isIgnored },
     });
   }
 

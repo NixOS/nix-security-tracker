@@ -772,7 +772,10 @@ class SuggestionViewSet(ListModelMixin, RetrieveModelMixin, viewsets.GenericView
     @extend_schema(
         methods=["patch"],
         operation_id="updateSuggestionPackage",
-        description="Ignore or restore a package. Send `ignored: true` to ignore, `ignored: false` to restore.",
+        description=(
+            "Ignore or restore attributes. Send `ignored: true` to ignore, `ignored: false` to restore. "
+            "Fails if any of the packages is not in the suggestion or already in the requested state."
+        ),
         request=SuggestionPackageUpdateSerializer,
         responses={
             204: None,
@@ -813,12 +816,12 @@ class SuggestionViewSet(ListModelMixin, RetrieveModelMixin, viewsets.GenericView
             instance.ensure_fresh_cache()
             try:
                 if serializer.validated_data["ignored"]:
-                    instance.ignore_package(
-                        serializer.validated_data["package_attribute"]
+                    instance.ignore_packages(
+                        serializer.validated_data["package_attributes"]
                     )
                 else:
-                    instance.restore_package(
-                        serializer.validated_data["package_attribute"]
+                    instance.restore_packages(
+                        serializer.validated_data["package_attributes"]
                     )
             except ValidationError as e:
                 raise DRFValidationError(e.message_dict)
@@ -942,9 +945,9 @@ class SuggestionViewSet(ListModelMixin, RetrieveModelMixin, viewsets.GenericView
     @extend_schema(
         operation_id="bulkUpdateSuggestionPackage",
         description=(
-            "Ignore or restore a package on every suggestion matching the filters. "
-            "Fails without modifying anything if any of them does not hold that "
-            "package, or already has it in the requested state."
+            "Ignore or restore packages on every suggestion matching the filters. "
+            "Fails without modifying anything if any of them does not hold one of "
+            "these packages, or already has one in the requested state."
         ),
         parameters=BULK_FILTER_PARAMETERS,
         request=SuggestionPackageUpdateSerializer,
@@ -964,13 +967,16 @@ class SuggestionViewSet(ListModelMixin, RetrieveModelMixin, viewsets.GenericView
     def bulk_packages(self, request: Request) -> Response:
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
-        package_attribute = serializer.validated_data["package_attribute"]
         if serializer.validated_data["ignored"]:
             return self.bulk_response(
-                lambda queryset: queryset.ignore_package(package_attribute)
+                lambda queryset: queryset.ignore_packages(
+                    serializer.validated_data["package_attributes"]
+                )
             )
         return self.bulk_response(
-            lambda queryset: queryset.restore_package(package_attribute)
+            lambda queryset: queryset.restore_packages(
+                serializer.validated_data["package_attributes"]
+            )
         )
 
     @extend_schema(

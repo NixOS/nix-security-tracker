@@ -62,12 +62,13 @@ class SuggestionMaintainerDeleteSerializer(serializers.Serializer):
 class SuggestionPackageUpdateSerializer(serializers.Serializer):
     """Request body for ignore/restore package PATCH operations."""
 
-    package_attribute = serializers.CharField(
-        max_length=255,
-        help_text="Attribute name of the package to ignore or restore.",
+    package_attributes = serializers.ListField(
+        child=serializers.CharField(max_length=255),
+        allow_empty=False,
+        help_text="Attribute names to ignore or restore in one go.",
     )
     ignored = serializers.BooleanField(
-        help_text="Set to true to ignore the package, false to restore it.",
+        help_text="True to ignore, false to restore.",
     )
 
 

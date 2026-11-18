@@ -55,6 +55,11 @@ export function ApiToken() {
 
   return (
     <div className="column gap-big">
+      <p className="box bg-yellow-light prose">
+        <strong>Disclaimer:</strong> The API is under active development and is not yet considered
+        stable. We may occasionally introduce breaking changes. If that happens, consult the current
+        API specification and documentation.
+      </p>
       <p>
         Use an API token to authenticate requests with{" "}
         <code>Authorization: Bearer &lt;token&gt;</code>.
