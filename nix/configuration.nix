@@ -254,6 +254,7 @@ in
           locations."/".return = 200;
         };
         ${cfg.domain} = {
+          http2 = false;
           locations = {
             "/".proxyPass = "http://127.0.0.1:${toString cfg.wsgi-port}";
             "/static/".alias = cfg.settings.STATIC_ROOT;
