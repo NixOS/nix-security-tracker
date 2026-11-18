@@ -317,6 +317,76 @@ class CVEDerivationClusterProposalQuerySet(models.QuerySet):
             fresh_cache=True,
         )
 
+    def add_package_pairs(
+        self, additions: list[tuple[int, str]], check_only: bool = False
+    ) -> tuple[int, int]:
+        """
+        Manually add packages to suggestions, given as `(suggestion pk, package attribute)` pairs.
+
+        Either every pair is applied, or none:
+        pairs that cannot be applied raise a `BulkValidationError` keyed by their index in `additions`.
+        Pairs that are already applied (or repeated) are skipped, so the same input can be submitted again.
+        Returns the number of added and skipped pairs.
+        With `check_only`, nothing is written, but errors are raised all the same.
+        """
+        with transaction.atomic():
+            suggestions = {
+                s.pk: s
+                for s in self.filter(pk__in={pk for pk, _ in additions})
+                .select_related("cached")
+                .select_for_update(of=("self",))
+            }
+            for suggestion in suggestions.values():
+                suggestion.ensure_fresh_cache()
+            already_added = set(
+                PackageOverlay.objects.filter(
+                    suggestion__in=suggestions.values(),
+                    type=PackageOverlay.Type.ADDITIONAL,
+                ).values_list("suggestion_id", "package_attribute")
+            )
+
+            errors: dict[int, dict[str, list[str]]] = {}
+            to_add: dict[int, list[str]] = {}
+            skipped = 0
+            for index, (pk, attribute) in enumerate(additions):
+                suggestion = suggestions.get(pk)
+                if suggestion is None:
+                    errors[index] = {"suggestion": ["Suggestion not found"]}
+                    continue
+                if (pk, attribute) in already_added:
+                    skipped += 1
+                    continue
+                try:
+                    suggestion.check_add_packages([attribute])
+                except ValidationError as error:
+                    errors[index] = {"package_attribute": error.messages}
+                    continue
+                already_added.add((pk, attribute))
+                to_add.setdefault(pk, []).append(attribute)
+            if errors:
+                raise BulkValidationError(errors)
+            if check_only:
+                return sum(len(attrs) for attrs in to_add.values()), skipped
+
+            packages = dict(
+                PackageAttrpath.objects.filter(
+                    attrpath__in={a for attrs in to_add.values() for a in attrs}
+                ).values_list("attrpath", "package_id")
+            )
+            for pk, attributes in to_add.items():
+                suggestion = suggestions[pk]
+                for attribute in attributes:
+                    # One by one rather than `bulk_create()`, so the signals record activity log events.
+                    suggestion.package_overlays.create(
+                        package_attribute=attribute,
+                        type=PackageOverlay.Type.ADDITIONAL,
+                        package_id=packages[attribute],
+                    )
+                # Recompute once per suggestion rather than once per package.
+                suggestion._recompute_package_cache()
+
+        return sum(len(attrs) for attrs in to_add.values()), skipped
+
     def ignore_maintainer(self, github_id: int) -> int:
         """Ignore a maintainer on every selected suggestion."""
         return self._apply_to_each(

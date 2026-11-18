@@ -1,5 +1,5 @@
 from collections.abc import Callable
-from typing import cast
+from typing import Any, cast
 
 from django.conf import settings
 from django.core.exceptions import ValidationError
@@ -44,6 +44,9 @@ from api.suggestions.serializers import (
     SuggestionMaintainerDeleteSerializer,
     SuggestionMaintainerUpdateSerializer,
     SuggestionPackageAddSerializer,
+    SuggestionPackageBulkAddErrorSerializer,
+    SuggestionPackageBulkAddResultSerializer,
+    SuggestionPackageBulkAddSerializer,
     SuggestionPackageDeleteSerializer,
     SuggestionPackageUpdateSerializer,
     SuggestionReferenceUpdateSerializer,
@@ -219,6 +222,7 @@ class SuggestionViewSet(ListModelMixin, RetrieveModelMixin, viewsets.GenericView
             "bulk_bundle",
             "bulk_comment",
             "bulk_packages",
+            "bulk_add_packages",
             "bulk_maintainers",
             "bulk_references",
         }
@@ -1048,6 +1052,83 @@ class SuggestionViewSet(ListModelMixin, RetrieveModelMixin, viewsets.GenericView
             lambda queryset: queryset.restore_packages(
                 serializer.validated_data["package_attributes"]
             )
+        )
+
+    @extend_schema(
+        operation_id="bulkAddSuggestionPackages",
+        description=(
+            "Manually add packages to suggestions, each addition naming its own suggestion and package. "
+            "Unlike the other bulk operations, this does not apply to the suggestions matching the filters. "
+            "Either all additions are applied, or none: "
+            "if any addition is refused, nothing is modified and the reasons are returned by index. "
+            "Additions of packages that are already added are skipped, so a request can safely be repeated."
+        ),
+        request=SuggestionPackageBulkAddSerializer,
+        responses={
+            200: SuggestionPackageBulkAddResultSerializer,
+            400: SuggestionPackageBulkAddErrorSerializer,
+            403: ErrorDetailSerializer,
+        },
+    )
+    @bulk_packages.mapping.post  # pyright: ignore[reportFunctionMemberAccess]
+    def bulk_add_packages(self, request: Request) -> Response:
+        # Not `get_serializer()`, which would use the `PATCH` serializer declared on the action.
+        serializer = SuggestionPackageBulkAddSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        additions = cast(dict[str, Any], serializer.validated_data)["additions"]
+
+        # Resolve CVE IDs to suggestions.
+        cve_ids = {a["cve_id"] for a in additions if "cve_id" in a}
+        by_cve: dict[str, list[int]] = {}
+        for pk, cve_id in CVEDerivationClusterProposal.objects.filter(
+            cve__cve_id__in=cve_ids
+        ).values_list("pk", "cve__cve_id"):
+            by_cve.setdefault(cve_id, []).append(pk)
+
+        errors: dict[int, dict[str, list[str]]] = {}
+        pairs: list[tuple[int, str]] = []
+        indices: list[int] = []
+        for index, addition in enumerate(additions):
+            if "suggestion_id" in addition:
+                pk = addition["suggestion_id"]
+            else:
+                pks = by_cve.get(addition["cve_id"], [])
+                if len(pks) != 1:
+                    errors[index] = {
+                        "cve_id": [
+                            "No suggestion for this CVE"
+                            if not pks
+                            else "Several suggestions for this CVE, use `suggestion_id`"
+                        ]
+                    }
+                    continue
+                (pk,) = pks
+            pairs.append((pk, addition["package_attribute"]))
+            indices.append(index)
+
+        try:
+            # If some CVE IDs did not resolve, still check the other additions to report all problems at once, but don't apply anything.
+            added, skipped = CVEDerivationClusterProposal.objects.add_package_pairs(
+                pairs, check_only=bool(errors)
+            )
+        except BulkValidationError as error:
+            # Report by index in the request, not in the resolved pairs.
+            errors |= {indices[i]: reasons for i, reasons in error.errors.items()}
+        else:
+            if not errors:
+                return Response(
+                    SuggestionPackageBulkAddResultSerializer(
+                        {"added": added, "skipped": skipped}
+                    ).data
+                )
+        return Response(
+            SuggestionPackageBulkAddErrorSerializer(
+                {
+                    "detail": "Some of the additions were refused, so none was applied.",
+                    "reasons": dict(sorted(errors.items())),
+                }
+            ).data,
+            status=400,
         )
 
     @extend_schema(
