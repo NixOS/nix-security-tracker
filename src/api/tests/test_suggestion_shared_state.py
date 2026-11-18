@@ -186,7 +186,7 @@ def test_shared_ignored_package(
     anonymous_client: APIClient,
 ) -> None:
     for _ in range(2):
-        make_cached_suggestion().ignore_package(drv.attribute)
+        make_cached_suggestion().ignore_packages([drv.attribute])
     assert shared_state(anonymous_client)["packages"] == [
         {"state": "ignored", "attribute": drv.attribute}
     ]
@@ -198,7 +198,7 @@ def test_package_in_different_states_is_not_shared(
     anonymous_client: APIClient,
 ) -> None:
     make_cached_suggestion()
-    make_cached_suggestion().ignore_package(drv.attribute)
+    make_cached_suggestion().ignore_packages([drv.attribute])
     assert shared_state(anonymous_client)["packages"] == []
 
 
@@ -348,7 +348,7 @@ def test_a_shared_package_is_accepted_by_the_bulk_operation(
 
     response = staff_client.patch(
         f"{PACKAGES_URL}?status=pending",
-        {"package_attribute": packages[0]["attribute"], "ignored": True},
+        {"package_attributes": [packages[0]["attribute"]], "ignored": True},
         format="json",
     )
     assert response.status_code == 200

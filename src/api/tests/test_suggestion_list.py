@@ -267,7 +267,7 @@ def test_suggestion_list_filters_excludes_ignored_package(
     suggestion = make_cached_suggestion(
         drvs={package: ProvenanceFlags.PACKAGE_NAME_MATCH}
     )
-    suggestion.ignore_package(package.attribute)
+    suggestion.ignore_packages([package.attribute])
 
     response = client.get(url(), {"package": package.attribute})
     assert response.status_code == 200
