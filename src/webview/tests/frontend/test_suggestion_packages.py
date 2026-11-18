@@ -6,6 +6,7 @@ from pytest_django.live_server_helper import LiveServer
 
 from shared.models.linkage import CVEDerivationClusterProposal, ProvenanceFlags
 from shared.models.nix_evaluation import NixDerivation, NixMaintainer
+from shared.package_clustering import cluster_packages
 
 from .routes import SUGGESTION_DETAIL, SUGGESTION_LIST
 
@@ -300,3 +301,72 @@ def test_package_ignore_from_list_updates_the_list_card(
     ).to_be_visible()
     packages.get_by_role("button", name="Ignored (").click()
     expect(packages.get_by_role("button", name="Restore")).to_be_visible()
+
+
+@pytest.fixture
+def extra_package(make_drv: Callable[..., NixDerivation]) -> NixDerivation:
+    """A derivation the matcher did not link to the suggestion."""
+    drv = make_drv(pname="extra")
+    cluster_packages(NixDerivation.objects.filter(pk=drv.pk))
+    return drv
+
+
+@pytest.mark.django_db
+def test_package_add_form_hidden_for_anonymous(
+    live_server: LiveServer,
+    page: Page,
+    suggestion_with_package: Callable[..., CVEDerivationClusterProposal],
+) -> None:
+    suggestion = suggestion_with_package()
+    page.goto(live_server.url + SUGGESTION_DETAIL + f"/{suggestion.pk}")
+    packages = page.get_by_test_id(f"suggestion-{suggestion.pk}-packages")
+    expect(packages.get_by_text(PACKAGE_ATTRIBUTE, exact=True)).to_be_visible()
+    expect(packages.get_by_placeholder("Attribute path")).to_be_hidden()
+
+
+@pytest.mark.django_db
+def test_package_add_and_delete(
+    live_server: LiveServer,
+    as_committer: Page,
+    suggestion_with_package: Callable[..., CVEDerivationClusterProposal],
+    extra_package: NixDerivation,
+) -> None:
+    """A committer can add a package the matcher missed, and delete it again."""
+    suggestion = suggestion_with_package()
+    as_committer.goto(live_server.url + SUGGESTION_DETAIL + f"/{suggestion.pk}")
+    packages = as_committer.get_by_test_id(f"suggestion-{suggestion.pk}-packages")
+
+    packages.get_by_placeholder("Attribute path").fill(extra_package.attribute)
+    packages.get_by_role("button", name="Add").click()
+
+    expect(packages.get_by_text(extra_package.attribute, exact=True)).to_be_visible()
+    expect(packages.get_by_role("button", name="Delete")).to_be_visible()
+
+    activity_log_toggle = as_committer.get_by_test_id(
+        f"suggestion-{suggestion.pk}-activity-log-toggle"
+    )
+    activity_log_toggle.click()
+    activity_log = as_committer.get_by_test_id(
+        f"suggestion-{suggestion.pk}-activity-log"
+    )
+    expect(activity_log.get_by_text("added package", exact=False)).to_be_visible()
+
+    packages.get_by_role("button", name="Delete").click()
+    expect(packages.get_by_text(extra_package.attribute, exact=True)).to_be_hidden()
+    expect(packages.get_by_text(PACKAGE_ATTRIBUTE, exact=True)).to_be_visible()
+
+
+@pytest.mark.django_db
+def test_package_add_unknown_attribute_shows_inline_error(
+    live_server: LiveServer,
+    as_committer: Page,
+    suggestion_with_package: Callable[..., CVEDerivationClusterProposal],
+) -> None:
+    suggestion = suggestion_with_package()
+    as_committer.goto(live_server.url + SUGGESTION_DETAIL + f"/{suggestion.pk}")
+    packages = as_committer.get_by_test_id(f"suggestion-{suggestion.pk}-packages")
+
+    packages.get_by_placeholder("Attribute path").fill("does-not-exist")
+    packages.get_by_role("button", name="Add").click()
+
+    expect(packages.get_by_text("Not in any tracked channel")).to_be_visible()
