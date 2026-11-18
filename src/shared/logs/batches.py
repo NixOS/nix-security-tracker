@@ -46,7 +46,9 @@ class FoldedStatusEvent(FoldedEvent):
 class FoldedPackageEvent(FoldedEvent):
     """A folded package event that can represent single or bulk operations."""
 
-    action: Literal["package.restore", "package.ignore"]
+    action: Literal[
+        "package.restore", "package.ignore", "package.add", "package.delete"
+    ]
     package_names: list[str]  # Always a list, even for single packages
 
 

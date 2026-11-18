@@ -66,7 +66,9 @@ class RawStatusEvent(RawEvent):
 class RawPackageEvent(RawEvent):
     """Raw package change event."""
 
-    action: Literal["package.restore", "package.ignore"]
+    action: Literal[
+        "package.restore", "package.ignore", "package.add", "package.delete"
+    ]
     package_attribute: str
 
     def is_canceled_by(self, other: "RawEvent") -> bool:
@@ -78,7 +80,10 @@ class RawPackageEvent(RawEvent):
             return self.package_attribute == other.package_attribute and {
                 self.action,
                 other.action,
-            } == {"package.restore", "package.ignore"}
+            } in (
+                {"package.restore", "package.ignore"},
+                {"package.add", "package.delete"},
+            )
 
         return False
 
