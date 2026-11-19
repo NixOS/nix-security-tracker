@@ -317,6 +317,76 @@ class CVEDerivationClusterProposalQuerySet(models.QuerySet):
             fresh_cache=True,
         )
 
+    def add_package_pairs(
+        self, additions: list[tuple[int, str]], check_only: bool = False
+    ) -> tuple[int, int]:
+        """
+        Manually add packages to suggestions, given as `(suggestion pk, package attribute)` pairs.
+
+        Either every pair is applied, or none:
+        pairs that cannot be applied raise a `BulkValidationError` keyed by their index in `additions`.
+        Pairs that are already applied (or repeated) are skipped, so the same input can be submitted again.
+        Returns the number of added and skipped pairs.
+        With `check_only`, nothing is written, but errors are raised all the same.
+        """
+        with transaction.atomic():
+            suggestions = {
+                s.pk: s
+                for s in self.filter(pk__in={pk for pk, _ in additions})
+                .select_related("cached")
+                .select_for_update(of=("self",))
+            }
+            for suggestion in suggestions.values():
+                suggestion.ensure_fresh_cache()
+            already_added = set(
+                PackageOverlay.objects.filter(
+                    suggestion__in=suggestions.values(),
+                    type=PackageOverlay.Type.ADDITIONAL,
+                ).values_list("suggestion_id", "package_attribute")
+            )
+
+            errors: dict[int, dict[str, list[str]]] = {}
+            to_add: dict[int, list[str]] = {}
+            skipped = 0
+            for index, (pk, attribute) in enumerate(additions):
+                suggestion = suggestions.get(pk)
+                if suggestion is None:
+                    errors[index] = {"suggestion": ["Suggestion not found"]}
+                    continue
+                if (pk, attribute) in already_added:
+                    skipped += 1
+                    continue
+                try:
+                    suggestion.check_add_packages([attribute])
+                except ValidationError as error:
+                    errors[index] = {"package_attribute": error.messages}
+                    continue
+                already_added.add((pk, attribute))
+                to_add.setdefault(pk, []).append(attribute)
+            if errors:
+                raise BulkValidationError(errors)
+            if check_only:
+                return sum(len(attrs) for attrs in to_add.values()), skipped
+
+            packages = dict(
+                PackageAttrpath.objects.filter(
+                    attrpath__in={a for attrs in to_add.values() for a in attrs}
+                ).values_list("attrpath", "package_id")
+            )
+            for pk, attributes in to_add.items():
+                suggestion = suggestions[pk]
+                for attribute in attributes:
+                    # One by one rather than `bulk_create()`, so the signals record activity log events.
+                    suggestion.package_overlays.create(
+                        package_attribute=attribute,
+                        type=PackageOverlay.Type.ADDITIONAL,
+                        package_id=packages[attribute],
+                    )
+                # Recompute once per suggestion rather than once per package.
+                suggestion._recompute_package_cache()
+
+        return sum(len(attrs) for attrs in to_add.values()), skipped
+
     def ignore_maintainer(self, github_id: int) -> int:
         """Ignore a maintainer on every selected suggestion."""
         return self._apply_to_each(
@@ -567,26 +637,54 @@ class CVEDerivationClusterProposal(TimeStampMixin):
             cache_new_suggestions(self)
             self.refresh_from_db()
 
+    def added_package_attributes(self) -> set[str]:
+        """
+        Attribute paths of the manually added packages.
+        These can also be among the matcher's packages, if it found them on rematch after they were added.
+        Uses `package_overlays.all()`, so it can be prefetched.
+        """
+        return {
+            overlay.package_attribute
+            for overlay in self.package_overlays.all()
+            if overlay.type == PackageOverlay.Type.ADDITIONAL
+        }
+
     def check_ignore_packages(self, package_attributes: list[str]) -> None:
         """
         Raise unless all these packages can be ignored on this suggestion.
         """
         original_packages = self.cached.payload["original_packages"]
+        overlay_types = dict(
+            self.package_overlays.filter(
+                package_attribute__in=package_attributes
+            ).values_list("package_attribute", "type")
+        )
         errors = []
-        missing = [a for a in package_attributes if a not in original_packages]
+        # Only added, not found by the matcher: there is nothing to ignore.
+        added = [
+            a
+            for a in package_attributes
+            if a not in original_packages
+            and overlay_types.get(a) == PackageOverlay.Type.ADDITIONAL
+        ]
+        if added:
+            errors.append(
+                f"Packages were added manually, remove them instead: {', '.join(added)}"
+            )
+        missing = [
+            a
+            for a in package_attributes
+            if a not in original_packages and a not in added
+        ]
         if missing:
             errors.append(f"Packages not found in the suggestion: {', '.join(missing)}")
-        already_ignored = set(
-            self.package_overlays.filter(
-                package_attribute__in=package_attributes,
-                type=PackageOverlay.Type.IGNORED,
-            ).values_list("package_attribute", flat=True)
-        )
+        already_ignored = [
+            a
+            for a in package_attributes
+            if overlay_types.get(a) == PackageOverlay.Type.IGNORED
+        ]
         if already_ignored:
-            errors.append(
-                "Packages already ignored: "
-                + ", ".join(a for a in package_attributes if a in already_ignored)
-            )
+            errors.append(f"Packages already ignored: {', '.join(already_ignored)}")
         if errors:
             raise ValidationError({"package_attributes": errors})
 
@@ -599,6 +697,14 @@ class CVEDerivationClusterProposal(TimeStampMixin):
                     attrpath__in=package_attributes
                 ).values_list("attrpath", "package_id")
             )
+            # A package that was added manually and then found by the matcher on rematch is both.
+            # Ignoring it replaces the addition.
+            for overlay in self.package_overlays.filter(
+                package_attribute__in=package_attributes,
+                type=PackageOverlay.Type.ADDITIONAL,
+            ):
+                overlay.type = PackageOverlay.Type.IGNORED
+                overlay.save(update_fields=["type"])
             for package_attribute in package_attributes:
                 self.package_overlays.get_or_create(
                     package_attribute=package_attribute,
@@ -638,26 +744,122 @@ class CVEDerivationClusterProposal(TimeStampMixin):
             ).delete()
             self._recompute_package_cache()
 
+    def check_add_packages(self, package_attributes: list[str]) -> None:
+        """
+        Raise unless all these packages can be manually added to this suggestion.
+        """
+        original_packages = self.cached.payload["original_packages"]
+        errors = []
+        original = [a for a in package_attributes if a in original_packages]
+        if original:
+            errors.append(
+                f"Packages already part of the suggestion: {', '.join(original)}"
+            )
+        overlay_types = dict(
+            self.package_overlays.filter(
+                package_attribute__in=package_attributes
+            ).values_list("package_attribute", "type")
+        )
+        already_added = [
+            a
+            for a in package_attributes
+            if overlay_types.get(a) == PackageOverlay.Type.ADDITIONAL
+        ]
+        if already_added:
+            errors.append(f"Packages already added: {', '.join(already_added)}")
+        # An ignored package can drop out of the matcher's packages after rematching.
+        ignored = [
+            a
+            for a in package_attributes
+            if a not in original_packages
+            and overlay_types.get(a) == PackageOverlay.Type.IGNORED
+        ]
+        if ignored:
+            errors.append(
+                f"Packages are ignored, restore them instead: {', '.join(ignored)}"
+            )
+        known = set(
+            PackageAttrpath.objects.filter(attrpath__in=package_attributes).values_list(
+                "attrpath", flat=True
+            )
+        )
+        unknown = [a for a in package_attributes if a not in known]
+        if unknown:
+            errors.append(f"Unknown package attributes: {', '.join(unknown)}")
+        if errors:
+            raise ValidationError({"package_attributes": errors})
+
+    def add_packages(self, package_attributes: list[str]) -> None:
+        """Manually add packages, updating the overlays and the cache."""
+        with transaction.atomic():
+            self.check_add_packages(package_attributes)
+            package_ids = dict(
+                PackageAttrpath.objects.filter(
+                    attrpath__in=package_attributes
+                ).values_list("attrpath", "package_id")
+            )
+            # One by one rather than `bulk_create()`, so the signals record activity log events.
+            for package_attribute in dict.fromkeys(package_attributes):
+                self.package_overlays.create(
+                    package_attribute=package_attribute,
+                    type=PackageOverlay.Type.ADDITIONAL,
+                    package_id=package_ids[package_attribute],
+                )
+            self._recompute_package_cache()
+
+    def check_remove_packages(self, package_attributes: list[str]) -> None:
+        """
+        Raise unless all these packages can be removed from this suggestion.
+        """
+        added = set(
+            self.package_overlays.filter(
+                package_attribute__in=package_attributes,
+                type=PackageOverlay.Type.ADDITIONAL,
+            ).values_list("package_attribute", flat=True)
+        )
+        not_added = [a for a in package_attributes if a not in added]
+        if not_added:
+            raise ValidationError(
+                {
+                    "package_attributes": "Packages were not added manually: "
+                    + ", ".join(not_added)
+                }
+            )
+
+    def remove_packages(self, package_attributes: list[str]) -> None:
+        """Remove manually added packages."""
+        with transaction.atomic():
+            self.check_remove_packages(package_attributes)
+            self.package_overlays.filter(
+                package_attribute__in=package_attributes,
+                type=PackageOverlay.Type.ADDITIONAL,
+            ).delete()
+            self._recompute_package_cache()
+
     def _recompute_package_cache(self) -> None:
         """Recompute the cached `packages` and `categorized_maintainers` from
         the current set of package overlays."""
         from shared.cache_suggestions import (
             CachedSuggestion,
+            added_packages_structure,
+            affected_version_constraints,
             apply_package_overlays,
             categorize_maintainers,
         )
 
-        self.cached.payload["packages"] = apply_package_overlays(
-            self.cached.payload["original_packages"],
-            self.package_overlays.all(),
-        )
+        # Not `self.package_overlays.all()`, which could return stale prefetched overlays.
+        package_overlays = list(PackageOverlay.objects.filter(suggestion=self))
         original_packages = {
             k: CachedSuggestion.Package.model_validate(v)
             for k, v in self.cached.payload["original_packages"].items()
         }
-        active_packages = {
-            k: CachedSuggestion.Package.model_validate(v)
-            for k, v in self.cached.payload["packages"].items()
+        active_packages = apply_package_overlays(
+            original_packages, package_overlays
+        ) | added_packages_structure(
+            package_overlays, affected_version_constraints(self)
+        )
+        self.cached.payload["packages"] = {
+            k: v.model_dump(mode="json") for k, v in active_packages.items()
         }
         self.cached.payload["categorized_maintainers"] = categorize_maintainers(
             original_packages,
@@ -1058,6 +1260,8 @@ class MaintainerOverlay(Overlay):
 @pghistory.track(
     pghistory.ManualEvent("package.restore"),
     pghistory.ManualEvent("package.ignore"),
+    pghistory.ManualEvent("package.add"),
+    pghistory.ManualEvent("package.delete"),
     attrs={
         "package": models.ForeignKey(
             Package,
@@ -1131,12 +1335,19 @@ def track_package_overlay_save(
     sender: type[PackageOverlay],
     instance: PackageOverlay,
     created: bool,
+    update_fields: frozenset[str] | None = None,
     **kwargs: Any,
 ) -> None:
-    if created:
+    # An addition turns into an ignore when the matcher finds the package too, see `ignore_packages()`.
+    if created or (update_fields and "type" in update_fields):
+        label = (
+            "package.add"
+            if instance.type == PackageOverlay.Type.ADDITIONAL
+            else "package.ignore"
+        )
         pghistory.create_event(
             obj=instance,
-            label="package.ignore",
+            label=label,
         )
 
 
@@ -1144,9 +1355,14 @@ def track_package_overlay_save(
 def track_package_overlay_delete(
     sender: type[PackageOverlay], instance: PackageOverlay, **kwargs: Any
 ) -> None:
+    label = (
+        "package.delete"
+        if instance.type == PackageOverlay.Type.ADDITIONAL
+        else "package.restore"
+    )
     pghistory.create_event(
         obj=instance,
-        label="package.restore",
+        label=label,
     )
 
 

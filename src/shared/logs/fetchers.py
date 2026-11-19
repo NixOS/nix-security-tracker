@@ -201,7 +201,11 @@ def fetch_status_events_for_package(package_name: str) -> list[RawEventType]:
 
     suggestion_ids = list(
         CVEDerivationClusterProposal.objects.filter(
-            derivations__attribute=package_name,
+            Q(derivations__attribute=package_name)
+            | Q(
+                package_overlays__package_attribute=package_name,
+                package_overlays__type=PackageOverlay.Type.ADDITIONAL,
+            )
         )
         # This will not display any events to users who query the feed after the package got ignored.
         # That is by design, to avoid noise.

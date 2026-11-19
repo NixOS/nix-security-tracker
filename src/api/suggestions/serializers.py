@@ -1,3 +1,4 @@
+from django.conf import settings
 from drf_spectacular.utils import extend_schema_field, extend_schema_serializer
 from rest_framework import serializers
 
@@ -69,6 +70,94 @@ class SuggestionPackageUpdateSerializer(serializers.Serializer):
     )
     ignored = serializers.BooleanField(
         help_text="True to ignore, false to restore.",
+    )
+
+
+class SuggestionPackageAddSerializer(serializers.Serializer):
+    """Request body for manually adding packages that the matcher did not find."""
+
+    package_attributes = serializers.ListField(
+        child=serializers.CharField(max_length=255),
+        allow_empty=False,
+        help_text="Attribute names to add in one go.",
+    )
+
+
+class SuggestionPackageDeleteSerializer(serializers.Serializer):
+    """Query parameters for deleting manually added packages."""
+
+    package_attributes = serializers.ListField(
+        child=serializers.CharField(max_length=255),
+        allow_empty=False,
+        help_text="Attribute names of the manually added packages to delete.",
+    )
+
+
+class SuggestionPackageAdditionSerializer(serializers.Serializer):
+    """One package to add to one suggestion, identified either by its ID or by its CVE ID."""
+
+    suggestion_id = serializers.IntegerField(
+        required=False,
+        help_text="ID of the suggestion. Exactly one of `suggestion_id` and `cve_id` is required.",
+    )
+    cve_id = serializers.CharField(
+        required=False,
+        max_length=255,
+        help_text="CVE ID of the suggestion. Exactly one of `suggestion_id` and `cve_id` is required.",
+    )
+    package_attribute = serializers.CharField(
+        max_length=255,
+        help_text="Attribute name of the package to add.",
+    )
+
+    def validate(self, attrs: dict) -> dict:
+        if ("suggestion_id" in attrs) == ("cve_id" in attrs):
+            raise serializers.ValidationError(
+                "Exactly one of `suggestion_id` and `cve_id` is required."
+            )
+        return attrs
+
+
+class SuggestionPackageBulkAddSerializer(serializers.Serializer):
+    """Request body for manually adding packages to several suggestions at once."""
+
+    additions = SuggestionPackageAdditionSerializer(
+        many=True,
+        allow_empty=False,
+        help_text="Packages to add, at most `API_BULK_MAX_AFFECTED` (1000 by default).",
+    )
+
+    def validate_additions(self, value: list) -> list:
+        # Checked here rather than with `max_length`, so the setting is read at request time.
+        if len(value) > settings.API_BULK_MAX_AFFECTED:
+            raise serializers.ValidationError(
+                f"At most {settings.API_BULK_MAX_AFFECTED} additions are allowed in one request."
+            )
+        return value
+
+
+class SuggestionPackageBulkAddResultSerializer(serializers.Serializer):
+    """Response body for a successful bulk package addition."""
+
+    added = serializers.IntegerField(help_text="Number of packages added.")
+    skipped = serializers.IntegerField(
+        help_text="Number of additions skipped because the package was already added, or repeated in the request.",
+    )
+
+
+class SuggestionPackageBulkAddErrorSerializer(serializers.Serializer):
+    """
+    Response body for a bulk package addition rejected because of some of the additions.
+
+    Nothing is modified when this is returned.
+    """
+
+    detail = serializers.CharField(help_text="Human readable summary of the failure.")
+    reasons = serializers.DictField(
+        child=serializers.DictField(
+            child=serializers.ListField(child=serializers.CharField())
+        ),
+        help_text="Reasons why additions were refused, keyed by their index in `additions`, then by field name.",
     )
 
 
@@ -168,6 +257,7 @@ class SuggestionCategorizedPackagesSerializer(serializers.Serializer):
     original = serializers.DictField(child=SuggestionPackageSerializer())
     active = serializers.DictField(child=SuggestionPackageSerializer())
     ignored = serializers.DictField(child=SuggestionPackageSerializer())
+    added = serializers.DictField(child=SuggestionPackageSerializer())
 
 
 class SuggestionAffectedProductSerializer(serializers.Serializer):
@@ -240,6 +330,7 @@ class SuggestionSerializer(serializers.Serializer):
     packages = serializers.SerializerMethodField()
     original_packages = serializers.SerializerMethodField()
     ignored_packages = serializers.SerializerMethodField()
+    added_packages = serializers.SerializerMethodField()
     metrics = serializers.SerializerMethodField()
     categorized_maintainers = serializers.SerializerMethodField()
     categorized_url_references = serializers.SerializerMethodField()
@@ -290,6 +381,15 @@ class SuggestionSerializer(serializers.Serializer):
             k: SuggestionPackageSerializer(v).data
             for k, v in original_packages.items()
             if k not in packages
+        }
+
+    @extend_schema_field(serializers.DictField(child=SuggestionPackageSerializer()))
+    def get_added_packages(self, obj: CVEDerivationClusterProposal) -> dict:
+        packages = self._payload(obj)["packages"]
+        return {
+            k: SuggestionPackageSerializer(packages[k]).data
+            for k in obj.added_package_attributes()
+            if k in packages
         }
 
     @extend_schema_field(MetricSerializer(many=True))

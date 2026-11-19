@@ -1,15 +1,25 @@
 from collections.abc import Callable
+from urllib.parse import urlencode
 
 import pytest
+from django.contrib.auth.models import User
 from rest_framework.reverse import reverse
 from rest_framework.test import APIClient
 
-from shared.models.linkage import CVEDerivationClusterProposal, ProvenanceFlags
+from shared.cache_suggestions import cache_new_suggestions
+from shared.models.linkage import (
+    CVEDerivationClusterProposal,
+    DerivationClusterProposalLink,
+    ProvenanceFlags,
+)
 from shared.models.nix_evaluation import NixDerivation, NixMaintainer
+from shared.package_clustering import cluster_packages
 
 PACKAGE_ATTRIBUTE_1 = "package1"
 PACKAGE_ATTRIBUTE_2 = "package2"
 PACKAGE_ATTRIBUTE_NON_EXISTING = "foo"
+PACKAGE_ATTRIBUTE_EXTRA = "extra"
+PACKAGE_ATTRIBUTE_EXTRA_2 = "extra2"
 
 
 def url(id: int) -> str:
@@ -422,3 +432,190 @@ def test_patch_packages_refuses_an_empty_list(
         format="json",
     )
     assert response.status_code == 400
+
+
+@pytest.fixture
+def extra_drv(make_drv: Callable[..., NixDerivation]) -> NixDerivation:
+    drv = make_drv(pname=PACKAGE_ATTRIBUTE_EXTRA)
+    cluster_packages(NixDerivation.objects.filter(pk=drv.pk))
+    return drv
+
+
+@pytest.fixture
+def extra_drv_2(make_drv: Callable[..., NixDerivation]) -> NixDerivation:
+    drv = make_drv(pname=PACKAGE_ATTRIBUTE_EXTRA_2)
+    cluster_packages(NixDerivation.objects.filter(pk=drv.pk))
+    return drv
+
+
+def test_post_add_package_unauthenticated(
+    suggestion_with_packages: CVEDerivationClusterProposal,
+    extra_drv: NixDerivation,
+) -> None:
+    client = APIClient()
+    response = client.post(
+        url(suggestion_with_packages.pk),
+        {"package_attributes": [PACKAGE_ATTRIBUTE_EXTRA]},
+        format="json",
+    )
+    assert response.status_code == 401
+
+
+def test_post_add_package_non_committer(
+    suggestion_with_packages: CVEDerivationClusterProposal,
+    extra_drv: NixDerivation,
+    user: User,
+) -> None:
+    client = APIClient()
+    client.force_login(user)
+    response = client.post(
+        url(suggestion_with_packages.pk),
+        {"package_attributes": [PACKAGE_ATTRIBUTE_EXTRA]},
+        format="json",
+    )
+    assert response.status_code == 403
+
+
+def test_post_add_package_unknown(
+    suggestion_with_packages: CVEDerivationClusterProposal,
+    committer_client: APIClient,
+) -> None:
+    response = committer_client.post(
+        url(suggestion_with_packages.pk),
+        {"package_attributes": [PACKAGE_ATTRIBUTE_NON_EXISTING]},
+        format="json",
+    )
+    assert response.status_code == 400
+
+
+def test_add_and_delete_package(
+    suggestion_with_packages: CVEDerivationClusterProposal,
+    extra_drv: NixDerivation,
+    committer_client: APIClient,
+) -> None:
+    response = committer_client.post(
+        url(suggestion_with_packages.pk),
+        {"package_attributes": [PACKAGE_ATTRIBUTE_EXTRA]},
+        format="json",
+    )
+    assert response.status_code == 204
+
+    data = committer_client.get(url(suggestion_with_packages.pk)).data
+    assert PACKAGE_ATTRIBUTE_EXTRA in data["active"]
+    assert PACKAGE_ATTRIBUTE_EXTRA in data["added"]
+    assert PACKAGE_ATTRIBUTE_EXTRA not in data["original"]
+    assert PACKAGE_ATTRIBUTE_EXTRA not in data["ignored"]
+
+    detail = committer_client.get(
+        reverse(
+            "cvederivationclusterproposal-detail",
+            kwargs={"pk": suggestion_with_packages.pk},
+        )
+    ).data
+    assert set(detail["added_packages"]) == {PACKAGE_ATTRIBUTE_EXTRA}
+
+    response = committer_client.delete(
+        url(suggestion_with_packages.pk)
+        + f"?package_attributes={PACKAGE_ATTRIBUTE_EXTRA}"
+    )
+    assert response.status_code == 204
+
+    data = committer_client.get(url(suggestion_with_packages.pk)).data
+    assert PACKAGE_ATTRIBUTE_EXTRA not in data["active"]
+    assert data["added"] == {}
+
+
+def test_delete_package_not_added(
+    suggestion_with_packages: CVEDerivationClusterProposal,
+    committer_client: APIClient,
+) -> None:
+    response = committer_client.delete(
+        url(suggestion_with_packages.pk) + f"?package_attributes={PACKAGE_ATTRIBUTE_1}"
+    )
+    assert response.status_code == 400
+
+
+def test_add_and_delete_several_packages_at_once(
+    suggestion_with_packages: CVEDerivationClusterProposal,
+    extra_drv: NixDerivation,
+    extra_drv_2: NixDerivation,
+    committer_client: APIClient,
+) -> None:
+    both = [PACKAGE_ATTRIBUTE_EXTRA, PACKAGE_ATTRIBUTE_EXTRA_2]
+    response = committer_client.post(
+        url(suggestion_with_packages.pk),
+        {"package_attributes": both},
+        format="json",
+    )
+    assert response.status_code == 204
+    data = committer_client.get(url(suggestion_with_packages.pk)).data
+    assert set(data["added"]) == set(both)
+
+    response = committer_client.delete(
+        url(suggestion_with_packages.pk)
+        + "?"
+        + urlencode({"package_attributes": both}, doseq=True)
+    )
+    assert response.status_code == 204
+    data = committer_client.get(url(suggestion_with_packages.pk)).data
+    assert data["added"] == {}
+
+
+def test_add_several_packages_refused_by_one_changes_nothing(
+    suggestion_with_packages: CVEDerivationClusterProposal,
+    extra_drv: NixDerivation,
+    committer_client: APIClient,
+) -> None:
+    response = committer_client.post(
+        url(suggestion_with_packages.pk),
+        {
+            "package_attributes": [
+                PACKAGE_ATTRIBUTE_EXTRA,
+                PACKAGE_ATTRIBUTE_NON_EXISTING,
+            ]
+        },
+        format="json",
+    )
+    assert response.status_code == 400
+    assert "package_attributes" in response.data
+    data = committer_client.get(url(suggestion_with_packages.pk)).data
+    assert data["added"] == {}
+
+
+def test_added_package_found_by_matcher_is_still_listed_as_added(
+    suggestion_with_packages: CVEDerivationClusterProposal,
+    extra_drv: NixDerivation,
+    committer_client: APIClient,
+) -> None:
+    """After a rematch finds an added package, it can still be deleted rather than getting stuck."""
+    suggestion_with_packages.add_packages([PACKAGE_ATTRIBUTE_EXTRA])
+    DerivationClusterProposalLink.objects.create(
+        proposal=suggestion_with_packages,
+        derivation=extra_drv,
+        provenance_flags=ProvenanceFlags.PACKAGE_NAME_MATCH,
+    )
+    cache_new_suggestions(suggestion_with_packages)
+
+    data = committer_client.get(url(suggestion_with_packages.pk)).data
+    assert PACKAGE_ATTRIBUTE_EXTRA in data["original"]
+    assert PACKAGE_ATTRIBUTE_EXTRA in data["added"]
+    assert PACKAGE_ATTRIBUTE_EXTRA not in data["ignored"]
+    detail = committer_client.get(
+        reverse(
+            "cvederivationclusterproposal-detail",
+            kwargs={"pk": suggestion_with_packages.pk},
+        )
+    ).data
+    assert PACKAGE_ATTRIBUTE_EXTRA in detail["added_packages"]
+    listed = committer_client.get(reverse("cvederivationclusterproposal-list")).data
+    (item,) = [s for s in listed["results"] if s["id"] == suggestion_with_packages.pk]
+    assert PACKAGE_ATTRIBUTE_EXTRA in item["added_packages"]
+
+    response = committer_client.delete(
+        url(suggestion_with_packages.pk)
+        + f"?package_attributes={PACKAGE_ATTRIBUTE_EXTRA}"
+    )
+    assert response.status_code == 204
+    data = committer_client.get(url(suggestion_with_packages.pk)).data
+    assert PACKAGE_ATTRIBUTE_EXTRA in data["active"]
+    assert data["added"] == {}

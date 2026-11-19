@@ -11,6 +11,7 @@ Serializers are named after the models they read/write. Export with
 
 from __future__ import annotations
 
+import logging
 import uuid
 from typing import Any, cast
 
@@ -20,6 +21,8 @@ from rest_framework import serializers
 from shared import models
 from shared.evaluation import DerivationKey, derivation_as_key
 from shared.package_clustering import cluster_packages
+
+logger = logging.getLogger(__name__)
 
 SCHEMA_VERSION = 1
 
@@ -432,12 +435,29 @@ class CVEDerivationClusterProposal(serializers.ModelSerializer):
             )
         )
         for overlay in overlays_data:
+            attrpath = models.PackageAttrpath.objects.filter(
+                attrpath=overlay["package_attribute"]
+            ).first()
+            if (
+                attrpath is None
+                and overlay["type"] == models.PackageOverlay.Type.ADDITIONAL
+            ):
+                # Manually added packages are not among the exported derivations,
+                # so they only resolve if the package is known locally.
+                logger.warning(
+                    "Skipping manually added package '%s' on %s: unknown attribute path",
+                    overlay["package_attribute"],
+                    cve.cve_id,
+                )
+                continue
+            if attrpath is None:
+                raise models.PackageAttrpath.DoesNotExist(
+                    f"Unknown attribute path '{overlay['package_attribute']}'"
+                )
             models.PackageOverlay.objects.create(
                 suggestion=proposal,
                 package_attribute=overlay["package_attribute"],
-                package=models.PackageAttrpath.objects.get(
-                    attrpath=overlay["package_attribute"]
-                ).package,
+                package=attrpath.package,
                 type=overlay["type"],
             )
 

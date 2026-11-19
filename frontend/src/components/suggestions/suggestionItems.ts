@@ -57,14 +57,19 @@ export function packageRows(
   original: SuggestionOriginalPackages,
   active: SuggestionPackages,
   ignored: SuggestionPackages,
+  added: SuggestionPackages,
 ): ItemRow<PackageEntry>[] {
   const entries = (packages: SuggestionPackages) =>
     Object.entries(packages).map(([attribute, pkg]) => ({ attribute, pkg }));
+  const notAdded = Object.fromEntries(
+    Object.entries(active).filter(([attribute]) => !(attribute in added)),
+  );
   return inOriginalOrder(
     Object.keys(original),
     [
-      { state: "active", items: entries(active) },
+      { state: "active", items: entries(notAdded) },
       { state: "ignored", items: entries(ignored) },
+      { state: "added", items: entries(added) },
     ],
     (entry) => entry.attribute,
   );
