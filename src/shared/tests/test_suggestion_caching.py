@@ -249,3 +249,78 @@ def test_cache_description_falls_back_to_meta(
         cached.payload["packages"][drv.attribute]["description"]
         == drv.metadata.description
     )
+
+
+def test_cache_attribute_package_groups(
+    make_drv: Callable[..., NixDerivation],
+    make_suggestion: Callable[..., CVEDerivationClusterProposal],
+) -> None:
+    """
+    Attributes of the same package are grouped together, with information from the package.
+    Grouping is about original packages, so ignoring an attribute doesn't change it.
+    """
+    # Same pname and homepage, hence the same package after clustering.
+    foo = make_drv(pname="foo", attribute="foo", homepage="https://foo.example")
+    foo_alias = make_drv(
+        pname="foo", attribute="pkgsStatic.foo", homepage="https://foo.example"
+    )
+    bar = make_drv(pname="bar", attribute="bar", homepage="https://bar.example")
+    suggestion = make_suggestion(
+        drvs={drv: ProvenanceFlags.PACKAGE_NAME_MATCH for drv in [foo, foo_alias, bar]}
+    )
+    cache_new_suggestions(suggestion)
+
+    foo_package = Package.objects.get(name="foo")
+    bar_package = Package.objects.get(name="bar")
+    expected = [
+        {
+            "package_id": bar_package.pk,
+            "name": "bar",
+            "homepage": "https://bar.example",
+            "description": bar_package.description,
+            "attributes": ["bar"],
+        },
+        {
+            "package_id": foo_package.pk,
+            "name": "foo",
+            "homepage": "https://foo.example",
+            "description": foo_package.description,
+            "attributes": ["foo", "pkgsStatic.foo"],
+        },
+    ]
+    suggestion.cached.refresh_from_db()
+    assert suggestion.cached.payload["attribute_package_groups"] == expected
+
+    suggestion.ignore_packages(["pkgsStatic.foo"])
+    suggestion.cached.refresh_from_db()
+    assert "pkgsStatic.foo" not in suggestion.cached.payload["packages"]
+    assert suggestion.cached.payload["attribute_package_groups"] == expected
+
+
+def test_cache_clusters_unlinked_derivations(
+    cve: Container,
+    drv: NixDerivation,
+) -> None:
+    """
+    Caching clusters derivations not yet linked to a package, so they are grouped by package.
+    """
+    suggestion = CVEDerivationClusterProposal.objects.create(cve=cve.cve)
+    DerivationClusterProposalLink.objects.create(
+        proposal=suggestion,
+        derivation=drv,
+        provenance_flags=ProvenanceFlags.PACKAGE_NAME_MATCH,
+    )
+
+    cache_new_suggestions(suggestion)
+
+    package = Package.objects.get()
+    cached = CachedSuggestions.objects.get(proposal=suggestion)
+    assert cached.payload["attribute_package_groups"] == [
+        {
+            "package_id": package.pk,
+            "name": package.name,
+            "homepage": package.homepage,
+            "description": package.description,
+            "attributes": [drv.attribute],
+        }
+    ]

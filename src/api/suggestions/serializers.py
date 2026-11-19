@@ -170,6 +170,16 @@ class SuggestionCategorizedPackagesSerializer(serializers.Serializer):
     ignored = serializers.DictField(child=SuggestionPackageSerializer())
 
 
+class PackageGroupSerializer(serializers.Serializer):
+    """Attributes that belong to the same package."""
+
+    package_id = serializers.IntegerField()
+    name = serializers.CharField()
+    homepage = serializers.CharField(allow_null=True)
+    description = serializers.CharField(allow_null=True)
+    attributes = serializers.ListField(child=serializers.CharField())
+
+
 class SuggestionAffectedProductSerializer(serializers.Serializer):
     name = serializers.CharField()
     version_constraints = serializers.ListField(
@@ -240,6 +250,8 @@ class SuggestionSerializer(serializers.Serializer):
     packages = serializers.SerializerMethodField()
     original_packages = serializers.SerializerMethodField()
     ignored_packages = serializers.SerializerMethodField()
+    # for UI grouping.
+    attribute_package_groups = serializers.SerializerMethodField()
     metrics = serializers.SerializerMethodField()
     categorized_maintainers = serializers.SerializerMethodField()
     categorized_url_references = serializers.SerializerMethodField()
@@ -291,6 +303,11 @@ class SuggestionSerializer(serializers.Serializer):
             for k, v in original_packages.items()
             if k not in packages
         }
+
+    @extend_schema_field(PackageGroupSerializer(many=True))
+    def get_attribute_package_groups(self, obj: CVEDerivationClusterProposal) -> list:
+        data = self._payload(obj)["attribute_package_groups"]
+        return list(PackageGroupSerializer(data, many=True).data)
 
     @extend_schema_field(MetricSerializer(many=True))
     def get_metrics(self, obj: CVEDerivationClusterProposal) -> list:
