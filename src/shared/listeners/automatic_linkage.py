@@ -96,9 +96,9 @@ def resolve_linkage_candidates(container: Container) -> LinkageOutcome:
             ),
         )
 
-    matches = produce_linkage_candidates(filtered_affected)
+    candidates = produce_linkage_candidates(filtered_affected)
 
-    if not matches.exists():
+    if not candidates.count:
         logger.info("No derivations matching '%s'.", container.cve)
         return LinkageOutcome(
             rejection=Rejection(
@@ -106,23 +106,22 @@ def resolve_linkage_candidates(container: Container) -> LinkageOutcome:
             ),
         )
 
-    match_count = matches.count()
-    if match_count > settings.MAX_MATCHES:
+    if candidates.count > settings.MAX_MATCHES:
         logger.info(
             "Container for '%s' exceeds MAX_MATCHES (%d > %d), rejecting without match.",
             container.cve,
-            match_count,
+            candidates.count,
             settings.MAX_MATCHES,
         )
         return LinkageOutcome(
             rejection=Rejection(
                 reason=CVEDerivationClusterProposal.RejectionReason.MAX_MATCHES_EXCEEDED,
-                match_count=match_count,
+                match_count=candidates.count,
                 max_matches_limit=settings.MAX_MATCHES,
             ),
         )
 
-    with_known_vuln = matches.filter(
+    with_known_vuln = candidates.derivations.filter(
         metadata__known_vulnerabilities__contains=[container.cve.cve_id],
     )
 
@@ -134,7 +133,7 @@ def resolve_linkage_candidates(container: Container) -> LinkageOutcome:
             derivations=with_known_vuln,
         )
 
-    return LinkageOutcome(derivations=matches)
+    return LinkageOutcome(derivations=candidates.derivations)
 
 
 def build_derivation_links(
@@ -220,9 +219,15 @@ def _cpe_vendor_product_pairs(
     return pairs
 
 
+@dataclass
+class Candidates:
+    derivations: models.QuerySet
+    count: int
+
+
 def produce_linkage_candidates(
     filtered_affected: models.QuerySet,
-) -> models.QuerySet:
+) -> Candidates:
     package_names = (
         filtered_affected.exclude(package_name__isnull=True)
         .values_list("package_name", flat=True)
@@ -250,10 +255,27 @@ def produce_linkage_candidates(
             metadata__cpe_product__iexact=product,
         )
 
-    match_q = package_q | product_q | cpe_q
+    name_q = package_q | product_q
     # This does not seem to happen in practice though
-    if not match_q:
-        return NixDerivation.objects.none()
+    if not (name_q or cpe_q):
+        return Candidates(derivations=NixDerivation.objects.none(), count=0)
+
+    candidates = NixDerivation.objects.none().union(
+        *(
+            NixDerivation.objects.exclude(
+                # Test derivations are a Nixpkgs implementation detail and never represent software to be distributed.
+                attribute__startswith="tests.",
+            )
+            .filter(
+                q,
+                metadata__isnull=False,
+                parent_evaluation__in=NixEvaluation.objects.latest_completed_per_branch(),
+            )
+            .values("pk")
+            for q in (name_q, cpe_q)
+            if q
+        )
+    )
 
     annotations = {}
     if package_q:
@@ -280,19 +302,13 @@ def produce_linkage_candidates(
     # Our initialization must be as large as possible.
     # TODO: record what is used to expand the candidate list.
     # TODO: improve accuracy by using bigrams similarity with a `| Q(...)` query.
-    matches = (
-        NixDerivation.objects.exclude(
-            # Test derivations are a Nixpkgs implementation detail and never represent software to be distributed.
-            attribute__startswith="tests.",
-        )
-        .filter(
-            match_q,
-            metadata__isnull=False,
-            parent_evaluation__in=NixEvaluation.objects.latest_completed_per_branch(),
-        )
-        .select_related("metadata", "package_link")
-        .annotate(**annotations)
-    )
+    ids = list(candidates.values_list("pk", flat=True)[: settings.MAX_MATCHES + 1])
+    if len(ids) <= settings.MAX_MATCHES:
+        count = len(ids)
+        matches = NixDerivation.objects.filter(pk__in=ids)
+    else:
+        count = candidates.count()
+        matches = NixDerivation.objects.none()
 
     # TODO: restrain further the list by checking all version constraints.
     # TODO: restrain further the list by checking hardware constraints or kernel constraints.
@@ -300,7 +316,12 @@ def produce_linkage_candidates(
     # macOS, Linux, Windows, *BSD.
     # TODO: teach it about newcomers kernels such as Redox.
 
-    return matches
+    return Candidates(
+        derivations=matches.select_related("metadata", "package_link").annotate(
+            **annotations
+        ),
+        count=count,
+    )
 
 
 def build_new_links(container: Container) -> bool:

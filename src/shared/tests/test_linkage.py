@@ -404,6 +404,95 @@ def test_cpe_match_combines_with_package_name_match(
     )
 
 
+@pytest.mark.parametrize(
+    ("package_name", "drv_pname", "matches"),
+    [
+        ("Foo_Bar", "foo_bar", True),
+        ("foo_bar", "FOO_BAR", True),
+        ("foo_bar", "fooxbar", False),
+        ("foo%bar", "foo-anything-bar", False),
+        ("foo%bar", "foo%bar", True),
+    ],
+)
+def test_name_match_is_case_insensitive_and_literal(
+    make_container: Callable[..., Container],
+    make_drv: Callable[..., NixDerivation],
+    package_name: str,
+    drv_pname: str,
+    matches: bool,
+) -> None:
+    container = make_container(package_name=package_name, product=None)
+    drv = make_drv(pname=drv_pname)
+
+    assert build_new_links(container)
+    assert (
+        DerivationClusterProposalLink.objects.filter(derivation=drv).exists() == matches
+    )
+
+
+def test_cpe_match_is_case_insensitive(
+    make_container: Callable[..., Container],
+    make_drv: Callable[..., NixDerivation],
+) -> None:
+    container = make_container(
+        package_name="unrelated-cve-name",
+        product=None,
+        cpes=["cpe:2.3:a:GNU:Hello:2.12:*:*:*:*:*:*:*"],
+    )
+    drv = make_drv(
+        pname="hello-nix",
+        attribute="hello",
+        cpe_vendor="gnu",
+        cpe_product="HELLO",
+    )
+
+    assert build_new_links(container)
+    link = DerivationClusterProposalLink.objects.get(derivation=drv)
+    assert link.provenance_flags == ProvenanceFlags.CPE_MATCH
+
+
+def test_derivation_without_metadata_is_never_matched(
+    make_container: Callable[..., Container],
+    make_drv: Callable[..., NixDerivation],
+) -> None:
+    container = make_container(package_name="foo", product=None)
+    drv = make_drv(pname="foo")
+    NixDerivation.objects.filter(pk=drv.pk).update(metadata=None)
+
+    assert build_new_links(container)
+    assert not DerivationClusterProposalLink.objects.filter(derivation=drv).exists()
+
+
+def test_cpe_match_without_package_name_or_product(
+    make_container: Callable[..., Container],
+    make_drv: Callable[..., NixDerivation],
+) -> None:
+    container = make_container(
+        package_name=None,
+        product=None,
+        cpes=["cpe:2.3:a:gnu:hello:2.12:*:*:*:*:*:*:*"],
+    )
+    drv = make_drv(
+        pname="hello-nix",
+        attribute="hello",
+        cpe_vendor="gnu",
+        cpe_product="hello",
+    )
+    unrelated = make_drv(
+        pname="other",
+        attribute="other",
+        cpe_vendor="acme",
+        cpe_product="other",
+    )
+
+    assert build_new_links(container)
+    link = DerivationClusterProposalLink.objects.get(derivation=drv)
+    assert link.provenance_flags == ProvenanceFlags.CPE_MATCH
+    assert not DerivationClusterProposalLink.objects.filter(
+        derivation=unrelated
+    ).exists()
+
+
 def test_ignore_tests(
     cve: Container,
     make_drv: Callable[..., NixDerivation],
