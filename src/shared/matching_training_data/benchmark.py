@@ -96,6 +96,7 @@ class ProposalScore(BaseModel):
     cve_id: str
     true_positives: int
     false_positives: int
+    unreviewed: int
     rejection_agree: bool
     snr: Snr
 
@@ -106,6 +107,7 @@ class AggregateReport(BaseModel):
     proposals: int
     true_positives: int
     false_positives: int
+    unreviewed: int
     rejection_agree_count: int
     snr: Snr
 
@@ -139,6 +141,19 @@ def score_proposal(
     Compare a rematch outcome to curated labels for one training proposal.
     """
     kept, _ignored = label_sets(original)
+    reviewed = {
+        derivation_as_key(
+            drv_path=link.derivation.derivation_path,
+            attr=link.derivation.attribute,
+            name=link.derivation.name,
+            meta_name=link.derivation.metadata.name
+            if link.derivation.metadata is not None
+            else None,
+        )
+        for link in original.derivationclusterproposallink_set.select_related(
+            "derivation__metadata"
+        )
+    }
     proposed: set[DerivationKey] = set()
     if new_match.derivations:
         proposed = {
@@ -155,11 +170,12 @@ def score_proposal(
     )
 
     true_positives = len(proposed & kept)
-    false_positives = len(proposed - kept)
+    false_positives = len(proposed & reviewed - kept)
     return ProposalScore(
         cve_id=original.cve.cve_id,
         true_positives=true_positives,
         false_positives=false_positives,
+        unreviewed=len(proposed - reviewed),
         rejection_agree=original.rejection_reason == outcome_rejection,
         snr=snr(true_positives, false_positives),
     )
@@ -173,6 +189,7 @@ def aggregate(scores: Iterable[ProposalScore]) -> AggregateReport:
         proposals=len(scores_list),
         true_positives=true_positives,
         false_positives=false_positives,
+        unreviewed=sum(s.unreviewed for s in scores_list),
         rejection_agree_count=sum(1 for s in scores_list if s.rejection_agree),
         snr=snr(true_positives, false_positives),
     )
