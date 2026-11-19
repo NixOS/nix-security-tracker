@@ -2,6 +2,7 @@ from collections.abc import Callable
 from typing import Any, cast
 
 import pytest
+from django.db import transaction
 from rest_framework.exceptions import ValidationError
 
 from shared.listeners.automatic_linkage import resolve_linkage_candidates
@@ -19,7 +20,7 @@ from shared.models.linkage import (
     ProvenanceFlags,
 )
 from shared.models.nix_evaluation import NixChannel, NixDerivation, NixEvaluation
-from shared.models.package import Package
+from shared.models.package import Package, PackageAttrpath
 
 
 def test_serializer_export_validates_like_api_payload(
@@ -255,6 +256,45 @@ def test_import_is_idempotent_by_cve_id(
         CVEDerivationClusterProposal.objects.filter(cve__cve_id="CVE-2026-1111").count()
         == 1
     )
+
+
+@pytest.mark.parametrize("known_elsewhere", [False, True])
+def test_import_skips_overlay_on_unlinked_package(
+    known_elsewhere: bool,
+    make_container: Callable[..., Container],
+    make_drv: Callable[..., NixDerivation],
+) -> None:
+    with transaction.atomic():
+        container = make_container(cve_id="CVE-2026-2222", package_name="foo")
+        proposal = CVEDerivationClusterProposal.objects.create(
+            cve=container.cve,
+            status=CVEDerivationClusterProposal.Status.ACCEPTED,
+            algorithm_version=1,
+        )
+        DerivationClusterProposalLink.objects.create(
+            proposal=proposal,
+            derivation=make_drv(pname="foo", attribute="foo"),
+            provenance_flags=int(ProvenanceFlags.PACKAGE_NAME_MATCH),
+        )
+        PackageOverlay.objects.create(
+            suggestion=proposal,
+            package_attribute="gone",
+            package=Package.objects.get_or_create(name="gone")[0],
+            type=PackageOverlay.Type.IGNORED,
+        )
+        record = dict(serializers.CVEDerivationClusterProposal(proposal).data)
+        # Import requires a fresh database.
+        transaction.set_rollback(True)
+
+    if known_elsewhere:
+        PackageAttrpath.objects.create(
+            package=Package.objects.create(name="gone"), attrpath="gone"
+        )
+    serializer = serializers.CVEDerivationClusterProposal(data=record)
+    assert serializer.is_valid(), serializer.errors
+    imported = cast(CVEDerivationClusterProposal, serializer.save())
+
+    assert not imported.package_overlays.exists()
 
 
 def test_ensure_benchmark_evaluation_idempotency(db: None) -> None:
