@@ -592,3 +592,18 @@ def test_suggestion_detail_unaffected_by_list_filters(
     response = client.get(detail_url(suggestion.pk), {"status": "accepted"})
     assert response.status_code == 200
     assert response.data["id"] == suggestion.pk
+
+
+def test_suggestion_list_includes_attribute_package_groups(
+    make_cached_suggestion: Callable[..., CVEDerivationClusterProposal],
+) -> None:
+    """Listed suggestions expose attribute package groups covering the original packages."""
+    client = APIClient()
+    make_cached_suggestion()
+    response = client.get(url())
+    assert response.status_code == 200
+    [result] = response.data["results"]
+    attributes = [
+        a for group in result["attribute_package_groups"] for a in group["attributes"]
+    ]
+    assert sorted(attributes) == sorted(result["original_packages"])
