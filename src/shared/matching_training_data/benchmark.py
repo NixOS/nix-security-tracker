@@ -186,15 +186,10 @@ class MatchTallies(BaseModel):
 
 
 def tally_matches(proposals: QuerySet[CVEDerivationClusterProposal]) -> MatchTallies:
-    ids = proposals.values("pk")
-    statuses = dict(
-        CVEDerivationClusterProposal.objects.filter(pk__in=ids).values_list(
-            "pk", "status"
-        )
-    )
+    statuses = dict(proposals.values_list("pk", "status"))
     flags_by_proposal: defaultdict[int, dict[str, int]] = defaultdict(dict)
     for row in (
-        DerivationClusterProposalLink.objects.filter(proposal__in=ids)
+        DerivationClusterProposalLink.objects.filter(proposal__in=statuses)
         .values("proposal_id", "derivation__attribute")
         .annotate(flags=BitOr("provenance_flags"))
         .order_by()
@@ -205,11 +200,12 @@ def tally_matches(proposals: QuerySet[CVEDerivationClusterProposal]) -> MatchTal
         ]
     ignored_by_suggestion: defaultdict[int, set[str]] = defaultdict(set)
     for suggestion_id, attribute in PackageOverlay.objects.filter(
-        suggestion__in=ids, type=PackageOverlay.Type.IGNORED
+        suggestion__in=statuses, type=PackageOverlay.Type.IGNORED
     ).values_list("suggestion_id", "package_attribute"):
         ignored_by_suggestion[suggestion_id].add(attribute)
 
     tallies = MatchTallies()
+    flag_bits = [(flag, flag.value) for flag in ProvenanceFlags]
     for proposal_id, proposal_status in statuses.items():
         flags_by_attribute = flags_by_proposal[proposal_id]
         matched = set(flags_by_attribute)
@@ -225,7 +221,6 @@ def tally_matches(proposals: QuerySet[CVEDerivationClusterProposal]) -> MatchTal
         attribute_counts.kept[len(kept)] += 1
         attribute_counts.ignored[len(ignored)] += 1
         provenance = tallies.provenance.setdefault(status, Tally[ProvenanceFlags]())
-        flag_bits = [(flag, flag.value) for flag in ProvenanceFlags]
         for attribute, attribute_flags in flags_by_attribute.items():
             for flag, bit in flag_bits:
                 if attribute_flags & bit:
