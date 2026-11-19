@@ -17,7 +17,6 @@ from shared.channels import NixEvaluationUpdateChannel, SuggestionRefreshChannel
 from shared.metrics import write_metrics_textfile
 from shared.models import (  # type: ignore
     CVEDerivationClusterProposalStatusEvent,
-    DerivationClusterProposalLinkEvent,
 )
 from shared.models.linkage import CVEDerivationClusterProposal
 from shared.models.nix_evaluation import (
@@ -168,30 +167,14 @@ class Command(BaseCommand):
             .distinct()
         )
 
-        totals: dict[str, int] = {}
-        deleted = self._purge_events(
-            DerivationClusterProposalLinkEvent,
-            pgh_obj__proposal_id__in=candidates.values_list("id", flat=True),
+        return self._delete_in_batches(
+            qs=candidates,
+            model=CVEDerivationClusterProposal,
+            pk_field="id",
+            label="stale suggestions",
+            batch_size=batch_size,
+            event_model=CVEDerivationClusterProposalStatusEvent,
         )
-        _merge(totals, deleted)
-        self.stdout.write(
-            self.style.SUCCESS(
-                f"Deleted for link events on stale suggestions: {deleted}"
-            )
-        )
-
-        _merge(
-            totals,
-            self._delete_in_batches(
-                qs=candidates,
-                model=CVEDerivationClusterProposal,
-                pk_field="id",
-                label="stale suggestions",
-                batch_size=batch_size,
-                event_model=CVEDerivationClusterProposalStatusEvent,
-            ),
-        )
-        return totals
 
     def _delete_unmatched_derivations(self, batch_size: int) -> dict[str, int]:
         failed_crashed = NixDerivation.objects.filter(

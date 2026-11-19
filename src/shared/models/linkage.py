@@ -1204,11 +1204,6 @@ class ProvenanceFlags(IntFlag, boundary=STRICT):
     KERNEL_CONSTRAINT_INRANGE = 1 << 5
 
 
-# CVEDerivationClusterProposal `derivations` changes have to be tracked via its `through` model.
-@pghistory.track(
-    pghistory.InsertEvent("derivations.add"),
-    pghistory.DeleteEvent("derivations.remove"),
-)
 class DerivationClusterProposalLink(models.Model):
     """
     A link between a NixDerivation and a CVEDerivationClusterProposal.
