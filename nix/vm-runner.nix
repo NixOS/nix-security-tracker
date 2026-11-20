@@ -44,12 +44,15 @@ let
 
       config = {
         # `pkgs.nixos` defaults the guest to the host package set, which on Darwin
-        # cannot evaluate Linux-only packages. Re-import the same (patched) nixpkgs for Linux.
-        nixpkgs.pkgs = lib.mkForce (
-          import pkgs.path {
-            system = "x86_64-linux";
-            inherit (pkgs) config overlays;
-          }
+        # cannot evaluate Linux-only packages. Re-import the same (patched) nixpkgs for Linux,
+        # keeping the host CPU so QEMU can use hardware acceleration.
+        nixpkgs.pkgs = lib.mkIf pkgs.stdenv.hostPlatform.isDarwin (
+          lib.mkForce (
+            import pkgs.path {
+              system = "${pkgs.stdenv.hostPlatform.parsed.cpu.name}-linux";
+              inherit (pkgs) config overlays;
+            }
+          )
         );
         virtualisation.host.pkgs = pkgs;
         virtualisation.forwardPorts = lib.mapAttrsToList (_: port: {

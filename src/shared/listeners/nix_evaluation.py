@@ -1,4 +1,5 @@
 import asyncio
+import contextlib
 import json
 import logging
 import pathlib
@@ -6,7 +7,7 @@ import random
 import signal
 import tempfile
 import time
-from collections.abc import AsyncGenerator
+from collections.abc import AsyncGenerator, AsyncIterator
 
 import aiofiles
 import pgpubsub
@@ -72,6 +73,26 @@ async def perform_evaluation(
         stdout=asyncio.subprocess.PIPE,
         stderr=evaluation_log_fd,
     )
+
+
+@contextlib.asynccontextmanager
+async def running_evaluation(
+    working_tree: pathlib.Path, evaluation_log_fd: int
+) -> AsyncIterator[asyncio.subprocess.Process]:
+    """
+    Run `nix-eval-jobs` for the duration of the block.
+
+    If the block exits while the process is still running (e.g. because
+    ingestion raised), kill it, so it doesn't outlive its working tree.
+    """
+    process = await perform_evaluation(working_tree, evaluation_log_fd)
+    try:
+        yield process
+    finally:
+        if process.returncode is None:
+            with contextlib.suppress(ProcessLookupError):
+                process.kill()
+            await process.wait()
 
 
 async def realtime_batch_process_attributes(
@@ -238,11 +259,10 @@ async def evaluation_entrypoint(
                     evaluation.commit_sha1, working_tree_path
                 ) as working_tree,
                 aiofiles.open(evaluation_log_filepath, "w") as eval_log,
-            ):
-                # Kickstart the evaluation asynchronously.
-                eval_process = await perform_evaluation(
+                running_evaluation(
                     working_tree.path, eval_log.fileno()
-                )
+                ) as eval_process,
+            ):
                 assert eval_process.stdout is not None, (
                     "Expected a valid `stdout` pipe for the asynchronous evaluation process"
                 )

@@ -22,9 +22,8 @@ import {
   parseDate,
 } from "@ark-ui/react";
 import { CalendarDaysIcon, ChevronLeftIcon, ChevronRightIcon } from "lucide-preact";
+import { DAY_PATTERN } from "@/utils/date";
 import styles from "./DatePicker.module.css";
-
-const DAY_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
 
 function toDateValues(...days: string[]) {
   return days.filter((day) => DAY_PATTERN.test(day)).map((day) => parseDate(day));

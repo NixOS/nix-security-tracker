@@ -301,19 +301,19 @@ class CVEDerivationClusterProposalQuerySet(models.QuerySet):
             lambda suggestion: suggestion.set_in_issue_draft(in_issue_draft),
         )
 
-    def ignore_package(self, package_attribute: str) -> int:
-        """Ignore a package on every selected suggestion."""
+    def ignore_packages(self, package_attributes: list[str]) -> int:
+        """Ignore packages on every selected suggestion."""
         return self._apply_to_each(
-            lambda suggestion: suggestion.check_ignore_package(package_attribute),
-            lambda suggestion: suggestion.ignore_package(package_attribute),
+            lambda suggestion: suggestion.check_ignore_packages(package_attributes),
+            lambda suggestion: suggestion.ignore_packages(package_attributes),
             fresh_cache=True,
         )
 
-    def restore_package(self, package_attribute: str) -> int:
-        """Restore a package on every selected suggestion."""
+    def restore_packages(self, package_attributes: list[str]) -> int:
+        """Restore packages on every selected suggestion."""
         return self._apply_to_each(
-            lambda suggestion: suggestion.check_restore_package(package_attribute),
-            lambda suggestion: suggestion.restore_package(package_attribute),
+            lambda suggestion: suggestion.check_restore_packages(package_attributes),
+            lambda suggestion: suggestion.restore_packages(package_attributes),
             fresh_cache=True,
         )
 
@@ -567,57 +567,75 @@ class CVEDerivationClusterProposal(TimeStampMixin):
             cache_new_suggestions(self)
             self.refresh_from_db()
 
-    def check_ignore_package(self, package_attribute: str) -> None:
+    def check_ignore_packages(self, package_attributes: list[str]) -> None:
         """
-        Raise unless this package can be ignored on this suggestion.
+        Raise unless all these packages can be ignored on this suggestion.
         """
         original_packages = self.cached.payload["original_packages"]
-        if package_attribute not in original_packages:
-            raise ValidationError(
-                {"package_attribute": "Package not found in the suggestion"}
+        errors = []
+        missing = [a for a in package_attributes if a not in original_packages]
+        if missing:
+            errors.append(f"Packages not found in the suggestion: {', '.join(missing)}")
+        already_ignored = set(
+            self.package_overlays.filter(
+                package_attribute__in=package_attributes,
+                type=PackageOverlay.Type.IGNORED,
+            ).values_list("package_attribute", flat=True)
+        )
+        if already_ignored:
+            errors.append(
+                "Packages already ignored: "
+                + ", ".join(a for a in package_attributes if a in already_ignored)
             )
-        if self.package_overlays.filter(
-            package_attribute=package_attribute,
-            type=PackageOverlay.Type.IGNORED,
-        ).exists():
-            raise ValidationError({"package_attribute": "Package is already ignored"})
+        if errors:
+            raise ValidationError({"package_attributes": errors})
 
-    def ignore_package(self, package_attribute: str) -> None:
-        """Ignore a package, updating the overlay and the cache."""
+    def ignore_packages(self, package_attributes: list[str]) -> None:
+        """Ignore packages, updating the overlays and the cache."""
         with transaction.atomic():
-            self.check_ignore_package(package_attribute)
-            self.package_overlays.get_or_create(
-                package_attribute=package_attribute,
-                defaults={
-                    "type": PackageOverlay.Type.IGNORED,
-                    "package_id": PackageAttrpath.objects.get(
-                        attrpath=package_attribute
-                    ).package.id,
-                },
+            self.check_ignore_packages(package_attributes)
+            package_ids = dict(
+                PackageAttrpath.objects.filter(
+                    attrpath__in=package_attributes
+                ).values_list("attrpath", "package_id")
             )
+            for package_attribute in package_attributes:
+                self.package_overlays.get_or_create(
+                    package_attribute=package_attribute,
+                    defaults={
+                        "type": PackageOverlay.Type.IGNORED,
+                        "package_id": package_ids[package_attribute],
+                    },
+                )
             self._recompute_package_cache()
 
-    def check_restore_package(self, package_attribute: str) -> None:
+    def check_restore_packages(self, package_attributes: list[str]) -> None:
         """
-        Raise unless this package can be restored on this suggestion.
+        Raise unless all these packages can be restored on this suggestion.
         """
-        if not self.package_overlays.filter(
-            package_attribute=package_attribute,
-            type=PackageOverlay.Type.IGNORED,
-        ).exists():
+        ignored = set(
+            self.package_overlays.filter(
+                package_attribute__in=package_attributes,
+                type=PackageOverlay.Type.IGNORED,
+            ).values_list("package_attribute", flat=True)
+        )
+        not_ignored = [a for a in package_attributes if a not in ignored]
+        if not_ignored:
             raise ValidationError(
-                {"package_attribute": "No ignore overlay found for this package"}
+                {
+                    "package_attributes": "No ignore overlay found for these packages: "
+                    + ", ".join(not_ignored)
+                }
             )
 
-    def restore_package(self, package_attribute: str) -> None:
-        """Restore a previously ignored package."""
+    def restore_packages(self, package_attributes: list[str]) -> None:
+        """Restore previously ignored packages."""
         with transaction.atomic():
-            self.check_restore_package(package_attribute)
-            overlay = self.package_overlays.get(
-                package_attribute=package_attribute,
+            self.check_restore_packages(package_attributes)
+            self.package_overlays.filter(
+                package_attribute__in=package_attributes,
                 type=PackageOverlay.Type.IGNORED,
-            )
-            overlay.delete()
+            ).delete()
             self._recompute_package_cache()
 
     def _recompute_package_cache(self) -> None:

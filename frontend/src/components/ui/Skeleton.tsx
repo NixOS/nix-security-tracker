@@ -1,3 +1,5 @@
+import { cx } from "@/utils/className";
+
 type SkeletonProps = {
   width: string;
   height: string;
@@ -8,9 +10,7 @@ type SkeletonProps = {
 export function Skeleton({ width, height, shape = "rect", className = "" }: SkeletonProps) {
   return (
     <div
-      className={["loading", shape === "circle" ? "circle" : "rounded", className]
-        .filter(Boolean)
-        .join(" ")}
+      className={cx("loading", shape === "circle" ? "circle" : "rounded", className)}
       style={{
         width,
         height,

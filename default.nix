@@ -16,21 +16,20 @@ rec {
   frontend = pkgs.callPackage ./nix/frontend.nix { };
   package = pkgs.nix-security-tracker;
   module = import ./nix/configuration.nix;
+  # Writeback caching on shared directories makes the guest miss edits from the host.
+  # FIXME(@fricklerhandwerk): Remove once Nixpkgs allows disabling writeback separately.
+  # See https://github.com/NixOS/nixpkgs/pull/573600
+  nixpkgs-patched = pkgs.applyPatches {
+    name = "nixpkgs-patched";
+    src = sources.nixpkgs;
+    patches = [ ./nix/nixpkgs-virtiofs-writeback.patch ];
+  };
   vm-runner = pkgs.callPackage ./nix/vm-runner.nix {
-    # Writeback caching on shared directories makes the guest miss edits from the host.
-    # FIXME(@fricklerhandwerk): Remove once Nixpkgs allows disabling writeback separately.
     inherit
-      (import
-        (pkgs.applyPatches {
-          name = "nixpkgs-patched";
-          src = sources.nixpkgs;
-          patches = [ ./nix/nixpkgs-virtiofs-writeback.patch ];
-        })
-        {
-          config = { };
-          inherit overlays system;
-        }
-      )
+      (import nixpkgs-patched {
+        config = { };
+        inherit overlays system;
+      })
       nixos
       ;
     nixos-module = {
@@ -80,6 +79,10 @@ rec {
       pre-commit run --all-files --hook-stage manual
     '';
   };
+
+  # NixOS systems for deployment, see infra/deploy.sh
+  staging = import (pkgs.path + "/nixos") { configuration = ./infra/staging.nix; };
+  production = import (pkgs.path + "/nixos") { configuration = ./infra/production.nix; };
 
   # commands for CI actions
   ci =

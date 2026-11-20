@@ -1,10 +1,11 @@
-import { EyeIcon, GlobeCheckIcon } from "lucide-preact";
-import { useState } from "preact/hooks";
+import { GlobeCheckIcon, ShieldIcon } from "lucide-preact";
 import { Link } from "wouter-preact";
-import type { Issue as IssueType } from "@/api/generated/models";
+import type { Issue as IssueType, Suggestion as SuggestionType } from "@/api/generated/models";
 import { Suggestion } from "@/components/suggestions/Suggestion";
 import { SuggestionViewToggle } from "@/components/suggestions/SuggestionViewToggle";
+import { CollectionCard } from "@/components/ui/CollectionCard";
 import { InlineIcon } from "@/components/ui/InlineIcon";
+import { useInheritedViewMode } from "@/hooks/useInheritedViewMode";
 import type { IssueViewMode } from "@/hooks/useIssueViewMode";
 import {
   DEFAULT_SUGGESTION_VIEW_MODE,
@@ -30,16 +31,19 @@ export function Issue({
   inheritedSuggestionViewMode = DEFAULT_SUGGESTION_VIEW_MODE,
 }: Props) {
   const { code, title, github_issue } = issue;
+  const suggestions = issue.suggestions.filter(
+    (suggestion): suggestion is SuggestionType => typeof suggestion !== "number",
+  );
 
-  const [ownViewMode, setOwnViewMode] = useState<IssueViewMode | undefined>(undefined);
-  const [ownSuggestionViewMode, setOwnSuggestionViewMode] = useState<
-    SuggestionViewMode | undefined
-  >(undefined);
-  const viewMode = ownViewMode ?? inheritedViewMode;
-  const suggestionViewMode = ownSuggestionViewMode ?? inheritedSuggestionViewMode;
-
-  const viewToggleValue = allowViewModeClear ? ownViewMode : viewMode;
-  const suggestionToggleValue = allowViewModeClear ? ownSuggestionViewMode : suggestionViewMode;
+  const { viewMode, selectedViewMode, setOwnViewMode } = useInheritedViewMode(
+    inheritedViewMode,
+    allowViewModeClear,
+  );
+  const {
+    viewMode: suggestionViewMode,
+    selectedViewMode: selectedSuggestionViewMode,
+    setOwnViewMode: setOwnSuggestionViewMode,
+  } = useInheritedViewMode(inheritedSuggestionViewMode, allowViewModeClear);
 
   const legend = (
     <>
@@ -52,12 +56,12 @@ export function Issue({
 
   const viewToggle = (
     <IssueViewToggle
-      value={viewToggleValue}
+      value={selectedViewMode}
       onChange={setOwnViewMode}
       allowClear={allowViewModeClear}
       iconOnly
+      compact
       currentValue={inheritedViewMode}
-      onLegend
       testId={`issue-${code}-view-toggle`}
     />
   );
@@ -107,40 +111,48 @@ export function Issue({
             )}
           </div>
 
-          <div className="column gap-big">
-            <div className="column gap">
-              <div className="bold text-l" data-testid={`issue-${code}-title`}>
-                {title}
-              </div>
-              {issue.suggestions.length > 1 && (
-                <div className="row gap centered justify-right">
-                  <EyeIcon size="1em" />
+          <div className="bold text-l" data-testid={`issue-${code}-title`}>
+            {title}
+          </div>
+          {suggestions.length > 0 && (
+            <CollectionCard
+              items={suggestions}
+              label={
+                <>
+                  <InlineIcon icon={ShieldIcon} />
+                  Suggestions
+                </>
+              }
+              viewToggle={
+                suggestions.length > 1 && (
                   <SuggestionViewToggle
-                    value={suggestionToggleValue}
+                    value={selectedSuggestionViewMode}
                     onChange={setOwnSuggestionViewMode}
                     allowClear={allowViewModeClear}
                     iconOnly
+                    compact
                     currentValue={inheritedSuggestionViewMode}
                     testId={`issue-${code}-suggestions-view-toggle`}
                   />
-                </div>
-              )}
-            </div>
-            {viewMode === "expanded" && issue.suggestions.length > 0 && (
-              <div className="column gap-big stretched">
-                {issue.suggestions.map((suggestion) =>
-                  typeof suggestion === "number" ? null : (
+                )
+              }
+              containsCards
+              testId={`issue-${code}-suggestions`}
+            >
+              {(shownSuggestions) => (
+                <div className="column gap-big">
+                  {shownSuggestions.map((suggestion) => (
                     <Suggestion
                       key={suggestion.id}
                       suggestion={suggestion}
                       inheritedViewMode={suggestionViewMode}
                       allowViewModeClear
                     />
-                  ),
-                )}
-              </div>
-            )}
-          </div>
+                  ))}
+                </div>
+              )}
+            </CollectionCard>
+          )}
         </div>
       )}
     </LegendCard>

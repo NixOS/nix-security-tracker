@@ -86,7 +86,7 @@ class PullRequest:
 
     def events(self) -> Iterator[GitHubEvent]:
         yield GitHubEvent(
-            event_type=EventType.PULL_REQUEST | EventType.OPENED,
+            event_type=EventType.PULL_REQUEST_OPENED,
             occurred_at=self.data.created_at,
         )
         timeline = nodes(self.data.timeline_items, self.number, "timeline")
@@ -110,21 +110,19 @@ class PullRequest:
             match node:
                 case schema.MergedEvent():
                     yield GitHubEvent(
-                        event_type=EventType.PULL_REQUEST
-                        | EventType.CLOSED
-                        | EventType.MERGED,
+                        event_type=EventType.PULL_REQUEST_MERGED,
                         occurred_at=node.created_at,
                     )
                 case schema.ClosedEvent() if node is merge_close:
                     continue
                 case schema.ClosedEvent():
                     yield GitHubEvent(
-                        event_type=EventType.PULL_REQUEST | EventType.CLOSED,
+                        event_type=EventType.PULL_REQUEST_CLOSED,
                         occurred_at=node.created_at,
                     )
                 case schema.ReopenedEvent():
                     yield GitHubEvent(
-                        event_type=EventType.PULL_REQUEST | EventType.OPENED,
+                        event_type=EventType.PULL_REQUEST_OPENED,
                         occurred_at=node.created_at,
                     )
                 case _:
@@ -177,7 +175,7 @@ class Issue:
 
     def events(self) -> Iterator[GitHubEvent]:
         yield GitHubEvent(
-            event_type=EventType.ISSUE | EventType.OPENED,
+            event_type=EventType.ISSUE_OPENED,
             occurred_at=self.data.created_at,
         )
         for node in nodes(self.data.timeline_items, self.number, "timeline"):
@@ -185,22 +183,22 @@ class Issue:
                 case schema.ClosedEvent():
                     match node.state_reason:
                         case "COMPLETED":
-                            reason = EventType.COMPLETED
+                            event_type = EventType.ISSUE_COMPLETED
                         case "NOT_PLANNED":
-                            reason = EventType.NOT_PLANNED
+                            event_type = EventType.ISSUE_NOT_PLANNED
                         case "DUPLICATE":
-                            reason = EventType.DUPLICATE
+                            event_type = EventType.ISSUE_DUPLICATE
                         case _:
                             raise ValueError(
                                 f"Unexpected close reason: {node.state_reason}"
                             )
                     yield GitHubEvent(
-                        event_type=EventType.ISSUE | EventType.CLOSED | reason,
+                        event_type=event_type,
                         occurred_at=node.created_at,
                     )
                 case schema.ReopenedEvent():
                     yield GitHubEvent(
-                        event_type=EventType.ISSUE | EventType.OPENED,
+                        event_type=EventType.ISSUE_OPENED,
                         occurred_at=node.created_at,
                     )
                 case _:

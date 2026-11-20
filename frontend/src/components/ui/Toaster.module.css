@@ -4,12 +4,12 @@
 .root {
   position: relative;
   width: 24em;
-  max-width: calc(100vw - 2em);
+  max-width: calc(100vw - var(--space-l));
   /* Not using the `.box` utility class here: it sets `overflow: auto`, which
    * clashes with Ark UI's internal `data-ghost` helper elements (used for
    * the stacking animation) — their transformed bounding boxes exceed the
    * root's own box, so `overflow: auto` produces a spurious scrollbar. */
-  padding: 1em;
+  padding: var(--space-m);
   padding-right: 2.2em;
   translate: var(--x) var(--y);
   scale: var(--scale);
@@ -34,7 +34,7 @@
   transition-timing-function: cubic-bezier(0.06, 0.71, 0.55, 1);
 }
 
-@media (max-width: 640px) {
+@media (max-width: 40rem) {
   .group {
     width: 100%;
   }
@@ -47,11 +47,11 @@
 
 .closeTrigger {
   position: absolute;
-  top: 0.6em;
-  right: 0.6em;
+  top: var(--space-s);
+  right: var(--space-s);
   background: none;
   border: none;
-  padding: 0.2em;
+  padding: var(--space-2xs);
   color: inherit;
   cursor: pointer;
   opacity: 0.8;

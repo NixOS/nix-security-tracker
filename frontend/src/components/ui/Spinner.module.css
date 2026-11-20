@@ -8,7 +8,7 @@
   display: inline-block;
   width: 1em;
   height: 1em;
-  border: 2px solid var(--light-gray);
+  border: var(--border-thick) solid var(--light-gray);
   border-top-color: black;
   border-radius: 50%;
   animation: spin 0.7s linear infinite;

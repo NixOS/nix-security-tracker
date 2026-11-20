@@ -1,5 +1,5 @@
 .title {
-  margin: 0.3em 0;
+  margin: var(--space-xs) 0;
 }
 
 .link {

@@ -12,13 +12,10 @@ from shared.models.issue import EventType, GitHubItem
 
 def state_names(item_type: EventType) -> list[str]:
     """
-    Names of all flags occurring in valid event combinations for the given item type.
+    Names of all valid states for the given item type.
     """
-    valid = [EventType(v) for v in range(1, 2 * max(EventType)) if EventType.valid(v)]
     return [
-        cast(str, flag.name)
-        for flag in EventType
-        if flag != item_type and any(flag in v for v in valid if item_type in v)
+        name for name, member in EventType.composites.items() if item_type in member
     ]
 
 
@@ -26,18 +23,12 @@ GITHUB_ISSUE_STATES = state_names(EventType.ISSUE)
 GITHUB_PULL_REQUEST_STATES = state_names(EventType.PULL_REQUEST)
 
 
-class GitHubStateField(serializers.ListField):
+class GitHubStateField(serializers.ChoiceField):
     def __init__(self, choices: list[str], **kwargs: Any) -> None:
-        super().__init__(
-            child=serializers.ChoiceField(choices=choices),
-            read_only=True,
-            **kwargs,
-        )
+        super().__init__(choices=choices, read_only=True, **kwargs)
 
-    def to_representation(self, data: EventType) -> list[str]:
-        return [
-            cast(str, flag.name) for flag in data if flag.name in self.child.choices
-        ]
+    def to_representation(self, value: EventType) -> str:
+        return cast(str, value.name)
 
 
 class GitHubPullRequestSerializer(serializers.ModelSerializer):

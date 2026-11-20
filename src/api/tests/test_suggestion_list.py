@@ -45,19 +45,12 @@ def test_suggestion_list_anonymous(
 def test_suggestion_list_paginated_shape(
     make_cached_suggestion: Callable[..., CVEDerivationClusterProposal],
 ) -> None:
-    """The response is paginated with count/next/previous/shared/results."""
+    """The response is paginated with count/next/previous/results."""
     client = APIClient()
     make_cached_suggestion()
     response = client.get(url())
     assert response.status_code == 200
-    assert set(response.data.keys()) == {
-        "count",
-        "next",
-        "previous",
-        "shared",
-        "results",
-    }
-    assert response.data["shared"] is None
+    assert set(response.data.keys()) == {"count", "next", "previous", "results"}
     assert response.data["count"] == 1
     assert len(response.data["results"]) == 1
     assert (
@@ -274,7 +267,7 @@ def test_suggestion_list_filters_excludes_ignored_package(
     suggestion = make_cached_suggestion(
         drvs={package: ProvenanceFlags.PACKAGE_NAME_MATCH}
     )
-    suggestion.ignore_package(package.attribute)
+    suggestion.ignore_packages([package.attribute])
 
     response = client.get(url(), {"package": package.attribute})
     assert response.status_code == 200
@@ -599,3 +592,18 @@ def test_suggestion_detail_unaffected_by_list_filters(
     response = client.get(detail_url(suggestion.pk), {"status": "accepted"})
     assert response.status_code == 200
     assert response.data["id"] == suggestion.pk
+
+
+def test_suggestion_list_includes_attribute_package_groups(
+    make_cached_suggestion: Callable[..., CVEDerivationClusterProposal],
+) -> None:
+    """Listed suggestions expose attribute package groups covering the original packages."""
+    client = APIClient()
+    make_cached_suggestion()
+    response = client.get(url())
+    assert response.status_code == 200
+    [result] = response.data["results"]
+    attributes = [
+        a for group in result["attribute_package_groups"] for a in group["attributes"]
+    ]
+    assert sorted(attributes) == sorted(result["original_packages"])

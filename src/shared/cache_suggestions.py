@@ -20,6 +20,7 @@ from shared.models.linkage import (
     PackageOverlay,
     ReferenceUrlOverlay,
 )
+from shared.models.package import Package as PackageModel
 
 logger = logging.getLogger(__name__)
 
@@ -66,6 +67,17 @@ class CachedSuggestion(BaseModel):
         maintainers: list["CachedSuggestion.Maintainer"] = []
         description: str | None = None
 
+    class AttributePackageGroup(BaseModel):
+        """
+        Attributes that belong to the same package.
+        """
+
+        package_id: int
+        name: str
+        homepage: str | None
+        description: str | None
+        attributes: list[str]
+
     pk: int
     cve_id: str
     title: str | None
@@ -73,6 +85,7 @@ class CachedSuggestion(BaseModel):
     affected_products: dict[str, "CachedSuggestion.AffectedProduct"]
     original_packages: dict[str, Package]
     packages: dict[str, Package]
+    attribute_package_groups: list[AttributePackageGroup]
     # NOTE(@fricklerhandwerk): These are converted with `to_dict()` naively, we're not doing anything interesting to them here.
     metrics: list[dict]
 
@@ -215,6 +228,12 @@ def cache_new_suggestions(suggestion: CVEDerivationClusterProposal) -> None:
             cpe.name for cpe in affected_product.cpes.all()
         )
 
+    from shared.package_clustering import cluster_packages
+
+    # Cluster derivations not yet linked to a package, so their attributes can be grouped by package.
+    # Most of the time this is a cheap noop, since clustering happens on evaluation and on linkage.
+    cluster_packages(suggestion.derivations.filter(package_link__isnull=True))
+
     derivations = list(
         suggestion.derivations.select_related(
             "metadata",
@@ -254,6 +273,7 @@ def cache_new_suggestions(suggestion: CVEDerivationClusterProposal) -> None:
         affected_products=affected_products,
         original_packages=original_packages,
         packages=packages,
+        attribute_package_groups=group_attributes_by_package(derivations),
         metrics=[to_dict(m) for m in prefetched_metrics],
         categorized_maintainers=categorize_maintainers(
             original_packages, packages, maintainer_overlays
@@ -358,6 +378,37 @@ def channel_structure(
                 )
             )
     return packages
+
+
+def group_attributes_by_package(
+    derivations: list[NixDerivation],
+) -> list[CachedSuggestion.AttributePackageGroup]:
+    """
+    Partition the attributes of the given derivations by the package they belong to.
+    """
+    # Oldest first, so the most recent package of an attribute wins.
+    oldest_first = sorted(
+        derivations, key=lambda d: (d.parent_evaluation.updated_at, d.pk)
+    )
+    # Every derivation has a package: matching only picks derivations with metadata, and caching clusters them.
+    package_of: dict[str, PackageModel] = {
+        derivation.attribute: derivation.package_link.package
+        for derivation in oldest_first
+    }
+
+    groups: dict[int, CachedSuggestion.AttributePackageGroup] = {}
+    for attribute, package in sorted(package_of.items()):
+        if package.pk not in groups:
+            groups[package.pk] = CachedSuggestion.AttributePackageGroup(
+                package_id=package.pk,
+                name=package.name,
+                homepage=package.homepage,
+                description=package.description,
+                attributes=[],
+            )
+        groups[package.pk].attributes.append(attribute)
+
+    return sorted(groups.values(), key=lambda g: (g.name, g.package_id))
 
 
 def parse_drv_name(name: str) -> tuple[str, str]:

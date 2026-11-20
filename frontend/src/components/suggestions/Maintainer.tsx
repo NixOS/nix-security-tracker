@@ -1,15 +1,17 @@
 import { UserMinusIcon, UserPlusIcon } from "lucide-preact";
 import type { Maintainer as MaintainerType } from "@/api/generated/models";
 import { ExternalLink } from "@/components/ui/ExternalLink";
-import { InlineIcon } from "@/components/ui/InlineIcon";
 import { useDeleteMaintainerMutation, useMaintainerMutation } from "@/hooks/useMaintainer";
+import { IgnoreRestoreButton } from "./IgnoreRestoreButton";
+import { SuggestionItemRow } from "./SuggestionItemCollection";
+import type { ItemState } from "./suggestionItems";
 
 type Props = {
   maintainer: MaintainerType;
   suggestionId: number;
   editable: boolean;
   /** Which category this maintainer is displayed in, and thus which action applies. */
-  kind: "active" | "ignored" | "added";
+  kind: ItemState;
 };
 
 export function Maintainer({ maintainer, suggestionId, editable, kind }: Props) {
@@ -34,21 +36,20 @@ export function Maintainer({ maintainer, suggestionId, editable, kind }: Props) 
     }
   }
 
-  const label = isAdded ? "Delete" : isIgnored ? "Restore" : "Ignore";
-
   return (
-    <div className="row gap centered">
-      {editable && (
-        <button
-          type="button"
-          className={`btn ${isIgnored ? "btn-green" : "btn-gray"}`}
-          onClick={handleClick}
-          disabled={mutation.isPending}
-        >
-          <InlineIcon icon={isIgnored ? UserPlusIcon : UserMinusIcon} />
-          {label}
-        </button>
-      )}
+    <SuggestionItemRow
+      ignored={isIgnored}
+      action={
+        editable && (
+          <IgnoreRestoreButton
+            action={isAdded ? "delete" : isIgnored ? "restore" : "ignore"}
+            icon={isIgnored ? UserPlusIcon : UserMinusIcon}
+            onClick={handleClick}
+            disabled={mutation.isPending}
+          />
+        )
+      }
+    >
       <div>
         <ExternalLink className="bold" href={`https://github.com/${maintainer.github}`}>
           @{maintainer.github}
@@ -63,6 +64,6 @@ export function Maintainer({ maintainer, suggestionId, editable, kind }: Props) 
           </span>
         )}
       </div>
-    </div>
+    </SuggestionItemRow>
   );
 }

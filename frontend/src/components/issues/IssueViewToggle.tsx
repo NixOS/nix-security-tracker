@@ -14,7 +14,7 @@ type Props = {
   iconOnly?: boolean;
   allowClear?: boolean;
   currentValue?: IssueViewMode;
-  onLegend?: boolean;
+  compact?: boolean;
 };
 
 export function IssueViewToggle(props: Props) {

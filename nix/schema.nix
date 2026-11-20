@@ -3,8 +3,7 @@
 # generate its typed client during the Nix build / CI (no running server needed).
 #
 # Schema generation only introspects the URLconf and serializers; it touches
-# neither the database nor the network, as long as SYNC_GITHUB_STATE_AT_STARTUP is
-# false (otherwise shared/apps.py::ready() syncs GitHub state at import time).
+# neither the database nor the network.
 #
 # We run from a writable copy of `src` (rather than the installed package) because
 # project/settings.py creates BASE_DIR-relative directories at import time, and the
@@ -35,8 +34,6 @@ runCommand "nix-security-tracker-openapi-schema"
     DJANGO_SETTINGS = builtins.toJSON {
       DEBUG = true;
       PRODUCTION = false;
-      # Keep startup free of DB/network side effects (see note above).
-      SYNC_GITHUB_STATE_AT_STARTUP = false;
       REVISION = "schema";
       STATIC_ROOT = "/dummy";
       VITE_DEV_SERVER_PORT = 1337; # Dummy, never used.

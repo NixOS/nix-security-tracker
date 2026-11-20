@@ -15,7 +15,6 @@ from shared.logs.events import remove_canceling_events
 from shared.logs.fetchers import fetch_suggestion_events
 from shared.models.linkage import (
     CVEDerivationClusterProposal,
-    SharedState,
     SharedValueState,
 )
 
@@ -63,12 +62,13 @@ class SuggestionMaintainerDeleteSerializer(serializers.Serializer):
 class SuggestionPackageUpdateSerializer(serializers.Serializer):
     """Request body for ignore/restore package PATCH operations."""
 
-    package_attribute = serializers.CharField(
-        max_length=255,
-        help_text="Attribute name of the package to ignore or restore.",
+    package_attributes = serializers.ListField(
+        child=serializers.CharField(max_length=255),
+        allow_empty=False,
+        help_text="Attribute names to ignore or restore in one go.",
     )
     ignored = serializers.BooleanField(
-        help_text="Set to true to ignore the package, false to restore it.",
+        help_text="True to ignore, false to restore.",
     )
 
 
@@ -170,6 +170,16 @@ class SuggestionCategorizedPackagesSerializer(serializers.Serializer):
     ignored = serializers.DictField(child=SuggestionPackageSerializer())
 
 
+class PackageGroupSerializer(serializers.Serializer):
+    """Attributes that belong to the same package."""
+
+    package_id = serializers.IntegerField()
+    name = serializers.CharField()
+    homepage = serializers.CharField(allow_null=True)
+    description = serializers.CharField(allow_null=True)
+    attributes = serializers.ListField(child=serializers.CharField())
+
+
 class SuggestionAffectedProductSerializer(serializers.Serializer):
     name = serializers.CharField()
     version_constraints = serializers.ListField(
@@ -240,6 +250,8 @@ class SuggestionSerializer(serializers.Serializer):
     packages = serializers.SerializerMethodField()
     original_packages = serializers.SerializerMethodField()
     ignored_packages = serializers.SerializerMethodField()
+    # for UI grouping.
+    attribute_package_groups = serializers.SerializerMethodField()
     metrics = serializers.SerializerMethodField()
     categorized_maintainers = serializers.SerializerMethodField()
     categorized_url_references = serializers.SerializerMethodField()
@@ -291,6 +303,11 @@ class SuggestionSerializer(serializers.Serializer):
             for k, v in original_packages.items()
             if k not in packages
         }
+
+    @extend_schema_field(PackageGroupSerializer(many=True))
+    def get_attribute_package_groups(self, obj: CVEDerivationClusterProposal) -> list:
+        data = self._payload(obj)["attribute_package_groups"]
+        return list(PackageGroupSerializer(data, many=True).data)
 
     @extend_schema_field(MetricSerializer(many=True))
     def get_metrics(self, obj: CVEDerivationClusterProposal) -> list:
@@ -388,32 +405,6 @@ class SuggestionSharedStateSerializer(serializers.Serializer):
     packages = SharedPackageSerializer(many=True)
     maintainers = SharedMaintainerSerializer(many=True)
     references = SharedReferenceSerializer(many=True)
-
-
-def shared_state_to_dict(shared_state: SharedState) -> dict:
-    """Shape a model-level shared state for the list response."""
-    return dict(SuggestionSharedStateSerializer(shared_state).data)
-
-
-@extend_schema_serializer(component_name="PaginatedSuggestionList", many=False)
-class PaginatedSuggestionListSerializer(serializers.Serializer):
-    """
-    The suggestion list response.
-
-    Declared explicitly rather than left to the paginator, so that the `shared` field
-    added by `SuggestionPagination` appears in the schema and in generated clients.
-    `many=False` keeps drf-spectacular from paginating an already paginated response.
-    """
-
-    count = serializers.IntegerField()
-    next = serializers.URLField(allow_null=True)
-    previous = serializers.URLField(allow_null=True)
-    shared = SuggestionSharedStateSerializer(
-        allow_null=True,
-        required=True,
-        help_text="What the whole filtered selection has in common, null unless asked for with `shared_state`.",
-    )
-    results = SuggestionSerializer(many=True)
 
 
 # FIXME(@florentc): Eventually we'll want to:

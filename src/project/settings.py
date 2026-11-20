@@ -141,13 +141,6 @@ class Settings(BaseSettings):
             """,
             default=60,
         )
-        SYNC_GITHUB_STATE_AT_STARTUP: bool = Field(
-            description="""
-            Connect to GitHub when the service is started and update
-            team membership (security team and committers team)
-            of Nixpkgs maintainers in the evaluation database.
-            """
-        )
         GH_ISSUES_PING_MAINTAINERS: bool = Field(
             description="""
             When set to False, the application will escape package maintainers' name when
@@ -550,6 +543,9 @@ REST_FRAMEWORK = {
         "rest_framework.authentication.SessionAuthentication",
     ],
     "DEFAULT_THROTTLE_CLASSES": ["api.throttling.APIRateThrottle"],
+    "DEFAULT_RENDERER_CLASSES": [
+        "rest_framework.renderers.JSONRenderer",
+    ],
 }
 
 # drf-spectacular (openapi generation) settings

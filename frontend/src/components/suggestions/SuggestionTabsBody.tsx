@@ -1,13 +1,8 @@
-import { BugIcon, LinkIcon, PackageIcon, UserIcon } from "lucide-preact";
 import { useState } from "preact/hooks";
 import type { Suggestion as SuggestionType } from "@/api/generated/models";
-import { type Tab, Tabs } from "@/components/ui/Tabs";
-import { AffectedProductsTree } from "./AffectedProductsTree";
-import { CategorizedMaintainersList } from "./CategorizedMaintainersList";
-import { CategorizedPackagesList } from "./CategorizedPackagesList";
-import { CategorizedReferencesList } from "./CategorizedReferencesList";
-import { Comment } from "./Comment";
-import { SuggestionStatusActions } from "./SuggestionStatusActions";
+import { Tabs } from "@/components/ui/Tabs";
+import { SuggestionFooter } from "./SuggestionFooter";
+import { suggestionSections } from "./SuggestionSections";
 
 type Props = {
   suggestion: SuggestionType;
@@ -15,104 +10,17 @@ type Props = {
 };
 
 export function SuggestionTabsBody({ suggestion, userCanEdit }: Props) {
-  const {
-    id,
-    status,
-    comment,
-    in_issue_draft,
-    affected_products,
-    packages,
-    ignored_packages,
-    categorized_maintainers,
-    categorized_url_references,
-  } = suggestion;
+  const tabs = suggestionSections(suggestion, userCanEdit);
 
-  const editable = userCanEdit && (status === "pending" || status === "accepted");
-
-  const tabs: (Tab | false)[] = [
-    categorized_url_references.original.length > 0 && {
-      value: "references",
-      label: "References",
-      icon: LinkIcon,
-      content: (
-        <div className="box compact">
-          <CategorizedReferencesList
-            categorizedReferences={categorized_url_references}
-            suggestionId={id}
-            editable={editable}
-          />
-        </div>
-      ),
-    },
-    affected_products.length > 0 && {
-      value: "affected-products",
-      label: "Affected products",
-      icon: BugIcon,
-      content: (
-        <div className="box compact">
-          <AffectedProductsTree affectedProducts={affected_products} />
-        </div>
-      ),
-    },
-    Object.keys(packages).length + Object.keys(ignored_packages).length > 0 && {
-      value: "packages",
-      label: "Matching in Nixpkgs",
-      icon: PackageIcon,
-      content: (
-        <div className="box compact">
-          <CategorizedPackagesList
-            suggestionId={id}
-            active={packages}
-            ignored={ignored_packages}
-            editable={editable}
-          />
-        </div>
-      ),
-    },
-    categorized_maintainers.original.length > 0 && {
-      value: "maintainers",
-      label: "Maintainers",
-      icon: UserIcon,
-      content: (
-        <div className="box compact">
-          <CategorizedMaintainersList
-            suggestionId={id}
-            categorizedMaintainers={categorized_maintainers}
-            editable={editable}
-          />
-        </div>
-      ),
-    },
-  ];
-  const populatedTabs = tabs.filter((tab): tab is Tab => Boolean(tab));
-
-  const [activeTab, setActiveTab] = useState(populatedTabs[0]?.value);
+  const [activeTab, setActiveTab] = useState<string | undefined>(tabs[0]?.value);
 
   return (
-    <div className="column gap-big" data-testid={`suggestion-${id}-tabs`}>
-      {populatedTabs.length > 0 && (
-        <Tabs
-          value={activeTab ?? populatedTabs[0].value}
-          onValueChange={setActiveTab}
-          tabs={populatedTabs}
-          compact
-        />
+    <div className="column gap-big" data-testid={`suggestion-${suggestion.id}-tabs`}>
+      {tabs.length > 0 && (
+        <Tabs value={activeTab ?? tabs[0].value} onValueChange={setActiveTab} tabs={tabs} compact />
       )}
 
-      {comment && !userCanEdit && (
-        <Comment suggestionId={id} comment={comment ?? null} canEdit={userCanEdit} compact />
-      )}
-
-      {userCanEdit && (
-        <SuggestionStatusActions
-          suggestionId={id}
-          status={status}
-          comment={comment}
-          inIssueDraft={in_issue_draft}
-        >
-          <Comment suggestionId={id} comment={comment ?? null} canEdit={userCanEdit} compact />
-        </SuggestionStatusActions>
-      )}
+      <SuggestionFooter suggestion={suggestion} userCanEdit={userCanEdit} compact />
     </div>
   );
 }

@@ -3,7 +3,7 @@ from datetime import timedelta
 import pytest
 from django.utils import timezone
 
-from shared.models.issue import EventType, GitHubItem
+from shared.models.issue import ISSUE_COMPLETED, ISSUE_OPENED, EventType, GitHubItem
 
 
 def test_closed_issue(db: None) -> None:
@@ -15,15 +15,15 @@ def test_closed_issue(db: None) -> None:
     )
     now = timezone.now()
     item.events.create(
-        event_type=EventType.ISSUE | EventType.OPENED,
+        event_type=ISSUE_OPENED,
         occurred_at=now - timedelta(days=1),
     )
     item.events.create(
-        event_type=EventType.ISSUE | EventType.CLOSED | EventType.COMPLETED,
+        event_type=ISSUE_COMPLETED,
         occurred_at=now,
     )
 
-    assert item.state == EventType.ISSUE | EventType.CLOSED | EventType.COMPLETED
+    assert item.state == ISSUE_COMPLETED
 
 
 @pytest.mark.parametrize(

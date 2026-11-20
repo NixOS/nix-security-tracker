@@ -15,20 +15,20 @@ export function usePackageMutation(suggestionId: number) {
 
   return useUpdateSuggestionPackage({
     mutation: optimisticSuggestionHandlers(queryClient, suggestionId, {
-      patch: (prev, { data: { package_attribute, ignored } }: MutationVars) => {
-        if (!package_attribute) return prev;
+      patch: (prev, { data: { package_attributes, ignored } }: MutationVars) => {
+        if (!package_attributes?.length) return prev;
 
         const fromKey = ignored ? "packages" : "ignored_packages";
         const toKey = ignored ? "ignored_packages" : "packages";
-        const moving = prev[fromKey][package_attribute];
-        if (!moving) return prev;
-
-        const { [package_attribute]: _removed, ...fromRest } = prev[fromKey];
-        const newPackages = {
-          ...prev,
-          [fromKey]: fromRest,
-          [toKey]: { ...prev[toKey], [package_attribute]: moving },
-        };
+        const from = { ...prev[fromKey] };
+        const to = { ...prev[toKey] };
+        for (const attr of package_attributes) {
+          const moving = from[attr];
+          if (!moving) continue;
+          delete from[attr];
+          to[attr] = moving;
+        }
+        const newPackages = { ...prev, [fromKey]: from, [toKey]: to };
 
         // Packages moving in/out of `active` change which maintainers count as active (auto ignore/restore maintainers).
         // The alternative is to invalidate the whole suggestion to fetch it back from the server.
@@ -41,9 +41,9 @@ export function usePackageMutation(suggestionId: number) {
         return { ...newPackages, categorized_maintainers };
       },
       errorTitle: ({ data }) =>
-        data.ignored ? "Failed to ignore package" : "Failed to restore package",
+        `Failed to ${data.ignored ? "ignore" : "restore"} ${(data.package_attributes?.length ?? 0) > 1 ? "packages" : "package"}`,
       conflictTitle: ({ data }) =>
-        data.ignored ? "Package already ignored" : "Package already restored",
+        `${(data.package_attributes?.length ?? 0) > 1 ? "Packages" : "Package"} already ${data.ignored ? "ignored" : "restored"}`,
       onSuccess: () => {
         // A new activity log entry is created server-side.
         // The suggestion cache is correct via the optimistic update.

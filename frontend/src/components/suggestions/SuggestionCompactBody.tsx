@@ -1,8 +1,10 @@
+import { Fragment } from "preact";
 import type { Suggestion as SuggestionType } from "@/api/generated/models";
-import { AffectedProductsTree } from "./AffectedProductsTree";
-import { CategorizedReferencesList } from "./CategorizedReferencesList";
-import { Comment } from "./Comment";
-import { SuggestionStatusActions } from "./SuggestionStatusActions";
+import { SuggestionFooter } from "./SuggestionFooter";
+import type { SuggestionSectionId } from "./SuggestionSectionHeadings";
+import { suggestionSections } from "./SuggestionSections";
+
+const COMPACT_SECTIONS = new Set<SuggestionSectionId>(["references", "affected-products"]);
 
 type Props = {
   suggestion: SuggestionType;
@@ -10,42 +12,19 @@ type Props = {
 };
 
 export function SuggestionCompactBody({ suggestion, userCanEdit }: Props) {
-  const { id, status, comment, in_issue_draft, affected_products, categorized_url_references } =
-    suggestion;
+  const sections = suggestionSections(suggestion, userCanEdit).filter((section) =>
+    COMPACT_SECTIONS.has(section.value),
+  );
 
   return (
     <div className="column gap-big">
-      <div className="box compact column gap-small">
-        {categorized_url_references.original.length > 0 && (
-          <>
-            <CategorizedReferencesList
-              categorizedReferences={categorized_url_references}
-              suggestionId={id}
-              editable={userCanEdit && (status === "pending" || status === "accepted")}
-            />
-            <hr className="divider" />
-          </>
-        )}
-
-        {affected_products.length > 0 && (
-          <AffectedProductsTree affectedProducts={affected_products} />
-        )}
+      <div className="column gap">
+        {sections.map((section) => (
+          <Fragment key={section.value}>{section.content}</Fragment>
+        ))}
       </div>
 
-      {comment && !userCanEdit && (
-        <Comment suggestionId={id} comment={comment ?? null} canEdit={userCanEdit} compact />
-      )}
-
-      {userCanEdit && (
-        <SuggestionStatusActions
-          suggestionId={id}
-          status={status}
-          comment={comment}
-          inIssueDraft={in_issue_draft}
-        >
-          <Comment suggestionId={id} comment={comment ?? null} canEdit={userCanEdit} compact />
-        </SuggestionStatusActions>
-      )}
+      <SuggestionFooter suggestion={suggestion} userCanEdit={userCanEdit} compact />
     </div>
   );
 }

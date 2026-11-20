@@ -6,6 +6,7 @@ import {
   SwitchThumb,
 } from "@ark-ui/react";
 import type { ComponentChildren } from "preact";
+import { cx } from "@/utils/className";
 import styles from "./Switch.module.css";
 
 type SwitchProps = {
@@ -22,9 +23,9 @@ export function Switch({ checked, disabled, isLoading, onCheckedChange, children
       checked={checked}
       disabled={disabled || isLoading}
       onCheckedChange={({ checked }) => onCheckedChange(checked)}
-      className={`row centered gap-small ${styles.switch} ${isLoading ? styles.switchLoading : ""}`}
+      className={cx("row centered gap-small", styles.switch, isLoading && styles.switchLoading)}
     >
-      <SwitchControl className={`row centered ${styles.control} ${isLoading ? "loading" : ""}`}>
+      <SwitchControl className={cx("row centered", styles.control, isLoading && "loading")}>
         {!isLoading && <SwitchThumb className={styles.thumb} />}
       </SwitchControl>
       <SwitchLabel className={styles.label}>{children}</SwitchLabel>

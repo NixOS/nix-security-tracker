@@ -1,6 +1,7 @@
 from typing import cast
 
 from django.db.models.query import QuerySet
+from django_filters import rest_framework as filters
 from drf_spectacular.utils import extend_schema
 from rest_framework import viewsets
 from rest_framework.mixins import ListModelMixin, RetrieveModelMixin
@@ -28,10 +29,29 @@ class IssuePagination(PageNumberPagination):
     page_size = 10  # TODO(@florentc): Allow the user to change it within limits
 
 
+class IssueFilterSet(filters.FilterSet):
+    state = filters.ChoiceFilter(
+        choices=[("open", "open"), ("closed", "closed")],
+        method="filter_state",
+        label="Filter by state of the published GitHub issue and its closing pull requests",
+    )
+
+    class Meta:
+        model = NixpkgsIssue
+        fields = ["state"]
+
+    def filter_state(
+        self, queryset: QuerySet[NixpkgsIssue], name: str, value: str
+    ) -> QuerySet[NixpkgsIssue]:
+        return queryset.closed() if value == "closed" else queryset.open()
+
+
 class IssueViewSet(ListModelMixin, RetrieveModelMixin, viewsets.GenericViewSet):
     queryset = NixpkgsIssue.objects.all()
     serializer_class = IssueSerializer
     pagination_class = IssuePagination
+    filter_backends = [filters.DjangoFilterBackend]
+    filterset_class = IssueFilterSet
     permission_classes = [AllowAny]
     lookup_field = "code"
     lookup_value_regex = NIXPKGS_ISSUE_CODE_REGEX

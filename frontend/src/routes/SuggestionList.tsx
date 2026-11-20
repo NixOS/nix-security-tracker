@@ -1,5 +1,4 @@
 import { EyeIcon } from "lucide-preact";
-import { useSearchParams } from "wouter-preact";
 import { useListSuggestions } from "@/api/generated/endpoints";
 import type { Suggestion as SuggestionType } from "@/api/generated/models";
 import { IssueDraftPanel } from "@/components/suggestions/IssueDraftPanel";
@@ -9,20 +8,21 @@ import { SuggestionViewToggle } from "@/components/suggestions/SuggestionViewTog
 import { InlineIcon } from "@/components/ui/InlineIcon";
 import { Pagination } from "@/components/ui/Pagination";
 import { Skeleton } from "@/components/ui/Skeleton";
+import { usePageParam } from "@/hooks/usePageParam";
 import {
   type SuggestionListFilters,
   useSuggestionListFilters,
 } from "@/hooks/useSuggestionListFilters";
-import { useSuggestionListViewMode } from "@/hooks/useSuggestionViewMode";
+import {
+  DEFAULT_SUGGESTION_VIEW_MODE,
+  SUGGESTION_VIEW_MODES,
+  SUGGESTION_VIEW_PARAM,
+} from "@/hooks/useSuggestionViewMode";
+import { useViewModeParam } from "@/hooks/useViewModeParam";
 import { getApiErrorMessage } from "@/utils/apiError";
 
 // FIXME(@florentc): Hardcoded in the API for now, we should ultimately make it a query param
 const PAGE_SIZE = 10;
-
-function parsePage(searchParams: URLSearchParams): number {
-  const raw = Number(searchParams.get("page"));
-  return Number.isInteger(raw) && raw > 0 ? raw : 1;
-}
 
 function suggestionMatchesFilters(
   suggestion: SuggestionType,
@@ -44,8 +44,7 @@ function suggestionMatchesFilters(
 }
 
 export function SuggestionList() {
-  const [searchParams, setSearchParams] = useSearchParams();
-  const page = parsePage(searchParams);
+  const [page, handlePageChange] = usePageParam();
   const {
     filters,
     setStatuses,
@@ -54,7 +53,11 @@ export function SuggestionList() {
     setAffectedProductFilter,
     setCreatedAtRange,
   } = useSuggestionListFilters();
-  const { viewMode, setViewMode } = useSuggestionListViewMode();
+  const { viewMode, setViewMode } = useViewModeParam(
+    SUGGESTION_VIEW_PARAM,
+    SUGGESTION_VIEW_MODES,
+    DEFAULT_SUGGESTION_VIEW_MODE,
+  );
 
   const { data, isLoading, isError, error } = useListSuggestions({
     page,
@@ -76,19 +79,6 @@ export function SuggestionList() {
     !filters.createdAtAfter &&
     !filters.createdAtBefore &&
     (data?.count ?? 0) > 0;
-
-  const handlePageChange = (newPage: number) => {
-    setSearchParams((prev) => {
-      const next = new URLSearchParams(prev);
-      if (newPage <= 1) {
-        next.delete("page");
-      } else {
-        next.set("page", String(newPage));
-      }
-      return next;
-    });
-    window.scrollTo({ top: 0 });
-  };
 
   return (
     <div className="column gap-big centered">
@@ -143,7 +133,7 @@ export function SuggestionList() {
                   <Suggestion
                     key={suggestion.id}
                     suggestion={suggestion}
-                    dimmed={!matches}
+                    dimmedReason={matches ? undefined : "No longer matches the filters"}
                     inheritedViewMode={matches ? viewMode : "collapsed"}
                     allowViewModeClear
                   />

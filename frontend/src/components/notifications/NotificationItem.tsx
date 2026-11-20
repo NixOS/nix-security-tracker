@@ -62,7 +62,11 @@ export function NotificationItem({ notification, suggestionViewMode = "collapsed
     ? isNotificationObsolete(matchingMaintainedPackages, matchingSubscribedPackages)
     : notification.is_obsolete;
 
-  const suggestionDimmed = isObsolete || is_read;
+  const suggestionDimmedReason = isObsolete
+    ? "No longer concerns packages you follow or maintain"
+    : is_read
+      ? "Notification already read"
+      : undefined;
 
   return (
     <article
@@ -82,7 +86,7 @@ export function NotificationItem({ notification, suggestionViewMode = "collapsed
         <div className="column gap" data-testid={`notification-${id}-suggestion`}>
           <Suggestion
             suggestion={suggestion}
-            dimmed={suggestionDimmed}
+            dimmedReason={suggestionDimmedReason}
             inheritedViewMode={suggestionViewMode}
             allowViewModeClear
           />

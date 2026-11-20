@@ -130,3 +130,18 @@ def test_suggestion_retrieve_comment_absent_when_not_set(
     response = client.get(url(suggestion.pk))
     assert response.status_code == 200
     assert "comment" not in response.data
+
+
+def test_suggestion_retrieve_attribute_package_groups(
+    make_cached_suggestion: Callable[..., CVEDerivationClusterProposal],
+    url: Callable[[int], str],
+) -> None:
+    """Attribute package groups partition the original packages."""
+    client = APIClient()
+    suggestion = make_cached_suggestion()
+    response = client.get(url(suggestion.pk))
+    assert response.status_code == 200
+    groups = response.data["attribute_package_groups"]
+    assert groups
+    attributes = [a for group in groups for a in group["attributes"]]
+    assert sorted(attributes) == sorted(response.data["original_packages"])

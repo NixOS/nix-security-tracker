@@ -207,13 +207,13 @@ in
         PYTHONPATH = shared.src.target;
         inherit (pkgs.nix-security-tracker.passthru) PLAYWRIGHT_BROWSERS_PATH;
       };
+      pass-env = [ "MATCHING_TRAINING_DATA_TOKEN" ];
       extra-python-packages = pkgs.nix-security-tracker.passthru.nativeCheckInputs;
       secrets = lib.mapAttrs (name: _: "${shared.credentials.target}/${name}") (
         lib.filterAttrs (_: type: type == "regular") (builtins.readDir shared.credentials.source)
       );
       settings = {
         DEBUG = true;
-        SYNC_GITHUB_STATE_AT_STARTUP = false;
         GH_ISSUES_PING_MAINTAINERS = false;
         GH_ORGANIZATION = "Nix-Security-WG";
         GH_ISSUES_REPO = "sectracker-testing";
@@ -248,6 +248,7 @@ in
       nix-security-tracker-fetch-all-channels.startAt = lib.mkForce [ ];
       nix-security-tracker-delta.startAt = lib.mkForce [ ];
       nix-security-tracker-github-events.startAt = lib.mkForce [ ];
+      nix-security-tracker-github-teams.startAt = lib.mkForce [ ];
       nix-security-tracker-garbage-collection.startAt = lib.mkForce [ ];
 
       # The Nixpkgs checkout directory is shared by the host, systemd cannot chown it.
@@ -255,6 +256,8 @@ in
       nix-security-tracker-checkout.serviceConfig.StateDirectory = lib.mkForce [
         "nix-security-tracker"
       ];
+
+      nix-security-tracker-migrations.serviceConfig.ExecStartPost = "${pkgs.runtimeShell} -c '${pkgs.coreutils}/bin/ln -sf ${pkgs.nix-security-tracker-logos}/* ${cfg.settings.STATIC_ROOT}'";
 
       # Suspending the VM for a longer period will kill `systemd-journald` as stuck because it doesn't report to the watchdog service during that time.
       systemd-journald.serviceConfig.WatchdogSec = 0;

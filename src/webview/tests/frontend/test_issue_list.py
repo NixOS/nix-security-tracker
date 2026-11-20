@@ -1,3 +1,4 @@
+import re
 from collections.abc import Callable
 from datetime import timedelta
 
@@ -6,7 +7,12 @@ from playwright.sync_api import Page, expect
 from pytest_django.live_server_helper import LiveServer
 
 from shared.models.cve import Container
-from shared.models.issue import NixpkgsIssue
+from shared.models.issue import (
+    ISSUE_COMPLETED,
+    ISSUE_OPENED,
+    GitHubItem,
+    NixpkgsIssue,
+)
 
 from .routes import ISSUE_LIST
 
@@ -88,3 +94,59 @@ def test_issue_list_links_to_detail_page(
     card = page.get_by_test_id(f"issue-{issue.code}")
     card.get_by_role("link", name=issue.code).click()
     expect(page).to_have_url(live_server.url + ISSUE_LIST + f"/{issue.code}")
+
+
+def test_issue_list_state_filter(
+    live_server: LiveServer,
+    page: Page,
+    make_container: Callable[..., Container],
+    make_issue: Callable[..., NixpkgsIssue],
+    make_github_item: Callable[..., GitHubItem],
+) -> None:
+    open_issue = make_issue(container=make_container(cve_id="CVE-2026-3011"))
+    closed_issue = make_issue(container=make_container(cve_id="CVE-2026-3012"))
+    closed_issue.github_items.add(
+        make_github_item(1, GitHubItem.Kind.ISSUE, ISSUE_OPENED, ISSUE_COMPLETED)
+    )
+
+    page.goto(live_server.url)
+    page.get_by_role("tab", name="Nixpkgs Issues").click()
+    expect(page.get_by_test_id(f"issue-{open_issue.code}")).to_be_visible()
+    expect(page.get_by_test_id(f"issue-{closed_issue.code}")).to_be_visible()
+    expect(page).not_to_have_url(re.compile(r"state="))
+
+    filters = page.get_by_test_id("issue-filters")
+
+    filters.get_by_role("button", name="Open").click()
+    expect(page.get_by_test_id(f"issue-{open_issue.code}")).to_be_visible()
+    expect(page.get_by_test_id(f"issue-{closed_issue.code}")).not_to_be_visible()
+    expect(page).to_have_url(re.compile(r"[?&]state=open"))
+
+    filters.get_by_role("button", name="Closed").click()
+    expect(page.get_by_test_id(f"issue-{closed_issue.code}")).to_be_visible()
+    expect(page.get_by_test_id(f"issue-{open_issue.code}")).not_to_be_visible()
+    expect(page).to_have_url(re.compile(r"[?&]state=closed"))
+
+    filters.get_by_role("button", name="Closed").click()
+    expect(page.get_by_test_id(f"issue-{open_issue.code}")).to_be_visible()
+    expect(page.get_by_test_id(f"issue-{closed_issue.code}")).to_be_visible()
+    expect(page).not_to_have_url(re.compile(r"state="))
+
+
+def test_issue_list_state_filter_does_not_add_history_entries(
+    live_server: LiveServer,
+    page: Page,
+    issue: NixpkgsIssue,
+) -> None:
+    page.goto(live_server.url)
+    page.get_by_role("tab", name="Nixpkgs Issues").click()
+    expect(page.get_by_test_id(f"issue-{issue.code}")).to_be_visible()
+
+    filters = page.get_by_test_id("issue-filters")
+    filters.get_by_role("button", name="Open").click()
+    expect(page).to_have_url(re.compile(r"[?&]state=open"))
+    filters.get_by_role("button", name="Closed").click()
+    expect(page).to_have_url(re.compile(r"[?&]state=closed"))
+
+    page.go_back()
+    expect(page).to_have_url(live_server.url + "/")

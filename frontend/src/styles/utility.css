@@ -3,6 +3,7 @@
  * Utility classes for layout, typography, and various reusable UI components.
  * This should contain all the classes you need to style your html templates.
  * New classes should only be added there after due consideration, and never to introduce small ad hoc variations.
+ * Sizes come from `sizes.css` and colors from `colors.css`.
  */
 
 /* Prose
@@ -12,21 +13,21 @@
  */
 
 .prose p {
-  margin: 1em 0;
+  margin: var(--space-m) 0;
 }
 
 .prose ul {
   list-style-type: disc;
-  padding-left: 1em;
+  padding-left: var(--space-m);
 }
 
 .prose li {
-  margin: 1em 0;
+  margin: var(--space-m) 0;
 }
 
 /* Buttons
  *
- * .btn - Base button style to be used on every standard button
+ * .btn - Base colored button style to be used with:
  * .btn-green - Green button variant
  * .btn-gray - Gray button variant
  * .btn-red - Red button variant
@@ -34,15 +35,17 @@
  * Usage: Combine .btn with one of the color variants
  * Example: <button class="btn btn-green">Publish</button>
  *
+ * .btn-plain - Borderless text button blending into its surroundings (e.g. page numbers), used alone without .btn
+ *
  * See next section for how to combine buttons with other widgets
  */
 
 .btn {
   font-size: 1em;
-  border: solid 2px white;
-  border-radius: 0.4em;
-  padding: 0.3em 0.5em;
-  outline-width: 2px;
+  border: solid var(--border-thick) white;
+  border-radius: var(--radius);
+  padding: var(--space-xs) var(--space-s);
+  outline-width: var(--border-thick);
 }
 
 .btn:not(:disabled) {
@@ -84,6 +87,29 @@
   color: white;
 }
 
+.btn-plain {
+  font: inherit;
+  color: inherit;
+  border: none;
+  border-radius: var(--radius);
+  background: transparent;
+  padding: var(--space-3xs) var(--space-xs);
+  min-width: 1.6em;
+}
+
+.btn-plain:not(:disabled) {
+  cursor: pointer;
+}
+
+.btn-plain:not(:disabled):hover {
+  background-color: var(--light-gray);
+}
+
+.btn-plain:disabled {
+  color: var(--gray);
+  cursor: not-allowed;
+}
+
 /* Grouping buttons with other widgets
  * This will alter the style of the button to play nicely
  *
@@ -104,9 +130,9 @@
  */
 
 .join {
-  border: solid 2px white;
-  border-radius: 0.4em;
-  outline-width: 2px;
+  border: solid var(--border-thick) white;
+  border-radius: var(--radius);
+  outline-width: var(--border-thick);
   align-items: stretch;
 }
 
@@ -158,7 +184,7 @@
 
 .join > :not(.btn) .join-item:focus {
   outline: none;
-  border: 1px solid;
+  border: var(--border-thin) solid;
 }
 
 .join > .join-item:hover {
@@ -166,13 +192,13 @@
 }
 
 .join > .join-item:first-child {
-  border-top-left-radius: 0.4em;
-  border-bottom-left-radius: 0.4em;
+  border-top-left-radius: var(--radius);
+  border-bottom-left-radius: var(--radius);
 }
 
 .join > .join-item:last-child {
-  border-top-right-radius: 0.4em;
-  border-bottom-right-radius: 0.4em;
+  border-top-right-radius: var(--radius);
+  border-bottom-right-radius: var(--radius);
 }
 
 /* Tags
@@ -185,15 +211,15 @@
  */
 
 .tag {
-  border-radius: 1rem;
-  padding: 0.15rem 0.5rem;
+  border-radius: var(--radius-full);
+  padding: var(--space-2xs) var(--space-s);
   word-break: normal;
-  font-size: 0.8rem;
+  font-size: var(--text-xs);
 }
 
 .tag-gray {
   color: black;
-  border: 1px solid var(--gray);
+  border: var(--border-thin) solid var(--gray);
   background-color: var(--light-gray);
 }
 
@@ -211,11 +237,11 @@
  */
 
 .text-xl {
-  font-size: 2em;
+  font-size: var(--text-xl);
 }
 
 .text-l {
-  font-size: 1.2em;
+  font-size: var(--text-l);
 }
 
 .text-black {
@@ -268,7 +294,6 @@
  * Spacing (use one or none):
  * .gap, .gap-small, .gap-big - Gap between items
  * .row-gap, .row-gap-small, .row-gap-big - Gap between items in a row, may be combined with `gap` variants (useful when wrapping is possible)
- * .dividers - Display a separation line between items (handles gaps, don't use gap classes)
  *
  * Horizontal separator line:
  * .divider - On an <hr> element: display a horizontal line to separate content.
@@ -316,7 +341,7 @@
 }
 
 .stretched {
-  align-items: strech;
+  align-items: stretch;
 }
 
 .column {
@@ -349,27 +374,27 @@
 }
 
 .gap {
-  gap: 1em;
+  gap: var(--space-m);
 }
 
 .gap-big {
-  gap: 2em;
+  gap: var(--space-l);
 }
 
 .gap-small {
-  gap: 0.5em;
+  gap: var(--space-s);
 }
 
 .row-gap {
-  column-gap: 1em;
+  column-gap: var(--space-m);
 }
 
 .row-gap-big {
-  column-gap: 2em;
+  column-gap: var(--space-l);
 }
 
 .row-gap-small {
-  column-gap: 0.5em;
+  column-gap: var(--space-s);
 }
 
 .grow {
@@ -380,25 +405,9 @@
   flex-wrap: wrap;
 }
 
-.dividers > *:not(:first-child) {
-  padding-top: 0.5em;
-}
-
-.dividers > *:not(:last-child) {
-  padding-bottom: 0.5em;
-}
-
-.dividers > * {
-  border-bottom: 1px solid var(--gray);
-}
-
-.dividers > *:last-child {
-  border-bottom: none;
-}
-
 .divider {
   width: 100%;
-  height: 1px;
+  height: var(--border-thin);
   background-color: var(--gray);
   border: none;
 }
@@ -414,15 +423,15 @@
  */
 
 .rounded {
-  border-radius: 0.4em;
+  border-radius: var(--radius);
 }
 
 .rounded-full {
-  border-radius: 99999px;
+  border-radius: var(--radius-full);
 }
 
 .border {
-  border: 1px solid var(--gray);
+  border: var(--border-thin) solid var(--gray);
 }
 
 .border-dashed {
@@ -430,7 +439,7 @@
 }
 
 .box {
-  padding: 1em;
+  padding: var(--space-m);
   overflow: auto;
 }
 
@@ -443,11 +452,11 @@
 }
 
 .box.spacious {
-  padding: 2em;
+  padding: var(--space-l);
 }
 
 .box.compact {
-  padding: 0.3em;
+  padding: var(--space-xs);
 }
 
 /* Accordions (details/summary)
@@ -486,7 +495,7 @@ details[open] > summary > .details-closed {
 }
 
 details.details-marker-outside {
-  margin-left: 1em;
+  margin-left: var(--space-m);
 }
 
 details.details-marker-outside > summary {
@@ -513,7 +522,7 @@ details.details-marker-outside > summary {
   background: linear-gradient(90deg, var(--light-gray) 25%, white 50%, var(--light-gray) 75%);
   background-size: 200% 100%;
   animation: skeleton-shimmer 1.5s ease-in-out infinite;
-  border: 1px solid var(--light-gray);
+  border: var(--border-thin) solid var(--light-gray);
 }
 
 /* Cursor

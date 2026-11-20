@@ -165,8 +165,8 @@ in
           let
             parallelism = cfg.suggestionRefreshProcesses + 1; # account for periodic backfill
             # fall back to implicit Postgres defaults
-            connections = cfg.services.postgresql.settings.max_connections or 100;
-            locks = cfg.services.postgresql.settings.max_locks_per_transaction or 64;
+            connections = config.services.postgresql.settings.max_connections or 100;
+            locks = config.services.postgresql.settings.max_locks_per_transaction or 64;
           in
           connections * locks / parallelism * 4 / 5; # add some margin for other transactions
         REVISION =
@@ -327,6 +327,11 @@ in
         description = "Web security tracker background workers";
         wantedBy = [ "nix-security-tracker.target" ];
       };
+    };
+
+    # Catch up on a missed sync right after boot
+    systemd.timers.nix-security-tracker-github-teams = {
+      timerConfig.Persistent = true;
     };
 
     systemd.services =
@@ -629,6 +634,30 @@ in
             '';
 
             startAt = "*-*-* 05:00:00";
+          };
+
+          nix-security-tracker-github-teams = {
+            description = "Web security tracker - sync group memberships with GitHub teams";
+            after = [
+              "network.target"
+              "postgresql.service"
+              "nix-security-tracker-migrations.service"
+            ];
+            requires = [
+              "postgresql.service"
+              "nix-security-tracker-migrations.service"
+            ];
+            wantedBy = [ ];
+            serviceConfig.Type = "oneshot";
+
+            script = ''
+              ${manage.name} sync_github_teams
+            '';
+
+            # Webhook notifications keep group memberships up to date, but GitHub doesn't redeliver
+            # the ones we miss, e.g. while down for a deployment. Since group memberships
+            # grant permissions, bound how long they can be stale.
+            startAt = "hourly";
           };
 
           nix-security-tracker-garbage-collection = {

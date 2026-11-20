@@ -106,7 +106,7 @@ def test_publish_keeps_suggestion_in_place_dimmed_instead_of_disappearing(
     # `SuggestionList` forces it to the collapsed view (a distinct data-testid)
     dimmed_card = as_committer.get_by_test_id(f"suggestion-{suggestion.pk}-collapsed")
     expect(dimmed_card).to_be_visible()
-    expect(dimmed_card).to_have_class(re.compile(r"\bborder-dashed\b"))
+    expect(dimmed_card).to_have_accessible_description("No longer matches the filters")
 
 
 @pytest.mark.django_db

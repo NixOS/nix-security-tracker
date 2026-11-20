@@ -1,0 +1,32 @@
+/* Defines our limited set of standard sizes.
+ * You are expected to only use these sizes and add new ones there only if strictly necessary.
+ * Sizes specific to one component's geometry stay in that component.
+ */
+
+:root {
+  /* Spacing: padding, margin, gap. */
+  --space-3xs: 0.1em;
+  --space-2xs: 0.2em;
+  --space-xs: 0.3em;
+  --space-s: 0.5em;
+  --space-m: 1em;
+  --space-l: 2em;
+
+  /* Rounded corners. */
+  --radius: 0.4em;
+  --radius-full: 9999px;
+
+  /* Border and outline widths. */
+  --border-thin: 1px;
+  --border-thick: 2px;
+
+  /* Font sizes. */
+  /* FIXME(@florentc): Reduce amount (combine s and xs). */
+  --text-xl: 2em;
+  --text-l: 1.2em;
+  --text-s: 0.9em;
+  --text-xs: 0.8em;
+
+  /* Maximum width of the page content. */
+  --content-width: 70em;
+}

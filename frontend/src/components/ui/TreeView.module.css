@@ -12,5 +12,5 @@
 }
 
 .branchContent {
-  margin-left: 1em;
+  margin-left: var(--space-m);
 }

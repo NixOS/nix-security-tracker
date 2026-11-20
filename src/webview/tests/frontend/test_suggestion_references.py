@@ -36,7 +36,7 @@ def test_reference_no_ignore_button_for_anonymous(
     page.goto(live_server.url + SUGGESTION_DETAIL + f"/{suggestion.pk}")
     references = page.get_by_test_id(f"suggestion-{suggestion.pk}-references")
     expect(references.get_by_role("link", name=REFERENCE_NAME)).to_be_visible()
-    expect(references.get_by_role("button", name="Ignore")).to_be_hidden()
+    expect(references.get_by_role("button", name="Ignore", exact=True)).to_be_hidden()
 
 
 @pytest.mark.django_db
@@ -51,7 +51,7 @@ def test_reference_ignore_button_visible_for_committer(
     )
     as_committer.goto(live_server.url + SUGGESTION_DETAIL + f"/{suggestion.pk}")
     references = as_committer.get_by_test_id(f"suggestion-{suggestion.pk}-references")
-    expect(references.get_by_role("button", name="Ignore")).to_be_visible()
+    expect(references.get_by_role("button", name="Ignore", exact=True)).to_be_visible()
 
 
 @pytest.mark.django_db
@@ -67,7 +67,7 @@ def test_reference_ignore_button_hidden_when_suggestion_rejected(
     as_committer.goto(live_server.url + SUGGESTION_DETAIL + f"/{suggestion.pk}")
     references = as_committer.get_by_test_id(f"suggestion-{suggestion.pk}-references")
     expect(references.get_by_role("link", name=REFERENCE_NAME)).to_be_visible()
-    expect(references.get_by_role("button", name="Ignore")).to_be_hidden()
+    expect(references.get_by_role("button", name="Ignore", exact=True)).to_be_hidden()
 
 
 @pytest.mark.django_db
@@ -76,7 +76,7 @@ def test_reference_ignore_moves_to_ignored_section_and_logs_activity(
     as_committer: Page,
     suggestion_with_reference: Callable[..., CVEDerivationClusterProposal],
 ) -> None:
-    """Clicking Ignore moves the reference into the Ignored references section
+    """Clicking Ignore hides the reference among ignored ones
     and records an activity log entry."""
     suggestion = suggestion_with_reference(
         status=CVEDerivationClusterProposal.Status.PENDING
@@ -84,10 +84,12 @@ def test_reference_ignore_moves_to_ignored_section_and_logs_activity(
     as_committer.goto(live_server.url + SUGGESTION_DETAIL + f"/{suggestion.pk}")
     references = as_committer.get_by_test_id(f"suggestion-{suggestion.pk}-references")
 
-    references.get_by_role("button", name="Ignore").click()
+    references.get_by_role("button", name="Ignore", exact=True).click()
 
-    expect(references.get_by_text("Ignored references", exact=False)).to_be_visible()
-    references.get_by_text("Ignored references", exact=False).click()
+    expect(
+        references.get_by_role("button", name="Ignored (1)", exact=True)
+    ).to_be_visible()
+    references.get_by_role("button", name="Ignored (").click()
     expect(references.get_by_role("button", name="Restore")).to_be_visible()
 
     activity_log_toggle = as_committer.get_by_test_id(
@@ -113,14 +115,16 @@ def test_reference_restore_moves_back_to_active_section(
     as_committer.goto(live_server.url + SUGGESTION_DETAIL + f"/{suggestion.pk}")
     references = as_committer.get_by_test_id(f"suggestion-{suggestion.pk}-references")
 
-    references.get_by_role("button", name="Ignore").click()
-    references.get_by_text("Ignored references", exact=False).click()
+    references.get_by_role("button", name="Ignore", exact=True).click()
+    references.get_by_role("button", name="Ignored (").click()
     expect(references.get_by_role("button", name="Restore")).to_be_visible()
 
     references.get_by_role("button", name="Restore").click()
 
-    expect(references.get_by_role("button", name="Ignore")).to_be_visible()
-    expect(references.get_by_text("Ignored references", exact=False)).to_be_hidden()
+    expect(references.get_by_role("button", name="Ignore", exact=True)).to_be_visible()
+    expect(
+        references.get_by_role("button", name="Ignored (0)", exact=True)
+    ).to_be_visible()
 
 
 @pytest.mark.django_db
@@ -137,12 +141,12 @@ def test_reference_ignore_shows_error_toast_on_backend_mismatch(
     )
     as_committer.goto(live_server.url + SUGGESTION_DETAIL + f"/{suggestion.pk}")
     references = as_committer.get_by_test_id(f"suggestion-{suggestion.pk}-references")
-    expect(references.get_by_role("button", name="Ignore")).to_be_visible()
+    expect(references.get_by_role("button", name="Ignore", exact=True)).to_be_visible()
 
     # Simulate a UI/backend mismatch
     suggestion.ignore_reference(REFERENCE_URL)
 
-    references.get_by_role("button", name="Ignore").click()
+    references.get_by_role("button", name="Ignore", exact=True).click()
 
     expect(as_committer.get_by_text("Reference already ignored")).to_be_visible()
     expect(
@@ -150,7 +154,9 @@ def test_reference_ignore_shows_error_toast_on_backend_mismatch(
     ).to_be_visible()
 
     # The suggestion is supposed to have been refreshed so the reference should be ignored now
-    expect(references.get_by_text("Ignored references", exact=False)).to_be_visible()
+    expect(
+        references.get_by_role("button", name="Ignored (1)", exact=True)
+    ).to_be_visible()
 
 
 @pytest.mark.django_db
@@ -166,8 +172,64 @@ def test_reference_ignore_from_list_updates_the_list_card(
     card = as_committer.get_by_test_id(f"suggestion-{suggestion.pk}")
     references = card.get_by_test_id(f"suggestion-{suggestion.pk}-references")
 
-    references.get_by_role("button", name="Ignore").click()
+    references.get_by_role("button", name="Ignore", exact=True).click()
 
-    expect(references.get_by_text("Ignored references", exact=False)).to_be_visible()
-    references.get_by_text("Ignored references", exact=False).click()
+    expect(
+        references.get_by_role("button", name="Ignored (1)", exact=True)
+    ).to_be_visible()
+    references.get_by_role("button", name="Ignored (").click()
     expect(references.get_by_role("button", name="Restore")).to_be_visible()
+
+
+@pytest.mark.django_db
+def test_ignored_references_are_hidden_until_shown(
+    live_server: LiveServer,
+    page: Page,
+    make_container: Callable[..., Container],
+    make_cached_suggestion: Callable[..., CVEDerivationClusterProposal],
+) -> None:
+    """Ignored references are hidden by default, and shown on demand."""
+    container = make_container(
+        references=[
+            ("Active", "https://example.com/active", []),
+            ("Ignored", "https://example.com/ignored", []),
+        ]
+    )
+    suggestion = make_cached_suggestion(container=container)
+    suggestion.ignore_reference("https://example.com/ignored")
+    page.goto(live_server.url + SUGGESTION_DETAIL + f"/{suggestion.pk}")
+    references = page.get_by_test_id(f"suggestion-{suggestion.pk}-references")
+
+    expect(references.get_by_role("link")).to_have_count(1)
+    expect(references.get_by_role("link", name="Active")).to_be_visible()
+    expect(references.get_by_role("link", name="Ignored")).to_have_count(0)
+
+    references.get_by_role("button", name="Ignored (1)", exact=True).click()
+
+    expect(references.get_by_role("link")).to_have_count(2)
+    expect(references.get_by_role("link", name="Ignored")).to_be_visible()
+
+
+@pytest.mark.django_db
+def test_ignored_reference_keeps_its_position_when_shown(
+    live_server: LiveServer,
+    page: Page,
+    make_container: Callable[..., Container],
+    make_cached_suggestion: Callable[..., CVEDerivationClusterProposal],
+) -> None:
+    """An ignored reference is shown where it was, not moved after the active ones."""
+    container = make_container(
+        references=[
+            ("First", "https://example.com/first", []),
+            ("Second", "https://example.com/second", []),
+            ("Third", "https://example.com/third", []),
+        ]
+    )
+    suggestion = make_cached_suggestion(container=container)
+    suggestion.ignore_reference("https://example.com/second")
+    page.goto(live_server.url + SUGGESTION_DETAIL + f"/{suggestion.pk}")
+    references = page.get_by_test_id(f"suggestion-{suggestion.pk}-references")
+
+    references.get_by_role("button", name="Ignored (").click()
+
+    expect(references.get_by_role("link")).to_have_text(["First", "Second", "Third"])

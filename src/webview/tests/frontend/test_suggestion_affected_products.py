@@ -23,7 +23,9 @@ def goto_suggestion(
     page: Page, live_server: LiveServer, suggestion: CVEDerivationClusterProposal
 ) -> None:
     page.goto(live_server.url + SUGGESTION_DETAIL + f"/{suggestion.pk}")
-    expect(page.get_by_role("heading", name="Affected products")).to_be_visible()
+    expect(
+        page.get_by_role("heading", name="Affected products", exact=True)
+    ).to_be_visible()
 
 
 def test_affected_products_grouped_by_shared_name_prefix(

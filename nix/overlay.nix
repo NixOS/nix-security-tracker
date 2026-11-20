@@ -4,18 +4,31 @@ let
   meta = with builtins; fromTOML (readFile ../src/pyproject.toml);
 in
 {
+  nix-security-tracker-logos = final.runCommand "nix-security-tracker-logos" { } ''
+    mkdir -p $out
+    cp ${sources.nixos-logo} $out/nixos-logo.svg
+    cp ${sources.cve-logo} $out/cveLogo.svg
+    cp ${sources.nixos-logo-horizontal} $out/nixpkgsLogo.svg
+  '';
+
   python3 = prev.python3.override {
     packageOverrides = pyfinal: _pyprev: {
-      # FIXME(@erethon): remove once asgiref 3.12.0+ is merged into nixpkgs (it's in staging-next now)
-      asgiref = _pyprev.asgiref.overridePythonAttrs rec {
-        version = "3.13.0";
+      # FIXME(@fricklerhandwerk): remove once Nixpkgs ships a release that includes the fix for the flaky test
+      # https://github.com/getsentry/sentry-python/issues/8031
+      sentry-sdk = _pyprev.sentry-sdk.overridePythonAttrs (old: rec {
+        version = "2.74.0";
         src = final.fetchFromGitHub {
-          owner = "django";
-          repo = "asgiref";
+          owner = "getsentry";
+          repo = "sentry-python";
           tag = version;
-          hash = "sha256-Qsg0PwD6XYZkcBIcnwEjPC+2fCro35MQyXMPWm64014=";
+          hash = "sha256-LB8u5yuI47if9rsW9w0d/UsPtj2/6b9yvziaqqxp68E=";
         };
-      };
+        disabledTests = (old.disabledTests or [ ]) ++ [
+          # FIXME(@fricklerhandwerk): remove once the race condition in the test setup is fixed upstream:
+          # https://github.com/getsentry/sentry-python/pull/8228
+          "test_get_current_thread_meta_bad_running_thread"
+        ];
+      });
       psycopg2 = pyfinal.psycopg;
       # FIXME(@fricklerhandwerk): remove once upstream fix is merged into django-pgpubsub
       # https://github.com/PaulGilmartin/django-pgpubsub/pull/89
@@ -113,7 +126,7 @@ in
       chmod +x $out/bin/manage.py
       wrapProgram $out/bin/manage.py --prefix PYTHONPATH : "$PYTHONPATH"
       mkdir -p $out/${final.python3.sitePackages}/webview/static/
-      cp ${sources.nixos-logo} $out/${final.python3.sitePackages}/webview/static/nixos-logo.svg
+      cp ${final.nix-security-tracker-logos}/* $out/${final.python3.sitePackages}/webview/static/
     '';
   };
 }

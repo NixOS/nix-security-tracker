@@ -368,7 +368,7 @@ def test_bulk_packages_ignores_a_package_everywhere(
 ) -> None:
     response = staff_client.patch(
         f"{PACKAGES_URL}?package={drv.attribute}",
-        {"package_attribute": drv.attribute, "ignored": True},
+        {"package_attributes": [drv.attribute], "ignored": True},
         format="json",
     )
     assert response.status_code == 200
@@ -384,10 +384,10 @@ def test_bulk_packages_restores_a_package_everywhere(
     staff_client: APIClient,
 ) -> None:
     for suggestion in pending_suggestions:
-        suggestion.ignore_package(drv.attribute)
+        suggestion.ignore_packages([drv.attribute])
     response = staff_client.patch(
         f"{PACKAGES_URL}?status=pending",
-        {"package_attribute": drv.attribute, "ignored": False},
+        {"package_attributes": [drv.attribute], "ignored": False},
         format="json",
     )
     assert response.status_code == 200
@@ -395,6 +395,44 @@ def test_bulk_packages_restores_a_package_everywhere(
     for suggestion in pending_suggestions:
         suggestion.refresh_from_db()
         assert drv.attribute in suggestion.cached.payload["packages"]
+
+
+def test_bulk_packages_ignores_and_restores_several_packages_everywhere(
+    make_drv: Callable[..., NixDerivation],
+    make_cached_suggestion: Callable[..., CVEDerivationClusterProposal],
+    staff_client: APIClient,
+) -> None:
+    drvs = [make_drv(pname="first"), make_drv(pname="second")]
+    attributes = [drv.attribute for drv in drvs]
+    suggestions = [
+        make_cached_suggestion(
+            drvs={drv: ProvenanceFlags.PACKAGE_NAME_MATCH for drv in drvs}
+        )
+        for _ in range(PENDING_SUGGESTIONS)
+    ]
+    # Every attribute applies to every selected suggestion.
+    response = staff_client.patch(
+        f"{PACKAGES_URL}?status=pending",
+        {"package_attributes": attributes, "ignored": True},
+        format="json",
+    )
+    assert response.status_code == 200
+    # Affected counts suggestions, not packages.
+    assert response.data == {"affected": len(suggestions)}
+    for suggestion in suggestions:
+        suggestion.refresh_from_db()
+        assert suggestion.cached.payload["packages"] == {}
+
+    # Restoring the same packages brings every suggestion back to where it started.
+    response = staff_client.patch(
+        f"{PACKAGES_URL}?status=pending",
+        {"package_attributes": attributes, "ignored": False},
+        format="json",
+    )
+    assert response.status_code == 200
+    for suggestion in suggestions:
+        suggestion.refresh_from_db()
+        assert set(suggestion.cached.payload["packages"]) == set(attributes)
 
 
 def test_bulk_packages_refuses_a_selection_missing_the_package(
@@ -409,7 +447,7 @@ def test_bulk_packages_refuses_a_selection_missing_the_package(
     )
     response = staff_client.patch(
         f"{PACKAGES_URL}?status=pending",
-        {"package_attribute": drv.attribute, "ignored": True},
+        {"package_attributes": [drv.attribute], "ignored": True},
         format="json",
     )
     assert response.status_code == 400

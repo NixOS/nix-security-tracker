@@ -1,2 +1,2 @@
 paths-ignore:
-  - src/website/shared/migrations
+  - src/shared/migrations

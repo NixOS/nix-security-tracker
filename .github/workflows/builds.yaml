@@ -19,8 +19,18 @@ jobs:
         with:
           persist-credentials: false
       - uses: NixOS/nix-installer-action@62c1943b776c509394b550f3f983adc14e9212d6 # v1.0.0
+      # Cache build results in GHA. Only `main` can write, PRs and merge queue runs can read.
+      - uses: DeterminateSystems/magic-nix-cache-action@84c0677f58dcedf3b91f8223ce36a9ea5b3c84b7 # v15
+        with:
+          # FIXME: switch back to a `source-tag` once a release after v0.1.6 exists.
+          source-revision: 12fb09b6126680552ebf1918102d65d832554057
+          use-flakehub: false
+          diagnostic-endpoint: ""
       - run: nix-build -A git-hooks
       - run: nix-build -A tests
+      # FIXME(@fricklerhandwerk): Remove together with the patch once Nixpkgs allows disabling writeback separately.
+      # See https://github.com/NixOS/nixpkgs/pull/573600
+      - run: nix-build -A nixpkgs-patched
       - run: |
           nix-build -A ci
           result/bin/deploy build
