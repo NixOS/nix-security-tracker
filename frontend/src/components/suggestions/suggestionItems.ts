@@ -1,9 +1,11 @@
 import type {
   Maintainer,
+  PackageGroup,
   SuggestionCategorizedMaintainers,
   SuggestionCategorizedUrlReferences,
   SuggestionOriginalPackages,
   SuggestionPackage,
+  SuggestionPackageBranches,
   SuggestionPackages,
   SuggestionUrlReference,
 } from "@/api/generated/models";
@@ -14,6 +16,19 @@ export type ItemState = "active" | "ignored" | "added";
 export type ItemRow<T> = { key: string; item: T; state: ItemState };
 
 type Group<T> = { state: ItemState; items: readonly T[] };
+
+export function ignoredRows<T>(rows: readonly ItemRow<T>[]): ItemRow<T>[] {
+  return rows.filter((row) => row.state === "ignored");
+}
+
+export function allIgnored<T>(rows: readonly ItemRow<T>[]): boolean {
+  return rows.every((row) => row.state === "ignored");
+}
+
+/** Rows to display, ignored ones only when asked for. */
+export function shownRows<T>(rows: readonly ItemRow<T>[], showIgnored: boolean): ItemRow<T>[] {
+  return showIgnored ? [...rows] : rows.filter((row) => row.state !== "ignored");
+}
 
 /* FIXME(@florentc): This is a workaround the awkward categorized data structure obtained from the API.
  * It's used so that ignored items keep their place in lists for consistent UI placement.
@@ -68,6 +83,58 @@ export function packageRows(
     ],
     (entry) => entry.attribute,
   );
+}
+
+/**
+ * Versions on the evaluated branches shared by all attributes of a package, if they agree.
+ * Attributes agree when they have the same version and source on the same branches.
+ */
+export function sharedBranches(
+  rows: readonly ItemRow<PackageEntry>[],
+): SuggestionPackageBranches | undefined {
+  const [first, ...others] = rows.map((row) => row.item.pkg.branches);
+  if (!first) return undefined;
+  const names = Object.keys(first);
+  const agrees = (branches: SuggestionPackageBranches) =>
+    Object.keys(branches).length === names.length &&
+    names.every(
+      (name) =>
+        branches[name] !== undefined &&
+        branches[name].version === first[name].version &&
+        branches[name].src_position === first[name].src_position,
+    );
+  return others.every(agrees) ? first : undefined;
+}
+
+/** Attributes in one row of the packages list, several when they belong to the same package. */
+export type PackageSlot = { group?: PackageGroup; attributes: ItemRow<PackageEntry>[] };
+
+/**
+ * Rows of the packages list, where attributes of the same package share one slot.
+ * A slot is at the original position of its first attribute, and is ignored only when all its attributes are.
+ */
+export function packageSlotRows(
+  original: SuggestionOriginalPackages,
+  active: SuggestionPackages,
+  ignored: SuggestionPackages,
+  groups: readonly PackageGroup[],
+): ItemRow<PackageSlot>[] {
+  const groupOf = new Map(
+    groups.flatMap((group) => group.attributes.map((a) => [a, group] as const)),
+  );
+  const slots = new Map<string, PackageSlot>();
+  for (const row of packageRows(original, active, ignored)) {
+    const group = groupOf.get(row.item.attribute);
+    const key = group ? `package-${group.package_id}` : row.key;
+    const slot = slots.get(key) ?? { group, attributes: [] };
+    slot.attributes.push(row);
+    slots.set(key, slot);
+  }
+  return [...slots].map(([key, item]) => ({
+    key,
+    item,
+    state: allIgnored(item.attributes) ? "ignored" : "active",
+  }));
 }
 
 /**

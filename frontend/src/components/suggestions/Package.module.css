@@ -10,3 +10,12 @@
 .details {
   width: 35em;
 }
+
+.attributes {
+  padding-top: var(--space-s);
+}
+
+/* Lines up attribute names with the name of their group, after its fold toggle. */
+.nestedTitle {
+  padding-left: calc(1em + 2 * var(--space-xs) + var(--space-s));
+}
