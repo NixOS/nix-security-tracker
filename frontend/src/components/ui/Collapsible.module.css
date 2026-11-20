@@ -1,7 +1,4 @@
-.content {
-  overflow: hidden;
-}
-
+/* Content is clipped only while animating, so that it can overflow (e.g. outlines of hovered buttons) once open. */
 .content[data-state="open"] {
   animation: slideDown 200ms ease-out;
 }
@@ -13,17 +10,21 @@
 @keyframes slideDown {
   from {
     height: 0;
+    overflow: hidden;
   }
   to {
     height: var(--height);
+    overflow: hidden;
   }
 }
 
 @keyframes slideUp {
   from {
     height: var(--height);
+    overflow: hidden;
   }
   to {
     height: 0;
+    overflow: hidden;
   }
 }

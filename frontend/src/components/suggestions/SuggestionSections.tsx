@@ -39,6 +39,7 @@ export function suggestionSections(
     packages,
     original_packages,
     ignored_packages,
+    attribute_package_groups,
     categorized_maintainers,
     categorized_url_references,
   } = suggestion;
@@ -65,6 +66,7 @@ export function suggestionSections(
           original={original_packages}
           active={packages}
           ignored={ignored_packages}
+          groups={attribute_package_groups}
           editable={editable}
         />,
       ),
