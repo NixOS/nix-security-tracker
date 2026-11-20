@@ -332,7 +332,7 @@ def channel_structure(
     packages = dict()
     for derivation in derivations:
         attribute_path = derivation.attribute
-        _, package_version = parse_drv_name(derivation.name)
+        package_version = derivation.version
         if attribute_path not in packages:
             packages[attribute_path] = CachedSuggestion.Package()
         packages[attribute_path].derivation_ids.append(derivation.pk)
@@ -358,22 +358,6 @@ def channel_structure(
                 )
             )
     return packages
-
-
-def parse_drv_name(name: str) -> tuple[str, str]:
-    """
-    Splits the input string `name` into a package name and version.
-
-    https://nix.dev/manual/nix/latest/language/builtins.html#builtins-parseDrvName
-
-    The package name is everything up to but not including the first dash
-    not followed by a letter, and the version is everything after that dash.
-    """
-    match = re.match(r"^(.+?)-([^a-zA-Z].*)$", name)
-    if match:
-        return match.group(1), match.group(2)
-    else:
-        return name, ""
 
 
 def maintainers_list(
