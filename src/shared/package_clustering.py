@@ -8,8 +8,11 @@ from django.conf import settings
 from django.db import transaction
 from django.db.models import Exists, OuterRef, QuerySet
 
-from shared.cache_suggestions import parse_drv_name
-from shared.models.nix_evaluation import NixDerivation, NixDerivationMeta
+from shared.models.nix_evaluation import (
+    NixDerivation,
+    NixDerivationMeta,
+    parse_drv_name,
+)
 from shared.models.package import Package, PackageAttrpath, PackageDerivation
 
 logger = logging.getLogger(__name__)

@@ -1,3 +1,5 @@
+import re
+
 from django.conf import settings
 from django.contrib.postgres import fields
 from django.contrib.postgres.indexes import BTreeIndex, GinIndex
@@ -296,6 +298,22 @@ class NixEvaluation(TimeStampMixin):
         ]
 
 
+def parse_drv_name(name: str) -> tuple[str, str]:
+    """
+    Split the input string `name` into a package name and version.
+
+    https://nix.dev/manual/nix/latest/language/builtins.html#builtins-parseDrvName
+
+    The package name is everything up to but not including the first dash
+    not followed by a letter, and the version is everything after that dash.
+    """
+    match = re.match(r"^(.+?)-([^a-zA-Z].*)$", name)
+    if match:
+        return match.group(1), match.group(2)
+    else:
+        return name, ""
+
+
 class NixDerivation(models.Model):
     """
     This represents a Nix derivation "evaluated",
@@ -326,6 +344,14 @@ class NixDerivation(models.Model):
     def __str__(self) -> str:
         hash = self.derivation_path.split("-")[0].split("/")[-1]
         return f"{self.name} {hash[:8]}"
+
+    @property
+    def pname(self) -> str:
+        return parse_drv_name(self.name)[0]
+
+    @property
+    def version(self) -> str:
+        return parse_drv_name(self.name)[1]
 
     class Meta:  # type: ignore[override]
         indexes = [

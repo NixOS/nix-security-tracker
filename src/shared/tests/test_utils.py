@@ -1,6 +1,6 @@
 import pytest
 
-from shared.cache_suggestions import parse_drv_name
+from shared.models.nix_evaluation import parse_drv_name
 
 
 @pytest.mark.parametrize(
