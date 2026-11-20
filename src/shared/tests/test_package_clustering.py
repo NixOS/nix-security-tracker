@@ -10,7 +10,6 @@ from django.conf import settings
 from django.core.management import call_command
 from django.db import close_old_connections
 
-from shared.cache_suggestions import parse_drv_name
 from shared.listeners.package_clustering import (
     cluster_after_evaluation,
 )
@@ -76,8 +75,7 @@ def test_new_package(
     cluster_packages(NixDerivation.objects.filter(pk=drv.pk))
 
     link = PackageDerivation.objects.get(derivation=drv)
-    pname, _ = parse_drv_name(drv.name)
-    assert link.package.name == pname
+    assert link.package.name == drv.pname
     assert link.package.homepage == original_homepage
     assert link.package.description == original_description
     assert Package.objects.count() == 1

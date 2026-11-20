@@ -12,7 +12,7 @@ from django.contrib.auth.models import Group, User
 from django.utils import timezone
 from knox.models import AuthToken
 
-from shared.cache_suggestions import cache_new_suggestions, parse_drv_name
+from shared.cache_suggestions import cache_new_suggestions
 from shared.fetchers import make_metrics
 from shared.models.cve import (
     AffectedProduct,
@@ -338,7 +338,7 @@ def make_package(db: None) -> Callable[..., Package]:
     ) -> Package:
         if name is None:
             assert len(drvs) == 1, "name is ambiguous for multiple derivations"
-            name, _ = parse_drv_name(drvs[0].name)
+            name = drvs[0].pname
         if not homepage:
             homepage = f"https://example.com/{name}"
         pkg = Package.objects.create(
