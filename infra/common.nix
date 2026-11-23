@@ -31,6 +31,7 @@ in
       enable = true;
       settings.PasswordAuthentication = false;
     };
+    pgbouncer.settings.pgbouncer.max_client_conn = 1000;
   };
 
   users.mutableUsers = false;
