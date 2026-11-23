@@ -1,4 +1,4 @@
-import { UserMinusIcon, UserPlusIcon } from "lucide-preact";
+import { type LucideIcon, UserMinusIcon, UserPlusIcon } from "lucide-preact";
 import type { Maintainer as MaintainerType } from "@/api/generated/models";
 import { ExternalLink } from "@/components/ui/ExternalLink";
 import { useDeleteMaintainerMutation, useMaintainerMutation } from "@/hooks/useMaintainer";
@@ -19,22 +19,34 @@ export function Maintainer({ maintainer, suggestionId, editable, kind }: Props) 
   const deleteMutation = useDeleteMaintainerMutation(suggestionId);
 
   const isIgnored = kind === "ignored";
-  const isAdded = kind === "added";
-  const mutation = isAdded ? deleteMutation : ignoreRestoreMutation;
-
   function handleClick() {
-    if (isAdded) {
-      deleteMutation.mutate({
-        id: suggestionId,
-        params: { github_id: maintainer.github_id },
-      });
-    } else {
-      ignoreRestoreMutation.mutate({
-        id: suggestionId,
-        data: { github_id: maintainer.github_id, ignored: !isIgnored },
-      });
+    switch (kind) {
+      case "added":
+        return deleteMutation.mutate({
+          id: suggestionId,
+          params: { github_id: maintainer.github_id },
+        });
+      case "active":
+      case "ignored":
+        return ignoreRestoreMutation.mutate({
+          id: suggestionId,
+          data: { github_id: maintainer.github_id, ignored: !isIgnored },
+        });
+      default:
+        kind satisfies never;
     }
   }
+
+  const { action, icon, mutation } = (
+    {
+      active: { action: "ignore", icon: UserMinusIcon, mutation: ignoreRestoreMutation },
+      ignored: { action: "restore", icon: UserPlusIcon, mutation: ignoreRestoreMutation },
+      added: { action: "delete", icon: UserMinusIcon, mutation: deleteMutation },
+    } as const satisfies Record<
+      ItemState,
+      { action: string; icon: LucideIcon; mutation: { isPending: boolean } }
+    >
+  )[kind];
 
   return (
     <SuggestionItemRow
@@ -42,8 +54,8 @@ export function Maintainer({ maintainer, suggestionId, editable, kind }: Props) 
       action={
         editable && (
           <IgnoreRestoreButton
-            action={isAdded ? "delete" : isIgnored ? "restore" : "ignore"}
-            icon={isIgnored ? UserPlusIcon : UserMinusIcon}
+            action={action}
+            icon={icon}
             onClick={handleClick}
             disabled={mutation.isPending}
           />
