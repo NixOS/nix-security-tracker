@@ -13,9 +13,18 @@ from webview.models import SuggestionNotification as Notification
 logger = logging.getLogger(__name__)
 
 
+def _active_packages(notification: Notification) -> dict:
+    """Packages of the notification's suggestion that are not ignored."""
+    return {
+        attr: entry["package"]
+        for attr, entry in notification.suggestion.cached.payload["packages"].items()
+        if entry["status"] == "active"
+    }
+
+
 def _matching_subscribed_packages(notification: Notification, profile: Profile) -> dict:
     """Packages in the notification's suggestion that the user manually subscribed to."""
-    suggestion_packages = notification.suggestion.cached.payload.get("packages", {})
+    suggestion_packages = _active_packages(notification)
     subscribed_attrs = set(profile.package_subscriptions)
     return {
         attr: pdata
@@ -26,7 +35,7 @@ def _matching_subscribed_packages(notification: Notification, profile: Profile) 
 
 def _matching_maintained_packages(notification: Notification, profile: Profile) -> dict:
     """Packages in the notification's suggestion that the user maintains."""
-    suggestion_packages = notification.suggestion.cached.payload.get("packages", {})
+    suggestion_packages = _active_packages(notification)
     username = profile.user.username
     return {
         attr: pdata

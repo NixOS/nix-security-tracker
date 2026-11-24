@@ -1,6 +1,7 @@
 from drf_spectacular.utils import extend_schema_field, extend_schema_serializer
 from rest_framework import serializers
 
+from shared.cache_suggestions import CachedSuggestion
 from shared.cvss import compute_cvss_fields
 from shared.logs.batches import (
     FoldedCreationEvent,
@@ -13,10 +14,7 @@ from shared.logs.batches import (
 )
 from shared.logs.events import remove_canceling_events
 from shared.logs.fetchers import fetch_suggestion_events
-from shared.models.linkage import (
-    CVEDerivationClusterProposal,
-    SharedValueState,
-)
+from shared.models.linkage import CVEDerivationClusterProposal
 
 
 class SuggestionReferenceUpdateSerializer(serializers.Serializer):
@@ -164,10 +162,19 @@ class SuggestionPackageSerializer(serializers.Serializer):
     description = serializers.CharField(allow_null=True)
 
 
-class SuggestionCategorizedPackagesSerializer(serializers.Serializer):
-    original = serializers.DictField(child=SuggestionPackageSerializer())
-    active = serializers.DictField(child=SuggestionPackageSerializer())
-    ignored = serializers.DictField(child=SuggestionPackageSerializer())
+class SuggestionStatusPackageSerializer(serializers.Serializer):
+    """A package of a suggestion, along with whether it is ignored."""
+
+    package = SuggestionPackageSerializer()
+    status = serializers.ChoiceField(
+        choices=[status.value for status in CachedSuggestion.PackageStatus]
+    )
+
+
+class SuggestionStatusPackagesSerializer(serializers.DictField):
+    """Packages of a suggestion, keyed by attribute."""
+
+    child = SuggestionStatusPackageSerializer()
 
 
 class PackageGroupSerializer(serializers.Serializer):
@@ -194,18 +201,37 @@ class SuggestionUrlReferenceSerializer(serializers.Serializer):
     tags = serializers.ListField(child=serializers.CharField())
 
 
-class SuggestionCategorizedUrlReferencesSerializer(serializers.Serializer):
-    original = SuggestionUrlReferenceSerializer(many=True)
-    active = SuggestionUrlReferenceSerializer(many=True)
-    ignored = SuggestionUrlReferenceSerializer(many=True)
+class SuggestionStatusUrlReferenceSerializer(serializers.Serializer):
+    """A URL reference of a suggestion, along with whether it is ignored."""
+
+    reference = SuggestionUrlReferenceSerializer()
+    status = serializers.ChoiceField(
+        choices=[status.value for status in CachedSuggestion.UrlReferenceStatus]
+    )
 
 
-class SuggestionCategorizedMaintainersSerializer(serializers.Serializer):
-    original = MaintainerSerializer(many=True)
-    active = MaintainerSerializer(many=True)
-    ignored = MaintainerSerializer(many=True)
-    added = MaintainerSerializer(many=True)
-    orphan = MaintainerSerializer(many=True)
+class SuggestionStatusUrlReferencesSerializer(serializers.DictField):
+    """URL references of a suggestion, keyed by URL."""
+
+    child = SuggestionStatusUrlReferenceSerializer()
+
+
+class SuggestionStatusMaintainerSerializer(serializers.Serializer):
+    """A maintainer of a suggestion, along with whether it is ignored or added by hand."""
+
+    maintainer = MaintainerSerializer()
+    status = serializers.ChoiceField(
+        choices=[status.value for status in CachedSuggestion.MaintainerStatus]
+    )
+    orphan = serializers.BooleanField(
+        help_text="Whether this original maintainer no longer has any active package. Always false for maintainers added by hand.",
+    )
+
+
+class SuggestionStatusMaintainersSerializer(serializers.DictField):
+    """Maintainers of a suggestion, keyed by GitHub ID."""
+
+    child = SuggestionStatusMaintainerSerializer()
 
 
 class ActivityLogReferenceSerializer(serializers.Serializer):
@@ -248,13 +274,11 @@ class SuggestionSerializer(serializers.Serializer):
     description = serializers.SerializerMethodField()
     affected_products = serializers.SerializerMethodField()
     packages = serializers.SerializerMethodField()
-    original_packages = serializers.SerializerMethodField()
-    ignored_packages = serializers.SerializerMethodField()
     # for UI grouping.
     attribute_package_groups = serializers.SerializerMethodField()
     metrics = serializers.SerializerMethodField()
-    categorized_maintainers = serializers.SerializerMethodField()
-    categorized_url_references = serializers.SerializerMethodField()
+    maintainers = serializers.SerializerMethodField()
+    url_references = serializers.SerializerMethodField()
 
     # Optional inlined activity log.
     # Null unless requested via the `activity_log` query param.
@@ -284,25 +308,11 @@ class SuggestionSerializer(serializers.Serializer):
             for k, v in data.items()
         ]
 
-    @extend_schema_field(serializers.DictField(child=SuggestionPackageSerializer()))
+    @extend_schema_field(SuggestionStatusPackagesSerializer())
     def get_packages(self, obj: CVEDerivationClusterProposal) -> dict:
-        data = self._payload(obj)["packages"]
-        return {k: SuggestionPackageSerializer(v).data for k, v in data.items()}
-
-    @extend_schema_field(serializers.DictField(child=SuggestionPackageSerializer()))
-    def get_original_packages(self, obj: CVEDerivationClusterProposal) -> dict:
-        data = self._payload(obj)["original_packages"]
-        return {k: SuggestionPackageSerializer(v).data for k, v in data.items()}
-
-    @extend_schema_field(serializers.DictField(child=SuggestionPackageSerializer()))
-    def get_ignored_packages(self, obj: CVEDerivationClusterProposal) -> dict:
-        original_packages = self._payload(obj)["original_packages"]
-        packages = self._payload(obj)["packages"]
-        return {
-            k: SuggestionPackageSerializer(v).data
-            for k, v in original_packages.items()
-            if k not in packages
-        }
+        return SuggestionStatusPackagesSerializer().to_representation(
+            self._payload(obj)["packages"]
+        )
 
     @extend_schema_field(PackageGroupSerializer(many=True))
     def get_attribute_package_groups(self, obj: CVEDerivationClusterProposal) -> list:
@@ -328,15 +338,17 @@ class SuggestionSerializer(serializers.Serializer):
             )
         return result
 
-    @extend_schema_field(SuggestionCategorizedMaintainersSerializer())
-    def get_categorized_maintainers(self, obj: CVEDerivationClusterProposal) -> dict:
-        data = self._payload(obj)["categorized_maintainers"]
-        return dict(SuggestionCategorizedMaintainersSerializer(data).data)
+    @extend_schema_field(SuggestionStatusMaintainersSerializer())
+    def get_maintainers(self, obj: CVEDerivationClusterProposal) -> dict:
+        return SuggestionStatusMaintainersSerializer().to_representation(
+            self._payload(obj)["maintainers"]
+        )
 
-    @extend_schema_field(SuggestionCategorizedUrlReferencesSerializer())
-    def get_categorized_url_references(self, obj: CVEDerivationClusterProposal) -> dict:
-        data = self._payload(obj)["categorized_url_references"]
-        return dict(SuggestionCategorizedUrlReferencesSerializer(data).data)
+    @extend_schema_field(SuggestionStatusUrlReferencesSerializer())
+    def get_url_references(self, obj: CVEDerivationClusterProposal) -> dict:
+        return SuggestionStatusUrlReferencesSerializer().to_representation(
+            self._payload(obj)["url_references"]
+        )
 
     @extend_schema_field(ActivityLogEntrySerializer(many=True))
     def get_activity_log(self, obj: CVEDerivationClusterProposal) -> list | None:
@@ -362,24 +374,23 @@ class SuggestionSerializer(serializers.Serializer):
 
 
 class SharedPackageSerializer(serializers.Serializer):
-    """A package attribute every selected suggestion holds in the same state."""
+    """The status every selected suggestion gives a package."""
 
-    state = serializers.ChoiceField(choices=SharedValueState.choices)
-    attribute = serializers.CharField(source="value")
+    status = serializers.ChoiceField(
+        choices=[status.value for status in CachedSuggestion.PackageStatus]
+    )
 
 
 class SharedMaintainerSerializer(serializers.Serializer):
-    """A maintainer every selected suggestion holds in the same state."""
+    """A maintainer every selected suggestion came with, with the same status."""
 
-    state = serializers.ChoiceField(choices=SharedValueState.choices)
-    maintainer = MaintainerSerializer(source="value")
-
-
-class SharedReferenceSerializer(serializers.Serializer):
-    """A URL reference every selected suggestion holds in the same state."""
-
-    state = serializers.ChoiceField(choices=SharedValueState.choices)
-    reference = SuggestionUrlReferenceSerializer(source="value")
+    maintainer = MaintainerSerializer()
+    status = serializers.ChoiceField(
+        choices=[
+            CachedSuggestion.MaintainerStatus.ACTIVE.value,
+            CachedSuggestion.MaintainerStatus.IGNORED.value,
+        ]
+    )
 
 
 @extend_schema_serializer(component_name="SuggestionSharedState")
@@ -402,9 +413,18 @@ class SuggestionSharedStateSerializer(serializers.Serializer):
         allow_blank=True,
         help_text="The comment shared by the whole selection, empty when they all hold none, null when they differ.",
     )
-    packages = SharedPackageSerializer(many=True)
-    maintainers = SharedMaintainerSerializer(many=True)
-    references = SharedReferenceSerializer(many=True)
+    packages = serializers.DictField(
+        child=SharedPackageSerializer(),
+        help_text="Packages every selected suggestion holds with the same status, keyed by attribute.",
+    )
+    maintainers = serializers.DictField(
+        child=SharedMaintainerSerializer(),
+        help_text="Maintainers every selected suggestion came with, with the same status, keyed by GitHub ID. Maintainers added by hand are left out.",
+    )
+    url_references = serializers.DictField(
+        child=SuggestionStatusUrlReferenceSerializer(),
+        help_text="URL references every selected suggestion holds with the same status, keyed by URL.",
+    )
 
 
 # FIXME(@florentc): Eventually we'll want to:

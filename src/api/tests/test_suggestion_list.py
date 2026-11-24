@@ -606,4 +606,4 @@ def test_suggestion_list_includes_attribute_package_groups(
     attributes = [
         a for group in result["attribute_package_groups"] for a in group["attributes"]
     ]
-    assert sorted(attributes) == sorted(result["original_packages"])
+    assert sorted(attributes) == sorted(result["packages"])

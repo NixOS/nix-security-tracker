@@ -2,10 +2,10 @@ import { useQueryClient } from "@tanstack/react-query";
 import { getListSuggestionsQueryKey, useUpdateSuggestionPackage } from "@/api/generated/endpoints";
 import type {
   PatchedSuggestionPackageUpdate,
-  SuggestionCategorizedMaintainers,
+  SuggestionMaintainers,
   SuggestionPackages,
 } from "@/api/generated/models";
-import { optimisticSuggestionHandlers } from "@/hooks/optimisticSuggestion";
+import { optimisticSuggestionHandlers, withStatus } from "@/hooks/optimisticSuggestion";
 import { invalidateActivityLog, staleQuietly } from "@/utils/suggestionCache";
 
 type MutationVars = { id: number; data: PatchedSuggestionPackageUpdate };
@@ -18,27 +18,17 @@ export function usePackageMutation(suggestionId: number) {
       patch: (prev, { data: { package_attributes, ignored } }: MutationVars) => {
         if (!package_attributes?.length) return prev;
 
-        const fromKey = ignored ? "packages" : "ignored_packages";
-        const toKey = ignored ? "ignored_packages" : "packages";
-        const from = { ...prev[fromKey] };
-        const to = { ...prev[toKey] };
+        let packages = prev.packages;
         for (const attr of package_attributes) {
-          const moving = from[attr];
-          if (!moving) continue;
-          delete from[attr];
-          to[attr] = moving;
+          packages = withStatus(packages, attr, ignored ? "ignored" : "active");
         }
-        const newPackages = { ...prev, [fromKey]: from, [toKey]: to };
 
-        // Packages moving in/out of `active` change which maintainers count as active (auto ignore/restore maintainers).
+        // Packages becoming active or ignored change which maintainers are orphans.
         // The alternative is to invalidate the whole suggestion to fetch it back from the server.
         // Doing it quickly here in the frontend makes it possible to have instant optimistic update.
-        const categorized_maintainers = recomputeCategorizedMaintainers(
-          newPackages.packages,
-          prev.categorized_maintainers,
-        );
+        const maintainers = recomputeOrphans(packages, prev.maintainers);
 
-        return { ...newPackages, categorized_maintainers };
+        return { ...prev, packages, maintainers };
       },
       errorTitle: ({ data }) =>
         `Failed to ${data.ignored ? "ignore" : "restore"} ${(data.package_attributes?.length ?? 0) > 1 ? "packages" : "package"}`,
@@ -56,19 +46,22 @@ export function usePackageMutation(suggestionId: number) {
 }
 
 /**
- * Client-side port of `categorize_maintainers`
+ * Client-side port of the orphan rule of `categorize_maintainers`.
  * Used to give instant feedback (in the maintainer section) to the user when a package is ignored/restored.
  */
-function recomputeCategorizedMaintainers(
-  activePackages: SuggestionPackages,
-  previous: SuggestionCategorizedMaintainers,
-): SuggestionCategorizedMaintainers {
+function recomputeOrphans(
+  packages: SuggestionPackages,
+  maintainers: SuggestionMaintainers,
+): SuggestionMaintainers {
   const activePackageMaintainerIds = new Set(
-    Object.values(activePackages).flatMap((pkg) => pkg.maintainers.map((m) => m.github_id)),
+    Object.values(packages)
+      .filter(({ status }) => status === "active")
+      .flatMap(({ package: pkg }) => pkg.maintainers.map((m) => String(m.github_id))),
   );
-
-  return {
-    ...previous,
-    orphan: previous.original.filter((m) => !activePackageMaintainerIds.has(m.github_id)),
-  };
+  return Object.fromEntries(
+    Object.entries(maintainers).map(([githubId, entry]) => [
+      githubId,
+      { ...entry, orphan: entry.status !== "added" && !activePackageMaintainerIds.has(githubId) },
+    ]),
+  );
 }

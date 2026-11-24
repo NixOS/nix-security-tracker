@@ -32,12 +32,9 @@ def test_get_references_anonymous(
     response = client.get(url(suggestion_with_reference.pk))
     assert response.status_code == 200
     data = response.data
-    assert "original" in data
-    assert "active" in data
-    assert "ignored" in data
-    assert any(r["url"] == REFERENCE_URL for r in data["original"])
-    assert any(r["url"] == REFERENCE_URL for r in data["active"])
-    assert data["ignored"] == []
+    assert list(data) == [REFERENCE_URL]
+    assert data[REFERENCE_URL]["status"] == "active"
+    assert data[REFERENCE_URL]["reference"]["url"] == REFERENCE_URL
 
 
 def test_get_references_not_found(
@@ -105,8 +102,7 @@ def test_patch_ignore_reference_success(
     get_response = client.get(url(suggestion_with_reference.pk))
     assert get_response.status_code == 200
     data = get_response.data
-    assert not any(r["url"] == REFERENCE_URL for r in data["active"])
-    assert any(r["url"] == REFERENCE_URL for r in data["ignored"])
+    assert data[REFERENCE_URL]["status"] == "ignored"
 
 
 def test_patch_ignore_reference_already_ignored(
@@ -195,5 +191,4 @@ def test_patch_restore_reference_success(
     get_response = client.get(url(suggestion_with_reference.pk))
     assert get_response.status_code == 200
     data = get_response.data
-    assert any(r["url"] == REFERENCE_URL for r in data["active"])
-    assert not any(r["url"] == REFERENCE_URL for r in data["ignored"])
+    assert data[REFERENCE_URL]["status"] == "active"

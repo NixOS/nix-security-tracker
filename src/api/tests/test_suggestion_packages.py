@@ -38,12 +38,8 @@ def test_get_packages_anonymous(
     response = anonymous_client.get(url(suggestion_with_packages.pk))
     assert response.status_code == 200
     data = response.data
-    assert "original" in data
-    assert "active" in data
-    assert "ignored" in data
-    assert PACKAGE_ATTRIBUTE_1 in data["original"]
-    assert PACKAGE_ATTRIBUTE_1 in data["active"]
-    assert data["ignored"] == {}
+    assert data[PACKAGE_ATTRIBUTE_1]["status"] == "active"
+    assert "branches" in data[PACKAGE_ATTRIBUTE_1]["package"]
 
 
 def test_get_packages_not_found(
@@ -105,8 +101,7 @@ def test_patch_ignore_package_success(
     get_response = committer_client.get(url(suggestion_with_packages.pk))
     assert get_response.status_code == 200
     data = get_response.data
-    assert PACKAGE_ATTRIBUTE_1 not in data["active"]
-    assert PACKAGE_ATTRIBUTE_1 in data["ignored"]
+    assert data[PACKAGE_ATTRIBUTE_1]["status"] == "ignored"
 
 
 def test_patch_ignore_package_already_ignored(
@@ -187,8 +182,7 @@ def test_patch_restore_package_success(
     get_response = committer_client.get(url(suggestion_with_packages.pk))
     assert get_response.status_code == 200
     data = get_response.data
-    assert PACKAGE_ATTRIBUTE_1 in data["active"]
-    assert PACKAGE_ATTRIBUTE_1 not in data["ignored"]
+    assert data[PACKAGE_ATTRIBUTE_1]["status"] == "active"
 
 
 def test_patch_ignore_restore_package_updates_maintainer_orphan_status(
@@ -211,15 +205,11 @@ def test_patch_ignore_restore_package_updates_maintainer_orphan_status(
     suggestion_url = reverse(
         "cvederivationclusterproposal-detail", kwargs={"pk": suggestion.pk}
     )
+    key = str(only_maintainer_of_package1.github_id)
+
     before = committer_client.get(suggestion_url)
-    maintainer_github_ids_before = {
-        m["github_id"] for m in before.data["categorized_maintainers"]["active"]
-    }
-    orphan_github_ids_before = {
-        m["github_id"] for m in before.data["categorized_maintainers"]["orphan"]
-    }
-    assert only_maintainer_of_package1.github_id in maintainer_github_ids_before
-    assert only_maintainer_of_package1.github_id not in orphan_github_ids_before
+    assert before.data["maintainers"][key]["status"] == "active"
+    assert not before.data["maintainers"][key]["orphan"]
 
     response = committer_client.patch(
         url(suggestion.pk),
@@ -229,18 +219,11 @@ def test_patch_ignore_restore_package_updates_maintainer_orphan_status(
     assert response.status_code == 204
 
     after_ignore = committer_client.get(suggestion_url)
-    # The maintainer stays in `active` (it was never itself ignored)...
-    maintainer_github_ids_after_ignore = {
-        m["github_id"] for m in after_ignore.data["categorized_maintainers"]["active"]
-    }
-    assert only_maintainer_of_package1.github_id in maintainer_github_ids_after_ignore
-    # ...but becomes orphan since it no longer has any active package.
-    orphan_github_ids_after_ignore = {
-        m["github_id"] for m in after_ignore.data["categorized_maintainers"]["orphan"]
-    }
-    assert only_maintainer_of_package1.github_id in orphan_github_ids_after_ignore
+    # The maintainer stays active (it was never itself ignored), but becomes orphan since it no longer has any active package.
+    assert after_ignore.data["maintainers"][key]["status"] == "active"
+    assert after_ignore.data["maintainers"][key]["orphan"]
 
-    # Restoring the package clears the orphan status.
+    # Restoring the package clears the orphan flag.
     response = committer_client.patch(
         url(suggestion.pk),
         {"package_attributes": [PACKAGE_ATTRIBUTE_1], "ignored": False},
@@ -249,14 +232,8 @@ def test_patch_ignore_restore_package_updates_maintainer_orphan_status(
     assert response.status_code == 204
 
     after_restore = committer_client.get(suggestion_url)
-    orphan_github_ids_after_restore = {
-        m["github_id"] for m in after_restore.data["categorized_maintainers"]["orphan"]
-    }
-    maintainer_github_ids_after_restore = {
-        m["github_id"] for m in after_restore.data["categorized_maintainers"]["active"]
-    }
-    assert only_maintainer_of_package1.github_id not in orphan_github_ids_after_restore
-    assert only_maintainer_of_package1.github_id in maintainer_github_ids_after_restore
+    assert after_restore.data["maintainers"][key]["status"] == "active"
+    assert not after_restore.data["maintainers"][key]["orphan"]
 
 
 def test_restore_package_brings_back_maintainer_ignored_while_orphaned(
@@ -265,9 +242,9 @@ def test_restore_package_brings_back_maintainer_ignored_while_orphaned(
     make_drv: Callable[..., NixDerivation],
     make_cached_suggestion: Callable[..., CVEDerivationClusterProposal],
 ) -> None:
-    """Regression test: a maintainer ignored while orphan (i.e. while their
-    last active package was ignored) must reappear in `ignored`, not
-    `active`, once that package is restored."""
+    """
+    Regression test: a maintainer ignored while orphan (i.e. while their last active package was ignored) stays ignored once that package is restored.
+    """
     only_maintainer_of_package1 = make_maintainer(github_id=999, github="solo")
     drv1 = make_drv(pname=PACKAGE_ATTRIBUTE_1, maintainer=only_maintainer_of_package1)
     drv2 = make_drv(pname=PACKAGE_ATTRIBUTE_2)
@@ -310,13 +287,11 @@ def test_restore_package_brings_back_maintainer_ignored_while_orphaned(
     assert response.status_code == 204
 
     after_restore = committer_client.get(suggestion_url)
-    categorized = after_restore.data["categorized_maintainers"]
-    active_ids = {m["github_id"] for m in categorized["active"]}
-    ignored_ids = {m["github_id"] for m in categorized["ignored"]}
-    orphan_ids = {m["github_id"] for m in categorized["orphan"]}
-    assert only_maintainer_of_package1.github_id in ignored_ids
-    assert only_maintainer_of_package1.github_id not in active_ids
-    assert only_maintainer_of_package1.github_id not in orphan_ids
+    entry = after_restore.data["maintainers"][
+        str(only_maintainer_of_package1.github_id)
+    ]
+    assert entry["status"] == "ignored"
+    assert not entry["orphan"]
 
 
 def test_patch_ignore_and_restore_several_packages_at_once(
@@ -332,8 +307,9 @@ def test_patch_ignore_and_restore_several_packages_at_once(
     )
     assert response.status_code == 204
     data = committer_client.get(url(suggestion_with_packages.pk)).data
-    assert data["active"] == {}
-    assert set(data["ignored"]) == set(both)
+    assert {attribute: data[attribute]["status"] for attribute in both} == {
+        attribute: "ignored" for attribute in both
+    }
 
     response = committer_client.patch(
         url(suggestion_with_packages.pk),
@@ -342,8 +318,9 @@ def test_patch_ignore_and_restore_several_packages_at_once(
     )
     assert response.status_code == 204
     data = committer_client.get(url(suggestion_with_packages.pk)).data
-    assert set(data["active"]) == set(both)
-    assert data["ignored"] == {}
+    assert {attribute: data[attribute]["status"] for attribute in both} == {
+        attribute: "active" for attribute in both
+    }
 
 
 def test_patch_ignore_several_packages_with_duplicates(
@@ -359,10 +336,8 @@ def test_patch_ignore_several_packages_with_duplicates(
         format="json",
     )
     assert response.status_code == 204
-    assert (
-        PACKAGE_ATTRIBUTE_1
-        in committer_client.get(url(suggestion_with_packages.pk)).data["ignored"]
-    )
+    data = committer_client.get(url(suggestion_with_packages.pk)).data
+    assert data[PACKAGE_ATTRIBUTE_1]["status"] == "ignored"
 
 
 @pytest.mark.parametrize(
@@ -386,10 +361,8 @@ def test_patch_ignore_several_packages_refused_by_one_changes_nothing(
     )
     assert response.status_code == 400
     assert "package_attributes" in response.data
-    assert (
-        PACKAGE_ATTRIBUTE_2
-        in committer_client.get(url(suggestion_with_packages.pk)).data["active"]
-    )
+    data = committer_client.get(url(suggestion_with_packages.pk)).data
+    assert data[PACKAGE_ATTRIBUTE_2]["status"] == "active"
 
 
 def test_patch_restore_several_packages_refused_by_one_changes_nothing(
@@ -406,10 +379,8 @@ def test_patch_restore_several_packages_refused_by_one_changes_nothing(
         format="json",
     )
     assert response.status_code == 400
-    assert (
-        PACKAGE_ATTRIBUTE_1
-        in committer_client.get(url(suggestion_with_packages.pk)).data["ignored"]
-    )
+    data = committer_client.get(url(suggestion_with_packages.pk)).data
+    assert data[PACKAGE_ATTRIBUTE_1]["status"] == "ignored"
 
 
 def test_patch_packages_refuses_an_empty_list(

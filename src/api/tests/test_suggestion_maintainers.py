@@ -20,16 +20,19 @@ def test_get_maintainers_anonymous(
     client = APIClient()
     response = client.get(url(cached_suggestion.pk))
     assert response.status_code == 200
-    data = response.data
-    assert "original" in data
-    assert "active" in data
-    assert "ignored" in data
-    assert "added" in data
-    assert "orphan" in data
-    assert any(m["github_id"] == maintainer.github_id for m in data["original"])
-    assert any(m["github_id"] == maintainer.github_id for m in data["active"])
-    assert data["ignored"] == []
-    assert data["orphan"] == []
+    assert response.data == {
+        str(maintainer.github_id): {
+            "maintainer": {
+                "name": maintainer.name,
+                "email": maintainer.email,
+                "github": maintainer.github,
+                "matrix": maintainer.matrix,
+                "github_id": maintainer.github_id,
+            },
+            "status": "active",
+            "orphan": False,
+        }
+    }
 
 
 def test_get_maintainers_not_found(
@@ -101,8 +104,7 @@ def test_patch_ignore_maintainer_success(
     get_response = client.get(url(cached_suggestion.pk))
     assert get_response.status_code == 200
     data = get_response.data
-    assert not any(m["github_id"] == maintainer.github_id for m in data["active"])
-    assert any(m["github_id"] == maintainer.github_id for m in data["ignored"])
+    assert data[str(maintainer.github_id)]["status"] == "ignored"
 
 
 def test_patch_ignore_maintainer_already_ignored(
@@ -196,8 +198,7 @@ def test_patch_restore_maintainer_success(
     get_response = client.get(url(cached_suggestion.pk))
     assert get_response.status_code == 200
     data = get_response.data
-    assert any(m["github_id"] == maintainer.github_id for m in data["active"])
-    assert not any(m["github_id"] == maintainer.github_id for m in data["ignored"])
+    assert data[str(maintainer.github_id)]["status"] == "active"
 
 
 def test_post_add_unauthenticated(
@@ -259,7 +260,7 @@ def test_post_add_existing_db_maintainer_success(
 
     get_response = client.get(url(cached_suggestion.pk))
     assert get_response.status_code == 200
-    assert any(m["github_id"] == 555 for m in get_response.data["added"])
+    assert get_response.data["555"]["status"] == "added"
 
 
 def test_post_add_from_github_success(
@@ -351,7 +352,7 @@ def test_delete_added_maintainer_success(
 
     get_response = client.get(url(cached_suggestion.pk))
     assert get_response.status_code == 200
-    assert not any(m["github_id"] == 555 for m in get_response.data["added"])
+    assert "555" not in get_response.data
 
 
 def test_delete_already_removed_maintainer(

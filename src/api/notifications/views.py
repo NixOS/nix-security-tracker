@@ -79,9 +79,10 @@ class NotificationSerializer(serializers.ModelSerializer):
         if isinstance(notif, SuggestionNotification):
             cached = CachedSuggestion.model_validate(notif.suggestion.cached.payload)
             return {
-                pname: SuggestionPackageSerializer(pkg).data
-                for pname, pkg in cached.packages.items()
-                if any(m.github == username for m in pkg.maintainers)
+                pname: SuggestionPackageSerializer(entry.package).data
+                for pname, entry in cached.packages.items()
+                if entry.status == CachedSuggestion.PackageStatus.ACTIVE
+                and any(m.github == username for m in entry.package.maintainers)
             }
         return None
 
@@ -95,9 +96,10 @@ class NotificationSerializer(serializers.ModelSerializer):
                 self.context["request"].user.profile.package_subscriptions
             )
             return {
-                attr: SuggestionPackageSerializer(cached.packages[attr]).data
-                for attr in cached.packages
-                if attr in subscribed_attrs
+                attr: SuggestionPackageSerializer(entry.package).data
+                for attr, entry in cached.packages.items()
+                if entry.status == CachedSuggestion.PackageStatus.ACTIVE
+                and attr in subscribed_attrs
             }
         return None
 

@@ -88,9 +88,8 @@ def test_suggestion_detail_shows_maintainers(
     """
     page.goto(live_server.url + SUGGESTION_DETAIL + f"/{cached_suggestion.pk}")
     expect(page.get_by_role("heading", name="Maintainers", exact=True)).to_be_visible()
-    github_handle = cached_suggestion.cached.payload["categorized_maintainers"][
-        "active"
-    ][0]["github"]
+    [entry] = cached_suggestion.cached.payload["maintainers"].values()
+    github_handle = entry["maintainer"]["github"]
     expect(page.get_by_role("link", name=f"@{github_handle}")).to_be_visible()
 
 

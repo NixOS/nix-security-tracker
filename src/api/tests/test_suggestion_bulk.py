@@ -375,7 +375,9 @@ def test_bulk_packages_ignores_a_package_everywhere(
     assert response.data == {"affected": len(pending_suggestions)}
     for suggestion in pending_suggestions:
         suggestion.refresh_from_db()
-        assert drv.attribute not in suggestion.cached.payload["packages"]
+        assert (
+            suggestion.cached.payload["packages"][drv.attribute]["status"] == "ignored"
+        )
 
 
 def test_bulk_packages_restores_a_package_everywhere(
@@ -394,7 +396,9 @@ def test_bulk_packages_restores_a_package_everywhere(
     assert response.data == {"affected": len(pending_suggestions)}
     for suggestion in pending_suggestions:
         suggestion.refresh_from_db()
-        assert drv.attribute in suggestion.cached.payload["packages"]
+        assert (
+            suggestion.cached.payload["packages"][drv.attribute]["status"] == "active"
+        )
 
 
 def test_bulk_packages_ignores_and_restores_several_packages_everywhere(
@@ -421,7 +425,9 @@ def test_bulk_packages_ignores_and_restores_several_packages_everywhere(
     assert response.data == {"affected": len(suggestions)}
     for suggestion in suggestions:
         suggestion.refresh_from_db()
-        assert suggestion.cached.payload["packages"] == {}
+        assert {
+            entry["status"] for entry in suggestion.cached.payload["packages"].values()
+        } == {"ignored"}
 
     # Restoring the same packages brings every suggestion back to where it started.
     response = staff_client.patch(
@@ -432,7 +438,10 @@ def test_bulk_packages_ignores_and_restores_several_packages_everywhere(
     assert response.status_code == 200
     for suggestion in suggestions:
         suggestion.refresh_from_db()
-        assert set(suggestion.cached.payload["packages"]) == set(attributes)
+        assert {
+            attribute: entry["status"]
+            for attribute, entry in suggestion.cached.payload["packages"].items()
+        } == {attribute: "active" for attribute in attributes}
 
 
 def test_bulk_packages_refuses_a_selection_missing_the_package(
@@ -454,7 +463,9 @@ def test_bulk_packages_refuses_a_selection_missing_the_package(
     assert list(response.data["reasons"]) == [str(other.pk)]
     for suggestion in pending_suggestions:
         suggestion.refresh_from_db()
-        assert drv.attribute in suggestion.cached.payload["packages"]
+        assert (
+            suggestion.cached.payload["packages"][drv.attribute]["status"] == "active"
+        )
 
 
 def test_bulk_maintainers_ignores_a_maintainer_everywhere(
@@ -472,8 +483,8 @@ def test_bulk_maintainers_ignores_a_maintainer_everywhere(
     assert response.data == {"affected": len(suggestions)}
     for suggestion in suggestions:
         suggestion.refresh_from_db()
-        ignored = suggestion.cached.payload["categorized_maintainers"]["ignored"]
-        assert any(m["github_id"] == maintainer.github_id for m in ignored)
+        maintainers = suggestion.cached.payload["maintainers"]
+        assert maintainers[str(maintainer.github_id)]["status"] == "ignored"
 
 
 def test_bulk_maintainers_refuses_an_already_ignored_maintainer(
@@ -492,7 +503,10 @@ def test_bulk_maintainers_refuses_an_already_ignored_maintainer(
     assert response.status_code == 400
     assert list(response.data["reasons"]) == [str(already.pk)]
     untouched.refresh_from_db()
-    assert untouched.cached.payload["categorized_maintainers"]["ignored"] == []
+    assert all(
+        entry["status"] != "ignored"
+        for entry in untouched.cached.payload["maintainers"].values()
+    )
 
 
 @pytest.fixture
@@ -517,8 +531,8 @@ def test_bulk_references_ignores_a_reference_everywhere(
     assert response.data == {"affected": len(suggestions_with_reference)}
     for suggestion in suggestions_with_reference:
         suggestion.refresh_from_db()
-        active = suggestion.cached.payload["categorized_url_references"]["active"]
-        assert all(reference["url"] != REFERENCE_URL for reference in active)
+        references = suggestion.cached.payload["url_references"]
+        assert references[REFERENCE_URL]["status"] == "ignored"
 
 
 def test_bulk_references_restores_a_reference_everywhere(
@@ -535,8 +549,8 @@ def test_bulk_references_restores_a_reference_everywhere(
     assert response.status_code == 200
     for suggestion in suggestions_with_reference:
         suggestion.refresh_from_db()
-        active = suggestion.cached.payload["categorized_url_references"]["active"]
-        assert any(reference["url"] == REFERENCE_URL for reference in active)
+        references = suggestion.cached.payload["url_references"]
+        assert references[REFERENCE_URL]["status"] == "active"
 
 
 @override_settings(API_BULK_THROTTLE_SECURITY_TEAM="1/min")

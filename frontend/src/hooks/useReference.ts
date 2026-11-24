@@ -1,7 +1,7 @@
 import { useQueryClient } from "@tanstack/react-query";
 import { useUpdateSuggestionReference } from "@/api/generated/endpoints";
 import type { PatchedSuggestionReferenceUpdate } from "@/api/generated/models";
-import { moveBetween, optimisticSuggestionHandlers } from "@/hooks/optimisticSuggestion";
+import { optimisticSuggestionHandlers, withStatus } from "@/hooks/optimisticSuggestion";
 import { invalidateActivityLog } from "@/utils/suggestionCache";
 
 type MutationVars = { id: number; data: PatchedSuggestionReferenceUpdate };
@@ -13,11 +13,10 @@ export function useReferenceMutation(suggestionId: number) {
     mutation: optimisticSuggestionHandlers(queryClient, suggestionId, {
       patch: (prev, { data: { reference_url, ignored } }: MutationVars) => ({
         ...prev,
-        categorized_url_references: moveBetween(
-          prev.categorized_url_references,
-          ignored ? "active" : "ignored",
+        url_references: withStatus(
+          prev.url_references,
+          reference_url,
           ignored ? "ignored" : "active",
-          (r) => r.url === reference_url,
         ),
       }),
       errorTitle: ({ data }) =>

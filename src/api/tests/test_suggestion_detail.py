@@ -144,4 +144,4 @@ def test_suggestion_retrieve_attribute_package_groups(
     groups = response.data["attribute_package_groups"]
     assert groups
     attributes = [a for group in groups for a in group["attributes"]]
-    assert sorted(attributes) == sorted(response.data["original_packages"])
+    assert sorted(attributes) == sorted(response.data["packages"])

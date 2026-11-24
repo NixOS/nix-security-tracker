@@ -6,6 +6,7 @@ import { CategorizedMaintainersList } from "./CategorizedMaintainersList";
 import { CategorizedPackagesList } from "./CategorizedPackagesList";
 import { CategorizedReferencesList } from "./CategorizedReferencesList";
 import { SUGGESTION_SECTION_HEADINGS, type SuggestionSectionId } from "./SuggestionSectionHeadings";
+import { hasOriginalMaintainers } from "./suggestionItems";
 
 export type SuggestionSection = {
   value: SuggestionSectionId;
@@ -32,48 +33,33 @@ export function suggestionSections(
   suggestion: SuggestionType,
   userCanEdit: boolean,
 ): SuggestionSection[] {
-  const {
-    id,
-    status,
-    affected_products,
-    packages,
-    original_packages,
-    ignored_packages,
-    categorized_maintainers,
-    categorized_url_references,
-  } = suggestion;
+  const { id, status, affected_products, packages, maintainers, url_references } = suggestion;
 
   const editable = userCanEdit && isSuggestionEditable(status);
 
   const sections: (SuggestionSection | false)[] = [
-    categorized_url_references.original.length > 0 &&
+    Object.keys(url_references).length > 0 &&
       section(
         "references",
         <CategorizedReferencesList
-          categorizedReferences={categorized_url_references}
+          references={url_references}
           suggestionId={id}
           editable={editable}
         />,
       ),
     affected_products.length > 0 &&
       section("affected-products", <AffectedProductsTree affectedProducts={affected_products} />),
-    Object.keys(packages).length + Object.keys(ignored_packages).length > 0 &&
+    Object.keys(packages).length > 0 &&
       section(
         "packages",
-        <CategorizedPackagesList
-          suggestionId={id}
-          original={original_packages}
-          active={packages}
-          ignored={ignored_packages}
-          editable={editable}
-        />,
+        <CategorizedPackagesList suggestionId={id} packages={packages} editable={editable} />,
       ),
-    categorized_maintainers.original.length > 0 &&
+    hasOriginalMaintainers(maintainers) &&
       section(
         "maintainers",
         <CategorizedMaintainersList
           suggestionId={id}
-          categorizedMaintainers={categorized_maintainers}
+          maintainers={maintainers}
           editable={editable}
         />,
       ),

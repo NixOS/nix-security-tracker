@@ -206,18 +206,15 @@ def create_gh_issue(
         Resolve the current GitHub usernames of the maintainers of the packages
         affected by a single suggestion.
         """
-        raw = suggestion.cached.payload["categorized_maintainers"]
-        # Orphan maintainers no longer maintain any active package, don't ping them.
-        orphan_github_ids = {m["github_id"] for m in raw.get("orphan", [])}
         # We need to query for the latest username of each maintainer, because
         # those might have changed since they were written out in Nixpkgs; since
         # we have the user id (which is stable), we can ask the GitHub API
         return [
-            get_maintainer_username(maintainer, github)
-            for maintainer in (raw["active"] + raw["added"])
-            if "github_id" in maintainer
-            and "github" in maintainer
-            and maintainer["github_id"] not in orphan_github_ids
+            get_maintainer_username(entry["maintainer"], github)
+            for entry in suggestion.cached.payload["maintainers"].values()
+            if entry["status"] in ("active", "added")
+            # Orphan maintainers no longer maintain any active package, don't ping them.
+            and not entry["orphan"]
         ]
 
     def maintainers_line() -> str:
@@ -248,7 +245,10 @@ def create_gh_issue(
         order: list[str] = []
         packages: dict[str, dict[str, list[str]]] = {}
         for cs in cached_suggestions:
-            for attribute_name, pkg in cs.payload["packages"].items():
+            for attribute_name, entry in cs.payload["packages"].items():
+                if entry["status"] != "active":
+                    continue
+                pkg = entry["package"]
                 if attribute_name not in packages:
                     packages[attribute_name] = {}
                     order.append(attribute_name)
@@ -280,8 +280,11 @@ def create_gh_issue(
 {"\n".join(lines)}"""
 
     def references(suggestion: CVEDerivationClusterProposal) -> str:
-        refs = suggestion.cached.payload.get("categorized_url_references", {})
-        active_refs = refs.get("active", [])
+        active_refs = [
+            entry["reference"]
+            for entry in suggestion.cached.payload["url_references"].values()
+            if entry["status"] == "active"
+        ]
 
         if not active_refs:
             return ""
