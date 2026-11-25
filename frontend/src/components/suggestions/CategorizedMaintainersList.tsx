@@ -1,4 +1,4 @@
-import type { SuggestionCategorizedMaintainers } from "@/api/generated/models";
+import type { SuggestionMaintainers } from "@/api/generated/models";
 import { Maintainer } from "./Maintainer";
 import { MaintainerAddForm } from "./MaintainerAddForm";
 import { SuggestionItemCollection } from "./SuggestionItemCollection";
@@ -7,18 +7,14 @@ import { maintainerRows } from "./suggestionItems";
 
 type Props = {
   suggestionId: number;
-  categorizedMaintainers: SuggestionCategorizedMaintainers;
+  maintainers: SuggestionMaintainers;
   editable: boolean;
 };
 
-export function CategorizedMaintainersList({
-  suggestionId,
-  categorizedMaintainers,
-  editable,
-}: Props) {
+export function CategorizedMaintainersList({ suggestionId, maintainers, editable }: Props) {
   return (
     <SuggestionItemCollection
-      rows={maintainerRows(categorizedMaintainers)}
+      rows={maintainerRows(maintainers)}
       label={<SuggestionSectionHeading section="maintainers" />}
       testId={`suggestion-${suggestionId}-maintainers`}
       renderRow={({ item, state }) => (

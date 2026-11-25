@@ -3,17 +3,28 @@
  * The server already provides the info at fetch time.
  * This locally reimplements for local live updates.
  */
-import type { Suggestion, SuggestionPackages } from "@/api/generated/models";
+import type { Suggestion, SuggestionPackage } from "@/api/generated/models";
+
+type MatchingPackages = Record<string, SuggestionPackage>;
+
+/** Packages of the suggestion that are not ignored. */
+function activePackages(suggestion: Suggestion): [string, SuggestionPackage][] {
+  return Object.entries(suggestion.packages)
+    .filter(([, { status }]) => status === "active")
+    .map(([attr, { package: pkg }]) => [attr, pkg]);
+}
 
 /** Packages in `suggestion.packages` (active, non-ignored) maintained by `username`. */
 export function getMatchingMaintainedPackages(
   suggestion: Suggestion,
   username: string | undefined,
-): SuggestionPackages {
+): MatchingPackages {
   if (!username) return {};
   return Object.fromEntries(
-    Object.entries(suggestion.packages).filter(([, pkg]) =>
-      pkg.maintainers.some((m) => m.github === username),
+    activePackages(suggestion).filter(([, pkg]) =>
+      pkg.maintainer_ids.some(
+        (id) => suggestion.maintainers[String(id)]?.maintainer.github === username,
+      ),
     ),
   );
 }
@@ -22,18 +33,18 @@ export function getMatchingMaintainedPackages(
 export function getMatchingSubscribedPackages(
   suggestion: Suggestion,
   subscribedPackages: string[] | undefined,
-): SuggestionPackages {
+): MatchingPackages {
   if (!subscribedPackages || subscribedPackages.length === 0) return {};
   const subscribedAttrs = new Set(subscribedPackages);
   return Object.fromEntries(
-    Object.entries(suggestion.packages).filter(([attr]) => subscribedAttrs.has(attr)),
+    activePackages(suggestion).filter(([attr]) => subscribedAttrs.has(attr)),
   );
 }
 
 /** A notification is obsolete once it no longer matches any package the user follows or maintains. */
 export function isNotificationObsolete(
-  matchingMaintainedPackages: SuggestionPackages,
-  matchingSubscribedPackages: SuggestionPackages,
+  matchingMaintainedPackages: MatchingPackages,
+  matchingSubscribedPackages: MatchingPackages,
 ): boolean {
   return (
     Object.keys(matchingMaintainedPackages).length === 0 &&

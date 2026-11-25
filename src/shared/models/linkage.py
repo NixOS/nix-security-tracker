@@ -9,7 +9,7 @@ import pgtrigger
 from django.core.exceptions import ValidationError
 from django.db import models, transaction
 from django.db.models import Exists, OuterRef, Q
-from django.db.models.fields.json import KeyTransform
+from django.db.models.fields.json import KeyTextTransform, KeyTransform
 from django.db.models.signals import post_delete, post_save
 from django.db.utils import InternalError
 from django.dispatch import receiver
@@ -70,21 +70,6 @@ class BulkValidationError(Exception):
         super().__init__(detail or "Some suggestions do not accept this operation")
 
 
-class SharedValueState(models.TextChoices):
-    """Whether a value shared by a whole selection is active or ignored on all of it."""
-
-    ACTIVE = "active"
-    IGNORED = "ignored"
-
-
-@dataclass(frozen=True)
-class SharedValue:
-    """A package attribute, maintainer or reference held in the same state by a whole selection."""
-
-    state: SharedValueState
-    value: Any
-
-
 @dataclass(frozen=True)
 class SharedState:
     """What a selection of suggestions has in common (see :meth:`shared_state`)."""
@@ -93,21 +78,22 @@ class SharedState:
     in_issue_draft: bool | None
     # Empty string when every suggestion holds no comment, None when they differ.
     comment: str | None
-    packages: list[SharedValue]
-    maintainers: list[SharedValue]
-    references: list[SharedValue]
+    packages: dict[str, dict]
+    maintainers: dict[str, dict]
+    url_references: dict[str, dict]
 
 
-class JSONObjectKeys(models.Func):
+class JSONObjectStatuses(models.Func):
     """
-    The keys of the JSON object nested under `path`, as a JSON array of strings.
+    The status of each entry of the JSON object nested under `path`, as a JSON object from keys to statuses.
 
-    Lets a query read which packages a cached payload holds without carrying back the
+    Lets a query read the status of the packages a cached payload holds without carrying back the
     packages themselves, which are an order of magnitude larger.
     """
 
-    function = "jsonb_path_query_array"
-    template = "%(function)s(%(expressions)s, '$.%(path)s.keyvalue().key')"
+    # Split the object into (key, entry) rows, keep each entry's status, and aggregate back into {key: status}.
+    # An empty or missing object gives {} rather than NULL.
+    template = "(SELECT coalesce(jsonb_object_agg(key, value -> 'status'), '{}') FROM jsonb_each(%(expressions)s -> '%(path)s'))"
 
     def __init__(self, expression: str, path: str, **extra: Any) -> None:
         super().__init__(
@@ -115,42 +101,29 @@ class JSONObjectKeys(models.Func):
         )
 
 
-def _shared_values(
-    per_suggestion: "list[tuple[dict, dict]]",
-    sort_key: "Callable[[Any], Any]",
-    merge: "Callable[[list[Any]], Any]" = lambda values: values[0],
-) -> "list[SharedValue]":
+def _shared_entries(
+    per_suggestion: list[dict[str, dict]],
+    merge: Callable[[list[dict]], dict] = lambda entries: entries[0],
+) -> dict[str, dict]:
     """
-    Keep the values every suggestion holds, in the same state (intersection).
+    Keep the entries every suggestion holds, in the same state (intersection).
 
-    Each suggestion contributes its active values and its ignored values, keyed by
-    whatever identifies them. A value missing from one suggestion, or active in one and
-    ignored in another, belongs to neither intersection and is left out.
+    An entry missing from one suggestion, or with different statuses across suggestions, is left out.
 
-    Only the key identifies a value, so the copies held by each suggestion may differ
+    Only the key identifies an entry, so the copies held by each suggestion may differ
     (a reference carries the name and tags it was given on that suggestion, a maintainer
     the handle known at the time). `merge` combines them into the one reported; by
     default, the first suggestion's copy.
     """
     if not per_suggestion:
-        return []
-
-    shared = []
-    for state, index in (
-        (SharedValueState.ACTIVE, 0),
-        (SharedValueState.IGNORED, 1),
-    ):
-        keys = set.intersection(
-            *(set(suggestion[index]) for suggestion in per_suggestion)
-        )
-        shared += [
-            SharedValue(
-                state=state,
-                value=merge([suggestion[index][key] for suggestion in per_suggestion]),
-            )
-            for key in keys
-        ]
-    return sorted(shared, key=lambda shared_value: sort_key(shared_value.value))
+        return {}
+    keys = set.intersection(*(set(suggestion) for suggestion in per_suggestion))
+    shared = {}
+    for key in keys:
+        entries = [suggestion[key] for suggestion in per_suggestion]
+        if len({entry["status"] for entry in entries}) == 1:
+            shared[key] = merge(entries)
+    return shared
 
 
 class CVEDerivationClusterProposalQuerySet(models.QuerySet):
@@ -190,6 +163,19 @@ class CVEDerivationClusterProposalQuerySet(models.QuerySet):
         auto), and published suggestions used as matching training labels.
         """
         return self.exclude(status=CVEDerivationClusterProposal.Status.PENDING)
+
+    def with_active_package(
+        self, attribute: str
+    ) -> "CVEDerivationClusterProposalQuerySet":
+        """
+        Suggestions where this package attribute is present and not ignored.
+        """
+        # Attributes contain dots, so the key path is built explicitly rather than with a `__` lookup.
+        status = KeyTextTransform(
+            "status",
+            KeyTransform(attribute, KeyTransform("packages", "cached__payload")),
+        )
+        return self.alias(package_status=status).filter(package_status="active")
 
     def with_affected_product(
         self, name: str, version: str | None = None
@@ -360,87 +346,71 @@ class CVEDerivationClusterProposalQuerySet(models.QuerySet):
         """
         from shared.cache_suggestions import merge_url_references
 
-        def merge_references(refs: list[dict]) -> dict:
+        def merge_references(entries: list[dict]) -> dict:
+            refs = [entry["reference"] for entry in entries]
             merged = merge_url_references(
                 refs[0]["url"], ((r["name"], r["tags"]) for r in refs)
             )
-            return {**merged.model_dump(), "tags": sorted(merged.tags)}
+            return {
+                "reference": {**merged.model_dump(), "tags": sorted(merged.tags)},
+                "status": entries[0]["status"],
+            }
 
-        rows = list(
-            self.annotate(
-                payload_package_keys=JSONObjectKeys("cached__payload", "packages"),
-                payload_original_package_keys=JSONObjectKeys(
-                    "cached__payload", "original_packages"
-                ),
-                payload_maintainers=KeyTransform(
-                    "categorized_maintainers", "cached__payload"
-                ),
-                payload_references=KeyTransform(
-                    "categorized_url_references", "cached__payload"
-                ),
-            ).values_list(
-                "status",
-                "in_issue_draft",
-                "comment",
-                "payload_package_keys",
-                "payload_original_package_keys",
-                "payload_maintainers",
-                "payload_references",
-            )
+        rows = self.annotate(
+            payload_package_statuses=JSONObjectStatuses("cached__payload", "packages"),
+            payload_maintainers=KeyTransform("maintainers", "cached__payload"),
+            payload_references=KeyTransform("url_references", "cached__payload"),
+        ).values_list(
+            "status",
+            "in_issue_draft",
+            "comment",
+            "payload_package_statuses",
+            "payload_maintainers",
+            "payload_references",
         )
 
         statuses = set()
         drafts = set()
         comments = set()
-        packages: list[tuple[dict, dict]] = []
-        maintainers: list[tuple[dict, dict]] = []
-        references: list[tuple[dict, dict]] = []
+        packages: list[dict[str, dict]] = []
+        maintainers: list[dict[str, dict]] = []
+        references: list[dict[str, dict]] = []
         for (
             status,
             in_issue_draft,
             comment,
-            active_packages,
-            original_packages,
-            cat_maintainers,
-            cat_references,
+            package_statuses,
+            payload_maintainers,
+            payload_references,
         ) in rows:
             statuses.add(status)
             drafts.add(in_issue_draft)
             comments.add(comment or "")
             packages.append(
-                (
-                    {attribute: attribute for attribute in active_packages},
-                    {
-                        attribute: attribute
-                        for attribute in original_packages
-                        if attribute not in active_packages
-                    },
-                )
+                {
+                    attribute: {"status": package_status}
+                    for attribute, package_status in package_statuses.items()
+                }
             )
             maintainers.append(
-                (
-                    {m["github_id"]: m for m in cat_maintainers["active"]},
-                    {m["github_id"]: m for m in cat_maintainers["ignored"]},
-                )
+                {
+                    github_id: {
+                        "maintainer": entry["maintainer"],
+                        "status": entry["status"],
+                    }
+                    for github_id, entry in payload_maintainers.items()
+                    if entry["status"] != "added"
+                }
             )
-            references.append(
-                (
-                    {r["url"]: r for r in cat_references["active"]},
-                    {r["url"]: r for r in cat_references["ignored"]},
-                )
-            )
+            references.append(payload_references)
 
         return SharedState(
             status=next(iter(statuses)) if len(statuses) == 1 else None,
             in_issue_draft=next(iter(drafts)) if len(drafts) == 1 else None,
             comment=next(iter(comments)) if len(comments) == 1 else None,
-            packages=_shared_values(packages, sort_key=lambda v: v),
-            maintainers=_shared_values(maintainers, sort_key=lambda v: v["github"]),
-            references=_shared_values(
-                references,
-                sort_key=lambda v: v["url"],
-                merge=merge_references,
-            ),
+            packages=_shared_entries(packages),
+            maintainers=_shared_entries(maintainers),
+            url_references=_shared_entries(references, merge=merge_references),
         )
 
 
@@ -571,9 +541,9 @@ class CVEDerivationClusterProposal(TimeStampMixin):
         """
         Raise unless all these packages can be ignored on this suggestion.
         """
-        original_packages = self.cached.payload["original_packages"]
+        packages = self.cached.payload["packages"]
         errors = []
-        missing = [a for a in package_attributes if a not in original_packages]
+        missing = [a for a in package_attributes if a not in packages]
         if missing:
             errors.append(f"Packages not found in the suggestion: {', '.join(missing)}")
         already_ignored = set(
@@ -639,39 +609,60 @@ class CVEDerivationClusterProposal(TimeStampMixin):
             self._recompute_package_cache()
 
     def _recompute_package_cache(self) -> None:
-        """Recompute the cached `packages` and `categorized_maintainers` from
-        the current set of package overlays."""
+        """
+        Recompute the status of cached packages and maintainers from the current overlays.
+        """
         from shared.cache_suggestions import (
             CachedSuggestion,
-            apply_package_overlays,
             categorize_maintainers,
+            categorize_packages,
         )
 
-        self.cached.payload["packages"] = apply_package_overlays(
-            self.cached.payload["original_packages"],
+        packages = categorize_packages(
+            {
+                attribute: CachedSuggestion.Package.model_validate(entry["package"])
+                for attribute, entry in self.cached.payload["packages"].items()
+            },
             self.package_overlays.all(),
         )
-        original_packages = {
-            k: CachedSuggestion.Package.model_validate(v)
-            for k, v in self.cached.payload["original_packages"].items()
+        maintainer_details = {
+            int(github_id): CachedSuggestion.Maintainer.model_validate(
+                entry["maintainer"]
+            )
+            for github_id, entry in self.cached.payload["maintainers"].items()
         }
-        active_packages = {
-            k: CachedSuggestion.Package.model_validate(v)
-            for k, v in self.cached.payload["packages"].items()
+        maintainers = categorize_maintainers(
+            packages,
+            self.maintainer_overlays.select_related("maintainer"),
+            maintainer_details,
+        )
+        self.cached.payload["packages"] = {
+            attribute: entry.model_dump(mode="json")
+            for attribute, entry in packages.items()
         }
-        self.cached.payload["categorized_maintainers"] = categorize_maintainers(
-            original_packages,
-            active_packages,
-            self.maintainer_overlays.all(),
-        ).model_dump()
+        self.cached.payload["maintainers"] = {
+            str(github_id): entry.model_dump(mode="json")
+            for github_id, entry in maintainers.items()
+        }
         self.cached.save()
+
+    def _cached_entry(
+        self, kind: str, key: str | int, status: str, field: str, error: str
+    ) -> dict:
+        """
+        The cached entry of this kind (`maintainers`, `url_references`) under `key`, which must have `status`.
+        Otherwise raise `error` for the request `field`.
+        """
+        entry = self.cached.payload[kind].get(str(key))
+        if entry is None or entry["status"] != status:
+            raise ValidationError({field: error})
+        return entry
 
     def check_ignore_reference(self, reference_url: str) -> None:
         """
         Raise unless this URL reference can be ignored on this suggestion.
         """
-        cat_refs = self.cached.payload["categorized_url_references"]
-        if not any(r["url"] == reference_url for r in cat_refs["original"]):
+        if reference_url not in self.cached.payload["url_references"]:
             raise ValidationError(
                 {"reference_url": "Reference not found in the suggestion"}
             )
@@ -679,35 +670,40 @@ class CVEDerivationClusterProposal(TimeStampMixin):
             reference_url=reference_url, type=ReferenceUrlOverlay.Type.IGNORED
         ).exists():
             raise ValidationError({"reference_url": "Reference is already ignored"})
+        self._cached_entry(
+            "url_references",
+            reference_url,
+            "active",
+            "reference_url",
+            "Reference is already ignored",
+        )
 
     def ignore_reference(self, reference_url: str) -> None:
         """Ignore a URL reference, updating the overlay and the cache."""
         with transaction.atomic():
             self.check_ignore_reference(reference_url)
-            cat_refs = self.cached.payload["categorized_url_references"]
-            ref = next(r for r in cat_refs["original"] if r["url"] == reference_url)
+            entry = self.cached.payload["url_references"][reference_url]
             self.reference_url_overlays.get_or_create(
                 reference_url=reference_url,
                 defaults={
-                    "deduplicated_name": ref["name"],
+                    "deduplicated_name": entry["reference"]["name"],
                     "type": ReferenceUrlOverlay.Type.IGNORED,
                 },
             )
-            cat_refs["active"] = [
-                r for r in cat_refs["active"] if r["url"] != reference_url
-            ]
-            cat_refs["ignored"].append(ref)
+            entry["status"] = "ignored"
             self.cached.save()
 
     def check_restore_reference(self, reference_url: str) -> None:
         """
         Raise unless this URL reference can be restored on this suggestion.
         """
-        cat_refs = self.cached.payload["categorized_url_references"]
-        if not any(r["url"] == reference_url for r in cat_refs["ignored"]):
-            raise ValidationError(
-                {"reference_url": "Reference not found in ignored references"}
-            )
+        self._cached_entry(
+            "url_references",
+            reference_url,
+            "ignored",
+            "reference_url",
+            "Reference not found in ignored references",
+        )
         if not self.reference_url_overlays.filter(
             reference_url=reference_url, type=ReferenceUrlOverlay.Type.IGNORED
         ).exists():
@@ -719,24 +715,26 @@ class CVEDerivationClusterProposal(TimeStampMixin):
         """Restore a previously ignored URL reference."""
         with transaction.atomic():
             self.check_restore_reference(reference_url)
-            cat_refs = self.cached.payload["categorized_url_references"]
-            ref = next(r for r in cat_refs["ignored"] if r["url"] == reference_url)
-            overlay = self.reference_url_overlays.get(
+            self.reference_url_overlays.filter(
                 reference_url=reference_url, type=ReferenceUrlOverlay.Type.IGNORED
-            )
-            overlay.delete()
-            cat_refs["ignored"] = [
-                r for r in cat_refs["ignored"] if r["url"] != reference_url
-            ]
-            cat_refs["active"].append(ref)
+            ).delete()
+            self.cached.payload["url_references"][reference_url]["status"] = "active"
             self.cached.save()
+
+    def _original_maintainer(self, github_id: int) -> dict | None:
+        """
+        The cached entry of this maintainer, unless absent or added by hand.
+        """
+        entry = self.cached.payload["maintainers"].get(str(github_id))
+        if entry is None or entry["status"] == "added":
+            return None
+        return entry
 
     def check_ignore_maintainer(self, github_id: int) -> None:
         """
         Raise unless this maintainer can be ignored on this suggestion.
         """
-        cat_maintainers = self.cached.payload["categorized_maintainers"]
-        if not any(m["github_id"] == github_id for m in cat_maintainers["original"]):
+        if self._original_maintainer(github_id) is None:
             raise ValidationError(
                 {"github_id": "Maintainer not found in original maintainers"}
             )
@@ -744,15 +742,18 @@ class CVEDerivationClusterProposal(TimeStampMixin):
             maintainer__github_id=github_id, type=MaintainerOverlay.Type.IGNORED
         ).exists():
             raise ValidationError({"github_id": "Maintainer is already ignored"})
+        self._cached_entry(
+            "maintainers",
+            github_id,
+            "active",
+            "github_id",
+            "Maintainer is already ignored",
+        )
 
     def ignore_maintainer(self, github_id: int) -> None:
         """Ignore a maintainer, updating the overlay and the cache."""
         with transaction.atomic():
             self.check_ignore_maintainer(github_id)
-            cat_maintainers = self.cached.payload["categorized_maintainers"]
-            maintainer_data = next(
-                m for m in cat_maintainers["original"] if m["github_id"] == github_id
-            )
             maintainer = NixMaintainer.objects.get(github_id=github_id)
             edit, created = self.maintainer_overlays.get_or_create(
                 maintainer=maintainer,
@@ -761,21 +762,20 @@ class CVEDerivationClusterProposal(TimeStampMixin):
             if not created and edit.type != MaintainerOverlay.Type.IGNORED:
                 edit.type = MaintainerOverlay.Type.IGNORED
                 edit.save()
-            cat_maintainers["active"] = [
-                m for m in cat_maintainers["active"] if m["github_id"] != github_id
-            ]
-            cat_maintainers["ignored"].append(maintainer_data)
+            self.cached.payload["maintainers"][str(github_id)]["status"] = "ignored"
             self.cached.save()
 
     def check_restore_maintainer(self, github_id: int) -> None:
         """
         Raise unless this maintainer can be restored on this suggestion.
         """
-        cat_maintainers = self.cached.payload["categorized_maintainers"]
-        if not any(m["github_id"] == github_id for m in cat_maintainers["ignored"]):
-            raise ValidationError(
-                {"github_id": "Maintainer not found in ignored maintainers"}
-            )
+        self._cached_entry(
+            "maintainers",
+            github_id,
+            "ignored",
+            "github_id",
+            "Maintainer not found in ignored maintainers",
+        )
         if not self.maintainer_overlays.filter(
             maintainer__github_id=github_id, type=MaintainerOverlay.Type.IGNORED
         ).exists():
@@ -787,19 +787,18 @@ class CVEDerivationClusterProposal(TimeStampMixin):
         """Restore a previously ignored maintainer."""
         with transaction.atomic():
             self.check_restore_maintainer(github_id)
-            cat_maintainers = self.cached.payload["categorized_maintainers"]
-            maintainer_data = next(
-                m for m in cat_maintainers["ignored"] if m["github_id"] == github_id
-            )
-            overlay = self.maintainer_overlays.get(
+            self.maintainer_overlays.filter(
                 maintainer__github_id=github_id, type=MaintainerOverlay.Type.IGNORED
-            )
-            overlay.delete()
-            cat_maintainers["ignored"] = [
-                m for m in cat_maintainers["ignored"] if m["github_id"] != github_id
-            ]
-            cat_maintainers["active"].append(maintainer_data)
+            ).delete()
+            self.cached.payload["maintainers"][str(github_id)]["status"] = "active"
             self.cached.save()
+
+    def _is_original_maintainer(self, github_handle: str) -> bool:
+        return any(
+            entry["status"] != "added"
+            and entry["maintainer"]["github"] == github_handle
+            for entry in self.cached.payload["maintainers"].values()
+        )
 
     def add_maintainer(self, github_handle: str) -> NixMaintainer:
         """Manually add a maintainer that is not part of the original maintainers."""
@@ -809,8 +808,7 @@ class CVEDerivationClusterProposal(TimeStampMixin):
         # FIXME(@fricklerhandwerk): Extract applicaton-specific GitHub-related logic into separate module.
         from shared.github import fetch_user_info
 
-        cat_maintainers = self.cached.payload["categorized_maintainers"]
-        if any(m["github"] == github_handle for m in cat_maintainers["original"]):
+        if self._is_original_maintainer(github_handle):
             raise ValidationError({"github_handle": "Already a maintainer"})
 
         maintainer = NixMaintainer.objects.filter(github=github_handle).first()
@@ -830,7 +828,8 @@ class CVEDerivationClusterProposal(TimeStampMixin):
             )
 
         with transaction.atomic():
-            if any(m["github"] == github_handle for m in cat_maintainers["original"]):
+            # The handle may have resolved to an original maintainer known under another handle.
+            if self._original_maintainer(maintainer.github_id) is not None:
                 raise ValidationError({"github_handle": "Already a maintainer"})
 
             edit, created = self.maintainer_overlays.get_or_create(
@@ -841,10 +840,11 @@ class CVEDerivationClusterProposal(TimeStampMixin):
                 edit.type = MaintainerOverlay.Type.ADDITIONAL
                 edit.save()
 
-            if not any(
-                m["github_id"] == maintainer.github_id for m in cat_maintainers["added"]
-            ):
-                cat_maintainers["added"].append(to_dict(maintainer))
+            self.cached.payload["maintainers"][str(maintainer.github_id)] = {
+                "maintainer": to_dict(maintainer),
+                "status": "added",
+                "orphan": False,
+            }
             self.cached.save()
 
         return maintainer
@@ -852,16 +852,13 @@ class CVEDerivationClusterProposal(TimeStampMixin):
     def delete_maintainer(self, github_id: int) -> None:
         """Delete a maintainer that was manually added."""
         with transaction.atomic():
-            cat_maintainers = self.cached.payload["categorized_maintainers"]
-            maintainer_data = next(
-                (m for m in cat_maintainers["added"] if m["github_id"] == github_id),
-                None,
+            self._cached_entry(
+                "maintainers",
+                github_id,
+                "added",
+                "github_id",
+                "Only manually added maintainers can be deleted",
             )
-            if maintainer_data is None:
-                raise ValidationError(
-                    {"github_id": "Only manually added maintainers can be deleted"}
-                )
-
             overlay = self.maintainer_overlays.filter(
                 maintainer__github_id=github_id, type=MaintainerOverlay.Type.ADDITIONAL
             ).first()
@@ -871,9 +868,7 @@ class CVEDerivationClusterProposal(TimeStampMixin):
                 )
 
             overlay.delete()
-            cat_maintainers["added"] = [
-                m for m in cat_maintainers["added"] if m["github_id"] != github_id
-            ]
+            del self.cached.payload["maintainers"][str(github_id)]
             self.cached.save()
 
     def set_comment(self, comment: str | None) -> None:

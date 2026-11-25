@@ -47,7 +47,7 @@ def test_shared_state_of_a_single_suggestion(
     state = shared_state(anonymous_client)
     assert state is not None
     assert state["comment"] == "foo"
-    assert state["packages"] == [{"state": "active", "attribute": drv.attribute}]
+    assert state["packages"] == {drv.attribute: {"status": "active"}}
 
 
 def test_shared_state_of_an_empty_selection(
@@ -58,9 +58,9 @@ def test_shared_state_of_an_empty_selection(
         "status": None,
         "in_issue_draft": None,
         "comment": None,
-        "packages": [],
-        "maintainers": [],
-        "references": [],
+        "packages": {},
+        "maintainers": {},
+        "url_references": {},
     }
 
 
@@ -175,9 +175,9 @@ def test_shared_active_package(
 ) -> None:
     for _ in range(2):
         make_cached_suggestion()
-    assert shared_state(anonymous_client)["packages"] == [
-        {"state": "active", "attribute": drv.attribute}
-    ]
+    assert shared_state(anonymous_client)["packages"] == {
+        drv.attribute: {"status": "active"}
+    }
 
 
 def test_shared_ignored_package(
@@ -187,9 +187,9 @@ def test_shared_ignored_package(
 ) -> None:
     for _ in range(2):
         make_cached_suggestion().ignore_packages([drv.attribute])
-    assert shared_state(anonymous_client)["packages"] == [
-        {"state": "ignored", "attribute": drv.attribute}
-    ]
+    assert shared_state(anonymous_client)["packages"] == {
+        drv.attribute: {"status": "ignored"}
+    }
 
 
 def test_package_in_different_states_is_not_shared(
@@ -199,7 +199,7 @@ def test_package_in_different_states_is_not_shared(
 ) -> None:
     make_cached_suggestion()
     make_cached_suggestion().ignore_packages([drv.attribute])
-    assert shared_state(anonymous_client)["packages"] == []
+    assert shared_state(anonymous_client)["packages"] == {}
 
 
 def test_package_missing_from_a_suggestion_is_not_shared(
@@ -211,7 +211,7 @@ def test_package_missing_from_a_suggestion_is_not_shared(
     make_cached_suggestion(
         drvs={make_drv(pname="other"): ProvenanceFlags.PACKAGE_NAME_MATCH}
     )
-    assert shared_state(anonymous_client)["packages"] == []
+    assert shared_state(anonymous_client)["packages"] == {}
 
 
 def test_shared_active_maintainer(
@@ -222,8 +222,12 @@ def test_shared_active_maintainer(
     for _ in range(2):
         make_cached_suggestion()
     maintainers = shared_state(anonymous_client)["maintainers"]
-    assert [m["state"] for m in maintainers] == ["active"]
-    assert maintainers[0]["maintainer"]["github_id"] == maintainer.github_id
+    assert list(maintainers) == [str(maintainer.github_id)]
+    assert maintainers[str(maintainer.github_id)]["status"] == "active"
+    assert (
+        maintainers[str(maintainer.github_id)]["maintainer"]["github_id"]
+        == maintainer.github_id
+    )
 
 
 def test_shared_ignored_maintainer(
@@ -234,8 +238,8 @@ def test_shared_ignored_maintainer(
     for _ in range(2):
         make_cached_suggestion().ignore_maintainer(maintainer.github_id)
     maintainers = shared_state(anonymous_client)["maintainers"]
-    assert [m["state"] for m in maintainers] == ["ignored"]
-    assert maintainers[0]["maintainer"]["github_id"] == maintainer.github_id
+    assert list(maintainers) == [str(maintainer.github_id)]
+    assert maintainers[str(maintainer.github_id)]["status"] == "ignored"
 
 
 def test_maintainer_in_different_states_is_not_shared(
@@ -245,7 +249,7 @@ def test_maintainer_in_different_states_is_not_shared(
 ) -> None:
     make_cached_suggestion()
     make_cached_suggestion().ignore_maintainer(maintainer.github_id)
-    assert shared_state(anonymous_client)["maintainers"] == []
+    assert shared_state(anonymous_client)["maintainers"] == {}
 
 
 @pytest.fixture
@@ -262,9 +266,10 @@ def test_shared_active_reference(
 ) -> None:
     for _ in range(2):
         make_cached_suggestion(container=container_with_reference)
-    references = shared_state(anonymous_client)["references"]
-    assert [r["state"] for r in references] == ["active"]
-    assert references[0]["reference"]["url"] == REFERENCE_URL
+    references = shared_state(anonymous_client)["url_references"]
+    assert list(references) == [REFERENCE_URL]
+    assert references[REFERENCE_URL]["status"] == "active"
+    assert references[REFERENCE_URL]["reference"]["url"] == REFERENCE_URL
 
 
 def test_shared_ignored_reference(
@@ -276,9 +281,9 @@ def test_shared_ignored_reference(
         make_cached_suggestion(container=container_with_reference).ignore_reference(
             REFERENCE_URL
         )
-    references = shared_state(anonymous_client)["references"]
-    assert [r["state"] for r in references] == ["ignored"]
-    assert references[0]["reference"]["url"] == REFERENCE_URL
+    references = shared_state(anonymous_client)["url_references"]
+    assert list(references) == [REFERENCE_URL]
+    assert references[REFERENCE_URL]["status"] == "ignored"
 
 
 def test_reference_in_different_states_is_not_shared(
@@ -290,7 +295,7 @@ def test_reference_in_different_states_is_not_shared(
     make_cached_suggestion(container=container_with_reference).ignore_reference(
         REFERENCE_URL
     )
-    assert shared_state(anonymous_client)["references"] == []
+    assert shared_state(anonymous_client)["url_references"] == {}
 
 
 def test_a_shared_reference_is_identified_by_its_url_alone(
@@ -313,12 +318,14 @@ def test_a_shared_reference_is_identified_by_its_url_alone(
                 references=[(name, REFERENCE_URL, tags)],
             )
         )
-    references = shared_state(anonymous_client)["references"]
-    assert [(r["state"], r["reference"]["url"]) for r in references] == [
-        ("active", REFERENCE_URL)
+    references = shared_state(anonymous_client)["url_references"]
+    assert list(references) == [REFERENCE_URL]
+    assert references[REFERENCE_URL]["status"] == "active"
+    assert references[REFERENCE_URL]["reference"]["name"] == ""
+    assert references[REFERENCE_URL]["reference"]["tags"] == [
+        "patch",
+        "vendor-advisory",
     ]
-    assert references[0]["reference"]["name"] == ""
-    assert references[0]["reference"]["tags"] == ["patch", "vendor-advisory"]
 
 
 def test_a_shared_reference_keeps_the_name_the_suggestions_agree_on(
@@ -333,8 +340,8 @@ def test_a_shared_reference_keeps_the_name_the_suggestions_agree_on(
                 references=[(name, REFERENCE_URL, [])],
             )
         )
-    references = shared_state(anonymous_client)["references"]
-    assert references[0]["reference"]["name"] == REFERENCE_NAME
+    references = shared_state(anonymous_client)["url_references"]
+    assert references[REFERENCE_URL]["reference"]["name"] == REFERENCE_NAME
 
 
 def test_a_shared_package_is_accepted_by_the_bulk_operation(
@@ -344,11 +351,11 @@ def test_a_shared_package_is_accepted_by_the_bulk_operation(
 ) -> None:
     suggestions = [make_cached_suggestion() for _ in range(2)]
     packages = shared_state(staff_client, "status=pending")["packages"]
-    assert packages == [{"state": "active", "attribute": drv.attribute}]
+    assert packages == {drv.attribute: {"status": "active"}}
 
     response = staff_client.patch(
         f"{PACKAGES_URL}?status=pending",
-        {"package_attributes": [packages[0]["attribute"]], "ignored": True},
+        {"package_attributes": list(packages), "ignored": True},
         format="json",
     )
     assert response.status_code == 200

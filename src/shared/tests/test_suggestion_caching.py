@@ -75,7 +75,7 @@ def test_caching_newest_package(
     assert cve.cve.cve_id == value.payload["cve_id"]
 
     branch, package = next(
-        iter(value.payload["packages"][drv1.attribute]["branches"].items())
+        iter(value.payload["packages"][drv1.attribute]["package"]["branches"].items())
     )
 
     assert package["version"] == "2.0"
@@ -134,9 +134,14 @@ def test_maintainers_come_from_rolling_release_channel(
 
     cache_new_suggestions(suggestion)
     cached = CachedSuggestions.objects.get(proposal=suggestion)
-    maintainers = cached.payload["packages"][drv_rolling.attribute]["maintainers"]
+    maintainer_ids = cached.payload["packages"][drv_rolling.attribute]["package"][
+        "maintainer_ids"
+    ]
     expected = ["rolling-maintainer"] if rolling_has_maintainers else []
-    assert [m["github"] for m in maintainers] == expected
+    assert [
+        cached.payload["maintainers"][str(github_id)]["maintainer"]["github"]
+        for github_id in maintainer_ids
+    ] == expected
 
 
 def test_cache_stale_check(
@@ -179,7 +184,8 @@ def test_cache_description_from_package(
 
     cached = CachedSuggestions.objects.get(proposal=suggestion)
     assert (
-        cached.payload["packages"][drv.attribute]["description"] == expected_description
+        cached.payload["packages"][drv.attribute]["package"]["description"]
+        == expected_description
     )
 
 
@@ -246,7 +252,7 @@ def test_cache_description_falls_back_to_meta(
 
     cached = CachedSuggestions.objects.get(proposal=suggestion)
     assert (
-        cached.payload["packages"][drv.attribute]["description"]
+        cached.payload["packages"][drv.attribute]["package"]["description"]
         == drv.metadata.description
     )
 
@@ -293,7 +299,9 @@ def test_cache_attribute_package_groups(
 
     suggestion.ignore_packages(["pkgsStatic.foo"])
     suggestion.cached.refresh_from_db()
-    assert "pkgsStatic.foo" not in suggestion.cached.payload["packages"]
+    assert (
+        suggestion.cached.payload["packages"]["pkgsStatic.foo"]["status"] == "ignored"
+    )
     assert suggestion.cached.payload["attribute_package_groups"] == expected
 
 
@@ -324,3 +332,53 @@ def test_cache_clusters_unlinked_derivations(
             "attributes": [drv.attribute],
         }
     ]
+
+
+def test_cache_maintainer_of_several_packages_appears_once(
+    make_maintainer: Callable[..., NixMaintainer],
+    make_drv: Callable[..., NixDerivation],
+    make_cached_suggestion: Callable[..., CVEDerivationClusterProposal],
+) -> None:
+    shared = make_maintainer(github_id=999, github="shared")
+    suggestion = make_cached_suggestion(
+        drvs={
+            make_drv(
+                pname="first", maintainer=shared
+            ): ProvenanceFlags.PACKAGE_NAME_MATCH,
+            make_drv(
+                pname="second", maintainer=shared
+            ): ProvenanceFlags.PACKAGE_NAME_MATCH,
+        },
+    )
+    assert suggestion.cached.payload["maintainers"] == {
+        "999": {
+            "maintainer": {
+                "name": shared.name,
+                "email": shared.email,
+                "github": shared.github,
+                "matrix": shared.matrix,
+                "github_id": shared.github_id,
+            },
+            "status": "active",
+            "orphan": False,
+        }
+    }
+
+
+def test_cache_adding_a_maintainer_twice_keeps_one_entry(
+    make_maintainer: Callable[..., NixMaintainer],
+    make_cached_suggestion: Callable[..., CVEDerivationClusterProposal],
+    maintainer: NixMaintainer,
+) -> None:
+    extra = make_maintainer(github_id=555, github="extra")
+    suggestion = make_cached_suggestion()
+
+    suggestion.add_maintainer(extra.github)
+    suggestion.add_maintainer(extra.github)
+
+    suggestion.cached.refresh_from_db()
+    maintainers = suggestion.cached.payload["maintainers"]
+    assert {k: e["status"] for k, e in maintainers.items()} == {
+        str(maintainer.github_id): "active",
+        "555": "added",
+    }

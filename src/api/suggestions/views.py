@@ -36,9 +36,6 @@ from api.suggestions.serializers import (
     IssueDraftPublishSerializer,
     MaintainerSerializer,
     SuggestionBundleSerializer,
-    SuggestionCategorizedMaintainersSerializer,
-    SuggestionCategorizedPackagesSerializer,
-    SuggestionCategorizedUrlReferencesSerializer,
     SuggestionCommentSerializer,
     SuggestionMaintainerAddSerializer,
     SuggestionMaintainerDeleteSerializer,
@@ -47,6 +44,9 @@ from api.suggestions.serializers import (
     SuggestionReferenceUpdateSerializer,
     SuggestionSerializer,
     SuggestionSharedStateSerializer,
+    SuggestionStatusMaintainersSerializer,
+    SuggestionStatusPackagesSerializer,
+    SuggestionStatusUrlReferencesSerializer,
     build_activity_log_map,
 )
 from api.throttling import BulkRateThrottle
@@ -148,8 +148,10 @@ class SuggestionFilterSet(filters.FilterSet):
             "created_at_before",
         ]
 
-    def filter_package(self, queryset: QuerySet, name: str, value: str) -> QuerySet:
-        return queryset.filter(cached__payload__packages__has_key=value)
+    def filter_package(
+        self, queryset: CVEDerivationClusterProposalQuerySet, name: str, value: str
+    ) -> QuerySet:
+        return queryset.with_active_package(value)
 
     def filter_affected_product(
         self, queryset: CVEDerivationClusterProposalQuerySet, name: str, value: str
@@ -599,9 +601,9 @@ class SuggestionViewSet(ListModelMixin, RetrieveModelMixin, viewsets.GenericView
     @extend_schema(
         methods=["get"],
         operation_id="getSuggestionReferences",
-        description="Get the categorized URL references of a suggestion (original, active, ignored).",
+        description="Get the URL references of a suggestion, keyed by URL, with their status (active, ignored).",
         responses={
-            200: SuggestionCategorizedUrlReferencesSerializer,
+            200: SuggestionStatusUrlReferencesSerializer(),
             404: ErrorDetailSerializer,
         },
     )
@@ -627,8 +629,10 @@ class SuggestionViewSet(ListModelMixin, RetrieveModelMixin, viewsets.GenericView
         if request.method == "GET":
             instance = self.get_object()
             instance.ensure_fresh_cache()
-            data = instance.cached.payload["categorized_url_references"]
-            return Response(SuggestionCategorizedUrlReferencesSerializer(data).data)
+            data = instance.cached.payload["url_references"]
+            return Response(
+                SuggestionStatusUrlReferencesSerializer().to_representation(data)
+            )
         elif request.method == "PATCH":
             serializer = self.get_serializer(data=request.data)
             serializer.is_valid(raise_exception=True)
@@ -652,9 +656,9 @@ class SuggestionViewSet(ListModelMixin, RetrieveModelMixin, viewsets.GenericView
     @extend_schema(
         methods=["get"],
         operation_id="getSuggestionMaintainers",
-        description="Get the categorized maintainers of a suggestion (original, active, ignored, added).",
+        description="Get the maintainers of a suggestion, keyed by GitHub ID, with their status (active, ignored, added) and orphan status (whether they no longer belong to active packages).",
         responses={
-            200: SuggestionCategorizedMaintainersSerializer,
+            200: SuggestionStatusMaintainersSerializer(),
             404: ErrorDetailSerializer,
         },
     )
@@ -720,8 +724,10 @@ class SuggestionViewSet(ListModelMixin, RetrieveModelMixin, viewsets.GenericView
         if request.method == "GET":
             instance = self.get_object()
             instance.ensure_fresh_cache()
-            data = instance.cached.payload["categorized_maintainers"]
-            return Response(SuggestionCategorizedMaintainersSerializer(data).data)
+            data = instance.cached.payload["maintainers"]
+            return Response(
+                SuggestionStatusMaintainersSerializer().to_representation(data)
+            )
         elif request.method == "PATCH":
             serializer = self.get_serializer(data=request.data)
             serializer.is_valid(raise_exception=True)
@@ -763,9 +769,9 @@ class SuggestionViewSet(ListModelMixin, RetrieveModelMixin, viewsets.GenericView
     @extend_schema(
         methods=["get"],
         operation_id="getSuggestionPackages",
-        description="Get the categorized packages of a suggestion (original, active, ignored).",
+        description="Get the packages of a suggestion, keyed by attribute, with their status (active, ignored).",
         responses={
-            200: SuggestionCategorizedPackagesSerializer,
+            200: SuggestionStatusPackagesSerializer(),
             404: ErrorDetailSerializer,
         },
     )
@@ -792,23 +798,12 @@ class SuggestionViewSet(ListModelMixin, RetrieveModelMixin, viewsets.GenericView
     )
     def packages(self, request: Request, pk: int) -> Response:
         if request.method == "GET":
-            # FIXME(@florentc): On the model side, packages don't follow the "categorized" convention of maintainers and references.
-            # This converts to the convention to present a unified interface to API users.
-            # Eventually, this should be at the model level.
             instance = self.get_object()
             instance.ensure_fresh_cache()
-            payload = instance.cached.payload
-            active = payload["packages"]
-            data = {
-                "original": payload["original_packages"],
-                "active": active,
-                "ignored": {
-                    k: v
-                    for k, v in payload["original_packages"].items()
-                    if k not in active
-                },
-            }
-            return Response(SuggestionCategorizedPackagesSerializer(data).data)
+            data = instance.cached.payload["packages"]
+            return Response(
+                SuggestionStatusPackagesSerializer().to_representation(data)
+            )
         elif request.method == "PATCH":
             serializer = self.get_serializer(data=request.data)
             serializer.is_valid(raise_exception=True)

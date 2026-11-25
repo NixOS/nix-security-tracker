@@ -8,7 +8,7 @@ import type {
   DeleteSuggestionMaintainerParams,
   PatchedSuggestionMaintainerUpdate,
 } from "@/api/generated/models";
-import { moveBetween, optimisticSuggestionHandlers } from "@/hooks/optimisticSuggestion";
+import { optimisticSuggestionHandlers, withStatus } from "@/hooks/optimisticSuggestion";
 import { invalidateActivityLog, setCachedSuggestion } from "@/utils/suggestionCache";
 
 type MutationVars = { id: number; data: PatchedSuggestionMaintainerUpdate };
@@ -20,11 +20,10 @@ export function useMaintainerMutation(suggestionId: number) {
     mutation: optimisticSuggestionHandlers(queryClient, suggestionId, {
       patch: (prev, { data: { github_id, ignored } }: MutationVars) => ({
         ...prev,
-        categorized_maintainers: moveBetween(
-          prev.categorized_maintainers,
-          ignored ? "active" : "ignored",
+        maintainers: withStatus(
+          prev.maintainers,
+          github_id?.toString(),
           ignored ? "ignored" : "active",
-          (m) => m.github_id === github_id,
         ),
       }),
       errorTitle: ({ data }) =>
@@ -48,9 +47,9 @@ export function useAddMaintainerMutation(suggestionId: number) {
       onSuccess: (maintainer) => {
         setCachedSuggestion(queryClient, suggestionId, (prev) => ({
           ...prev,
-          categorized_maintainers: {
-            ...prev.categorized_maintainers,
-            added: [...prev.categorized_maintainers.added, maintainer],
+          maintainers: {
+            ...prev.maintainers,
+            [String(maintainer.github_id)]: { maintainer, status: "added", orphan: false },
           },
         }));
         invalidateActivityLog(queryClient, suggestionId);
@@ -66,13 +65,10 @@ export function useDeleteMaintainerMutation(suggestionId: number) {
 
   return useDeleteSuggestionMaintainer({
     mutation: optimisticSuggestionHandlers(queryClient, suggestionId, {
-      patch: (prev, { params }: DeleteMutationVars) => ({
-        ...prev,
-        categorized_maintainers: {
-          ...prev.categorized_maintainers,
-          added: prev.categorized_maintainers.added.filter((m) => m.github_id !== params.github_id),
-        },
-      }),
+      patch: (prev, { params }: DeleteMutationVars) => {
+        const { [String(params.github_id)]: _deleted, ...maintainers } = prev.maintainers;
+        return { ...prev, maintainers };
+      },
       errorTitle: () => "Failed to delete maintainer",
       conflictTitle: () => "Maintainer already removed",
       onSuccess: () => invalidateActivityLog(queryClient, suggestionId),

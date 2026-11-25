@@ -62,20 +62,16 @@ export function optimisticSuggestionHandlers<TData, TVars>(
 }
 
 /**
- * Moves the items matching `matches` from one category to another, e.g. an ignored reference back to the active ones.
- * Returns `categories` untouched when no item matches.
+ * Sets the status of the entry under `key` in a record of items with a status, e.g. an ignored reference back to active.
+ * Returns `entries` untouched when there is no such entry.
  */
-export function moveBetween<C extends Record<keyof C, unknown[]>>(
-  categories: C,
-  from: keyof C,
-  to: keyof C,
-  matches: (item: C[keyof C][number]) => boolean,
-): C {
-  const moving = categories[from].find(matches);
-  if (moving === undefined) return categories;
-  return {
-    ...categories,
-    [from]: categories[from].filter((item) => !matches(item)),
-    [to]: [...categories[to], moving],
-  };
+export function withStatus<E extends { status: string }>(
+  entries: Record<string, E>,
+  key: string | undefined,
+  status: E["status"],
+): Record<string, E> {
+  if (key === undefined) return entries;
+  const entry = entries[key];
+  if (entry === undefined) return entries;
+  return { ...entries, [key]: { ...entry, status } };
 }

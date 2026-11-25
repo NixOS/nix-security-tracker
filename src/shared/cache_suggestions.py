@@ -1,10 +1,10 @@
-import itertools
 import logging
 import re
 import urllib.parse
 from collections import defaultdict
-from collections.abc import Iterable
+from collections.abc import Collection, Iterable, Mapping
 from datetime import datetime
+from enum import StrEnum
 from itertools import chain
 from typing import Any, overload
 
@@ -64,7 +64,7 @@ class CachedSuggestion(BaseModel):
     class Package(BaseModel):
         branches: dict[str, "CachedSuggestion.PackageOnBranch"] = {}
         derivation_ids: list[int] = []
-        maintainers: list["CachedSuggestion.Maintainer"] = []
+        maintainer_ids: list[int] = []
         description: str | None = None
 
     class AttributePackageGroup(BaseModel):
@@ -78,65 +78,80 @@ class CachedSuggestion(BaseModel):
         description: str | None
         attributes: list[str]
 
+    class MaintainerStatus(StrEnum):
+        ACTIVE = "active"
+        IGNORED = "ignored"
+        ADDED = "added"
+
+    class PackageStatus(StrEnum):
+        ACTIVE = "active"
+        IGNORED = "ignored"
+
+    class UrlReferenceStatus(StrEnum):
+        ACTIVE = "active"
+        IGNORED = "ignored"
+
+    class StatusPackage(BaseModel):
+        package: "CachedSuggestion.Package"
+        status: "CachedSuggestion.PackageStatus"
+
+    class StatusMaintainer(BaseModel):
+        maintainer: "CachedSuggestion.Maintainer"
+        status: "CachedSuggestion.MaintainerStatus"
+        # Original maintainers who no longer have any active package.
+        # Always false for added maintainers.
+        orphan: bool = False
+
+    class UrlReference(BaseModel):
+        """
+        These references are in practice the equivalence classes for references wich share the same URL.
+        One object of this model may represent several references which share one URL, and whose tags are combined.
+        """
+
+        url: str
+        name: str
+        tags: set[str]
+
+    class StatusUrlReference(BaseModel):
+        reference: "CachedSuggestion.UrlReference"
+        status: "CachedSuggestion.UrlReferenceStatus"
+
     pk: int
     cve_id: str
     title: str | None
     description: str | None
     affected_products: dict[str, "CachedSuggestion.AffectedProduct"]
-    original_packages: dict[str, Package]
-    packages: dict[str, Package]
+    # Keyed by attribute.
+    packages: dict[str, StatusPackage]
     attribute_package_groups: list[AttributePackageGroup]
     # NOTE(@fricklerhandwerk): These are converted with `to_dict()` naively, we're not doing anything interesting to them here.
     metrics: list[dict]
-
-    class CategorizedMaintainers(BaseModel):
-        original: list[
-            "CachedSuggestion.Maintainer"
-        ]  # Maintainers of original packages
-        active: list["CachedSuggestion.Maintainer"]  # Non ignored original maintainers
-        ignored: list["CachedSuggestion.Maintainer"]  # Ignored original maintainers
-        orphan: list[
-            "CachedSuggestion.Maintainer"
-        ]  # Maintainers of original packages who no longer have any *active* package
-        added: list[
-            "CachedSuggestion.Maintainer"
-        ]  # Additional maintainers (not part of original maintainers)
-
-    class CategorizedUrlReferences(BaseModel):
-        class UrlReference(BaseModel):
-            """
-            These references are in practice the equivalence classes for references wich share the same URL.
-            One object of this model may represent several references which share one URL, and whose tags are combined.
-            """
-
-            url: str
-            name: str
-            tags: set[str]
-
-        original: list[
-            UrlReference
-        ]  # References initially present at suggestion creation
-        active: list[UrlReference]  # Non ignored references
-        ignored: list[UrlReference]  # Ignored references
-
-    categorized_maintainers: CategorizedMaintainers
-    categorized_url_references: CategorizedUrlReferences
+    # Keyed by GitHub ID.
+    maintainers: dict[int, StatusMaintainer]
+    # Keyed by URL.
+    url_references: dict[str, StatusUrlReference]
 
 
-def apply_package_overlays(
-    packages: dict, edits: list[PackageOverlay]
-) -> dict[str, CachedSuggestion.Package]:
+def categorize_packages(
+    packages: dict[str, CachedSuggestion.Package], edits: Iterable[PackageOverlay]
+) -> dict[str, CachedSuggestion.StatusPackage]:
     """
-    Returns the packages dict with user-supplied package edits applied.
-    Packages marked for removal are filtered out.
+    Attach to each package its status according to user-supplied package edits.
     """
-    to_skip = {
+    ignored = {
         edit.package_attribute
         for edit in edits
         if edit.type == PackageOverlay.Type.IGNORED
     }
-
-    return {attr: data for attr, data in packages.items() if attr not in to_skip}
+    return {
+        attribute: CachedSuggestion.StatusPackage(
+            package=package,
+            status=CachedSuggestion.PackageStatus.IGNORED
+            if attribute in ignored
+            else CachedSuggestion.PackageStatus.ACTIVE,
+        )
+        for attribute, package in packages.items()
+    }
 
 
 def to_dict(instance: Any) -> dict[str, Any]:
@@ -258,12 +273,19 @@ def cache_new_suggestions(suggestion: CVEDerivationClusterProposal) -> None:
     prefetched_metrics = Metric.objects.filter(container__cve=suggestion.cve).order_by(
         "-format"
     )
-    original_packages = channel_structure(all_versions, derivations)
+    packages = categorize_packages(
+        channel_structure(all_versions, derivations),
+        suggestion.package_overlays.all(),
+    )
     maintainer_overlays = list(
         suggestion.maintainer_overlays.select_related("maintainer").all()
     )
-    package_overlays = list(suggestion.package_overlays.all())
-    packages = apply_package_overlays(original_packages, package_overlays)
+    maintainer_details = {
+        m.github_id: CachedSuggestion.Maintainer.model_validate(to_dict(m))
+        for derivation in derivations
+        if derivation.metadata
+        for m in derivation.metadata.prefetched_maintainers
+    }
 
     only_relevant_data = CachedSuggestion(
         pk=suggestion.pk,
@@ -271,14 +293,13 @@ def cache_new_suggestions(suggestion: CVEDerivationClusterProposal) -> None:
         title=title,
         description=description,
         affected_products=affected_products,
-        original_packages=original_packages,
         packages=packages,
         attribute_package_groups=group_attributes_by_package(derivations),
         metrics=[to_dict(m) for m in prefetched_metrics],
-        categorized_maintainers=categorize_maintainers(
-            original_packages, packages, maintainer_overlays
+        maintainers=categorize_maintainers(
+            packages, maintainer_overlays, maintainer_details
         ),
-        categorized_url_references=categorize_url_references(
+        url_references=categorize_url_references(
             suggestion.references, list(suggestion.reference_url_overlays.all())
         ),
     )
@@ -359,9 +380,8 @@ def channel_structure(
         is_tracking = derivation.parent_evaluation.is_on_tracking_branch
         if derivation.metadata and is_tracking:
             packages[attribute_path].description = derivation.metadata.get_description()
-            packages[attribute_path].maintainers = [
-                CachedSuggestion.Maintainer.model_validate(to_dict(m))
-                for m in derivation.metadata.prefetched_maintainers
+            packages[attribute_path].maintainer_ids = [
+                m.github_id for m in derivation.metadata.prefetched_maintainers
             ]
         status = is_version_affected(
             [c.affects(package_version) for c in version_constraints]
@@ -427,43 +447,9 @@ def parse_drv_name(name: str) -> tuple[str, str]:
         return name, ""
 
 
-def maintainers_list(
-    packages: dict, edits: list[MaintainerOverlay]
-) -> list[CachedSuggestion.Maintainer]:
-    """
-    Returns a deduplicated list (by GitHub ID) of all the maintainers, as dicts,
-    of all the affected packages linked to this suggestion, modified by
-    potential user-supplied edits.
-    """
-
-    # Set of maintainers manually removed by the user. We use it to store
-    # maintainers that have already been added as well, for deduplication. If a
-    # maintainer's id is in this set at some point, it'll be ignored from there.
-    to_skip_or_seen: set[int] = {
-        m.maintainer.github_id
-        for m in edits
-        if m.type == MaintainerOverlay.Type.IGNORED
-    }
-    to_add: list[CachedSuggestion.Maintainer] = [
-        CachedSuggestion.Maintainer.model_validate(to_dict(m.maintainer))
-        for m in edits
-        if m.type == MaintainerOverlay.Type.ADDITIONAL
-    ]
-
-    maintainers: list[CachedSuggestion.Maintainer] = list()
-    all_maintainers = [m for pkg in packages.values() for m in pkg["maintainers"]]
-
-    for m in itertools.chain(all_maintainers, to_add):
-        if m.github_id not in to_skip_or_seen:
-            to_skip_or_seen.add(m.github_id)
-            maintainers.append(m)
-
-    return maintainers
-
-
 def merge_url_references(
     url: str, entries: Iterable[tuple[str, Iterable[str]]]
-) -> CachedSuggestion.CategorizedUrlReferences.UrlReference:
+) -> CachedSuggestion.UrlReference:
     """
     Merge several `(name, tags)` descriptions of one URL into a single reference.
 
@@ -472,7 +458,7 @@ def merge_url_references(
     """
     entries = list(entries)
     names = {name for name, _ in entries if name}
-    return CachedSuggestion.CategorizedUrlReferences.UrlReference(
+    return CachedSuggestion.UrlReference(
         url=url,
         name=next(iter(names)) if len(names) == 1 else "",
         tags={tag for _, tags in entries for tag in tags},
@@ -480,14 +466,13 @@ def merge_url_references(
 
 
 def categorize_url_references(
-    references: list[Reference],
-    reference_url_overlays: list[ReferenceUrlOverlay],
-) -> CachedSuggestion.CategorizedUrlReferences:
+    references: Iterable[Reference],
+    reference_url_overlays: Iterable[ReferenceUrlOverlay],
+) -> dict[str, CachedSuggestion.StatusUrlReference]:
     """
-    Categorize references associated to a suggestion.
-    Groups references by URL and combines their tags.
+    Categorize references associated to a suggestion, keyed by URL.
+    References sharing a URL are merged and their tags combined.
     """
-
     by_url: dict[str, list[tuple[str, Iterable[str]]]] = defaultdict(list)
     for ref in references:
         by_url[ref.url].append((ref.name, [tag.value for tag in ref.tags.all()]))
@@ -498,85 +483,64 @@ def categorize_url_references(
         if o.type == ReferenceUrlOverlay.Type.IGNORED
     }
 
-    original_url_references = []
-    active_url_references = []
-    ignored_url_references = []
-
-    for url, entries in by_url.items():
-        ref = merge_url_references(url, entries)
-        original_url_references.append(ref)
-
-        if url in ignored_urls:
-            ignored_url_references.append(ref)
-        else:
-            active_url_references.append(ref)
-
-    return CachedSuggestion.CategorizedUrlReferences(
-        original=original_url_references,
-        active=active_url_references,
-        ignored=ignored_url_references,
-    )
+    return {
+        url: CachedSuggestion.StatusUrlReference(
+            reference=merge_url_references(url, entries),
+            status=CachedSuggestion.UrlReferenceStatus.IGNORED
+            if url in ignored_urls
+            else CachedSuggestion.UrlReferenceStatus.ACTIVE,
+        )
+        for url, entries in by_url.items()
+    }
 
 
 def categorize_maintainers(
-    original_packages: dict[str, CachedSuggestion.Package],
-    active_packages: dict[str, CachedSuggestion.Package],
-    maintainer_overlays: list[MaintainerOverlay],
-) -> CachedSuggestion.CategorizedMaintainers:
+    packages: dict[str, CachedSuggestion.StatusPackage],
+    maintainer_overlays: Collection[MaintainerOverlay],
+    maintainer_details: Mapping[int, CachedSuggestion.Maintainer],
+) -> dict[int, CachedSuggestion.StatusMaintainer]:
     """
-    Categorize maintainers associated to the packages of a suggestion.
-
-    `original_packages` is the full set of packages the suggestion ever had
-    (ignoring package overlays); `active_packages` is the subset that is
-    currently active (package overlays applied). `original`/`active`/`ignored`
-    are derived from `original_packages` and the maintainer overlays only, so
-    they never shrink when a package is ignored. `orphan` tracks maintainers
-    who no longer have any currently active package.
+    Categorize maintainers associated to the packages of a suggestion, keyed by GitHub ID.
+    Packages only hold GitHub IDs, `maintainer_details` must hold the details for each of them.
+    They are orphans if they no longer have any active package (but they keep their active/ignored status in case they cease to be orphans).
     """
-    # Collect all original maintainers from all original packages (deduplicated by github_id)
-    original_maintainers_dict: dict[int, CachedSuggestion.Maintainer] = {}
-    for package in original_packages.values():
-        for maintainer in package.maintainers:
-            original_maintainers_dict[maintainer.github_id] = maintainer
-
-    original_maintainers = list(original_maintainers_dict.values())
-
-    # Maintainers of currently active packages
+    original = {
+        github_id: maintainer_details[github_id]
+        for entry in packages.values()
+        for github_id in entry.package.maintainer_ids
+    }
     active_package_maintainer_ids = {
-        maintainer.github_id
-        for package in active_packages.values()
-        for maintainer in package.maintainers
+        github_id
+        for entry in packages.values()
+        if entry.status == CachedSuggestion.PackageStatus.ACTIVE
+        for github_id in entry.package.maintainer_ids
+    }
+    ignored_ids = {
+        o.maintainer.github_id
+        for o in maintainer_overlays
+        if o.type == MaintainerOverlay.Type.IGNORED
     }
 
-    # Process edits to categorize maintainers
-    ignored_github_ids = set()
-    additional_maintainers = []
-
-    for overlay in maintainer_overlays:
-        if overlay.type == MaintainerOverlay.Type.IGNORED:
-            ignored_github_ids.add(overlay.maintainer.github_id)
-        elif overlay.type == MaintainerOverlay.Type.ADDITIONAL:
-            additional_maintainers.append(
-                CachedSuggestion.Maintainer.model_validate(to_dict(overlay.maintainer))
-            )
-
-    # Categorize original maintainers into active and ignored
-    active_maintainers = []
-    ignored_maintainers = []
-    orphan_maintainers = []
-
-    for maintainer in original_maintainers:
-        if maintainer.github_id in ignored_github_ids:
-            ignored_maintainers.append(maintainer)
-        else:
-            active_maintainers.append(maintainer)
-        if maintainer.github_id not in active_package_maintainer_ids:
-            orphan_maintainers.append(maintainer)
-
-    return CachedSuggestion.CategorizedMaintainers(
-        original=original_maintainers,
-        active=active_maintainers,
-        ignored=ignored_maintainers,
-        added=additional_maintainers,
-        orphan=orphan_maintainers,
-    )
+    result = {
+        github_id: CachedSuggestion.StatusMaintainer(
+            maintainer=maintainer,
+            status=CachedSuggestion.MaintainerStatus.IGNORED
+            if github_id in ignored_ids
+            else CachedSuggestion.MaintainerStatus.ACTIVE,
+            orphan=github_id not in active_package_maintainer_ids,
+        )
+        for github_id, maintainer in original.items()
+    }
+    # An original maintainer takes precedence over an overlay adding them by hand.
+    result |= {
+        o.maintainer.github_id: CachedSuggestion.StatusMaintainer(
+            maintainer=CachedSuggestion.Maintainer.model_validate(
+                to_dict(o.maintainer)
+            ),
+            status=CachedSuggestion.MaintainerStatus.ADDED,
+        )
+        for o in maintainer_overlays
+        if o.type == MaintainerOverlay.Type.ADDITIONAL
+        and o.maintainer.github_id not in original
+    }
+    return result
