@@ -5,9 +5,15 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="color-scheme" content="light dark" />
     <title>Nixpkgs security tracker</title>
     {% vite_hmr_client %}
     {% vite_asset 'src/main.tsx' %}
+    <style>
+      @media (prefers-color-scheme: dark) {
+        #site-logo { filter: brightness(0) invert(1) !important; }
+      }
+    </style>
   </head>
   <body>
     <div id="app">

@@ -1,7 +1,7 @@
 .shortcut {
   display: inline-flex;
   align-self: center;
-  color: var(--gray);
+  color: var(--gray-text);
   opacity: 0;
   transition: opacity 0.15s;
 }
@@ -12,7 +12,7 @@
 }
 
 .shortcut:hover {
-  color: var(--nixos-blue);
+  color: var(--accent);
 }
 
 /* Touch screens have no hover to reveal the shortcut. */

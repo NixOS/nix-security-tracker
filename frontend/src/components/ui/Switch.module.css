@@ -17,7 +17,7 @@
   width: 2.5em;
   height: 1.4em;
   border-radius: var(--radius-full);
-  background-color: var(--gray);
+  background-color: var(--gray-line);
   transition: background-color 0.05s ease;
 }
 
@@ -32,7 +32,7 @@
   width: 1.1em;
   height: 1.1em;
   border-radius: 50%;
-  background-color: white;
+  background-color: var(--on-color);
   transition: transform 0.05s ease;
 }
 

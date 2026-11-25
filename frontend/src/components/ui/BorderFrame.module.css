@@ -8,7 +8,7 @@
   --slot-height: 2.2em;
 
   position: relative;
-  border: var(--frame-border-width) solid var(--gray);
+  border: var(--frame-border-width) solid var(--gray-line);
   padding: var(--space-m) var(--frame-padding-x);
   overflow: visible;
 }
@@ -35,8 +35,8 @@
 
 .slot {
   position: absolute;
-  background: white;
-  color: var(--gray);
+  background: var(--bg);
+  color: var(--gray-text);
 }
 
 .top {

@@ -1,5 +1,6 @@
 import { ExternalLink } from "@/components/ui/ExternalLink";
 import { useServerInfo } from "@/hooks/useServerInfo";
+import styles from "./Footer.module.css";
 
 function Revision() {
   const serverInfo = useServerInfo();
@@ -27,7 +28,9 @@ function Revision() {
 
 export function Footer() {
   return (
-    <footer className="bg-nixos-blue box spacious column gap text-white centered">
+    <footer
+      className={`bg-nixos-blue box spacious column gap text-white centered ${styles.footer}`}
+    >
       <p>
         Nixpkgs security tracker is part of{" "}
         <ExternalLink href="https://nixos.org/community/teams/security/">

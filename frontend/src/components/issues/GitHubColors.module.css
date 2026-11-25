@@ -1,4 +1,5 @@
 @import "@primer/primitives/dist/css/functional/themes/light.css";
+@import "@primer/primitives/dist/css/functional/themes/dark.css";
 
 .github-open {
   color: var(--fgColor-open);

@@ -35,6 +35,8 @@ body {
   display: flex;
   flex-direction: column;
   font-family: system-ui, sans-serif;
+  background-color: var(--bg);
+  color: var(--fg);
 }
 
 #app {

@@ -8,6 +8,7 @@
   margin: 0 var(--space-xs);
   font-weight: bold;
   display: inline;
+  color: black;
 }
 
 .NONE {

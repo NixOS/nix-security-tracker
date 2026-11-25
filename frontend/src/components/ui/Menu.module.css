@@ -21,7 +21,7 @@
 
 .item[data-disabled] {
   cursor: not-allowed;
-  color: var(--gray);
+  color: var(--gray-text);
 }
 
 .item[data-highlighted] {

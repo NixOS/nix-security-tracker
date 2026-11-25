@@ -4,5 +4,5 @@
 
 .page[data-selected] {
   font-weight: bold;
-  color: black;
+  color: var(--fg);
 }

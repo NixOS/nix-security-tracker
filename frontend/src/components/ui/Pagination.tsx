@@ -58,7 +58,7 @@ export function Pagination({
   }
 
   const triggerClassName = compact
-    ? "btn-plain text-black row centered"
+    ? "btn-plain text-default row centered"
     : "btn btn-gray row centered";
   const iconSize = compact ? "1.2em" : undefined;
 

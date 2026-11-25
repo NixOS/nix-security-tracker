@@ -84,7 +84,7 @@ function ShowMoreButton({ expanded, controls, hiddenCount, onToggle }: ShowMoreB
   return (
     <button
       type="button"
-      className={cx("btn-plain", !expanded && "text-black")}
+      className={cx("btn-plain", !expanded && "text-default")}
       aria-expanded={expanded}
       aria-controls={controls}
       onClick={onToggle}

@@ -42,7 +42,7 @@
 
 .btn {
   font-size: 1em;
-  border: solid var(--border-thick) white;
+  border: solid var(--border-thick) var(--bg);
   border-radius: var(--radius);
   padding: var(--space-xs) var(--space-s);
   outline-width: var(--border-thick);
@@ -70,21 +70,21 @@
 }
 
 .btn-green {
-  background-color: var(--green);
-  outline-color: var(--green);
-  color: white;
+  background-color: var(--btn-green);
+  outline-color: var(--btn-green);
+  color: var(--on-color);
 }
 
 .btn-gray {
-  background-color: var(--gray);
-  outline-color: var(--gray);
-  color: white;
+  background-color: var(--btn-gray);
+  outline-color: var(--btn-gray);
+  color: var(--on-color);
 }
 
 .btn-red {
   background-color: var(--red);
   outline-color: var(--red);
-  color: white;
+  color: var(--on-color);
 }
 
 .btn-plain {
@@ -106,7 +106,7 @@
 }
 
 .btn-plain:disabled {
-  color: var(--gray);
+  color: var(--gray-text);
   cursor: not-allowed;
 }
 
@@ -130,18 +130,18 @@
  */
 
 .join {
-  border: solid var(--border-thick) white;
+  border: solid var(--border-thick) var(--bg);
   border-radius: var(--radius);
   outline-width: var(--border-thick);
   align-items: stretch;
 }
 
 .join-green {
-  outline-color: var(--green);
+  outline-color: var(--btn-green);
 }
 
 .join-gray {
-  outline-color: var(--gray);
+  outline-color: var(--btn-gray);
 }
 
 .join-red {
@@ -171,11 +171,11 @@
 }
 
 .join-green > .join-item:focus {
-  border-color: var(--green);
+  border-color: var(--btn-green);
 }
 
 .join-gray > .join-item:focus {
-  border-color: var(--gray);
+  border-color: var(--btn-gray);
 }
 
 .join-red > .join-item:focus {
@@ -218,8 +218,8 @@
 }
 
 .tag-gray {
-  color: black;
-  border: var(--border-thin) solid var(--gray);
+  color: var(--fg);
+  border: var(--border-thin) solid var(--gray-line);
   background-color: var(--light-gray);
 }
 
@@ -228,7 +228,8 @@
  * Typography and text styling utilities:
  *
  * .text-xl, .text-l - Font size variants
- * .text-white - White text color
+ * .text-default - Default text color (black, or light in dark mode)
+ * .text-white - White text color, for use on saturated backgrounds
  * .text-gray - Dimmed gray text color
  * .bold - Bold font weight
  * .monospace - Apply monospace font
@@ -244,16 +245,16 @@
   font-size: var(--text-l);
 }
 
-.text-black {
-  color: black;
+.text-default {
+  color: var(--fg);
 }
 
 .text-white {
-  color: white;
+  color: var(--on-color);
 }
 
 .text-gray {
-  color: var(--gray);
+  color: var(--gray-text);
 }
 
 .bold {
@@ -408,7 +409,7 @@
 .divider {
   width: 100%;
   height: var(--border-thin);
-  background-color: var(--gray);
+  background-color: var(--gray-line);
   border: none;
 }
 
@@ -431,7 +432,7 @@
 }
 
 .border {
-  border: var(--border-thin) solid var(--gray);
+  border: var(--border-thin) solid var(--gray-line);
 }
 
 .border-dashed {
@@ -444,7 +445,7 @@
 }
 
 .shadow {
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  box-shadow: 0 4px 12px var(--shadow);
 }
 
 .circle {
@@ -519,7 +520,7 @@ details.details-marker-outside > summary {
 }
 
 .loading {
-  background: linear-gradient(90deg, var(--light-gray) 25%, white 50%, var(--light-gray) 75%);
+  background: linear-gradient(90deg, var(--light-gray) 25%, var(--bg) 50%, var(--light-gray) 75%);
   background-size: 200% 100%;
   animation: skeleton-shimmer 1.5s ease-in-out infinite;
   border: var(--border-thin) solid var(--light-gray);
@@ -537,10 +538,11 @@ details.details-marker-outside > summary {
 /* Background
  *
  * Background color utilities for theme colors (yellow, red, green, nixos-blue).
+ * .bg-surface is for popovers and other raised elements, .bg-accent for selected/active state.
  */
 
-.bg-white {
-  background-color: white;
+.bg-surface {
+  background-color: var(--surface);
 }
 
 .bg-gray-light {
@@ -559,12 +561,12 @@ details.details-marker-outside > summary {
   background-color: var(--light-red);
 }
 
-.bg-green {
-  background-color: var(--green);
-}
-
 .bg-green-light {
   background-color: var(--light-green);
+}
+
+.bg-accent {
+  background-color: var(--accent);
 }
 
 .bg-nixos-blue {

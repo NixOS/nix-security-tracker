@@ -45,8 +45,9 @@ export function GitHubIssueLink({ url, number, state, iconTestId }: Props) {
         icon={Icon}
         className={className}
         aria-label={label}
-        data-color-mode="light"
+        data-color-mode="auto"
         data-light-theme="light"
+        data-dark-theme="dark"
         data-testid={iconTestId}
         label={label}
       />

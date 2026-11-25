@@ -2,16 +2,40 @@
  * You are expected to only use these colors and add new ones there only if strictly necessary.
  * Colors should not be defined outside this file.
  * In other css files like `utility.css`, colors are referenced with `var(--color-name)`.
+ *
+ * Light and dark themes follow the OS preference, different colors are selected with
+ * light-dark(light, dark).
  */
 
 :root {
+  color-scheme: light dark;
+
+  /* Page background and default text color */
+  --bg: light-dark(white, #12151c);
+  --fg: light-dark(black, #e4e6eb);
+  /* Raised elements: popovers, menus, tooltips */
+  --surface: light-dark(white, #1d212b);
+  /* Text and icons on saturated backgrounds (buttons, header, badges). */
+  --on-color: white;
+
   --green: #5eb55e;
-  --gray: #999;
+  /* Muted text and icons */
+  --gray-text: light-dark(#767676, #999);
+  /* Borders, dividers and other non-text UI */
+  --gray-line: #999;
   --red: #cc2d24;
-  --light-red: #f9ccca;
-  --light-green: #dbfcdb;
-  --light-yellow: #fcfaba;
-  --light-gray: #eee;
+  /* Button backgrounds */
+  --btn-green: #2e7d32;
+  --btn-gray: light-dark(#6e6e6e, #5a5f6a);
+  --light-red: light-dark(#f9ccca, #6a2320);
+  --light-green: light-dark(#dbfcdb, #1d3b1f);
+  --light-yellow: light-dark(#fcfaba, #3d3a12);
+  --light-gray: light-dark(#eee, #2c313c);
   /* Source: https://github.com/NixOS/branding/blob/main/package-sets/top-level/nixos-branding/nixos-color-palette/colors.toml#L92 */
   --nixos-blue: #15213a;
+  /* dark mode: Edge between NixOS blue header/footer and the page */
+  --nixos-blue-edge: light-dark(transparent, #2e3d60);
+  /* Selected/active state. NixOS blue vs lighter NixOS blue */
+  --accent: light-dark(var(--nixos-blue), #4d6fb8);
+  --shadow: light-dark(rgb(0 0 0 / 0.15), rgb(0 0 0 / 0.5));
 }

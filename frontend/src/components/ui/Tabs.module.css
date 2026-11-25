@@ -16,17 +16,17 @@
   cursor: pointer;
   font-size: 1em;
   outline: none;
-  color: black;
+  color: var(--fg);
   flex-shrink: 0;
   white-space: nowrap;
 }
 
 .tab:hover {
-  color: black;
+  color: var(--fg);
   border-color: var(--light-gray);
 }
 
 .tab[data-selected] {
-  border-color: var(--nixos-blue);
+  border-color: var(--accent);
   font-weight: bold;
 }
