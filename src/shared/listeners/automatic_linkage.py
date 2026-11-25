@@ -412,6 +412,23 @@ def refresh_suggestion_derivation_links(
 
         if outcome.derivations is not None:
             build_links(suggestion, outcome.derivations)
+        # Added packages follow the latest evaluations too, even if the suggestion was just rejected.
+        if added := suggestion.added_package_attributes():
+            linked = suggestion.link_added_packages(added)
+            available = set(
+                NixDerivation.objects.filter(
+                    attribute__in=added - linked,
+                    parent_evaluation__in=NixEvaluation.objects.latest_completed_per_branch(),
+                    metadata__isnull=False,
+                ).values_list("attribute", flat=True)
+            )
+            if available:
+                # Being clustered concurrently, so they show as unavailable until the next refresh.
+                logger.warning(
+                    "Added packages of suggestion %d are in a tracked channel but got no links: %s",
+                    suggestion.pk,
+                    ", ".join(sorted(available)),
+                )
 
     logger.info(
         "Refreshed derivation links for suggestion %d (rejection_reason=%s, derivations=%s).",

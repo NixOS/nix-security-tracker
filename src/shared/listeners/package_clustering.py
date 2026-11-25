@@ -2,12 +2,13 @@ import logging
 
 import pgpubsub
 from django.db import transaction
+from django.db.models import Exists, OuterRef, Q
 
 from shared.cache_suggestions import cache_new_suggestions
 from shared.channels import NixEvaluationUpdateChannel, SuggestionRefreshChannel
 from shared.listeners.automatic_linkage import refresh_suggestion_derivation_links
 from shared.models import NixDerivation, NixEvaluation
-from shared.models.linkage import CVEDerivationClusterProposal
+from shared.models.linkage import CVEDerivationClusterProposal, PackageOverlay
 from shared.package_clustering import cluster_packages
 
 logger = logging.getLogger(__name__)
@@ -34,11 +35,23 @@ def cluster_after_evaluation(old: NixEvaluation, new: NixEvaluation) -> None:
     def _run_after_commit() -> None:
         suggestion_pks = (
             CVEDerivationClusterProposal.objects.filter(
-                derivations__parent_evaluation__on_branches__in=new.on_branches.all(),
                 status__in=[
                     CVEDerivationClusterProposal.Status.PENDING,
                     CVEDerivationClusterProposal.Status.ACCEPTED,
                 ],
+            )
+            .filter(
+                Q(derivations__parent_evaluation__on_branches__in=new.on_branches.all())
+                # An added package that was in no tracked channel may be back in this evaluation.
+                | Exists(
+                    PackageOverlay.objects.filter(
+                        suggestion=OuterRef("pk"),
+                        type=PackageOverlay.Type.ADDITIONAL,
+                        package_attribute__in=NixDerivation.objects.filter(
+                            parent_evaluation=new
+                        ).values("attribute"),
+                    )
+                )
             )
             .distinct()
             .values_list("pk", flat=True)
