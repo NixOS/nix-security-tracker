@@ -58,6 +58,14 @@ class NotificationSerializer(serializers.ModelSerializer):
             "type",
         ]
 
+    def _cached_suggestion(self, notif: SuggestionNotification) -> CachedSuggestion:
+        cached = getattr(notif, "_cached_suggestion", None)
+        if cached is None:
+            notif.suggestion.ensure_fresh_cache()
+            cached = CachedSuggestion.model_validate(notif.suggestion.cached.payload)
+            notif._cached_suggestion = cached  # type: ignore[attr-defined]
+        return cached
+
     def get_is_obsolete(self, notif: Notification) -> bool:
         if isinstance(notif, TextNotification):
             return False
@@ -77,7 +85,7 @@ class NotificationSerializer(serializers.ModelSerializer):
     ) -> dict[str, Any] | None:
         username = self.context["request"].user.username
         if isinstance(notif, SuggestionNotification):
-            cached = CachedSuggestion.model_validate(notif.suggestion.cached.payload)
+            cached = self._cached_suggestion(notif)
             return {
                 pname: SuggestionPackageSerializer(entry.package).data
                 for pname, entry in cached.packages.items()
@@ -94,7 +102,7 @@ class NotificationSerializer(serializers.ModelSerializer):
         self, notif: Notification
     ) -> dict[str, Any] | None:
         if isinstance(notif, SuggestionNotification):
-            cached = CachedSuggestion.model_validate(notif.suggestion.cached.payload)
+            cached = self._cached_suggestion(notif)
             subscribed_attrs = set(
                 self.context["request"].user.profile.package_subscriptions
             )
