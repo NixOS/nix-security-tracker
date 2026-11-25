@@ -2,7 +2,7 @@ import logging
 import re
 import urllib.parse
 from collections import defaultdict
-from collections.abc import Collection, Iterable
+from collections.abc import Collection, Iterable, Mapping
 from datetime import datetime
 from enum import StrEnum
 from itertools import chain
@@ -64,7 +64,7 @@ class CachedSuggestion(BaseModel):
     class Package(BaseModel):
         branches: dict[str, "CachedSuggestion.PackageOnBranch"] = {}
         derivation_ids: list[int] = []
-        maintainers: list["CachedSuggestion.Maintainer"] = []
+        maintainer_ids: list[int] = []
         description: str | None = None
 
     class AttributePackageGroup(BaseModel):
@@ -280,6 +280,12 @@ def cache_new_suggestions(suggestion: CVEDerivationClusterProposal) -> None:
     maintainer_overlays = list(
         suggestion.maintainer_overlays.select_related("maintainer").all()
     )
+    maintainer_details = {
+        m.github_id: CachedSuggestion.Maintainer.model_validate(to_dict(m))
+        for derivation in derivations
+        if derivation.metadata
+        for m in derivation.metadata.prefetched_maintainers
+    }
 
     only_relevant_data = CachedSuggestion(
         pk=suggestion.pk,
@@ -290,7 +296,9 @@ def cache_new_suggestions(suggestion: CVEDerivationClusterProposal) -> None:
         packages=packages,
         attribute_package_groups=group_attributes_by_package(derivations),
         metrics=[to_dict(m) for m in prefetched_metrics],
-        maintainers=categorize_maintainers(packages, maintainer_overlays),
+        maintainers=categorize_maintainers(
+            packages, maintainer_overlays, maintainer_details
+        ),
         url_references=categorize_url_references(
             suggestion.references, list(suggestion.reference_url_overlays.all())
         ),
@@ -372,9 +380,8 @@ def channel_structure(
         is_tracking = derivation.parent_evaluation.is_on_tracking_branch
         if derivation.metadata and is_tracking:
             packages[attribute_path].description = derivation.metadata.get_description()
-            packages[attribute_path].maintainers = [
-                CachedSuggestion.Maintainer.model_validate(to_dict(m))
-                for m in derivation.metadata.prefetched_maintainers
+            packages[attribute_path].maintainer_ids = [
+                m.github_id for m in derivation.metadata.prefetched_maintainers
             ]
         status = is_version_affected(
             [c.affects(package_version) for c in version_constraints]
@@ -490,21 +497,23 @@ def categorize_url_references(
 def categorize_maintainers(
     packages: dict[str, CachedSuggestion.StatusPackage],
     maintainer_overlays: Collection[MaintainerOverlay],
+    maintainer_details: Mapping[int, CachedSuggestion.Maintainer],
 ) -> dict[int, CachedSuggestion.StatusMaintainer]:
     """
     Categorize maintainers associated to the packages of a suggestion, keyed by GitHub ID.
+    Packages only hold GitHub IDs, `maintainer_details` must hold the details for each of them.
     They are orphans if they no longer have any active package (but they keep their active/ignored status in case they cease to be orphans).
     """
     original = {
-        maintainer.github_id: maintainer
+        github_id: maintainer_details[github_id]
         for entry in packages.values()
-        for maintainer in entry.package.maintainers
+        for github_id in entry.package.maintainer_ids
     }
     active_package_maintainer_ids = {
-        maintainer.github_id
+        github_id
         for entry in packages.values()
         if entry.status == CachedSuggestion.PackageStatus.ACTIVE
-        for maintainer in entry.package.maintainers
+        for github_id in entry.package.maintainer_ids
     }
     ignored_ids = {
         o.maintainer.github_id

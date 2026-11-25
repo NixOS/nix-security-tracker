@@ -625,8 +625,16 @@ class CVEDerivationClusterProposal(TimeStampMixin):
             },
             self.package_overlays.all(),
         )
+        maintainer_details = {
+            int(github_id): CachedSuggestion.Maintainer.model_validate(
+                entry["maintainer"]
+            )
+            for github_id, entry in self.cached.payload["maintainers"].items()
+        }
         maintainers = categorize_maintainers(
-            packages, self.maintainer_overlays.select_related("maintainer")
+            packages,
+            self.maintainer_overlays.select_related("maintainer"),
+            maintainer_details,
         )
         self.cached.payload["packages"] = {
             attribute: entry.model_dump(mode="json")

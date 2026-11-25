@@ -40,7 +40,7 @@ def test_list_notifications_authenticated(
     pkg_data = next(iter(maintained.values()))
     assert "branches" in pkg_data
     assert "description" in pkg_data
-    assert "maintainers" in pkg_data
+    assert "maintainer_ids" in pkg_data
 
     subscribed = results[0]["matching_subscribed_packages"]
     assert isinstance(subscribed, dict)

@@ -20,7 +20,7 @@ class CachedSuggestions(TimeStampMixin):
 
     @classproperty
     def CURRENT_SCHEMA_VERSION(cls) -> int:  # noqa: N802
-        return 8
+        return 9
 
     proposal = models.OneToOneField(
         CVEDerivationClusterProposal,

@@ -22,7 +22,9 @@ export function getMatchingMaintainedPackages(
   if (!username) return {};
   return Object.fromEntries(
     activePackages(suggestion).filter(([, pkg]) =>
-      pkg.maintainers.some((m) => m.github === username),
+      pkg.maintainer_ids.some(
+        (id) => suggestion.maintainers[String(id)]?.maintainer.github === username,
+      ),
     ),
   );
 }

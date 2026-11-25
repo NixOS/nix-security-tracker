@@ -56,7 +56,7 @@ function recomputeOrphans(
   const activePackageMaintainerIds = new Set(
     Object.values(packages)
       .filter(({ status }) => status === "active")
-      .flatMap(({ package: pkg }) => pkg.maintainers.map((m) => String(m.github_id))),
+      .flatMap(({ package: pkg }) => pkg.maintainer_ids.map(String)),
   );
   return Object.fromEntries(
     Object.entries(maintainers).map(([githubId, entry]) => [

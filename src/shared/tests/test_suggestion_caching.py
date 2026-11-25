@@ -134,11 +134,14 @@ def test_maintainers_come_from_rolling_release_channel(
 
     cache_new_suggestions(suggestion)
     cached = CachedSuggestions.objects.get(proposal=suggestion)
-    maintainers = cached.payload["packages"][drv_rolling.attribute]["package"][
-        "maintainers"
+    maintainer_ids = cached.payload["packages"][drv_rolling.attribute]["package"][
+        "maintainer_ids"
     ]
     expected = ["rolling-maintainer"] if rolling_has_maintainers else []
-    assert [m["github"] for m in maintainers] == expected
+    assert [
+        cached.payload["maintainers"][str(github_id)]["maintainer"]["github"]
+        for github_id in maintainer_ids
+    ] == expected
 
 
 def test_cache_stale_check(

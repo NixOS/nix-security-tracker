@@ -158,7 +158,10 @@ class SuggestionPackageOnBranchSerializer(serializers.Serializer):
 class SuggestionPackageSerializer(serializers.Serializer):
     branches = serializers.DictField(child=SuggestionPackageOnBranchSerializer())
     derivation_ids = serializers.ListField(child=serializers.IntegerField())
-    maintainers = MaintainerSerializer(many=True)
+    maintainer_ids = serializers.ListField(
+        child=serializers.IntegerField(),
+        help_text="GitHub IDs of the package maintainers, with details at the suggestion top level.",
+    )
     description = serializers.CharField(allow_null=True)
 
 

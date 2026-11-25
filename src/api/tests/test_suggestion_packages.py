@@ -42,6 +42,40 @@ def test_get_packages_anonymous(
     assert "branches" in data[PACKAGE_ATTRIBUTE_1]["package"]
 
 
+def test_package_maintainers_are_ids_into_suggestion_maintainers(
+    anonymous_client: APIClient,
+    make_maintainer: Callable[..., NixMaintainer],
+    make_drv: Callable[..., NixDerivation],
+    make_cached_suggestion: Callable[..., CVEDerivationClusterProposal],
+) -> None:
+    """
+    Packages only reference their maintainers by GitHub ID, with details once at the root of the suggestion.
+    """
+    shared = make_maintainer(github_id=111, github="shared")
+    drv1 = make_drv(pname=PACKAGE_ATTRIBUTE_1, maintainer=shared)
+    drv2 = make_drv(pname=PACKAGE_ATTRIBUTE_2, maintainer=shared)
+    suggestion = make_cached_suggestion(
+        drvs={
+            drv1: ProvenanceFlags.PACKAGE_NAME_MATCH,
+            drv2: ProvenanceFlags.PACKAGE_NAME_MATCH,
+        },
+    )
+
+    detail = anonymous_client.get(
+        reverse("cvederivationclusterproposal-detail", kwargs={"pk": suggestion.pk})
+    ).data
+    packages = anonymous_client.get(url(suggestion.pk)).data
+
+    for data in (detail["packages"], packages):
+        for attribute in (PACKAGE_ATTRIBUTE_1, PACKAGE_ATTRIBUTE_2):
+            package = data[attribute]["package"]
+            assert "maintainers" not in package
+            assert package["maintainer_ids"] == [shared.github_id]
+    assert detail["maintainers"][str(shared.github_id)]["maintainer"]["github"] == (
+        "shared"
+    )
+
+
 def test_get_packages_not_found(
     anonymous_client: APIClient,
     suggestion_with_packages: CVEDerivationClusterProposal,

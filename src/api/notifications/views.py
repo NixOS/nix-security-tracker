@@ -82,7 +82,10 @@ class NotificationSerializer(serializers.ModelSerializer):
                 pname: SuggestionPackageSerializer(entry.package).data
                 for pname, entry in cached.packages.items()
                 if entry.status == CachedSuggestion.PackageStatus.ACTIVE
-                and any(m.github == username for m in entry.package.maintainers)
+                and any(
+                    cached.maintainers[github_id].maintainer.github == username
+                    for github_id in entry.package.maintainer_ids
+                )
             }
         return None
 
