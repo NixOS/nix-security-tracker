@@ -91,10 +91,14 @@ export function useDeletePackageMutation(suggestionId: number) {
         const packages = { ...prev.packages };
         const added_packages = { ...prev.added_packages };
         for (const attr of params.package_attributes) {
-          delete packages[attr];
+          // A package the matcher found too stays, it's just no longer added.
+          if (!(attr in prev.original_packages)) delete packages[attr];
           delete added_packages[attr];
         }
-        return { ...prev, packages, added_packages };
+        const unavailable_added_packages = prev.unavailable_added_packages.filter(
+          (attr) => !params.package_attributes.includes(attr),
+        );
+        return { ...prev, packages, added_packages, unavailable_added_packages };
       },
       // The UI only deletes one package at a time.
       errorTitle: () => "Failed to delete package",

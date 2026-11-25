@@ -847,15 +847,13 @@ class SuggestionViewSet(ListModelMixin, RetrieveModelMixin, viewsets.GenericView
             payload = instance.cached.payload
             original = payload["original_packages"]
             active = payload["packages"]
+            added = instance.added_package_attributes()
             data = {
                 "original": original,
                 "active": active,
                 "ignored": {k: v for k, v in original.items() if k not in active},
-                "added": {
-                    k: active[k]
-                    for k in instance.added_package_attributes()
-                    if k in active
-                },
+                "added": {k: active[k] for k in added if k in active},
+                "unavailable": sorted(k for k in added if k not in active),
             }
             return Response(SuggestionCategorizedPackagesSerializer(data).data)
         elif request.method == "PATCH":

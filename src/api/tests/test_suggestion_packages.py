@@ -615,3 +615,32 @@ def test_added_package_found_by_matcher_is_still_listed_as_added(
     data = committer_client.get(url(suggestion_with_packages.pk)).data
     assert extra_drv.attribute in data["active"]
     assert data["added"] == {}
+
+
+def test_added_package_not_in_any_channel_is_listed_as_unavailable(
+    suggestion_with_packages: CVEDerivationClusterProposal,
+    extra_drv: NixDerivation,
+    committer_client: APIClient,
+) -> None:
+    suggestion_with_packages.add_packages([extra_drv.attribute])
+    # As after a refresh that no longer finds the attribute in any tracked channel.
+    suggestion_with_packages.derivationclusterproposallink_set.manual().delete()
+    cache_new_suggestions(suggestion_with_packages)
+
+    data = committer_client.get(url(suggestion_with_packages.pk)).data
+    assert data["added"] == {}
+    assert data["unavailable"] == [extra_drv.attribute]
+    detail = committer_client.get(
+        reverse(
+            "cvederivationclusterproposal-detail",
+            kwargs={"pk": suggestion_with_packages.pk},
+        )
+    ).data
+    assert detail["unavailable_added_packages"] == [extra_drv.attribute]
+
+    response = committer_client.delete(
+        url(suggestion_with_packages.pk) + f"?package_attributes={extra_drv.attribute}"
+    )
+    assert response.status_code == 204
+    data = committer_client.get(url(suggestion_with_packages.pk)).data
+    assert data["unavailable"] == []

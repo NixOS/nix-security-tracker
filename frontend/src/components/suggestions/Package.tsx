@@ -87,7 +87,10 @@ export function Package({ attr, pkg, suggestionId, editable, kind }: Props) {
         </div>
 
         {Object.keys(pkg.branches).length === 0 ? (
-          <p className={`text-gray ${styles.details}`}>Not in any tracked channel</p>
+          // Only added packages can be in no tracked channel: matched ones come from the latest evaluations.
+          kind === "added" && (
+            <p className={`text-gray ${styles.details}`}>Not in any tracked channel</p>
+          )
         ) : (
           <ul className={`column gap-small ${styles.details}`}>
             {Object.entries(pkg.branches).map(([branch, info]) => (

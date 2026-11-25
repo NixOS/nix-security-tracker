@@ -11,6 +11,7 @@ type Props = {
   active: SuggestionPackages;
   ignored: SuggestionPackages;
   added: SuggestionPackages;
+  unavailable: readonly string[];
   editable: boolean;
 };
 
@@ -20,11 +21,12 @@ export function CategorizedPackagesList({
   active,
   ignored,
   added,
+  unavailable,
   editable,
 }: Props) {
   return (
     <SuggestionItemCollection
-      rows={packageRows(original, active, ignored, added)}
+      rows={packageRows(original, active, ignored, added, unavailable)}
       label={<SuggestionSectionHeading section="packages" />}
       testId={`suggestion-${suggestionId}-packages`}
       dividers

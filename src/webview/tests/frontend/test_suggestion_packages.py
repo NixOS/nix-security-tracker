@@ -4,6 +4,7 @@ import pytest
 from playwright.sync_api import Page, expect
 from pytest_django.live_server_helper import LiveServer
 
+from shared.cache_suggestions import cache_new_suggestions
 from shared.models.linkage import CVEDerivationClusterProposal, ProvenanceFlags
 from shared.models.nix_evaluation import NixDerivation, NixMaintainer
 from shared.package_clustering import cluster_packages
@@ -370,3 +371,26 @@ def test_package_add_unknown_attribute_shows_inline_error(
     packages.get_by_role("button", name="Add").click()
 
     expect(packages.get_by_text("Not in any tracked channel")).to_be_visible()
+
+
+@pytest.mark.django_db
+def test_unavailable_added_package_can_be_deleted(
+    live_server: LiveServer,
+    as_committer: Page,
+    suggestion_with_package: Callable[..., CVEDerivationClusterProposal],
+    extra_package: NixDerivation,
+) -> None:
+    """An added package that is in no tracked channel has no data, but is still listed."""
+    suggestion = suggestion_with_package()
+    suggestion.add_packages([extra_package.attribute])
+    # As after a refresh that no longer finds the attribute in any tracked channel.
+    suggestion.derivationclusterproposallink_set.manual().delete()
+    cache_new_suggestions(suggestion)
+
+    as_committer.goto(live_server.url + SUGGESTION_DETAIL + f"/{suggestion.pk}")
+    packages = as_committer.get_by_test_id(f"suggestion-{suggestion.pk}-packages")
+    expect(packages.get_by_text("Not in any tracked channel")).to_be_visible()
+    expect(packages.get_by_text(extra_package.attribute, exact=True)).to_be_visible()
+
+    packages.get_by_role("button", name="Delete").click()
+    expect(packages.get_by_text(extra_package.attribute, exact=True)).to_be_hidden()

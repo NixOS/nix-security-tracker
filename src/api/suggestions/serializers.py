@@ -189,6 +189,10 @@ class SuggestionCategorizedPackagesSerializer(serializers.Serializer):
     active = serializers.DictField(child=SuggestionPackageSerializer())
     ignored = serializers.DictField(child=SuggestionPackageSerializer())
     added = serializers.DictField(child=SuggestionPackageSerializer())
+    unavailable = serializers.ListField(
+        child=serializers.CharField(),
+        help_text="Manually added packages that are currently not in any tracked channel.",
+    )
 
 
 class PackageGroupSerializer(serializers.Serializer):
@@ -274,6 +278,7 @@ class SuggestionSerializer(serializers.Serializer):
     # for UI grouping.
     attribute_package_groups = serializers.SerializerMethodField()
     added_packages = serializers.SerializerMethodField()
+    unavailable_added_packages = serializers.SerializerMethodField()
     metrics = serializers.SerializerMethodField()
     categorized_maintainers = serializers.SerializerMethodField()
     categorized_url_references = serializers.SerializerMethodField()
@@ -339,6 +344,18 @@ class SuggestionSerializer(serializers.Serializer):
             for k in obj.added_package_attributes()
             if k in packages
         }
+
+    @extend_schema_field(
+        serializers.ListField(
+            child=serializers.CharField(),
+            help_text="Manually added packages that are currently not in any tracked channel.",
+        )
+    )
+    def get_unavailable_added_packages(
+        self, obj: CVEDerivationClusterProposal
+    ) -> list[str]:
+        packages = self._payload(obj)["packages"]
+        return sorted(k for k in obj.added_package_attributes() if k not in packages)
 
     @extend_schema_field(MetricSerializer(many=True))
     def get_metrics(self, obj: CVEDerivationClusterProposal) -> list:
