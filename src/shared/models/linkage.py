@@ -119,7 +119,7 @@ def _shared_entries(
         return {}
     keys = set.intersection(*(set(suggestion) for suggestion in per_suggestion))
     shared = {}
-    for key in sorted(keys):
+    for key in keys:
         entries = [suggestion[key] for suggestion in per_suggestion]
         if len({entry["status"] for entry in entries}) == 1:
             shared[key] = merge(entries)
