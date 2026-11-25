@@ -1235,6 +1235,14 @@ class DerivationClusterProposalLink(models.Model):
     # we probably want to add a fancy check here.
     provenance_flags = models.IntegerField()
 
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(
+                fields=["proposal", "derivation"],
+                name="unique_derivation_per_proposal",
+            )
+        ]
+
 
 class PackageClusterProposalLink(models.Model):
     proposal = models.ForeignKey(

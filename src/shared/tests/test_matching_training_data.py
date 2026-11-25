@@ -189,6 +189,38 @@ def test_export_import_export_roundtrip(
     assert outcome is not None
 
 
+def test_import_merges_links_to_the_same_derivation(
+    make_container: Callable[..., Container],
+    make_drv: Callable[..., NixDerivation],
+    make_evaluation: Callable[..., NixEvaluation],
+) -> None:
+    """The same package version on several branches is one imported derivation."""
+    container = make_container(cve_id="CVE-2026-5555", package_name="foo")
+    proposal = CVEDerivationClusterProposal.objects.create(
+        cve=container.cve,
+        status=CVEDerivationClusterProposal.Status.ACCEPTED,
+        algorithm_version=1,
+    )
+    for flags in [ProvenanceFlags.PACKAGE_NAME_MATCH, ProvenanceFlags.CPE_MATCH]:
+        DerivationClusterProposalLink.objects.create(
+            proposal=proposal,
+            derivation=make_drv(pname="foo", evaluation=make_evaluation()),
+            provenance_flags=int(flags),
+        )
+    record = dict(serializers.CVEDerivationClusterProposal(proposal).data)
+    assert len(record["derivationclusterproposallink_set"]) == 2
+
+    CveRecord.objects.filter(cve_id="CVE-2026-5555").delete()
+    serializer = serializers.CVEDerivationClusterProposal(data=record)
+    assert serializer.is_valid(), serializer.errors
+    imported = cast(CVEDerivationClusterProposal, serializer.save())
+
+    (link,) = imported.derivationclusterproposallink_set.all()
+    assert link.provenance_flags == (
+        ProvenanceFlags.PACKAGE_NAME_MATCH | ProvenanceFlags.CPE_MATCH
+    )
+
+
 def test_export_import_auto_reject_without_links(
     make_container: Callable[..., Container],
 ) -> None:

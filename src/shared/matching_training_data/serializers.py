@@ -417,7 +417,8 @@ class CVEDerivationClusterProposal(serializers.ModelSerializer):
             algorithm_version=validated_data["algorithm_version"],
         )
 
-        link_objs = []
+        # Links on several branches can map to the same imported derivation, which has one link with all their flags.
+        flags_by_derivation: dict[models.NixDerivation, int] = {}
         for link_data in links_data:
             drv_data = link_data["derivation"]
             attribute = drv_data["attribute"]
@@ -431,15 +432,16 @@ class CVEDerivationClusterProposal(serializers.ModelSerializer):
                 name=name,
                 meta_name=name,
             )
-            link_objs.append(
-                models.DerivationClusterProposalLink(
-                    proposal=proposal,
-                    derivation=by_fingerprint[key],
-                    provenance_flags=link_data["provenance_flags"],
-                )
+            derivation = by_fingerprint[key]
+            flags_by_derivation[derivation] = (
+                flags_by_derivation.get(derivation, 0) | link_data["provenance_flags"]
             )
-        if link_objs:
-            models.DerivationClusterProposalLink.objects.bulk_create(link_objs)
+        models.DerivationClusterProposalLink.objects.bulk_create(
+            models.DerivationClusterProposalLink(
+                proposal=proposal, derivation=derivation, provenance_flags=flags
+            )
+            for derivation, flags in flags_by_derivation.items()
+        )
 
         # Overlays refer to packages, so the imported derivations need to be
         # clustered into packages first, as it happens on evaluation ingestion.
