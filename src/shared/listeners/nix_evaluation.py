@@ -17,7 +17,7 @@ from django.db import transaction
 from django.db.models import Avg
 from django.utils import timezone
 
-from shared.channels import NixEvaluationChannel
+from shared.channels import NewEvaluation
 from shared.evaluation import (
     SyncBatchAttributeIngester,
     parse_evaluation_result,
@@ -322,7 +322,7 @@ async def evaluation_entrypoint(
         )
 
 
-@pgpubsub.post_insert_listener(NixEvaluationChannel)
+@pgpubsub.post_insert_listener(NewEvaluation)
 def run_evaluation_job(old: None, new: NixEvaluation) -> None:
     evaluation = NixEvaluation.objects.prefetch_related("on_branches").get(pk=new.pk)
     average_evaluation_time = NixEvaluation.objects.aggregate(

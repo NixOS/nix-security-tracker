@@ -3,14 +3,14 @@ import logging
 import pgpubsub
 
 from shared.cache_suggestions import cache_new_suggestions
-from shared.channels import CVEDerivationClusterProposalChannel
+from shared.channels import NewSuggestion
 from shared.models.linkage import CVEDerivationClusterProposal
 from shared.notify_users import create_package_subscription_notifications
 
 logger = logging.getLogger(__name__)
 
 
-@pgpubsub.post_insert_listener(CVEDerivationClusterProposalChannel)
+@pgpubsub.post_insert_listener(NewSuggestion)
 def cache_new_suggestions_following_new_container(
     old: CVEDerivationClusterProposal, new: CVEDerivationClusterProposal
 ) -> None:

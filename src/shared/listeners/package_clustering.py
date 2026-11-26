@@ -4,7 +4,7 @@ import pgpubsub
 from django.db import transaction
 
 from shared.cache_suggestions import cache_new_suggestions
-from shared.channels import NixEvaluationUpdateChannel, SuggestionRefreshChannel
+from shared.channels import RefreshSuggestion, UpdatedEvaluation
 from shared.listeners.automatic_linkage import refresh_suggestion_derivation_links
 from shared.models import NixDerivation, NixEvaluation
 from shared.models.linkage import CVEDerivationClusterProposal
@@ -13,7 +13,7 @@ from shared.package_clustering import cluster_packages
 logger = logging.getLogger(__name__)
 
 
-@pgpubsub.post_update_listener(NixEvaluationUpdateChannel)
+@pgpubsub.post_update_listener(UpdatedEvaluation)
 def cluster_after_evaluation(old: NixEvaluation, new: NixEvaluation) -> None:
     if old.state == new.state:
         return
@@ -45,12 +45,12 @@ def cluster_after_evaluation(old: NixEvaluation, new: NixEvaluation) -> None:
         )
 
         for pk in suggestion_pks:
-            pgpubsub.notify(SuggestionRefreshChannel, pk=pk)
+            pgpubsub.notify(RefreshSuggestion, pk=pk)
 
     transaction.on_commit(_run_after_commit)
 
 
-@pgpubsub.listener(SuggestionRefreshChannel)
+@pgpubsub.listener(RefreshSuggestion)
 def refresh_and_cache_suggestion(pk: int) -> None:
     """
     Refresh derivation links, then rebuild the cache, in that order, since

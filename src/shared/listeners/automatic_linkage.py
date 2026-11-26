@@ -22,7 +22,7 @@ from django.db.models import (
     When,
 )
 
-from shared.channels import ContainerChannel
+from shared.channels import NewContainer
 from shared.models.cve import Container
 from shared.models.linkage import (
     CVEDerivationClusterProposal,
@@ -421,6 +421,6 @@ def refresh_suggestion_derivation_links(
     )
 
 
-@pgpubsub.post_insert_listener(ContainerChannel)
+@pgpubsub.post_insert_listener(NewContainer)
 def build_new_links_following_new_containers(old: Container, new: Container) -> None:
     build_new_links(new)

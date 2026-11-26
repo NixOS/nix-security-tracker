@@ -207,7 +207,7 @@ in
     suggestionRefreshProcesses = mkOption {
       description = ''
         How many parallel pgpubsub listener processes to run for
-        SuggestionRefreshChannel, i.e. how many suggestion derivation-link
+        RefreshSuggestion, i.e. how many suggestion derivation-link
         refreshes can run concurrently after an evaluation completes.
       '';
       type = types.int;
@@ -457,7 +457,7 @@ in
               ${manage.name} listen --recover \
                 --processes ${toString cfg.maxJobProcessors} \
                 --channels \
-                  shared.channels.NixEvaluationChannel
+                  shared.channels.NewEvaluation
             '';
           };
 
@@ -526,10 +526,8 @@ in
             script = ''
               ${manage.name} listen --recover \
                 --channels \
-                  shared.channels.NixChannelInsertChannel \
-                  shared.channels.NixChannelUpdateChannel \
-                  shared.channels.ContainerChannel \
-                  shared.channels.CVEDerivationClusterProposalChannel \
+                  shared.channels.NewContainer \
+                  shared.channels.NewSuggestion \
             '';
           };
 
@@ -554,8 +552,8 @@ in
               ${manage.name} listen \
                 --processes ${toString cfg.suggestionRefreshProcesses} \
                 --channels \
-                  shared.channels.NixEvaluationUpdateChannel \
-                  shared.channels.SuggestionRefreshChannel \
+                  shared.channels.UpdatedEvaluation \
+                  shared.channels.RefreshSuggestion \
             '';
           };
 

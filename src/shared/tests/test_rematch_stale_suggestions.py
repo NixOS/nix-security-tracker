@@ -5,7 +5,7 @@ from unittest import mock
 import pytest
 from django.core.management import call_command
 
-from shared.channels import SuggestionRefreshChannel
+from shared.channels import RefreshSuggestion
 from shared.models.cve import Container
 from shared.models.linkage import CVEDerivationClusterProposal
 
@@ -61,8 +61,8 @@ def test_dispatches_stale_suggestion(
     call_command("rematch_stale_suggestions", stdout=out)
 
     expected_calls = [
-        mock.call(SuggestionRefreshChannel, pk=pending_suggestion.pk),
-        mock.call(SuggestionRefreshChannel, pk=accepted_suggestion.pk),
+        mock.call(RefreshSuggestion, pk=pending_suggestion.pk),
+        mock.call(RefreshSuggestion, pk=accepted_suggestion.pk),
     ]
     mock_notify.assert_has_calls(expected_calls, any_order=True)
     assert mock_notify.call_count == 2

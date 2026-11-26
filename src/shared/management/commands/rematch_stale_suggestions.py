@@ -3,7 +3,7 @@ from typing import Any
 import pgpubsub
 from django.core.management.base import BaseCommand
 
-from shared.channels import SuggestionRefreshChannel
+from shared.channels import RefreshSuggestion
 from shared.models.linkage import CVEDerivationClusterProposal
 
 
@@ -24,7 +24,7 @@ class Command(BaseCommand):
             return
 
         for pk in stale_pks.iterator():
-            pgpubsub.notify(SuggestionRefreshChannel, pk=pk)
+            pgpubsub.notify(RefreshSuggestion, pk=pk)
 
         self.stdout.write(
             self.style.SUCCESS(

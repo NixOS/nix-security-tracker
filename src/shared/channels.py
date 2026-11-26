@@ -2,27 +2,13 @@ from dataclasses import dataclass
 
 from pgpubsub.channel import Channel, TriggerChannel
 
-from shared.models import NixDerivation
 from shared.models.cve import Container
-from shared.models.issue import NixpkgsIssue
 from shared.models.linkage import CVEDerivationClusterProposal
-from shared.models.nix_evaluation import NixChannel, NixEvaluation
+from shared.models.nix_evaluation import NixEvaluation
 
 
 @dataclass
-class NixChannelUpdateChannel(TriggerChannel):
-    model = NixChannel
-    lock_notifications = True
-
-
-@dataclass
-class NixChannelInsertChannel(TriggerChannel):
-    model = NixChannel
-    lock_notifications = True
-
-
-@dataclass
-class NixEvaluationChannel(TriggerChannel):
+class NewEvaluation(TriggerChannel):
     model = NixEvaluation
     # To avoid having a process blocked on the same evaluation multiple times.
     # We want to ensure that notifications are processed exactly once.
@@ -32,36 +18,25 @@ class NixEvaluationChannel(TriggerChannel):
 
 
 @dataclass
-class NixEvaluationUpdateChannel(TriggerChannel):
+class UpdatedEvaluation(TriggerChannel):
     model = NixEvaluation
     lock_notifications = True
 
 
 @dataclass
-class NixDerivationChannel(TriggerChannel):
-    model = NixDerivation
-
-
-@dataclass
-class ContainerChannel(TriggerChannel):
+class NewContainer(TriggerChannel):
     model = Container
     # Process new structured data for a CVE only once.
     lock_notifications = True
 
 
 @dataclass
-class CVEDerivationClusterProposalChannel(TriggerChannel):
+class NewSuggestion(TriggerChannel):
     model = CVEDerivationClusterProposal
     lock_notifications = True
 
 
 @dataclass
-class NixpkgsIssueChannel(TriggerChannel):
-    model = NixpkgsIssue
-    lock_notifications = False
-
-
-@dataclass
-class SuggestionRefreshChannel(Channel):
+class RefreshSuggestion(Channel):
     pk: int
     lock_notifications = True
