@@ -17,7 +17,7 @@ def django_to_drf(exc: DjangoValidationError) -> DRFValidationError:
     Consult the respective source code to verify the mapping:
 
     https://github.com/django/django/blob/stable/5.2.x/django/core/exceptions.py#L134
-    https://github.com/encode/django-rest-framework/blob/3.17.1/rest_framework/exceptions.py#L143
+    https://github.com/encode/django-rest-framework/blob/3.18.3/rest_framework/exceptions.py#L143
     """
     if hasattr(exc, "error_dict"):
         assert exc.error_dict is not None
