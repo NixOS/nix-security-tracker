@@ -24,6 +24,7 @@ from shared.matching_training_data.benchmark import (
     aggregate,
     label_sets,
     rematch,
+    sample_corpus,
     score_proposal,
     snr,
     snr_for_json,
@@ -516,3 +517,18 @@ def test_tally_only_does_not_run_the_matcher(
     call_command("benchmark_matching", "--tally-only", "--quiet", "--output", str(path))
 
     assert "scores" not in json.loads(path.read_text())
+
+
+def test_sample_has_requested_size_and_is_fixed(
+    make_container: Callable[..., Container],
+) -> None:
+    proposals = CVEDerivationClusterProposal.objects.filter(
+        pk__in=[
+            _proposal(make_container(cve_id=f"CVE-2026-sample-{i}")).pk
+            for i in range(10)
+        ]
+    ).order_by("pk")
+
+    sample = list(sample_corpus(proposals, 3))
+    assert len(sample) == 3
+    assert list(sample_corpus(proposals, 3)) == sample

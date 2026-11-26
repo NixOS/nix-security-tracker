@@ -15,6 +15,7 @@ from shared.matching_training_data.benchmark import (
     BenchmarkReport,
     aggregate,
     rematch,
+    sample_corpus,
     score_proposal,
     tally_matches,
     training_corpus_queryset,
@@ -39,7 +40,7 @@ class Command(BaseCommand):
             "--limit",
             type=_positive_int,
             default=None,
-            help="Score at most N training proposals (for smoke tests).",
+            help="Sample at most N curated suggestions, the same ones on every run.",
         )
         parser.add_argument(
             "--quiet",
@@ -66,7 +67,7 @@ class Command(BaseCommand):
         self.stderr.write("Querying curated matching data...")
         qs = training_corpus_queryset()
         if limit is not None:
-            qs = qs[:limit]
+            qs = sample_corpus(qs, limit)
 
         if options["tally_only"]:
             tallies = tally_matches(qs)

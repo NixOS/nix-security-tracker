@@ -8,6 +8,7 @@ Call the linkage resolver only - do not persist new proposals.
 from __future__ import annotations
 
 import math
+import random
 from collections import Counter, defaultdict
 from collections.abc import Iterable
 from typing import Annotated, Any
@@ -326,3 +327,10 @@ def training_corpus_queryset() -> QuerySet[CVEDerivationClusterProposal]:
         )
         .order_by("pk")
     )
+
+
+def sample_corpus(
+    proposals: QuerySet[CVEDerivationClusterProposal], size: int
+) -> QuerySet[CVEDerivationClusterProposal]:
+    pks = list(proposals.values_list("pk", flat=True))
+    return proposals.filter(pk__in=random.Random(0).sample(pks, min(size, len(pks))))
