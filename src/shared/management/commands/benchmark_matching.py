@@ -43,6 +43,12 @@ class Command(BaseCommand):
             help="Sample at most N curated suggestions, the same ones on every run.",
         )
         parser.add_argument(
+            "--algorithm-version",
+            type=int,
+            default=None,
+            help="Score only suggestions made by this algorithm version.",
+        )
+        parser.add_argument(
             "--quiet",
             action="store_true",
             help="Suppress per-CVE ProposalScore lines (summary only).",
@@ -63,9 +69,12 @@ class Command(BaseCommand):
         limit: int | None = options["limit"]
         quiet: bool = options["quiet"]
         output: Path | None = options["output"]
+        algorithm_version: int | None = options["algorithm_version"]
 
         self.stderr.write("Querying curated matching data...")
         qs = training_corpus_queryset()
+        if algorithm_version is not None:
+            qs = qs.filter(algorithm_version=algorithm_version)
         if limit is not None:
             qs = sample_corpus(qs, limit)
 
@@ -93,12 +102,14 @@ class Command(BaseCommand):
 
         report = aggregate(scores)
         if report.proposals == 0:
-            self.stdout.write(
-                self.style.WARNING(
+            if algorithm_version is not None:
+                warning = f"No training data for algorithm version {algorithm_version}."
+            else:
+                warning = (
                     "No training-data proposals found on the benchmark corpus. "
                     "Import with manage import_matching_training_data first."
                 )
-            )
+            self.stdout.write(self.style.WARNING(warning))
             return
 
         self.stdout.write(self.style.SUCCESS(pformat(report)))
