@@ -28,7 +28,7 @@ let
     with ps;
     [
       cfg.package
-      daphne
+      gunicorn
     ]
     ++ cfg.extra-python-packages
   );
@@ -117,6 +117,16 @@ in
     wsgi-port = mkOption {
       type = types.port;
       default = 8000;
+    };
+    web-workers = mkOption {
+      description = "Number of gunicorn worker processes for the web server.";
+      type = types.ints.positive;
+      default = 4;
+    };
+    web-threads = mkOption {
+      description = "Number of request threads per gunicorn worker process.";
+      type = types.ints.positive;
+      default = 4;
     };
     env = mkOption rec {
       description = ''
@@ -216,7 +226,7 @@ in
 
     enablePgbouncer =
       (mkEnableOption ''
-        PgBouncer connection pooling in front of PostgreSQL for the ASGI web server.
+        PgBouncer connection pooling in front of PostgreSQL for the web server.
 
         When enabled, only `nix-security-tracker-server` connects through
         PgBouncer. The pgpubsub workers and management commands keep direct database
@@ -284,7 +294,7 @@ in
         ensureDatabases = [ "nix-security-tracker" ];
       };
 
-      # PgBouncer fronts only the ASGI web server. Workers and management
+      # PgBouncer fronts only the web server. Workers and management
       # commands bypass it.
       pgbouncer = mkIf cfg.enablePgbouncer {
         enable = true;
@@ -389,48 +399,62 @@ in
               fi
             '';
           };
-          nix-security-tracker-server = {
-            description = "Web security tracker ASGI server";
-            after = [
-              "network.target"
-              "postgresql.service"
-              "nix-security-tracker-migrations.service"
-            ]
-            ++ lib.optionals cfg.enablePgbouncer [ "pgbouncer.service" ];
-            requires = [
-              "postgresql.service"
-              "nix-security-tracker-migrations.service"
-            ]
-            ++ lib.optionals cfg.enablePgbouncer [ "pgbouncer.service" ];
-            serviceConfig = {
-              Restart = cfg.restart;
-              TimeoutStartSec = lib.mkDefault "10m";
-            };
-            script = ''
-              daphne -b 127.0.0.1 -p ${toString cfg.wsgi-port} project.asgi:application
-            '';
-          }
-          // optionalAttrs cfg.enablePgbouncer {
-            # When PgBouncer is enabled, the ASGI server connects through it over
-            # its unix socket on port 6432
-            environment.DATABASE_URL =
-              let
-                port = config.services.pgbouncer.settings.pgbouncer.listen_port;
-              in
-              "postgres:///nix-security-tracker?host=/run/pgbouncer&port=${toString port}";
-            # The ASGI server should not hold Django-level persistent connections
-            # when PgBouncer multiplexes server connections. Setting
-            # CONN_MAX_AGE=0 lets PgBouncer do the pooling. Other services
-            # (workers and management commands) keep the value from
-            # `cfg.settings` so their direct connections persist.
-            environment.DJANGO_SETTINGS = builtins.toJSON (
-              cfg.settings
-              // {
-                DATABASE_CONN_MAX_AGE = 0;
-                DATABASE_DISABLE_SERVER_SIDE_CURSORS = true;
+          nix-security-tracker-server =
+            recursiveUpdate
+              {
+                description = "Web security tracker WSGI server";
+                after = [
+                  "network.target"
+                  "postgresql.service"
+                  "nix-security-tracker-migrations.service"
+                ]
+                ++ lib.optionals cfg.enablePgbouncer [ "pgbouncer.service" ];
+                requires = [
+                  "postgresql.service"
+                  "nix-security-tracker-migrations.service"
+                ]
+                ++ lib.optionals cfg.enablePgbouncer [ "pgbouncer.service" ];
+                serviceConfig = {
+                  Restart = cfg.restart;
+                  TimeoutStartSec = lib.mkDefault "10m";
+                  # Not shared with the other services: systemd removes a unit's runtime
+                  # directory when it stops, which would wipe the metric files below.
+                  RuntimeDirectory = "nix-security-tracker-web";
+                };
+                # Per-process metric files, aggregated by the django_prometheus /metrics view
+                environment.PROMETHEUS_MULTIPROC_DIR = "/run/nix-security-tracker-web/prometheus";
+                script = ''
+                  exec gunicorn project.wsgi:application \
+                    --config python:project.gunicorn_conf \
+                    --bind 127.0.0.1:${toString cfg.wsgi-port} \
+                    --worker-class gthread \
+                    --workers ${toString cfg.web-workers} \
+                    --threads ${toString cfg.web-threads}
+                '';
               }
-            );
-          };
+              (
+                optionalAttrs cfg.enablePgbouncer {
+                  # When PgBouncer is enabled, the web server connects through it over
+                  # its unix socket on port 6432
+                  environment.DATABASE_URL =
+                    let
+                      port = config.services.pgbouncer.settings.pgbouncer.listen_port;
+                    in
+                    "postgres:///nix-security-tracker?host=/run/pgbouncer&port=${toString port}";
+                  # The web server should not hold Django-level persistent connections
+                  # when PgBouncer multiplexes server connections. Setting
+                  # CONN_MAX_AGE=0 lets PgBouncer do the pooling. Other services
+                  # (workers and management commands) keep the value from
+                  # `cfg.settings` so their direct connections persist.
+                  environment.DJANGO_SETTINGS = builtins.toJSON (
+                    cfg.settings
+                    // {
+                      DATABASE_CONN_MAX_AGE = 0;
+                      DATABASE_DISABLE_SERVER_SIDE_CURSORS = true;
+                    }
+                  );
+                }
+              );
 
           nix-security-tracker-evaluator = {
             description = "Web security tracker - Nixpkgs evaluation worker";

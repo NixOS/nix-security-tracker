@@ -190,6 +190,13 @@ pkgs.testers.runNixOSTest {
         for logo in ["nixos-logo.svg", "cveLogo.svg", "nixpkgsLogo.svg"]:
           machine.succeed(f"curl --fail -H 'Host: example.org' http://localhost/static/{logo}")
 
+      with subtest("Check that application metrics are aggregated across web workers"):
+        for _ in range(8):
+          server.succeed("curl --fail -H 'Host: example.org' http://localhost/")
+        metrics = server.succeed("curl --fail -H 'Host: example.org' http://localhost/metrics")
+        assert "django_http_requests_total_by_method_total" in metrics, metrics
+        server.succeed("ls /run/nix-security-tracker-web/prometheus/*.db")
+
       with subtest("Check that admin interface is served"):
         server.succeed("curl --fail -L -H 'Host: example.org' http://localhost/admin")
 
