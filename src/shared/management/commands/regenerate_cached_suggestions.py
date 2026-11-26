@@ -7,7 +7,7 @@ from django.core.management.base import BaseCommand
 from django.db.models import Exists, OuterRef, Q
 from prometheus_client import CollectorRegistry, Gauge
 
-from shared.cache_suggestions import cache_new_suggestions
+from shared.cache_suggestions import cache_suggestion
 from shared.metrics import write_metrics_textfile
 from shared.models.cached import CachedSuggestions
 from shared.models.linkage import CVEDerivationClusterProposal
@@ -61,7 +61,7 @@ class Command(BaseCommand):
         start = time.time()
         # FIXME(@fricklerhandwerk): Do this chunk-wise in bulk.
         for suggestion in proposals:
-            cache_new_suggestions(suggestion)
+            cache_suggestion(suggestion)
             count += 1
         duration = time.time() - start
 
