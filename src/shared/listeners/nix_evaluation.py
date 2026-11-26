@@ -181,7 +181,7 @@ async def drain_lines(
 
             if len(lines) >= max_batch_window:
                 raise TooManyStuff
-        except (TimeoutError, TooManyStuff):
+        except TimeoutError, TooManyStuff:
             # No line, we retry.
             if len(lines) == 0:
                 continue
