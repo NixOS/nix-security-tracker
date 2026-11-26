@@ -8,12 +8,20 @@ from datetime import datetime
 from itertools import chain
 from typing import Any, overload
 
-from django.db.models import Case, IntegerField, Prefetch, Q, When
+from django.db.models import Prefetch, Q
 from pydantic import BaseModel, field_serializer
 
 from shared.models import NixDerivation, NixMaintainer
 from shared.models.cached import CachedSuggestions
-from shared.models.cve import AffectedProduct, CveRecord, Metric, Reference, Version
+from shared.models.cve import (
+    AffectedProduct,
+    Container,
+    CveRecord,
+    Description,
+    Metric,
+    Reference,
+    Version,
+)
 from shared.models.linkage import (
     CVEDerivationClusterProposal,
     MaintainerOverlay,
@@ -163,10 +171,27 @@ def cache_suggestion(suggestion: CVEDerivationClusterProposal) -> None:
 def cache_suggestions(suggestions: Sequence[CVEDerivationClusterProposal]) -> None:
     cve_pks = {s.cve_id for s in suggestions}
     cve_ids = dict(CveRecord.objects.filter(pk__in=cve_pks).values_list("pk", "cve_id"))
+    containers: dict[int, list[Container]] = defaultdict(list)
+    for container in (
+        Container.objects.filter(cve__in=cve_pks)
+        .only("cve", "title")
+        .prefetch_related(
+            Prefetch("descriptions", queryset=Description.objects.only("value")),
+            Prefetch(
+                "affected",
+                queryset=AffectedProduct.objects.only("package_name", "product"),
+            ),
+        )
+    ):
+        containers[container.cve_id].append(container)
 
     cached = []
     for suggestion in suggestions:
-        payload = build_cached_suggestion(suggestion, cve_ids[suggestion.cve_id])
+        payload = build_cached_suggestion(
+            suggestion,
+            cve_ids[suggestion.cve_id],
+            containers[suggestion.cve_id],
+        )
         if payload is not None:
             cached.append(
                 CachedSuggestions(
@@ -200,35 +225,24 @@ def cache_suggestions(suggestions: Sequence[CVEDerivationClusterProposal]) -> No
 def build_cached_suggestion(
     suggestion: CVEDerivationClusterProposal,
     cve_id: str,
+    containers: list[Container],
 ) -> CachedSuggestion | None:
     # FIXME(@fricklerhandwerk): Here we're blindly picking a title and description, which can be arbitrarily bad.
     # For instance, at the time of writing, most titles in containers are one of
     # - "CVE Program Container" (>600k)
-    # - "CISA ADP VUlnrichment" (>270k)
-    has_package_data = Q(affected__package_name__isnull=False) | Q(
-        affected__product__isnull=False
+    # - "CISA ADP Vulnrichment" (>270k)
+    # Typically, the CNA container has the interesting data; give it even higher priority.
+    def has_package_data(container: Container) -> bool:
+        return any(a.package_name or a.product for a in container.affected.all())
+
+    def nonempty(values: Iterable[str | None]) -> str | None:
+        return next((value for value in values if value), None)
+
+    package_data_first = sorted(containers, key=has_package_data, reverse=True)
+    title = nonempty(c.title for c in package_data_first)
+    description = nonempty(
+        d.value for c in package_data_first for d in c.descriptions.all()
     )
-
-    def nonempty(field: str) -> str | None:
-        """
-        Take the first nonempty of the given field, prioritising one that has package data.
-        """
-        return (
-            suggestion.cve.container.annotate(
-                priority=Case(
-                    When(has_package_data, then=0),
-                    default=1,
-                    output_field=IntegerField(),
-                )
-            )
-            .exclude(**{f"{field}__isnull": True})
-            .order_by("priority")
-            .values_list(field, flat=True)
-            .first()
-        )
-
-    title = nonempty("title")
-    description = nonempty("descriptions__value")
 
     if title is None and description is None:
         # FIXME(@fricklerhandwerk): Currently there are some entries that hit this case, despite them violating the spec. [tag:invalid-cves]
