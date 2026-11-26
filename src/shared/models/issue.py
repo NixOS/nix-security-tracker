@@ -212,6 +212,11 @@ class NixpkgsIssue(TimeStampMixin):
         if not suggestions:
             raise ValueError("Cannot publish a NixpkgsIssue with no suggestions")
 
+        # NOTE(@florentc): The issue body is built from the cached suggestions.
+        # Their payload must follow the current cache schema.
+        for suggestion in suggestions:
+            suggestion.ensure_fresh_cache()
+
         github_issue = create_gh_issue(
             [s.cached for s in suggestions],
             self.title,

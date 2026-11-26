@@ -35,15 +35,13 @@ def _matching_subscribed_packages(notification: Notification, profile: Profile) 
 
 def _matching_maintained_packages(notification: Notification, profile: Profile) -> dict:
     """Packages in the notification's suggestion that the user maintains."""
-    suggestion_packages = _active_packages(notification)
-    username = profile.user.username
+    maintainer = profile.maintainer
+    if maintainer is None:
+        return {}
     return {
         attr: pdata
-        for attr, pdata in suggestion_packages.items()
-        if any(
-            maintainer.get("github") == username
-            for maintainer in pdata.get("maintainers", [])
-        )
+        for attr, pdata in _active_packages(notification).items()
+        if maintainer.github_id in pdata["maintainer_ids"]
     }
 
 
