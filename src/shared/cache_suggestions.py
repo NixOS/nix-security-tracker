@@ -8,7 +8,7 @@ from datetime import datetime
 from itertools import chain
 from typing import Any, overload
 
-from django.db.models import Prefetch, Q
+from django.db.models import Prefetch
 from pydantic import BaseModel, field_serializer
 
 from shared.models import NixDerivation, NixMaintainer
@@ -16,6 +16,7 @@ from shared.models.cached import CachedSuggestions
 from shared.models.cve import (
     AffectedProduct,
     Container,
+    Cpe,
     CveRecord,
     Description,
     Metric,
@@ -181,6 +182,13 @@ def cache_suggestions(suggestions: Sequence[CVEDerivationClusterProposal]) -> No
                 "affected",
                 queryset=AffectedProduct.objects.only("package_name", "product"),
             ),
+            Prefetch(
+                "affected__versions",
+                queryset=Version.objects.only(
+                    "status", "version", "less_than", "less_equal"
+                ),
+            ),
+            Prefetch("affected__cpes", queryset=Cpe.objects.only("name")),
         )
     ):
         containers[container.cve_id].append(container)
@@ -258,21 +266,11 @@ def build_cached_suggestion(
     affected_products: dict[str, CachedSuggestion.AffectedProduct] = {}
     all_versions = list()
 
-    prefetched_affected_products = (
-        AffectedProduct.objects.filter(
-            container__cve=suggestion.cve,
-        )
-        .filter(
-            Q(package_name__isnull=False) | Q(product__isnull=False),
-        )
-        .prefetch_related("versions", "cpes")
-    )
-
-    for affected_product in prefetched_affected_products:
+    for affected_product in (a for c in containers for a in c.affected.all()):
         # FIXME(@fricklerhandwerk): We should have a more sophisticated data structure that allows displaying what exactly we're matching.
         package_name = affected_product.package_name or affected_product.product
-        # NOTE(@fricklerhandwerk): Satisfy the static typecheck that doesn't know we already filtered those out...
-        assert package_name is not None
+        if not package_name:
+            continue
         versions = list(affected_product.versions.all())
         all_versions.extend(versions)
 
