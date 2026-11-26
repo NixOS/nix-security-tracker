@@ -22,17 +22,12 @@ rec {
       nixfmt.enable = true;
       statix = {
         enable = true;
-        entry =
-          let
-            config = builtins.toFile "statix.toml" ''
-              disabled = ["repeated_keys"]
-            '';
-          in
-          # FIXME(@fricklerhandwerk): `git-hooks.nix` currently renders `statix` command-line arguments incorrectly
-          lib.mkForce
-            "${pkgs.statix}/bin/statix check --config ${config} ${
-              lib.concatMapStringsSep " " (p: "--ignore ${lib.escapeShellArg p}") excludes
-            }";
+        settings = {
+          config = builtins.toFile "statix.toml" ''
+            disabled = ["repeated_keys"]
+          '';
+          ignore = excludes;
+        };
       };
       deadnix.enable = true;
 
