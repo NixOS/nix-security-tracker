@@ -3,7 +3,7 @@ import logging
 import re
 import urllib.parse
 from collections import defaultdict
-from collections.abc import Iterable
+from collections.abc import Iterable, Sequence
 from datetime import datetime
 from itertools import chain
 from typing import Any, overload
@@ -157,6 +157,46 @@ def to_dict(instance: Any) -> dict[str, Any]:
 
 
 def cache_suggestion(suggestion: CVEDerivationClusterProposal) -> None:
+    cache_suggestions([suggestion])
+
+
+def cache_suggestions(suggestions: Sequence[CVEDerivationClusterProposal]) -> None:
+    cached = []
+    for suggestion in suggestions:
+        payload = build_cached_suggestion(suggestion)
+        if payload is not None:
+            cached.append(
+                CachedSuggestions(
+                    proposal_id=suggestion.pk,
+                    payload=payload.model_dump(mode="json"),
+                    schema_version=CachedSuggestions.CURRENT_SCHEMA_VERSION,
+                )
+            )
+
+    existing = set(
+        CachedSuggestions.objects.filter(
+            proposal_id__in=[c.proposal_id for c in cached]
+        ).values_list("proposal_id", flat=True)
+    )
+    CachedSuggestions.objects.bulk_create(
+        cached,
+        update_conflicts=True,
+        unique_fields=["proposal"],
+        update_fields=["payload", "schema_version", "updated_at"],
+    )
+
+    for c in cached:
+        if c.proposal_id in existing:
+            logger.info("CVE '%s' suggestion cache updated", c.payload["cve_id"])
+        else:
+            logger.info(
+                "CVE '%s' suggestion cached for the first time", c.payload["cve_id"]
+            )
+
+
+def build_cached_suggestion(
+    suggestion: CVEDerivationClusterProposal,
+) -> CachedSuggestion | None:
     # FIXME(@fricklerhandwerk): Here we're blindly picking a title and description, which can be arbitrarily bad.
     # For instance, at the time of writing, most titles in containers are one of
     # - "CVE Program Container" (>600k)
@@ -265,7 +305,7 @@ def cache_suggestion(suggestion: CVEDerivationClusterProposal) -> None:
     package_overlays = list(suggestion.package_overlays.all())
     packages = apply_package_overlays(original_packages, package_overlays)
 
-    only_relevant_data = CachedSuggestion(
+    return CachedSuggestion(
         pk=suggestion.pk,
         cve_id=suggestion.cve.cve_id,
         title=title,
@@ -282,21 +322,6 @@ def cache_suggestion(suggestion: CVEDerivationClusterProposal) -> None:
             suggestion.references, list(suggestion.reference_url_overlays.all())
         ),
     )
-
-    _, created = CachedSuggestions.objects.update_or_create(
-        proposal_id=suggestion.pk,
-        defaults={
-            "payload": only_relevant_data.model_dump(mode="json"),
-            "schema_version": CachedSuggestions.CURRENT_SCHEMA_VERSION,
-        },
-    )
-
-    if created:
-        logger.info(
-            "CVE '%s' suggestion cached for the first time", suggestion.cve.cve_id
-        )
-    else:
-        logger.info("CVE '%s' suggestion cache updated", suggestion.cve.cve_id)
 
 
 def is_version_affected(version_statuses: list[str]) -> Version.Status:
