@@ -56,4 +56,5 @@ in
   };
 
   nix-security-tracker = final.python3-sectracker.pkgs.callPackage ./package.nix { inherit sources; };
+  nix-security-tracker-frontend = final.callPackage ./frontend.nix { };
 }
