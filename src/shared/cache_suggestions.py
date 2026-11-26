@@ -13,7 +13,7 @@ from pydantic import BaseModel, field_serializer
 
 from shared.models import NixDerivation, NixMaintainer
 from shared.models.cached import CachedSuggestions
-from shared.models.cve import AffectedProduct, Metric, Reference, Version
+from shared.models.cve import AffectedProduct, CveRecord, Metric, Reference, Version
 from shared.models.linkage import (
     CVEDerivationClusterProposal,
     MaintainerOverlay,
@@ -161,9 +161,12 @@ def cache_suggestion(suggestion: CVEDerivationClusterProposal) -> None:
 
 
 def cache_suggestions(suggestions: Sequence[CVEDerivationClusterProposal]) -> None:
+    cve_pks = {s.cve_id for s in suggestions}
+    cve_ids = dict(CveRecord.objects.filter(pk__in=cve_pks).values_list("pk", "cve_id"))
+
     cached = []
     for suggestion in suggestions:
-        payload = build_cached_suggestion(suggestion)
+        payload = build_cached_suggestion(suggestion, cve_ids[suggestion.cve_id])
         if payload is not None:
             cached.append(
                 CachedSuggestions(
@@ -196,6 +199,7 @@ def cache_suggestions(suggestions: Sequence[CVEDerivationClusterProposal]) -> No
 
 def build_cached_suggestion(
     suggestion: CVEDerivationClusterProposal,
+    cve_id: str,
 ) -> CachedSuggestion | None:
     # FIXME(@fricklerhandwerk): Here we're blindly picking a title and description, which can be arbitrarily bad.
     # For instance, at the time of writing, most titles in containers are one of
@@ -307,7 +311,7 @@ def build_cached_suggestion(
 
     return CachedSuggestion(
         pk=suggestion.pk,
-        cve_id=suggestion.cve.cve_id,
+        cve_id=cve_id,
         title=title,
         description=description,
         affected_products=affected_products,
