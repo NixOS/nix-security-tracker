@@ -46,7 +46,7 @@ type Operation = (typeof operations)[number];
 
 type ActionCategory =
   | { kind: "create" }
-  | { kind: "package"; restored: boolean }
+  | { kind: "package"; op: Operation }
   | { kind: "reference"; restored: boolean }
   | { kind: "maintainer"; op: Operation }
   | { kind: "rematch" }
@@ -57,7 +57,8 @@ function classifyAction(entry: ActivityLogEntry): ActionCategory {
   if (entry.action === "create") return { kind: "create" };
   if (entry.action === "rematch") return { kind: "rematch" };
   if (entry.action.startsWith("package.")) {
-    return { kind: "package", restored: entry.action.includes("restore") };
+    const op = operations.find((o) => entry.action.includes(o));
+    if (op) return { kind: "package", op };
   }
   if (entry.action.startsWith("reference.")) {
     return { kind: "reference", restored: entry.action.includes("restore") };
@@ -90,7 +91,14 @@ function actionIcon(
     case "create":
       return entry.rejection_reason ? Trash2Icon : InboxIcon;
     case "package":
-      return category.restored ? PackagePlusIcon : PackageMinusIcon;
+      return (
+        {
+          ignore: PackageMinusIcon,
+          restore: PackagePlusIcon,
+          add: PackagePlusIcon,
+          delete: PackageMinusIcon,
+        } satisfies Record<Operation, LucideIcon>
+      )[category.op];
     case "reference":
       return category.restored ? LinkIcon : UnlinkIcon;
     case "maintainer":
@@ -114,7 +122,14 @@ function actionName(entry: ActivityLogEntry): string {
     case "create":
       return entry.rejection_reason ? "created & dismissed" : "created suggestion";
     case "package":
-      return category.restored ? "restored package" : "ignored package";
+      return (
+        {
+          ignore: "ignored package",
+          restore: "restored package",
+          add: "added package",
+          delete: "deleted package",
+        } satisfies Record<Operation, string>
+      )[category.op];
     case "reference":
       return category.restored ? "restored reference" : "ignored reference";
     case "maintainer":

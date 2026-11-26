@@ -200,6 +200,8 @@ class NotificationViewSet(
             )
             .prefetch_related(
                 "suggestionnotification__suggestion__cve__container__references__tags",
+                # For the added packages of expanded suggestions.
+                "suggestionnotification__suggestion__package_overlays",
             )
             .select_subclasses()
             .order_by("-created_at")

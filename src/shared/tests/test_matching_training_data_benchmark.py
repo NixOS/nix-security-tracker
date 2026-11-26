@@ -166,6 +166,27 @@ def test_accepted_kept_hit(
     assert score.rejection_agree
 
 
+def test_manually_added_package_is_kept(
+    make_container: Callable[..., Container],
+    make_drv: Callable[..., NixDerivation],
+) -> None:
+    """A package a user added is one the matcher should find."""
+    pkg = "benchaddeduniq"
+    drv = make_drv(pname=pkg, version="1.0", attribute=pkg)
+    container = make_container(
+        cve_id="CVE-2026-bench-added", package_name=pkg, product=pkg
+    )
+    proposal = _proposal(container)
+    DerivationClusterProposalLink.objects.create(
+        proposal=proposal, derivation=drv, provenance_flags=ProvenanceFlags.MANUAL
+    )
+
+    kept, _ = label_sets(proposal)
+    assert {key.attr for key in kept} == {pkg}
+    score = score_proposal(proposal, rematch(proposal))
+    assert score.true_positives == 1
+
+
 def test_ignored_overlay_counts_as_fp(
     make_container: Callable[..., Container],
     make_drv: Callable[..., NixDerivation],
@@ -422,8 +443,12 @@ def test_tally_matches_counts_provenance_per_flag(
         (
             "good",
             "x86_64-linux",
-            ProvenanceFlags.CPE_MATCH | ProvenanceFlags.PRODUCT_MATCH,
+            ProvenanceFlags.CPE_MATCH
+            | ProvenanceFlags.PRODUCT_MATCH
+            | ProvenanceFlags.MANUAL,
         ),
+        # Only added by a user, so not counted.
+        ("added", "x86_64-linux", ProvenanceFlags.MANUAL),
         (
             "good",
             "aarch64-linux",
@@ -443,9 +468,11 @@ def test_tally_matches_counts_provenance_per_flag(
 
     # An attribute name with several flags counts towards each of them.
     # Each attribute name counts once, however many systems carry it.
-    assert tally_matches(
-        CVEDerivationClusterProposal.objects.filter(pk=proposal.pk)
-    ).provenance == {
+    tallies = tally_matches(CVEDerivationClusterProposal.objects.filter(pk=proposal.pk))
+    assert tallies.attribute_counts[
+        CVEDerivationClusterProposal.Status.ACCEPTED
+    ].matched == Counter({2: 1})
+    assert tallies.provenance == {
         CVEDerivationClusterProposal.Status.ACCEPTED: Tally[ProvenanceFlags](
             matched=Counter(
                 {

@@ -1,12 +1,22 @@
 import { useQueryClient } from "@tanstack/react-query";
-import { getListSuggestionsQueryKey, useUpdateSuggestionPackage } from "@/api/generated/endpoints";
+import {
+  getListSuggestionsQueryKey,
+  useAddSuggestionPackage,
+  useDeleteSuggestionPackage,
+  useUpdateSuggestionPackage,
+} from "@/api/generated/endpoints";
 import type {
+  DeleteSuggestionPackageParams,
   PatchedSuggestionPackageUpdate,
   SuggestionCategorizedMaintainers,
   SuggestionPackages,
 } from "@/api/generated/models";
 import { optimisticSuggestionHandlers } from "@/hooks/optimisticSuggestion";
-import { invalidateActivityLog, staleQuietly } from "@/utils/suggestionCache";
+import {
+  invalidateActivityLog,
+  invalidateCachedSuggestion,
+  staleQuietly,
+} from "@/utils/suggestionCache";
 
 type MutationVars = { id: number; data: PatchedSuggestionPackageUpdate };
 
@@ -49,6 +59,54 @@ export function usePackageMutation(suggestionId: number) {
         // The suggestion cache is correct via the optimistic update.
         invalidateActivityLog(queryClient, suggestionId);
         // A package moving in/out of `active` can affect the "with package" list filter.
+        staleQuietly(queryClient, getListSuggestionsQueryKey());
+      },
+    }),
+  });
+}
+
+export function useAddPackageMutation(suggestionId: number) {
+  // No optimistic update: the server checks the attribute exists and computes the package's data.
+  const queryClient = useQueryClient();
+
+  return useAddSuggestionPackage({
+    mutation: {
+      onSuccess: () => {
+        invalidateCachedSuggestion(queryClient, suggestionId);
+        invalidateActivityLog(queryClient, suggestionId);
+        staleQuietly(queryClient, getListSuggestionsQueryKey());
+      },
+    },
+  });
+}
+
+type DeleteMutationVars = { id: number; params: DeleteSuggestionPackageParams };
+
+export function useDeletePackageMutation(suggestionId: number) {
+  const queryClient = useQueryClient();
+
+  return useDeleteSuggestionPackage({
+    mutation: optimisticSuggestionHandlers(queryClient, suggestionId, {
+      patch: (prev, { params }: DeleteMutationVars) => {
+        const packages = { ...prev.packages };
+        const added_packages = { ...prev.added_packages };
+        for (const attr of params.package_attributes) {
+          // A package the matcher found too stays, it's just no longer added.
+          if (!(attr in prev.original_packages)) delete packages[attr];
+          delete added_packages[attr];
+        }
+        const unavailable_added_packages = prev.unavailable_added_packages.filter(
+          (attr) => !params.package_attributes.includes(attr),
+        );
+        return { ...prev, packages, added_packages, unavailable_added_packages };
+      },
+      // The UI only deletes one package at a time.
+      errorTitle: () => "Failed to delete package",
+      conflictTitle: () => "Package already removed",
+      onSuccess: () => {
+        // The maintainers of the deleted package go away too, which only the server knows.
+        invalidateCachedSuggestion(queryClient, suggestionId);
+        invalidateActivityLog(queryClient, suggestionId);
         staleQuietly(queryClient, getListSuggestionsQueryKey());
       },
     }),

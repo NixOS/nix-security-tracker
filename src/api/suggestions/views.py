@@ -43,6 +43,8 @@ from api.suggestions.serializers import (
     SuggestionMaintainerAddSerializer,
     SuggestionMaintainerDeleteSerializer,
     SuggestionMaintainerUpdateSerializer,
+    SuggestionPackageAddSerializer,
+    SuggestionPackageDeleteSerializer,
     SuggestionPackageUpdateSerializer,
     SuggestionReferenceUpdateSerializer,
     SuggestionSerializer,
@@ -252,7 +254,7 @@ class SuggestionViewSet(ListModelMixin, RetrieveModelMixin, viewsets.GenericView
             return super().get_queryset()
 
         # Only suggestions with fresh cache
-        return (
+        queryset = (
             CVEDerivationClusterProposal.objects.filter(
                 cached__isnull=False,
                 cached__schema_version=CachedSuggestions.CURRENT_SCHEMA_VERSION,
@@ -261,6 +263,11 @@ class SuggestionViewSet(ListModelMixin, RetrieveModelMixin, viewsets.GenericView
             .prefetch_related("cve__container__references__tags")
             .order_by("-updated_at", "-created_at")
         )
+        if self.action == "list":
+            # Fetch overlay to display added packages.
+            # Not needed for bulk actions, which currently loop over the overlays to mutate them one by one.
+            queryset = queryset.prefetch_related("package_overlays")
+        return queryset
 
     def selection_is_filtered(self) -> bool:
         """Whether the request narrows the selection down with at least one filter."""
@@ -763,7 +770,7 @@ class SuggestionViewSet(ListModelMixin, RetrieveModelMixin, viewsets.GenericView
     @extend_schema(
         methods=["get"],
         operation_id="getSuggestionPackages",
-        description="Get the categorized packages of a suggestion (original, active, ignored).",
+        description="Get the categorized packages of a suggestion (original, active, ignored, added).",
         responses={
             200: SuggestionCategorizedPackagesSerializer,
             404: ErrorDetailSerializer,
@@ -784,9 +791,49 @@ class SuggestionViewSet(ListModelMixin, RetrieveModelMixin, viewsets.GenericView
             404: ErrorDetailSerializer,
         },
     )
+    @extend_schema(
+        methods=["post"],
+        operation_id="addSuggestionPackage",
+        description=(
+            "Manually add packages that the matcher did not find. "
+            "Fails if any of the packages is unknown, already part of the suggestion, or already added."
+        ),
+        request=SuggestionPackageAddSerializer,
+        responses={
+            204: None,
+            400: ErrorDetailSerializer,
+            403: ErrorDetailSerializer,
+            404: ErrorDetailSerializer,
+        },
+    )
+    @extend_schema(
+        methods=["delete"],
+        operation_id="deleteSuggestionPackage",
+        description=(
+            "Delete manually added packages. "
+            "Fails if any of the packages was not added manually."
+        ),
+        # NOTE: Passed as query parameter for the same reason as `deleteSuggestionMaintainer`.
+        parameters=[
+            OpenApiParameter(
+                name="package_attributes",
+                type={"type": "array", "items": {"type": "string"}},
+                location=OpenApiParameter.QUERY,
+                required=True,
+                explode=True,
+                description="Attribute names of the manually added packages to delete. Repeat the parameter for each package.",
+            ),
+        ],
+        responses={
+            204: None,
+            400: ErrorDetailSerializer,
+            403: ErrorDetailSerializer,
+            404: ErrorDetailSerializer,
+        },
+    )
     @action(
         detail=True,
-        methods=["get", "patch"],
+        methods=["get", "patch", "post", "delete"],
         url_path="packages",
         serializer_class=SuggestionPackageUpdateSerializer,
     )
@@ -798,15 +845,15 @@ class SuggestionViewSet(ListModelMixin, RetrieveModelMixin, viewsets.GenericView
             instance = self.get_object()
             instance.ensure_fresh_cache()
             payload = instance.cached.payload
+            original = payload["original_packages"]
             active = payload["packages"]
+            added = instance.added_package_attributes()
             data = {
-                "original": payload["original_packages"],
+                "original": original,
                 "active": active,
-                "ignored": {
-                    k: v
-                    for k, v in payload["original_packages"].items()
-                    if k not in active
-                },
+                "ignored": {k: v for k, v in original.items() if k not in active},
+                "added": {k: active[k] for k in added if k in active},
+                "unavailable": sorted(k for k in added if k not in active),
             }
             return Response(SuggestionCategorizedPackagesSerializer(data).data)
         elif request.method == "PATCH":
@@ -823,6 +870,28 @@ class SuggestionViewSet(ListModelMixin, RetrieveModelMixin, viewsets.GenericView
                     instance.restore_packages(
                         serializer.validated_data["package_attributes"]
                     )
+            except ValidationError as e:
+                raise DRFValidationError(e.message_dict)
+            return Response(status=204)
+        elif request.method == "POST":
+            serializer = SuggestionPackageAddSerializer(data=request.data)
+            serializer.is_valid(raise_exception=True)
+            instance = self.get_object()
+            instance.ensure_fresh_cache()
+            try:
+                instance.add_packages(serializer.validated_data["package_attributes"])
+            except ValidationError as e:
+                raise DRFValidationError(e.message_dict)
+            return Response(status=204)
+        elif request.method == "DELETE":
+            serializer = SuggestionPackageDeleteSerializer(data=request.query_params)
+            serializer.is_valid(raise_exception=True)
+            instance = self.get_object()
+            instance.ensure_fresh_cache()
+            try:
+                instance.remove_packages(
+                    serializer.validated_data["package_attributes"]
+                )
             except ValidationError as e:
                 raise DRFValidationError(e.message_dict)
             return Response(status=204)

@@ -15,12 +15,14 @@ from shared.models.cve import Container
 from shared.models.linkage import (
     CVEDerivationClusterProposal,
     DerivationClusterProposalLink,
+    PackageOverlay,
     ProvenanceFlags,
 )
 from shared.models.nix_evaluation import (
     NixDerivation,
     NixEvaluation,
 )
+from shared.models.package import Package
 
 
 @pytest.fixture
@@ -333,3 +335,45 @@ def test_suggestion_refresh_skipped_when_transaction_rolls_back(
         fail_later_in_transaction()
 
     mock_pgnotify.assert_not_called()
+
+
+@pytest.mark.django_db(transaction=True)
+@pytest.mark.parametrize(
+    "status,in_evaluation,triggered",
+    [
+        (CVEDerivationClusterProposal.Status.PENDING, True, True),
+        (CVEDerivationClusterProposal.Status.ACCEPTED, True, True),
+        (CVEDerivationClusterProposal.Status.PUBLISHED, True, False),
+        (CVEDerivationClusterProposal.Status.PENDING, False, False),
+    ],
+)
+def test_suggestion_with_unlinked_added_package_triggered(
+    status: CVEDerivationClusterProposal.Status,
+    in_evaluation: bool,
+    triggered: bool,
+    make_evaluation: Callable[..., NixEvaluation],
+    make_drv: Callable[..., NixDerivation],
+    make_suggestion: Callable[..., CVEDerivationClusterProposal],
+    make_package: Callable[..., Package],
+    mock_cluster_after_evaluation_trigger: Callable[..., list[int]],
+) -> None:
+    """An added package that is in no tracked channel has no links, but may be back in a new evaluation."""
+    suggestion = make_suggestion(status=status)
+    suggestion.derivationclusterproposallink_set.all().delete()
+    new_evaluation = make_evaluation()
+    added = make_drv(
+        pname="added", evaluation=new_evaluation if in_evaluation else make_evaluation()
+    )
+    PackageOverlay.objects.create(
+        suggestion=suggestion,
+        package_attribute=added.attribute,
+        package=make_package(added),
+        type=PackageOverlay.Type.ADDITIONAL,
+    )
+
+    triggered_pks = mock_cluster_after_evaluation_trigger(
+        old=NixEvaluation(state=NixEvaluation.EvaluationState.IN_PROGRESS),
+        new=new_evaluation,
+    )
+
+    assert (suggestion.pk in triggered_pks) == triggered

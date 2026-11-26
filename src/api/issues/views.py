@@ -61,6 +61,8 @@ class IssueViewSet(ListModelMixin, RetrieveModelMixin, viewsets.GenericViewSet):
             NixpkgsIssue.objects.prefetch_related(
                 "suggestions__cached",
                 "suggestions__cve__container__references__tags",
+                # For the added packages of expanded suggestions.
+                "suggestions__package_overlays",
                 "github_items__events",
                 "github_items__closed_by__pull_request__events",
             )

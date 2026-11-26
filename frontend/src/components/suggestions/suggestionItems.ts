@@ -57,14 +57,30 @@ export function packageRows(
   original: SuggestionOriginalPackages,
   active: SuggestionPackages,
   ignored: SuggestionPackages,
+  added: SuggestionPackages,
+  unavailable: readonly string[],
 ): ItemRow<PackageEntry>[] {
   const entries = (packages: SuggestionPackages) =>
     Object.entries(packages).map(([attribute, pkg]) => ({ attribute, pkg }));
+  // Added packages that are in no tracked channel have no data, but are listed like the others.
+  const empty: SuggestionPackage = {
+    branches: {},
+    derivation_ids: [],
+    maintainers: [],
+    description: null,
+  };
+  const notAdded = Object.fromEntries(
+    Object.entries(active).filter(([attribute]) => !(attribute in added)),
+  );
   return inOriginalOrder(
     Object.keys(original),
     [
-      { state: "active", items: entries(active) },
+      { state: "active", items: entries(notAdded) },
       { state: "ignored", items: entries(ignored) },
+      {
+        state: "added",
+        items: [...entries(added), ...unavailable.map((attribute) => ({ attribute, pkg: empty }))],
+      },
     ],
     (entry) => entry.attribute,
   );

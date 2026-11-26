@@ -21,7 +21,10 @@ from shared import models
 from shared.evaluation import DerivationKey, derivation_as_key
 from shared.package_clustering import cluster_packages
 
-SCHEMA_VERSION = 1
+# 2: Links of manually added packages, with the `MANUAL` provenance flag.
+SCHEMA_VERSION = 2
+# Version 1 differs only by not having manually added packages.
+COMPATIBLE_SCHEMA_VERSIONS = {1, 2}
 
 # Synthetic release branch used when materializing a local benchmark corpus
 BENCHMARK_RELEASE_BRANCH = "benchmark-master"
@@ -224,10 +227,10 @@ class CVEDerivationClusterProposal(serializers.ModelSerializer):
         read_only_fields = ("kept_derivations", "ignored_packages")
 
     def validate_schema_version(self, value: int) -> int:
-        if value != SCHEMA_VERSION:
+        if value not in COMPATIBLE_SCHEMA_VERSIONS:
             raise serializers.ValidationError(
                 f"Unsupported matching training-data schema_version={value}; "
-                f"expected {SCHEMA_VERSION}"
+                f"expected one of {sorted(COMPATIBLE_SCHEMA_VERSIONS)}"
             )
         return value
 
@@ -417,7 +420,8 @@ class CVEDerivationClusterProposal(serializers.ModelSerializer):
             algorithm_version=validated_data["algorithm_version"],
         )
 
-        link_objs = []
+        # Links on several branches can map to the same imported derivation, which has one link with all their flags.
+        flags_by_derivation: dict[models.NixDerivation, int] = {}
         for link_data in links_data:
             drv_data = link_data["derivation"]
             attribute = drv_data["attribute"]
@@ -431,15 +435,16 @@ class CVEDerivationClusterProposal(serializers.ModelSerializer):
                 name=name,
                 meta_name=name,
             )
-            link_objs.append(
-                models.DerivationClusterProposalLink(
-                    proposal=proposal,
-                    derivation=by_fingerprint[key],
-                    provenance_flags=link_data["provenance_flags"],
-                )
+            derivation = by_fingerprint[key]
+            flags_by_derivation[derivation] = (
+                flags_by_derivation.get(derivation, 0) | link_data["provenance_flags"]
             )
-        if link_objs:
-            models.DerivationClusterProposalLink.objects.bulk_create(link_objs)
+        models.DerivationClusterProposalLink.objects.bulk_create(
+            models.DerivationClusterProposalLink(
+                proposal=proposal, derivation=derivation, provenance_flags=flags
+            )
+            for derivation, flags in flags_by_derivation.items()
+        )
 
         # Overlays refer to packages, so the imported derivations need to be
         # clustered into packages first, as it happens on evaluation ingestion.

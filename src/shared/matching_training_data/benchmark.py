@@ -195,9 +195,11 @@ def tally_matches(proposals: QuerySet[CVEDerivationClusterProposal]) -> MatchTal
         .order_by()
         .iterator(chunk_size=10_000)
     ):
-        flags_by_proposal[row["proposal_id"]][row["derivation__attribute"]] = row[
-            "flags"
-        ]
+        # Manually added packages are not matcher output.
+        if row["flags"] != ProvenanceFlags.MANUAL:
+            flags_by_proposal[row["proposal_id"]][row["derivation__attribute"]] = (
+                row["flags"] & ~ProvenanceFlags.MANUAL
+            )
     ignored_by_suggestion: defaultdict[int, set[str]] = defaultdict(set)
     for suggestion_id, attribute in PackageOverlay.objects.filter(
         suggestion__in=statuses, type=PackageOverlay.Type.IGNORED

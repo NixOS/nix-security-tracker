@@ -39,6 +39,8 @@ export function suggestionSections(
     packages,
     original_packages,
     ignored_packages,
+    added_packages,
+    unavailable_added_packages,
     categorized_maintainers,
     categorized_url_references,
   } = suggestion;
@@ -57,7 +59,12 @@ export function suggestionSections(
       ),
     affected_products.length > 0 &&
       section("affected-products", <AffectedProductsTree affectedProducts={affected_products} />),
-    Object.keys(packages).length + Object.keys(ignored_packages).length > 0 &&
+    // Editors need the section to add packages, even if there are none yet.
+    (editable ||
+      Object.keys(packages).length +
+        Object.keys(ignored_packages).length +
+        unavailable_added_packages.length >
+        0) &&
       section(
         "packages",
         <CategorizedPackagesList
@@ -65,6 +72,8 @@ export function suggestionSections(
           original={original_packages}
           active={packages}
           ignored={ignored_packages}
+          added={added_packages}
+          unavailable={unavailable_added_packages}
           editable={editable}
         />,
       ),

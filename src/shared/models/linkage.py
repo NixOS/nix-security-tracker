@@ -8,7 +8,7 @@ import pghistory
 import pgtrigger
 from django.core.exceptions import ValidationError
 from django.db import models, transaction
-from django.db.models import Exists, OuterRef, Q
+from django.db.models import Exists, F, OuterRef, Q
 from django.db.models.fields.json import KeyTransform
 from django.db.models.signals import post_delete, post_save
 from django.db.utils import InternalError
@@ -17,9 +17,15 @@ from django.utils.functional import classproperty
 from django.utils.translation import gettext_lazy as _
 
 import shared.models.cached
-from shared.models.cve import AffectedProduct, CveRecord, Reference
-from shared.models.nix_evaluation import NixDerivation, NixMaintainer, TimeStampMixin
+from shared.models.cve import AffectedProduct, CveRecord, Reference, Version
+from shared.models.nix_evaluation import (
+    NixDerivation,
+    NixEvaluation,
+    NixMaintainer,
+    TimeStampMixin,
+)
 from shared.models.package import Package, PackageAttrpath
+from shared.package_clustering import cluster_packages
 
 
 class Overlay(models.Model):
@@ -409,7 +415,12 @@ class CVEDerivationClusterProposalQuerySet(models.QuerySet):
             comments.add(comment or "")
             packages.append(
                 (
-                    {attribute: attribute for attribute in active_packages},
+                    # Packages only added by hand can be deleted, not ignored.
+                    {
+                        attribute: attribute
+                        for attribute in active_packages
+                        if attribute in original_packages
+                    },
                     {
                         attribute: attribute
                         for attribute in original_packages
@@ -555,6 +566,17 @@ class CVEDerivationClusterProposal(TimeStampMixin):
         """Get all unique references from all containers of the CVE attached to this suggestion."""
         return list(Reference.objects.filter(container__cve=self.cve).distinct())
 
+    def affected_version_constraints(self) -> models.QuerySet[Version]:
+        """
+        All version constraints of the products affected by the suggestion's CVE.
+        Lazy, so it costs nothing unless used.
+        """
+        return Version.objects.filter(
+            Q(affectedproduct__package_name__isnull=False)
+            | Q(affectedproduct__product__isnull=False),
+            affectedproduct__container__cve=self.cve,
+        )
+
     @property
     def is_cache_stale(self) -> bool:
         return not getattr(self, "cached", None) or self.cached.is_stale
@@ -567,38 +589,162 @@ class CVEDerivationClusterProposal(TimeStampMixin):
             cache_new_suggestions(self)
             self.refresh_from_db()
 
+    def added_package_attributes(self) -> set[str]:
+        return {
+            overlay.package_attribute
+            for overlay in self.package_overlays.all()
+            if overlay.type == PackageOverlay.Type.ADDITIONAL
+        }
+
+    def _lock(self) -> None:
+        """
+        Wait for concurrent changes to this suggestion's links, such as a refresh, and read their outcome.
+        """
+        CVEDerivationClusterProposal.objects.select_for_update().get(pk=self.pk)
+        self.cached.refresh_from_db()
+
+    def link_added_packages(self, package_attributes: set[str]) -> set[str]:
+        """
+        Link the derivations of manually added packages from the latest evaluations.
+
+        Merges into the matcher's links, so each derivation has at most one link.
+        Returns the attributes that got links.
+        """
+        candidates = NixDerivation.objects.filter(
+            attribute__in=package_attributes,
+            parent_evaluation__in=NixEvaluation.objects.latest_completed_per_branch(),
+            metadata__isnull=False,
+        )
+        cluster_packages(candidates, update_packages=True)
+        # Clustering skips derivations another transaction is clustering at the same time.
+        # Read once, so concurrent clustering can't change the result halfway through.
+        derivations = dict(
+            candidates.filter(package_link__isnull=False).values_list("pk", "attribute")
+        )
+        links = {
+            link.derivation_id: link
+            for link in self.derivationclusterproposallink_set.filter(
+                derivation__in=derivations.keys()
+            )
+        }
+        for link in links.values():
+            link.provenance_flags |= ProvenanceFlags.MANUAL
+        DerivationClusterProposalLink.objects.bulk_update(
+            links.values(), ["provenance_flags"]
+        )
+        DerivationClusterProposalLink.objects.bulk_create(
+            DerivationClusterProposalLink(
+                proposal=self,
+                derivation_id=pk,
+                provenance_flags=ProvenanceFlags.MANUAL,
+            )
+            for pk in derivations
+            if pk not in links
+        )
+        self._sync_added_package_links()
+        return set(derivations.values())
+
+    def unlink_added_packages(self, package_attributes: set[str]) -> None:
+        """Remove the links of manually added packages, except those the matcher made too."""
+        links = self.derivationclusterproposallink_set.filter(
+            derivation__attribute__in=package_attributes
+        )
+        links.filter(provenance_flags=ProvenanceFlags.MANUAL).delete()
+        links.manual().update(
+            provenance_flags=F("provenance_flags").bitand(
+                (~ProvenanceFlags.MANUAL).value
+            )
+        )
+        self._sync_added_package_links()
+
+    def _sync_added_package_links(self) -> None:
+        """Mark exactly the packages with manually linked derivations as manually linked."""
+        packages = set(
+            self.derivationclusterproposallink_set.manual()
+            .filter(derivation__package_link__isnull=False)
+            .values_list("derivation__package_link__package_id", flat=True)
+        )
+        links = {link.package_id: link for link in self.package_links.all()}
+        for package_id, link in links.items():
+            if package_id in packages:
+                link.provenance_flags |= ProvenanceFlags.MANUAL
+            else:
+                link.provenance_flags &= ~ProvenanceFlags.MANUAL
+        PackageClusterProposalLink.objects.filter(
+            pk__in=[link.pk for link in links.values() if not link.provenance_flags]
+        ).delete()
+        PackageClusterProposalLink.objects.bulk_update(
+            [link for link in links.values() if link.provenance_flags],
+            ["provenance_flags"],
+        )
+        PackageClusterProposalLink.objects.bulk_create(
+            PackageClusterProposalLink(
+                proposal=self,
+                package_id=package_id,
+                provenance_flags=ProvenanceFlags.MANUAL,
+            )
+            for package_id in packages - links.keys()
+        )
+
     def check_ignore_packages(self, package_attributes: list[str]) -> None:
         """
         Raise unless all these packages can be ignored on this suggestion.
         """
         original_packages = self.cached.payload["original_packages"]
+        overlay_types = dict(
+            self.package_overlays.filter(
+                package_attribute__in=package_attributes
+            ).values_list("package_attribute", "type")
+        )
         errors = []
-        missing = [a for a in package_attributes if a not in original_packages]
+        # Only added, not found by the matcher: there is nothing to ignore.
+        added = [
+            a
+            for a in package_attributes
+            if a not in original_packages
+            and overlay_types.get(a) == PackageOverlay.Type.ADDITIONAL
+        ]
+        if added:
+            errors.append(
+                f"Packages were added manually, remove them instead: {', '.join(added)}"
+            )
+        missing = [
+            a
+            for a in package_attributes
+            if a not in original_packages and a not in added
+        ]
         if missing:
             errors.append(f"Packages not found in the suggestion: {', '.join(missing)}")
-        already_ignored = set(
-            self.package_overlays.filter(
-                package_attribute__in=package_attributes,
-                type=PackageOverlay.Type.IGNORED,
-            ).values_list("package_attribute", flat=True)
-        )
+        already_ignored = [
+            a
+            for a in package_attributes
+            if overlay_types.get(a) == PackageOverlay.Type.IGNORED
+        ]
         if already_ignored:
-            errors.append(
-                "Packages already ignored: "
-                + ", ".join(a for a in package_attributes if a in already_ignored)
-            )
+            errors.append(f"Packages already ignored: {', '.join(already_ignored)}")
         if errors:
             raise ValidationError({"package_attributes": errors})
 
     def ignore_packages(self, package_attributes: list[str]) -> None:
         """Ignore packages, updating the overlays and the cache."""
         with transaction.atomic():
+            self._lock()
             self.check_ignore_packages(package_attributes)
             package_ids = dict(
                 PackageAttrpath.objects.filter(
                     attrpath__in=package_attributes
                 ).values_list("attrpath", "package_id")
             )
+            # A package that was added manually and then found by the matcher on rematch is both.
+            # Ignoring it replaces the addition.
+            added = self.package_overlays.filter(
+                package_attribute__in=package_attributes,
+                type=PackageOverlay.Type.ADDITIONAL,
+            )
+            self.unlink_added_packages({overlay.package_attribute for overlay in added})
+            for overlay in added:
+                overlay.type = PackageOverlay.Type.IGNORED
+                overlay.save(update_fields=["type"])
             for package_attribute in package_attributes:
                 self.package_overlays.get_or_create(
                     package_attribute=package_attribute,
@@ -631,11 +777,131 @@ class CVEDerivationClusterProposal(TimeStampMixin):
     def restore_packages(self, package_attributes: list[str]) -> None:
         """Restore previously ignored packages."""
         with transaction.atomic():
+            self._lock()
             self.check_restore_packages(package_attributes)
             self.package_overlays.filter(
                 package_attribute__in=package_attributes,
                 type=PackageOverlay.Type.IGNORED,
             ).delete()
+            self._recompute_package_cache()
+
+    def check_add_packages(self, package_attributes: list[str]) -> None:
+        """
+        Raise unless all these packages can be manually added to this suggestion.
+        """
+        original_packages = self.cached.payload["original_packages"]
+        errors = []
+        original = [a for a in package_attributes if a in original_packages]
+        if original:
+            errors.append(
+                f"Packages already part of the suggestion: {', '.join(original)}"
+            )
+        overlay_types = dict(
+            self.package_overlays.filter(
+                package_attribute__in=package_attributes
+            ).values_list("package_attribute", "type")
+        )
+        already_added = [
+            a
+            for a in package_attributes
+            if overlay_types.get(a) == PackageOverlay.Type.ADDITIONAL
+        ]
+        packages = self.cached.payload["packages"]
+        shown = [a for a in already_added if a in packages]
+        if shown:
+            errors.append(f"Packages already added: {', '.join(shown)}")
+        hidden = [a for a in already_added if a not in packages]
+        if hidden:
+            errors.append(
+                f"Packages already added, currently not in any tracked channel: {', '.join(hidden)}"
+            )
+        available = set(
+            NixDerivation.objects.filter(
+                attribute__in=package_attributes,
+                parent_evaluation__in=NixEvaluation.objects.latest_completed_per_branch(),
+                metadata__isnull=False,
+            ).values_list("attribute", flat=True)
+        )
+        unavailable = [
+            a
+            for a in package_attributes
+            if a not in available and a not in already_added
+        ]
+        if unavailable:
+            errors.append(f"Not in any tracked channel: {', '.join(unavailable)}")
+        if errors:
+            raise ValidationError({"package_attributes": errors})
+
+    def add_packages(self, package_attributes: list[str]) -> None:
+        """Manually add packages, updating the overlays and the cache."""
+        with transaction.atomic():
+            self._lock()
+            self.check_add_packages(package_attributes)
+            linked = self.link_added_packages(set(package_attributes))
+            if unlinked := [a for a in package_attributes if a not in linked]:
+                raise ValidationError(
+                    {
+                        "package_attributes": "Packages are being processed, try again later: "
+                        + ", ".join(unlinked)
+                    }
+                )
+            # Linking clustered the derivations, which recorded their attribute paths.
+            package_ids = dict(
+                PackageAttrpath.objects.filter(
+                    attrpath__in=package_attributes
+                ).values_list("attrpath", "package_id")
+            )
+            # An ignored package the matcher no longer finds can't be restored, only added again.
+            ignored = {
+                overlay.package_attribute: overlay
+                for overlay in self.package_overlays.filter(
+                    package_attribute__in=package_attributes,
+                    type=PackageOverlay.Type.IGNORED,
+                )
+            }
+            # One by one rather than `bulk_create()`, so the signals record activity log events.
+            for package_attribute in dict.fromkeys(package_attributes):
+                if overlay := ignored.get(package_attribute):
+                    overlay.type = PackageOverlay.Type.ADDITIONAL
+                    overlay.package_id = package_ids[package_attribute]
+                    overlay.save(update_fields=["type", "package"])
+                else:
+                    self.package_overlays.create(
+                        package_attribute=package_attribute,
+                        type=PackageOverlay.Type.ADDITIONAL,
+                        package_id=package_ids[package_attribute],
+                    )
+            self._recompute_package_cache()
+
+    def check_remove_packages(self, package_attributes: list[str]) -> None:
+        """
+        Raise unless all these packages can be removed from this suggestion.
+        """
+        added = set(
+            self.package_overlays.filter(
+                package_attribute__in=package_attributes,
+                type=PackageOverlay.Type.ADDITIONAL,
+            ).values_list("package_attribute", flat=True)
+        )
+        not_added = [a for a in package_attributes if a not in added]
+        if not_added:
+            raise ValidationError(
+                {
+                    "package_attributes": "Packages were not added manually: "
+                    + ", ".join(not_added)
+                }
+            )
+
+    def remove_packages(self, package_attributes: list[str]) -> None:
+        """Remove manually added packages."""
+        with transaction.atomic():
+            self._lock()
+            self.check_remove_packages(package_attributes)
+            self.package_overlays.filter(
+                package_attribute__in=package_attributes,
+                type=PackageOverlay.Type.ADDITIONAL,
+            ).delete()
+            self.unlink_added_packages(set(package_attributes))
             self._recompute_package_cache()
 
     def _recompute_package_cache(self) -> None:
@@ -645,20 +911,27 @@ class CVEDerivationClusterProposal(TimeStampMixin):
             CachedSuggestion,
             apply_package_overlays,
             categorize_maintainers,
+            grouped_attributes,
+            linked_packages_structure,
         )
 
-        self.cached.payload["packages"] = apply_package_overlays(
-            self.cached.payload["original_packages"],
-            self.package_overlays.all(),
-        )
+        # Not `self.package_overlays.all()`, which could return stale prefetched overlays.
+        package_overlays = list(PackageOverlay.objects.filter(suggestion=self))
         original_packages = {
             k: CachedSuggestion.Package.model_validate(v)
             for k, v in self.cached.payload["original_packages"].items()
         }
-        active_packages = {
-            k: CachedSuggestion.Package.model_validate(v)
-            for k, v in self.cached.payload["packages"].items()
+        active_packages = apply_package_overlays(
+            linked_packages_structure(self, list(self.affected_version_constraints())),
+            package_overlays,
+        )
+        self.cached.payload["packages"] = {
+            k: v.model_dump(mode="json") for k, v in active_packages.items()
         }
+        # Added packages are among the linked derivations.
+        self.cached.payload["attribute_package_groups"] = [
+            group.model_dump(mode="json") for group in grouped_attributes(self)
+        ]
         self.cached.payload["categorized_maintainers"] = categorize_maintainers(
             original_packages,
             active_packages,
@@ -1058,6 +1331,8 @@ class MaintainerOverlay(Overlay):
 @pghistory.track(
     pghistory.ManualEvent("package.restore"),
     pghistory.ManualEvent("package.ignore"),
+    pghistory.ManualEvent("package.add"),
+    pghistory.ManualEvent("package.delete"),
     attrs={
         "package": models.ForeignKey(
             Package,
@@ -1131,12 +1406,19 @@ def track_package_overlay_save(
     sender: type[PackageOverlay],
     instance: PackageOverlay,
     created: bool,
+    update_fields: frozenset[str] | None = None,
     **kwargs: Any,
 ) -> None:
-    if created:
+    # An addition turns into an ignore when the matcher finds the package too, see `ignore_packages()`.
+    if created or (update_fields and "type" in update_fields):
+        label = (
+            "package.add"
+            if instance.type == PackageOverlay.Type.ADDITIONAL
+            else "package.ignore"
+        )
         pghistory.create_event(
             obj=instance,
-            label="package.ignore",
+            label=label,
         )
 
 
@@ -1144,9 +1426,14 @@ def track_package_overlay_save(
 def track_package_overlay_delete(
     sender: type[PackageOverlay], instance: PackageOverlay, **kwargs: Any
 ) -> None:
+    label = (
+        "package.delete"
+        if instance.type == PackageOverlay.Type.ADDITIONAL
+        else "package.restore"
+    )
     pghistory.create_event(
         obj=instance,
-        label="package.restore",
+        label=label,
     )
 
 
@@ -1220,6 +1507,20 @@ class ProvenanceFlags(IntFlag, boundary=STRICT):
     # Whether the hardware constraint is matched for this derivation.
     HARDWARE_CONSTRAINT_INRANGE = 1 << 4
     KERNEL_CONSTRAINT_INRANGE = 1 << 5
+    # Linked because a user added the package, not by the matcher.
+    MANUAL = 1 << 8
+
+
+class ProvenanceQuerySet(models.QuerySet):
+    def manual(self) -> "ProvenanceQuerySet":
+        """Links to packages added by a user."""
+        return self.annotate(
+            manual_flag=F("provenance_flags").bitand(ProvenanceFlags.MANUAL.value)
+        ).exclude(manual_flag=0)
+
+    def matched(self) -> "ProvenanceQuerySet":
+        """Links the matcher made, possibly to packages also added by a user."""
+        return self.exclude(provenance_flags=ProvenanceFlags.MANUAL)
 
 
 class DerivationClusterProposalLink(models.Model):
@@ -1235,6 +1536,16 @@ class DerivationClusterProposalLink(models.Model):
     # we probably want to add a fancy check here.
     provenance_flags = models.IntegerField()
 
+    objects = ProvenanceQuerySet.as_manager()
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(
+                fields=["proposal", "derivation"],
+                name="unique_derivation_per_proposal",
+            )
+        ]
+
 
 class PackageClusterProposalLink(models.Model):
     proposal = models.ForeignKey(
@@ -1248,6 +1559,8 @@ class PackageClusterProposalLink(models.Model):
         related_name="cve_links",
     )
     provenance_flags = models.IntegerField()
+
+    objects = ProvenanceQuerySet.as_manager()
 
     class Meta:
         constraints = [
