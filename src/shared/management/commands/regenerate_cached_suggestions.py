@@ -1,13 +1,14 @@
 import logging
 import time
 from argparse import ArgumentParser
+from itertools import batched
 from typing import Any
 
 from django.core.management.base import BaseCommand
 from django.db.models import Exists, OuterRef, Q
 from prometheus_client import CollectorRegistry, Gauge
 
-from shared.cache_suggestions import cache_new_suggestions
+from shared.cache_suggestions import cache_suggestions
 from shared.metrics import write_metrics_textfile
 from shared.models.cached import CachedSuggestions
 from shared.models.linkage import CVEDerivationClusterProposal
@@ -59,10 +60,9 @@ class Command(BaseCommand):
 
         count = 0
         start = time.time()
-        # FIXME(@fricklerhandwerk): Do this chunk-wise in bulk.
-        for suggestion in proposals:
-            cache_new_suggestions(suggestion)
-            count += 1
+        for chunk in batched(proposals, 500):
+            cache_suggestions(chunk)
+            count += len(chunk)
         duration = time.time() - start
 
         registry = CollectorRegistry()

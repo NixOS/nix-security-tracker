@@ -3,17 +3,26 @@ import logging
 import re
 import urllib.parse
 from collections import defaultdict
-from collections.abc import Iterable
+from collections.abc import Iterable, Sequence
 from datetime import datetime
 from itertools import chain
 from typing import Any, overload
 
-from django.db.models import Case, IntegerField, Prefetch, Q, When
+from django.db.models import Prefetch
 from pydantic import BaseModel, field_serializer
 
 from shared.models import NixDerivation, NixMaintainer
 from shared.models.cached import CachedSuggestions
-from shared.models.cve import AffectedProduct, Metric, Reference, Version
+from shared.models.cve import (
+    AffectedProduct,
+    Container,
+    Cpe,
+    CveRecord,
+    Description,
+    Metric,
+    Reference,
+    Version,
+)
 from shared.models.linkage import (
     CVEDerivationClusterProposal,
     MaintainerOverlay,
@@ -156,35 +165,92 @@ def to_dict(instance: Any) -> dict[str, Any]:
     return data
 
 
-def cache_new_suggestions(suggestion: CVEDerivationClusterProposal) -> None:
+def cache_suggestion(suggestion: CVEDerivationClusterProposal) -> None:
+    cache_suggestions([suggestion])
+
+
+def cache_suggestions(suggestions: Sequence[CVEDerivationClusterProposal]) -> None:
+    cve_pks = {s.cve_id for s in suggestions}
+    cve_ids = dict(CveRecord.objects.filter(pk__in=cve_pks).values_list("pk", "cve_id"))
+    containers: dict[int, list[Container]] = defaultdict(list)
+    for container in (
+        Container.objects.filter(cve__in=cve_pks)
+        .only("cve", "title")
+        .prefetch_related(
+            Prefetch("descriptions", queryset=Description.objects.only("value")),
+            Prefetch(
+                "affected",
+                queryset=AffectedProduct.objects.only("package_name", "product"),
+            ),
+            Prefetch(
+                "affected__versions",
+                queryset=Version.objects.only(
+                    "status", "version", "less_than", "less_equal"
+                ),
+            ),
+            Prefetch("affected__cpes", queryset=Cpe.objects.only("name")),
+        )
+    ):
+        containers[container.cve_id].append(container)
+
+    cached = []
+    for suggestion in suggestions:
+        payload = build_cached_suggestion(
+            suggestion,
+            cve_ids[suggestion.cve_id],
+            containers[suggestion.cve_id],
+        )
+        if payload is not None:
+            cached.append(
+                CachedSuggestions(
+                    proposal_id=suggestion.pk,
+                    payload=payload.model_dump(mode="json"),
+                    schema_version=CachedSuggestions.CURRENT_SCHEMA_VERSION,
+                )
+            )
+
+    existing = set(
+        CachedSuggestions.objects.filter(
+            proposal_id__in=[c.proposal_id for c in cached]
+        ).values_list("proposal_id", flat=True)
+    )
+    CachedSuggestions.objects.bulk_create(
+        cached,
+        update_conflicts=True,
+        unique_fields=["proposal"],
+        update_fields=["payload", "schema_version", "updated_at"],
+    )
+
+    for c in cached:
+        if c.proposal_id in existing:
+            logger.info("CVE '%s' suggestion cache updated", c.payload["cve_id"])
+        else:
+            logger.info(
+                "CVE '%s' suggestion cached for the first time", c.payload["cve_id"]
+            )
+
+
+def build_cached_suggestion(
+    suggestion: CVEDerivationClusterProposal,
+    cve_id: str,
+    containers: list[Container],
+) -> CachedSuggestion | None:
     # FIXME(@fricklerhandwerk): Here we're blindly picking a title and description, which can be arbitrarily bad.
     # For instance, at the time of writing, most titles in containers are one of
     # - "CVE Program Container" (>600k)
-    # - "CISA ADP VUlnrichment" (>270k)
-    has_package_data = Q(affected__package_name__isnull=False) | Q(
-        affected__product__isnull=False
+    # - "CISA ADP Vulnrichment" (>270k)
+    # Typically, the CNA container has the interesting data; give it even higher priority.
+    def has_package_data(container: Container) -> bool:
+        return any(a.package_name or a.product for a in container.affected.all())
+
+    def nonempty(values: Iterable[str | None]) -> str | None:
+        return next((value for value in values if value), None)
+
+    package_data_first = sorted(containers, key=has_package_data, reverse=True)
+    title = nonempty(c.title for c in package_data_first)
+    description = nonempty(
+        d.value for c in package_data_first for d in c.descriptions.all()
     )
-
-    def nonempty(field: str) -> str | None:
-        """
-        Take the first nonempty of the given field, prioritising one that has package data.
-        """
-        return (
-            suggestion.cve.container.annotate(
-                priority=Case(
-                    When(has_package_data, then=0),
-                    default=1,
-                    output_field=IntegerField(),
-                )
-            )
-            .exclude(**{f"{field}__isnull": True})
-            .order_by("priority")
-            .values_list(field, flat=True)
-            .first()
-        )
-
-    title = nonempty("title")
-    description = nonempty("descriptions__value")
 
     if title is None and description is None:
         # FIXME(@fricklerhandwerk): Currently there are some entries that hit this case, despite them violating the spec. [tag:invalid-cves]
@@ -200,21 +266,11 @@ def cache_new_suggestions(suggestion: CVEDerivationClusterProposal) -> None:
     affected_products: dict[str, CachedSuggestion.AffectedProduct] = {}
     all_versions = list()
 
-    prefetched_affected_products = (
-        AffectedProduct.objects.filter(
-            container__cve=suggestion.cve,
-        )
-        .filter(
-            Q(package_name__isnull=False) | Q(product__isnull=False),
-        )
-        .prefetch_related("versions", "cpes")
-    )
-
-    for affected_product in prefetched_affected_products:
+    for affected_product in (a for c in containers for a in c.affected.all()):
         # FIXME(@fricklerhandwerk): We should have a more sophisticated data structure that allows displaying what exactly we're matching.
         package_name = affected_product.package_name or affected_product.product
-        # NOTE(@fricklerhandwerk): Satisfy the static typecheck that doesn't know we already filtered those out...
-        assert package_name is not None
+        if not package_name:
+            continue
         versions = list(affected_product.versions.all())
         all_versions.extend(versions)
 
@@ -265,9 +321,9 @@ def cache_new_suggestions(suggestion: CVEDerivationClusterProposal) -> None:
     package_overlays = list(suggestion.package_overlays.all())
     packages = apply_package_overlays(original_packages, package_overlays)
 
-    only_relevant_data = CachedSuggestion(
+    return CachedSuggestion(
         pk=suggestion.pk,
-        cve_id=suggestion.cve.cve_id,
+        cve_id=cve_id,
         title=title,
         description=description,
         affected_products=affected_products,
@@ -282,21 +338,6 @@ def cache_new_suggestions(suggestion: CVEDerivationClusterProposal) -> None:
             suggestion.references, list(suggestion.reference_url_overlays.all())
         ),
     )
-
-    _, created = CachedSuggestions.objects.update_or_create(
-        proposal_id=suggestion.pk,
-        defaults={
-            "payload": only_relevant_data.model_dump(mode="json"),
-            "schema_version": CachedSuggestions.CURRENT_SCHEMA_VERSION,
-        },
-    )
-
-    if created:
-        logger.info(
-            "CVE '%s' suggestion cached for the first time", suggestion.cve.cve_id
-        )
-    else:
-        logger.info("CVE '%s' suggestion cache updated", suggestion.cve.cve_id)
 
 
 def is_version_affected(version_statuses: list[str]) -> Version.Status:

@@ -5,7 +5,7 @@ from unittest import mock
 import pytest
 from django.test import override_settings
 
-from shared.cache_suggestions import cache_new_suggestions
+from shared.cache_suggestions import cache_suggestion
 from shared.listeners.automatic_linkage import (
     build_new_links,
     refresh_suggestion_derivation_links,
@@ -76,7 +76,7 @@ def test_link_only_latest_eval(
     assert suggestion.derivations.count() < len(evaluations)
 
     # Check the whole data pipeline by also caching the suggestion
-    cache_new_suggestions(suggestion)
+    cache_suggestion(suggestion)
 
 
 def test_eol_channel_produces_no_matches(
@@ -177,7 +177,7 @@ def test_link_product_or_package_name(
         assert link.provenance_flags == expected_flags
         assert link.proposal.status == CVEDerivationClusterProposal.Status.PENDING
         # Check the whole data pipeline by also caching the suggestion
-        cache_new_suggestions(link.proposal)
+        cache_suggestion(link.proposal)
     else:
         proposal = CVEDerivationClusterProposal.objects.get(cve=container.cve)
         assert proposal.status == CVEDerivationClusterProposal.Status.REJECTED

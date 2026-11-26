@@ -3,7 +3,7 @@ from datetime import timedelta
 
 import pytest
 
-from shared.cache_suggestions import cache_new_suggestions
+from shared.cache_suggestions import cache_suggestion
 from shared.models.cached import CachedSuggestions
 from shared.models.cve import Container
 from shared.models.linkage import (
@@ -70,7 +70,7 @@ def test_caching_newest_package(
 
     cached = CachedSuggestions.objects.filter(proposal=suggestion)
     assert not cached.exists()
-    cache_new_suggestions(suggestion)
+    cache_suggestion(suggestion)
     value = cached.get()
     assert cve.cve.cve_id == value.payload["cve_id"]
 
@@ -132,7 +132,7 @@ def test_maintainers_come_from_rolling_release_channel(
             provenance_flags=ProvenanceFlags.PACKAGE_NAME_MATCH,
         )
 
-    cache_new_suggestions(suggestion)
+    cache_suggestion(suggestion)
     cached = CachedSuggestions.objects.get(proposal=suggestion)
     maintainers = cached.payload["packages"][drv_rolling.attribute]["maintainers"]
     expected = ["rolling-maintainer"] if rolling_has_maintainers else []
@@ -142,7 +142,7 @@ def test_maintainers_come_from_rolling_release_channel(
 def test_cache_stale_check(
     suggestion: CVEDerivationClusterProposal,
 ) -> None:
-    cache_new_suggestions(suggestion)
+    cache_suggestion(suggestion)
     cached = CachedSuggestions.objects.get(proposal=suggestion)
     assert cached.schema_version == CachedSuggestions.CURRENT_SCHEMA_VERSION
     assert cached.is_stale is False
@@ -175,7 +175,7 @@ def test_cache_description_from_package(
     assert drv.metadata.description is None
     assert Package.objects.get().description == expected_description
 
-    cache_new_suggestions(suggestion)
+    cache_suggestion(suggestion)
 
     cached = CachedSuggestions.objects.get(proposal=suggestion)
     assert (
@@ -198,7 +198,7 @@ def test_ensure_fresh_cache_noop_when_fresh(
     suggestion: CVEDerivationClusterProposal,
 ) -> None:
     """Test that cache does not rebuild when the cache is already fresh."""
-    cache_new_suggestions(suggestion)
+    cache_suggestion(suggestion)
     original_updated_at = CachedSuggestions.objects.get(proposal=suggestion).updated_at
 
     suggestion.ensure_fresh_cache()
@@ -222,7 +222,7 @@ def test_cache_skipped_without_title_or_description(
         cve=container.cve,
     )
 
-    cache_new_suggestions(suggestion)
+    cache_suggestion(suggestion)
 
     assert not CachedSuggestions.objects.filter(proposal=suggestion).exists()
 
@@ -242,7 +242,7 @@ def test_cache_description_falls_back_to_meta(
     )
     assert drv.metadata
 
-    cache_new_suggestions(suggestion)
+    cache_suggestion(suggestion)
 
     cached = CachedSuggestions.objects.get(proposal=suggestion)
     assert (
@@ -268,7 +268,7 @@ def test_cache_attribute_package_groups(
     suggestion = make_suggestion(
         drvs={drv: ProvenanceFlags.PACKAGE_NAME_MATCH for drv in [foo, foo_alias, bar]}
     )
-    cache_new_suggestions(suggestion)
+    cache_suggestion(suggestion)
 
     foo_package = Package.objects.get(name="foo")
     bar_package = Package.objects.get(name="bar")
@@ -311,7 +311,7 @@ def test_cache_clusters_unlinked_derivations(
         provenance_flags=ProvenanceFlags.PACKAGE_NAME_MATCH,
     )
 
-    cache_new_suggestions(suggestion)
+    cache_suggestion(suggestion)
 
     package = Package.objects.get()
     cached = CachedSuggestions.objects.get(proposal=suggestion)

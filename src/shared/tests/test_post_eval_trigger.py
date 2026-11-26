@@ -4,7 +4,7 @@ from unittest import mock
 import pytest
 from django.db import transaction
 
-from shared.cache_suggestions import cache_new_suggestions
+from shared.cache_suggestions import cache_suggestion
 from shared.listeners.automatic_linkage import refresh_suggestion_derivation_links
 from shared.listeners.package_clustering import (
     cluster_after_evaluation,
@@ -69,7 +69,7 @@ def test_cache_rebuilt_after_clustering(
     suggestion = make_suggestion(
         container=cve, drvs={old_drv: ProvenanceFlags.PACKAGE_NAME_MATCH}
     )
-    cache_new_suggestions(suggestion)
+    cache_suggestion(suggestion)
     cached_before = CachedSuggestions.objects.get(proposal=suggestion)
 
     cluster_and_process_refreshes(
@@ -143,7 +143,7 @@ def test_multiple_suggestions_all_refreshed(
         suggestion = make_suggestion(
             container=container, drvs={old_drv: ProvenanceFlags.PACKAGE_NAME_MATCH}
         )
-        cache_new_suggestions(suggestion)
+        cache_suggestion(suggestion)
         test_data.append((CachedSuggestions.objects.get(proposal=suggestion), new_drv))
 
     cluster_and_process_refreshes(
@@ -185,7 +185,7 @@ def test_suggestion_refresh_failure_does_not_block_others(
         suggestion = make_suggestion(
             container=container, drvs={old_drv: ProvenanceFlags.PACKAGE_NAME_MATCH}
         )
-        cache_new_suggestions(suggestion)
+        cache_suggestion(suggestion)
         suggestions.append(suggestion)
         old_drvs[suggestion.pk] = old_drv
         new_drvs[suggestion.pk] = new_drv

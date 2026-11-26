@@ -3,7 +3,7 @@ import logging
 import pgpubsub
 from django.db import transaction
 
-from shared.cache_suggestions import cache_new_suggestions
+from shared.cache_suggestions import cache_suggestion
 from shared.channels import NixEvaluationUpdateChannel, SuggestionRefreshChannel
 from shared.listeners.automatic_linkage import refresh_suggestion_derivation_links
 from shared.models import NixDerivation, NixEvaluation
@@ -65,7 +65,7 @@ def refresh_and_cache_suggestion(pk: int) -> None:
             ],
         )
         refresh_suggestion_derivation_links(suggestion)
-        cache_new_suggestions(suggestion)
+        cache_suggestion(suggestion)
     except CVEDerivationClusterProposal.DoesNotExist:
         # We don't want to try again! If we crash here, the work is put back on the queue.
         logger.info("Suggestion %d no longer pending/accepted, skipping refresh", pk)
