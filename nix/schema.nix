@@ -10,11 +10,10 @@
 # installed package lives in the read-only Nix store.
 {
   runCommand,
-  python3,
   nix-security-tracker,
 }:
 let
-  pythonEnv = python3.withPackages (_: [ nix-security-tracker ]);
+  pythonEnv = nix-security-tracker.pythonModule.withPackages (_: [ nix-security-tracker ]);
 
   # Dummy secrets: required for the settings module to import, never used here.
   empty-dir = runCommand "empty-dir" { } "mkdir $out";
