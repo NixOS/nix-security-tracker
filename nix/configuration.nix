@@ -383,6 +383,7 @@ in
               versionFile="/var/lib/nix-security-tracker/package-version"
               if [[ $(cat "$versionFile" 2>/dev/null) != ${cfg.package} ]]; then
                 ${manage.name} migrate --no-input
+                ${manage.name} createcachetable
                 ${manage.name} collectstatic --no-input --clear
                 echo ${cfg.package} > "$versionFile"
               fi

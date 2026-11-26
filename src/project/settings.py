@@ -515,6 +515,18 @@ DATABASES["default"]["DISABLE_SERVER_SIDE_CURSORS"] = (
     DATABASE_DISABLE_SERVER_SIDE_CURSORS  # noqa: F821 # pyright: ignore [reportUndefinedVariable]
 )
 
+# Cache
+# Shared across all worker processes, so e.g. API throttling counts are global.
+# The table is created by `manage createcachetable`, which runs alongside `migrate`.
+# https://docs.djangoproject.com/en/5.2/topics/cache/#database-caching
+
+CACHES = {
+    "default": {
+        "BACKEND": "django.core.cache.backends.db.DatabaseCache",
+        "LOCATION": "django_cache",
+    }
+}
+
 # Password validation
 # https://docs.djangoproject.com/en/5.2/ref/settings/#auth-password-validators
 
