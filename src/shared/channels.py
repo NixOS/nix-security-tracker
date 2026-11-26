@@ -22,7 +22,7 @@ class NixChannelInsertChannel(TriggerChannel):
 
 
 @dataclass
-class NixEvaluationChannel(TriggerChannel):
+class NewEvaluation(TriggerChannel):
     model = NixEvaluation
     # To avoid having a process blocked on the same evaluation multiple times.
     # We want to ensure that notifications are processed exactly once.
@@ -32,7 +32,7 @@ class NixEvaluationChannel(TriggerChannel):
 
 
 @dataclass
-class NixEvaluationUpdateChannel(TriggerChannel):
+class UpdatedEvaluation(TriggerChannel):
     model = NixEvaluation
     lock_notifications = True
 
@@ -43,14 +43,14 @@ class NixDerivationChannel(TriggerChannel):
 
 
 @dataclass
-class ContainerChannel(TriggerChannel):
+class NewContainer(TriggerChannel):
     model = Container
     # Process new structured data for a CVE only once.
     lock_notifications = True
 
 
 @dataclass
-class CVEDerivationClusterProposalChannel(TriggerChannel):
+class NewSuggestion(TriggerChannel):
     model = CVEDerivationClusterProposal
     lock_notifications = True
 
@@ -62,6 +62,6 @@ class NixpkgsIssueChannel(TriggerChannel):
 
 
 @dataclass
-class SuggestionRefreshChannel(Channel):
+class RefreshSuggestion(Channel):
     pk: int
     lock_notifications = True

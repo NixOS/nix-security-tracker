@@ -9,9 +9,9 @@ from django.utils import timezone
 from pgpubsub.models import Notification as PgpubsubNotification
 
 from shared.channels import (
-    ContainerChannel,
-    NixEvaluationUpdateChannel,
-    SuggestionRefreshChannel,
+    NewContainer,
+    RefreshSuggestion,
+    UpdatedEvaluation,
 )
 from shared.management.commands.garbage_collect import DEFAULT_CUTOFF_DAYS, Command
 from shared.models.cve import Container, CveRecord
@@ -537,10 +537,10 @@ def make_trigger_notification(
 @pytest.mark.parametrize(
     "channel_name",
     [
-        SuggestionRefreshChannel.name(),
-        SuggestionRefreshChannel.listen_safe_name(),
-        NixEvaluationUpdateChannel.name(),
-        NixEvaluationUpdateChannel.listen_safe_name(),
+        RefreshSuggestion.name(),
+        RefreshSuggestion.listen_safe_name(),
+        UpdatedEvaluation.name(),
+        UpdatedEvaluation.listen_safe_name(),
     ],
 )
 @pytest.mark.django_db
@@ -562,7 +562,7 @@ def test_gc_keeps_recent_rematching_notifications() -> None:
     The threshold matches the interval at which fresh notifications are emitted by the evaluator.
     Anything younger might still be processed by the live listener.
     """
-    make_trigger_notification(SuggestionRefreshChannel.name(), age=timedelta(hours=23))
+    make_trigger_notification(RefreshSuggestion.name(), age=timedelta(hours=23))
 
     call_command("garbage_collect", stdout=StringIO())
 
@@ -575,9 +575,7 @@ def test_gc_keeps_notifications_on_other_channels() -> None:
     We only garbage-collect trigger channels that leave garbage.
     Unrelated channels stay untouched.
     """
-    make_trigger_notification(
-        ContainerChannel.listen_safe_name(), age=timedelta(days=30)
-    )
+    make_trigger_notification(NewContainer.listen_safe_name(), age=timedelta(days=30))
 
     call_command("garbage_collect", stdout=StringIO())
 
