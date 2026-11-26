@@ -1,13 +1,18 @@
 [tool.ruff]
-target-version = "py313"
+target-version = "py314"
 lint.select = ["E", "F", "I", "N", "U", "ANN"]
 lint.ignore = [
   "F403",
   "E501", # line too long
-  "ANN401" # Dynamically typed expressions (typing.Any) are disallowed
+  "ANN401", # Dynamically typed expressions (typing.Any) are disallowed
+  "UP037", # FIXME(@yorickvP): run this upgrade
 ]
 lint.pep8-naming.classmethod-decorators = ["django.utils.functional.classproperty"]
-exclude = ["src/shared/migrations/*.py"] # auto-generated code
+exclude = [
+  # auto-generated code
+  "src/shared/migrations/*.py",
+  "src/webview/migrations/*.py"
+]
 
 [tool.commitizen]
 name = "cz_conventional_commits"
