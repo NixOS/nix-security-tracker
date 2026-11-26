@@ -156,7 +156,7 @@ def to_dict(instance: Any) -> dict[str, Any]:
     return data
 
 
-def cache_new_suggestions(suggestion: CVEDerivationClusterProposal) -> None:
+def cache_suggestion(suggestion: CVEDerivationClusterProposal) -> None:
     # FIXME(@fricklerhandwerk): Here we're blindly picking a title and description, which can be arbitrarily bad.
     # For instance, at the time of writing, most titles in containers are one of
     # - "CVE Program Container" (>600k)

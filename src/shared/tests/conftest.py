@@ -12,7 +12,7 @@ from django.contrib.auth.models import Group, User
 from django.utils import timezone
 from knox.models import AuthToken
 
-from shared.cache_suggestions import cache_new_suggestions
+from shared.cache_suggestions import cache_suggestion
 from shared.fetchers import make_metrics
 from shared.models.cve import (
     AffectedProduct,
@@ -432,7 +432,7 @@ def make_cached_suggestion(  # noqa: UP047
 ) -> Callable[P, CVEDerivationClusterProposal]:
     def wrapped(*args: P.args, **kwargs: P.kwargs) -> CVEDerivationClusterProposal:
         suggestion = make_suggestion(*args, **kwargs)
-        cache_new_suggestions(suggestion)
+        cache_suggestion(suggestion)
         return suggestion
 
     return wrapped
@@ -449,7 +449,7 @@ def suggestion(
 def cached_suggestion(
     suggestion: CVEDerivationClusterProposal,
 ) -> CVEDerivationClusterProposal:
-    cache_new_suggestions(suggestion)
+    cache_suggestion(suggestion)
 
     return suggestion
 
