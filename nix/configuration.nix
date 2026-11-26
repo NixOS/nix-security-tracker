@@ -23,7 +23,7 @@ let
   inherit (pkgs) writeScriptBin writeShellApplication stdenv;
   cfg = config.services.nix-security-tracker;
 
-  pythonEnv = pkgs.python3.withPackages (
+  pythonEnv = cfg.package.pythonModule.withPackages (
     ps:
     with ps;
     [

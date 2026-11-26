@@ -1,7 +1,6 @@
 final: prev:
 let
   sources = import ../npins;
-  meta = with builtins; fromTOML (readFile ../src/pyproject.toml);
 in
 {
   nix-security-tracker-logos = final.runCommand "nix-security-tracker-logos" { } ''
@@ -11,11 +10,11 @@ in
     cp ${sources.nixos-logo-horizontal} $out/nixpkgsLogo.svg
   '';
 
-  python3 = prev.python3.override {
-    packageOverrides = pyfinal: _pyprev: {
+  python3-sectracker = prev.python3.override {
+    packageOverrides = pyfinal: pyprev: {
       # FIXME(@fricklerhandwerk): remove once Nixpkgs ships a release that includes the fix for the flaky test
       # https://github.com/getsentry/sentry-python/issues/8031
-      sentry-sdk = _pyprev.sentry-sdk.overridePythonAttrs (old: rec {
+      sentry-sdk = pyprev.sentry-sdk.overridePythonAttrs (old: rec {
         version = "2.74.0";
         src = final.fetchFromGitHub {
           owner = "getsentry";
@@ -32,7 +31,7 @@ in
       psycopg2 = pyfinal.psycopg;
       # FIXME(@fricklerhandwerk): remove once upstream fix is merged into django-pgpubsub
       # https://github.com/PaulGilmartin/django-pgpubsub/pull/89
-      django-pgpubsub = _pyprev.django-pgpubsub.overridePythonAttrs (old: {
+      django-pgpubsub = pyprev.django-pgpubsub.overridePythonAttrs (old: {
         patches = (old.patches or [ ]) ++ [ ../nix/django-pgpubsub-fix-notify.patch ];
       });
       sgqlc = pyfinal.buildPythonPackage rec {
@@ -56,77 +55,5 @@ in
     isFlakes = false;
   };
 
-  nix-security-tracker = final.python3.pkgs.buildPythonPackage rec {
-    pname = meta.project.name;
-    inherit (meta.project) version;
-    pyproject = true;
-    build-system = with final.python3.pkgs; [
-      setuptools
-      wheel
-    ];
-
-    src = final.nix-gitignore.gitignoreSourcePure [ ../.gitignore ] ../src;
-
-    propagatedBuildInputs = with final.python3.pkgs; [
-      # Nix python packages
-      dataclass-wizard
-      dj-database-url
-      django-allauth
-      django-debug-toolbar
-      django-filter
-      django-types
-      django
-      djangorestframework
-      ipython
-      pydantic-settings
-      prometheus-client
-      pygithub
-      requests
-      django-pgpubsub
-      daphne
-      channels
-      aiofiles
-      sentry-sdk
-      django-pghistory
-      django-pglock
-      django-pgtrigger
-      django-prometheus
-      cvss
-      cpe
-      univers
-      django-model-utils
-      drf-spectacular
-      django-rest-knox
-      django-vite
-      (callPackage ./github-graphql-types {
-        inherit (sources) github-graphql-schema;
-      })
-    ];
-
-    nativeCheckInputs = with final.python3.pkgs; [
-      freezegun
-      graphql-core
-      pytest
-      pytest-django
-      pytest-playwright
-      pytest-mock
-      pytest-socket
-      responses
-    ];
-
-    passthru = {
-      inherit nativeCheckInputs;
-      PLAYWRIGHT_BROWSERS_PATH = final.playwright-driver.browsers;
-      pythonEnv = final.python3.withPackages (_: propagatedBuildInputs ++ nativeCheckInputs);
-    };
-
-    postInstall = ''
-      mkdir -p $out/bin
-      cp -v ${src}/manage.py $out/bin/manage.py
-      chmod +x $out/bin/manage.py
-      wrapProgram $out/bin/manage.py --prefix PYTHONPATH : "$PYTHONPATH"
-      mkdir -p $out/${final.python3.sitePackages}/webview/static/
-      cp ${final.nix-security-tracker-logos}/* $out/${final.python3.sitePackages}/webview/static/
-    '';
-  };
+  nix-security-tracker = final.python3-sectracker.pkgs.callPackage ./package.nix { inherit sources; };
 }
