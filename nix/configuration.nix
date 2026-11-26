@@ -526,8 +526,6 @@ in
             script = ''
               ${manage.name} listen --recover \
                 --channels \
-                  shared.channels.NixChannelInsertChannel \
-                  shared.channels.NixChannelUpdateChannel \
                   shared.channels.NewContainer \
                   shared.channels.NewSuggestion \
             '';
