@@ -21,7 +21,7 @@ systemctl restart nix-security-tracker-workers.target
 ```
 
 The other difference is that startup and scheduled jobs turned off, as they're rarely needed for development.
-Run them manually by picking from the available [management commands](https://docs.djangoproject.com/en/6.0/ref/django-admin/):
+Run them manually by picking from the available [management commands](https://docs.djangoproject.com/en/5.2/ref/django-admin/):
 
 ```console
 manage help
