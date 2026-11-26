@@ -14,7 +14,7 @@ Besides the infrastructure team, @erethon also has access, but can't add users t
 OpenTofu is used to spin up the VM infrastructure.
 Its state is stored in Hetzner's Object Storage service.
 
-Running `nix shell` in this directory will drop you in a shell with OpenTofu available.
+Running `nix-shell` in this directory will drop you in a shell with OpenTofu available.
 To quickly get information on the committed state run `tofu show`.
 For more instructions on how to use OpenTofu refer to the [upstream documentation](https://opentofu.org/docs/).
 
