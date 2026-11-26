@@ -43,6 +43,7 @@ in
       erethon
       security-tracker-gh-actions
       adekoder
+      yorickvp
     ];
     # We're using both keys and keyFiles here in order to keep some alignment
     # with github:nixos/infra
