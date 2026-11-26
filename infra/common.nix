@@ -29,6 +29,7 @@ in
   services = {
     openssh = {
       enable = true;
+      authorizedKeysInHomedir = false;
       settings.PasswordAuthentication = false;
     };
     pgbouncer.settings.pgbouncer.max_client_conn = 1000;
