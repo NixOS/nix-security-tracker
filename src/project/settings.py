@@ -219,7 +219,7 @@ class Settings(BaseSettings):
         DATABASE_CONN_MAX_AGE: int = Field(
             description="""
             Django CONN_MAX_AGE for the default database connection (in
-            seconds). If the ASGI server is fronted by PgBouncer, it overrides
+            seconds). If the web server is fronted by PgBouncer, it overrides
             this to 0. The direct connections (workers and management commands)
             use this value instead.
             """,
@@ -430,9 +430,7 @@ DEFAULT_SLEEP_WAITING_FOR_EVALUATION_SLOT = 25 * 60
 SECRET_KEY = get_secret("SECRET_KEY")
 
 # Application definition
-ASGI_APPLICATION = "project.asgi.application"
 INSTALLED_APPS = [
-    "daphne",
     "django.contrib.admin",
     "django.contrib.auth",
     "django.contrib.contenttypes",
@@ -449,7 +447,6 @@ INSTALLED_APPS = [
     "allauth.socialaccount",
     "allauth.socialaccount.providers.github",
     "allauth.headless",
-    "channels",
     "pgpubsub",
     "pgtrigger",
     "pghistory",
@@ -514,6 +511,18 @@ DATABASES["default"] = dj_database_url.config(
 DATABASES["default"]["DISABLE_SERVER_SIDE_CURSORS"] = (
     DATABASE_DISABLE_SERVER_SIDE_CURSORS  # noqa: F821 # pyright: ignore [reportUndefinedVariable]
 )
+
+# Cache
+# Shared across all worker processes, so e.g. API throttling counts are global.
+# The table is created by `manage createcachetable`, which runs alongside `migrate`.
+# https://docs.djangoproject.com/en/5.2/topics/cache/#database-caching
+
+CACHES = {
+    "default": {
+        "BACKEND": "django.core.cache.backends.db.DatabaseCache",
+        "LOCATION": "django_cache",
+    }
+}
 
 # Password validation
 # https://docs.djangoproject.com/en/5.2/ref/settings/#auth-password-validators

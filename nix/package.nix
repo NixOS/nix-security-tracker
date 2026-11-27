@@ -22,8 +22,7 @@
   pygithub,
   requests,
   django-pgpubsub,
-  daphne,
-  channels,
+  gunicorn,
   aiofiles,
   sentry-sdk,
   django-pghistory,
@@ -75,8 +74,7 @@ buildPythonPackage (finalAttrs: {
     pygithub
     requests
     django-pgpubsub
-    daphne
-    channels
+    gunicorn
     aiofiles
     sentry-sdk
     django-pghistory
