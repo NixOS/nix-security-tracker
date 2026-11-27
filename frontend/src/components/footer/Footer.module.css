@@ -1,0 +1,3 @@
+.footer {
+  box-shadow: inset 0 var(--border-thin) 0 var(--nixos-blue-edge);
+}

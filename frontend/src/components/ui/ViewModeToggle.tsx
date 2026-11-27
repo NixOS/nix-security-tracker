@@ -21,7 +21,7 @@ type Props<T extends string> = {
    * plain unselected options (unless it is itself the current selection).
    */
   currentValue?: T;
-  /** Smaller and on a white background, e.g. to sit in a `BorderFrame` slot. */
+  /** Smaller and on the page background, e.g. to sit in a `BorderFrame` slot. */
   compact?: boolean;
 };
 

@@ -47,12 +47,12 @@
 }
 
 .ignoredToggle:hover {
-  color: black;
+  color: var(--fg);
 }
 
 .ignoredToggle[data-state="on"] {
-  background: var(--nixos-blue);
-  border-color: var(--nixos-blue);
-  color: white;
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--on-color);
   font-weight: bold;
 }

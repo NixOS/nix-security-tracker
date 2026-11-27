@@ -54,7 +54,7 @@ export function Select({ value, options, onValueChange, label }: Props) {
       </SelectControl>
       <SelectPositioner>
         <SelectContent
-          className={`rounded border box compact shadow bg-white text-black ${styles.content}`}
+          className={`rounded border box compact shadow bg-surface text-default ${styles.content}`}
         >
           <SelectList>
             {options.map((option) => (

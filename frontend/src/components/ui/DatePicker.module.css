@@ -29,7 +29,7 @@
 
 .weekDay {
   font-weight: normal;
-  color: var(--gray);
+  color: var(--gray-text);
 }
 
 .cell {
@@ -44,7 +44,7 @@
 }
 
 .cell[data-outside-range] {
-  color: var(--gray);
+  color: var(--gray-text);
 }
 
 .cell[data-disabled] {
@@ -61,10 +61,10 @@
 }
 
 .cell[data-selected] {
-  background-color: var(--nixos-blue);
-  color: white;
+  background-color: var(--accent);
+  color: var(--on-color);
 }
 
 .cell:not([data-disabled]):hover {
-  outline: var(--border-thin) solid var(--nixos-blue);
+  outline: var(--border-thin) solid var(--accent);
 }

@@ -19,7 +19,7 @@ export type SegmentedToggleOption = {
 type Props = {
   value: string | undefined;
   options: SegmentedToggleOption[];
-  /** Smaller and on a white background, e.g. to sit in a `BorderFrame` slot. */
+  /** Smaller and on the page background, e.g. to sit in a `BorderFrame` slot. */
   compact?: boolean;
   onItemClick: (value: string, event: MouseEvent) => void;
 };

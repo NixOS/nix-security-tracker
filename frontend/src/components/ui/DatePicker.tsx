@@ -53,7 +53,7 @@ function Calendar() {
   return (
     <DatePickerPositioner>
       <DatePickerContent
-        className={`rounded border box compact shadow bg-white text-black ${styles.content}`}
+        className={`rounded border box compact shadow bg-surface text-default ${styles.content}`}
       >
         <DatePickerView view="day">
           <DatePickerContext>

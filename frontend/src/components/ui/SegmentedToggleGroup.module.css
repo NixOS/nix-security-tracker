@@ -6,13 +6,13 @@
 }
 
 .item:hover {
-  border-color: var(--nixos-blue);
+  border-color: var(--accent);
 }
 
 .item[data-state="on"] {
-  background: var(--nixos-blue);
-  border-color: var(--nixos-blue);
-  color: white;
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--on-color);
   font-weight: bold;
 }
 
@@ -24,8 +24,8 @@
   gap: var(--border-thin);
   /* Shows through the 1px flex gaps as divider lines, both between items in
    * a row and between wrapped rows, without any per-item border hacks. */
-  background-color: var(--gray);
-  border: var(--border-thin) solid var(--gray);
+  background-color: var(--gray-line);
+  border: var(--border-thin) solid var(--gray-line);
   border-radius: var(--radius);
   max-width: 100%;
   overflow: hidden;
@@ -37,18 +37,18 @@
   padding: var(--space-xs) var(--space-s);
 }
 
-/* The icon matching the inherited/parent-scope view mode is shown in black
+/* The icon matching the inherited/parent-scope view mode is shown in the default text color
  * instead of the plain unselected color, unless it is itself the current
  * selection (already highlighted via the selected/"on" state). */
 .item[data-current="true"]:not([data-state="on"]) {
-  color: black;
+  color: var(--fg);
 }
 
 .compact {
   font-size: var(--text-s);
 }
 
-/* Blends into the white background of a `BorderFrame` slot. */
+/* Blends into the background of a `BorderFrame` slot. */
 .compact .item:not([data-state="on"]) {
-  background: white;
+  background: var(--bg);
 }

@@ -1,6 +1,6 @@
 .avatar {
   outline-width: var(--border-thick);
-  outline-color: white;
+  outline-color: var(--on-color);
   width: 2em;
   height: 2em;
 }

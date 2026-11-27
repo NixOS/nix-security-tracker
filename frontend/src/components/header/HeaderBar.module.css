@@ -1,4 +1,6 @@
 .headerBar {
   padding: 0 var(--space-m);
   overflow-x: auto;
+  /* Inset, so the selected nav tab paints over it and still flows into the page. */
+  box-shadow: inset 0 calc(-1 * var(--border-thin)) 0 var(--nixos-blue-edge);
 }

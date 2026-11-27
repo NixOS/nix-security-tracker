@@ -32,7 +32,7 @@ export function Menu({ trigger, items }: MenuProps) {
       <MenuTrigger className={styles.trigger}>{trigger}</MenuTrigger>
       <MenuPositioner>
         <MenuContent
-          className={`rounded border box compact shadow bg-white text-black ${styles.content}`}
+          className={`rounded border box compact shadow bg-surface text-default ${styles.content}`}
         >
           <MenuItemGroup>
             {items.map((entry, i) =>
