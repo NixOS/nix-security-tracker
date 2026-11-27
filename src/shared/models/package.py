@@ -24,13 +24,6 @@ class Package(models.Model):
     search_vector = SearchVectorField(null=True)
 
     class Meta:  # type: ignore[override]
-        constraints = [
-            models.UniqueConstraint(
-                fields=["name", "homepage"],
-                nulls_distinct=False,
-                name="package_name_homepage_unique",
-            ),
-        ]
         indexes = [
             GinIndex(fields=["search_vector"]),
         ]

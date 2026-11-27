@@ -71,8 +71,53 @@ def _cluster_batch(
 ) -> ClusterResult:
     """
     For each derivation-path group:
-    1. If any attrpath in the group is already registered, use the associated package.
+    1. If any attrpath in the group is already registered, use the associated package. TODO: (probably) Update pname and homepage on that package.
     2. Otherwise find or create a package by `(pname, homepage)`, with intra-batch deduplication so two derivations with the same key share one package.
+        - existing package foo:
+          - attribute: foo
+          - pname: foo
+          - homepage: foo.com
+        - drv in the batch:
+            - attribute: python3.foo
+            - pname: python-foo
+            - homepage: foo.com
+        => create new package python-foo
+           - attributes: python3.foo
+           - homepage: foo.com
+
+        - existing package foo:
+          - attribute: foo
+          - pname: foo
+          - homepage: foo.com
+        - drv in the batch:
+            - attribute: foo
+            - pname: python-foo
+            - homepage: foo.com
+        => add drv to package foo
+
+        - existing package foo:
+          - attribute: foo
+          - pname: foo
+          - homepage: foo.com
+        - drv in the batch:
+            - attribute: python3.foo
+            - pname: foo
+            - homepage: foo.com
+        => find package by (pname, homepage), add it, package foo now has attributes foo and python3.foo
+
+        - existing package foo:
+          - attribute: foo
+          - pname: foo
+          - homepage: foo.com
+        - drv in the batch:
+            - attribute: foo
+            - pname: python-foo
+            - homepage: foo.com
+        => add drv to package foo, register updating pname
+
+       some of these test cases probably already exist!
+
+
     3. Register any new attrpaths for the resolved package.
 
     Newly created packages inherit `homepage` and `description` from the derivation that brought them in.
@@ -162,6 +207,10 @@ def _cluster_batch(
             )
 
             if pkg is None:
+                # FIXME(@fricklerhandwerk): Figure out a way to express the `<package>_<version>` pattern.
+                # Right now we'd cluster `nodejs`, `nodejs_22`, `nodejs_24` into one package although they point to different NodeJS releases.
+                # We keep it that way for now, because triagers can merge and split packages dynamically and ignoring will be per attribute.
+                # But eventually this should get fixed, because otherwise it will create churn for users.
                 pname, _ = parse_drv_name(first.name)
                 homepage: str | None = first.metadata__homepage
                 description: str | None = first.metadata__description
@@ -183,6 +232,7 @@ def _cluster_batch(
                     first.metadata__homepage,
                     first.metadata__description,
                 )
+            # TODO: we proably need to execute the update here, so the per-drv clustering will find the right values
 
             updated.add(pkg.pk)
             for drv in group:
@@ -199,24 +249,24 @@ def _cluster_batch(
         PackageDerivation.objects.bulk_create(new_links, ignore_conflicts=True)
         set_package_maintainers(maintainer_sources)
 
+        # TODO: not sure we want to update outside of the loop here, because it may prevent correctly matching the various batches. test case:
+        # - existing package foo:
+        #   - attribute: foo
+        #   - pname: foo
+        #   - homepage: foo.com
+        # - drv1 in batch1:
+        #     - attribute: foo
+        #     - pname: foo
+        #     - homepage: foo2.com
+        # - drv2 in batch2 (landed in there randomly):
+        #     - attribute: python3.foo
+        #     - pname: foo
+        #     - homepage: foo2.com
+        # => batch1 adds drv1 foo to package foo. register update of homepage on package foo but don't submit it yet.
+        # => batch2 would create a new package (foo, foo2.com)
+        # but instead we want drv1 to update package foo's homepage so drv2 is matched correctly.
+        # that may end up with more queries, but it's probably worth it.
         if to_update:
-            # Keep the current homepage where updating it would collapse two distinct packages sharing a name.
-            # This would happen if one of them gets the homepage of the other one, including an empty homepage.
-            # FIXME(@fricklerhandwerk): Converging homepages mean the packages are the same, so they should be merged instead.
-            current: dict[int, tuple[str, str | None]] = {}
-            taken: dict[tuple[str, str | None], int] = {}
-            for pk, name, homepage in Package.objects.filter(
-                name__in=Package.objects.filter(pk__in=to_update).values("name")
-            ).values_list("pk", "name", "homepage"):
-                taken[(name, homepage)] = pk
-                if pk in to_update:
-                    current[pk] = (name, homepage)
-            for pk, (homepage, description) in to_update.items():
-                name, current_homepage = current[pk]
-                # Claiming the new identity prevents two packages within the batch from colliding with each other.
-                if taken.setdefault((name, homepage), pk) != pk:
-                    to_update[pk] = (current_homepage, description)
-
             packages = list(Package.objects.filter(pk__in=to_update).only("pk"))
             for pkg in packages:
                 homepage, description = to_update[pkg.pk]
