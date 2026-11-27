@@ -105,7 +105,12 @@ class IssueViewSet(ListModelMixin, RetrieveModelMixin, viewsets.GenericViewSet):
         queryset = self.filter_queryset(self.get_queryset())
         page = self.paginate_queryset(queryset)
         issues = page if page is not None else list(queryset)
-        context = self._add_activity_log_context(issues, self.get_serializer_context())
+        context = self.get_serializer_context()
+        if context["expand_suggestions"]:
+            for issue in issues:
+                for suggestion in issue.suggestions.all():
+                    suggestion.ensure_fresh_cache()
+        context = self._add_activity_log_context(issues, context)
         serializer = self.get_serializer_class()(issues, many=True, context=context)
         if page is not None:
             return self.get_paginated_response(serializer.data)
