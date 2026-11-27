@@ -156,7 +156,7 @@ def to_dict(instance: Any) -> dict[str, Any]:
     return data
 
 
-def cache_new_suggestions(suggestion: CVEDerivationClusterProposal) -> None:
+def cache_suggestion(suggestion: CVEDerivationClusterProposal) -> None:
     # FIXME(@fricklerhandwerk): Here we're blindly picking a title and description, which can be arbitrarily bad.
     # For instance, at the time of writing, most titles in containers are one of
     # - "CVE Program Container" (>600k)
@@ -352,7 +352,7 @@ def channel_structure(
     packages = dict()
     for derivation in derivations:
         attribute_path = derivation.attribute
-        _, package_version = parse_drv_name(derivation.name)
+        package_version = derivation.version
         if attribute_path not in packages:
             packages[attribute_path] = CachedSuggestion.Package()
         packages[attribute_path].derivation_ids.append(derivation.pk)
@@ -409,22 +409,6 @@ def group_attributes_by_package(
         groups[package.pk].attributes.append(attribute)
 
     return sorted(groups.values(), key=lambda g: (g.name, g.package_id))
-
-
-def parse_drv_name(name: str) -> tuple[str, str]:
-    """
-    Splits the input string `name` into a package name and version.
-
-    https://nix.dev/manual/nix/latest/language/builtins.html#builtins-parseDrvName
-
-    The package name is everything up to but not including the first dash
-    not followed by a letter, and the version is everything after that dash.
-    """
-    match = re.match(r"^(.+?)-([^a-zA-Z].*)$", name)
-    if match:
-        return match.group(1), match.group(2)
-    else:
-        return name, ""
 
 
 def maintainers_list(

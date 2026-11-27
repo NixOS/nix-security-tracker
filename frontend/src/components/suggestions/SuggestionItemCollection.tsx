@@ -6,15 +6,17 @@ import { CollectionCard } from "@/components/ui/CollectionCard";
 import { InlineIcon } from "@/components/ui/InlineIcon";
 import { cx } from "@/utils/className";
 import styles from "./SuggestionItemCollection.module.css";
-import type { ItemRow } from "./suggestionItems";
+import { type ItemRow, ignoredRows, shownRows } from "./suggestionItems";
 
 type Props<T> = {
   rows: readonly ItemRow<T>[];
   /** Title in the top-left border, e.g. an icon and `References`. */
   label: ComponentChildren;
   testId: string;
-  /** Renders a `SuggestionItemRow`. */
-  renderRow: (row: ItemRow<T>) => ComponentChildren;
+  /** Renders a list item, usually a `SuggestionItemRow`. */
+  renderRow: (row: ItemRow<T>, showIgnored: boolean) => ComponentChildren;
+  /** Number of ignored items, when rows hold several items. Defaults to the number of ignored rows. */
+  ignoredCount?: number;
   /** Separating lines between rows instead of a plain gap. */
   dividers?: boolean;
   footer?: ComponentChildren;
@@ -31,10 +33,10 @@ export function SuggestionItemCollection<T>({
   renderRow,
   dividers = false,
   footer,
+  ignoredCount = ignoredRows(rows).length,
 }: Props<T>) {
   const [showIgnored, setShowIgnored] = useState(false);
-  const ignoredCount = rows.filter((row) => row.state === "ignored").length;
-  const visibleRows = showIgnored ? rows : rows.filter((row) => row.state !== "ignored");
+  const visibleRows = shownRows(rows, showIgnored);
 
   return (
     <CollectionCard
@@ -54,10 +56,10 @@ export function SuggestionItemCollection<T>({
       testId={testId}
       footer={footer}
     >
-      {(shownRows) => (
+      {(pageRows) => (
         <ul className={cx(styles.rows, dividers && styles.dividers)}>
-          {shownRows.map((row) => (
-            <Fragment key={row.key}>{renderRow(row)}</Fragment>
+          {pageRows.map((row) => (
+            <Fragment key={row.key}>{renderRow(row, showIgnored)}</Fragment>
           ))}
         </ul>
       )}
@@ -65,7 +67,7 @@ export function SuggestionItemCollection<T>({
   );
 }
 
-type RowProps = {
+type LineProps = {
   /** Action button, if the item can be acted upon. */
   action?: ComponentChildren;
   ignored: boolean;
@@ -73,14 +75,25 @@ type RowProps = {
 };
 
 /**
- * Item of a `SuggestionItemCollection`.
- * Provides the action button and fading when ignored.
+ * Item of a `SuggestionItemCollection`, made of one line.
  */
-export function SuggestionItemRow({ action, ignored, children }: RowProps) {
+export function SuggestionItemRow(props: LineProps) {
   return (
-    <li className={styles.row}>
+    <li>
+      <SuggestionItemLine {...props} />
+    </li>
+  );
+}
+
+/**
+ * Line of an item, with the action button and fading when ignored.
+ * Lines nested in an item line up with it, as long as they are not inside its content.
+ */
+export function SuggestionItemLine({ action, ignored, children }: LineProps) {
+  return (
+    <div className={styles.row}>
       {action && <div className={styles.action}>{action}</div>}
       <div className={cx(styles.content, ignored && styles.faded)}>{children}</div>
-    </li>
+    </div>
   );
 }

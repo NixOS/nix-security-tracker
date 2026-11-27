@@ -9,9 +9,8 @@ include-package-data = true
 [tool.pytest.ini_options]
 DJANGO_SETTINGS_MODULE = "project.settings"
 filterwarnings = [
-  # FIXME(@fricklerhandwerk): Remove the source of the warning.
-  # It may have something to do with the Nix packaging, but TBH I have no idea.
-  # At the time of writing it's not important enough to investigate, but a fix is appreciated.
-  "ignore::pytest.PytestAssertRewriteWarning",
+  # `manage.py test` imports pytest_django before pytest starts
+  # so pytest can't assert-rewrite that plugin.
+  "ignore:Module already imported so cannot be rewritten; pytest_django:pytest.PytestAssertRewriteWarning",
 ]
 addopts = "--disable-socket --allow-hosts=localhost"

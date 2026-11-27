@@ -13,7 +13,7 @@ rec {
 
   # For exports.
   overlays = [ overlay ];
-  frontend = pkgs.callPackage ./nix/frontend.nix { };
+  frontend = pkgs.nix-security-tracker-frontend;
   package = pkgs.nix-security-tracker;
   module = import ./nix/configuration.nix;
   # Writeback caching on shared directories makes the guest miss edits from the host.

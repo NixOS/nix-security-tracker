@@ -5,7 +5,7 @@ from unittest import mock
 import pytest
 from django.test import override_settings
 
-from shared.cache_suggestions import cache_new_suggestions
+from shared.cache_suggestions import cache_suggestion
 from shared.listeners.automatic_linkage import (
     build_new_links,
     refresh_suggestion_derivation_links,
@@ -76,7 +76,7 @@ def test_link_only_latest_eval(
     assert suggestion.derivations.count() < len(evaluations)
 
     # Check the whole data pipeline by also caching the suggestion
-    cache_new_suggestions(suggestion)
+    cache_suggestion(suggestion)
 
 
 def test_eol_channel_produces_no_matches(
@@ -177,7 +177,7 @@ def test_link_product_or_package_name(
         assert link.provenance_flags == expected_flags
         assert link.proposal.status == CVEDerivationClusterProposal.Status.PENDING
         # Check the whole data pipeline by also caching the suggestion
-        cache_new_suggestions(link.proposal)
+        cache_suggestion(link.proposal)
     else:
         proposal = CVEDerivationClusterProposal.objects.get(cve=container.cve)
         assert proposal.status == CVEDerivationClusterProposal.Status.REJECTED
@@ -402,6 +402,95 @@ def test_cpe_match_combines_with_package_name_match(
     assert link.provenance_flags == (
         ProvenanceFlags.PACKAGE_NAME_MATCH | ProvenanceFlags.CPE_MATCH
     )
+
+
+@pytest.mark.parametrize(
+    ("package_name", "drv_pname", "matches"),
+    [
+        ("Foo_Bar", "foo_bar", True),
+        ("foo_bar", "FOO_BAR", True),
+        ("foo_bar", "fooxbar", False),
+        ("foo%bar", "foo-anything-bar", False),
+        ("foo%bar", "foo%bar", True),
+    ],
+)
+def test_name_match_is_case_insensitive_and_literal(
+    make_container: Callable[..., Container],
+    make_drv: Callable[..., NixDerivation],
+    package_name: str,
+    drv_pname: str,
+    matches: bool,
+) -> None:
+    container = make_container(package_name=package_name, product=None)
+    drv = make_drv(pname=drv_pname)
+
+    assert build_new_links(container)
+    assert (
+        DerivationClusterProposalLink.objects.filter(derivation=drv).exists() == matches
+    )
+
+
+def test_cpe_match_is_case_insensitive(
+    make_container: Callable[..., Container],
+    make_drv: Callable[..., NixDerivation],
+) -> None:
+    container = make_container(
+        package_name="unrelated-cve-name",
+        product=None,
+        cpes=["cpe:2.3:a:GNU:Hello:2.12:*:*:*:*:*:*:*"],
+    )
+    drv = make_drv(
+        pname="hello-nix",
+        attribute="hello",
+        cpe_vendor="gnu",
+        cpe_product="HELLO",
+    )
+
+    assert build_new_links(container)
+    link = DerivationClusterProposalLink.objects.get(derivation=drv)
+    assert link.provenance_flags == ProvenanceFlags.CPE_MATCH
+
+
+def test_derivation_without_metadata_is_never_matched(
+    make_container: Callable[..., Container],
+    make_drv: Callable[..., NixDerivation],
+) -> None:
+    container = make_container(package_name="foo", product=None)
+    drv = make_drv(pname="foo")
+    NixDerivation.objects.filter(pk=drv.pk).update(metadata=None)
+
+    assert build_new_links(container)
+    assert not DerivationClusterProposalLink.objects.filter(derivation=drv).exists()
+
+
+def test_cpe_match_without_package_name_or_product(
+    make_container: Callable[..., Container],
+    make_drv: Callable[..., NixDerivation],
+) -> None:
+    container = make_container(
+        package_name=None,
+        product=None,
+        cpes=["cpe:2.3:a:gnu:hello:2.12:*:*:*:*:*:*:*"],
+    )
+    drv = make_drv(
+        pname="hello-nix",
+        attribute="hello",
+        cpe_vendor="gnu",
+        cpe_product="hello",
+    )
+    unrelated = make_drv(
+        pname="other",
+        attribute="other",
+        cpe_vendor="acme",
+        cpe_product="other",
+    )
+
+    assert build_new_links(container)
+    link = DerivationClusterProposalLink.objects.get(derivation=drv)
+    assert link.provenance_flags == ProvenanceFlags.CPE_MATCH
+    assert not DerivationClusterProposalLink.objects.filter(
+        derivation=unrelated
+    ).exists()
 
 
 def test_ignore_tests(

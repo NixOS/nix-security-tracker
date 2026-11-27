@@ -21,7 +21,7 @@ Application logic lives in the [`src/`](src/) directory.
 From here, it follows standard Django patterns:
 
 - [`src/project/`](src/project/): global project configuration
-- [`src/shared/`](src/shared/): [application](https://docs.djangoproject.com/en/6.0/ref/applications/) with data models and business logic
+- [`src/shared/`](src/shared/): [application](https://docs.djangoproject.com/en/5.2/ref/applications/) with data models and business logic
 - [`src/api`](src/api): application for the REST API
 - [`src/webview`](src/webview/): User specific models, user stories tests, and the Django view that serves the frontend.
 - [`frontend`](frontend/): the Preact powered frontend that relies on the API

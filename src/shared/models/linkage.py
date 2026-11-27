@@ -562,9 +562,9 @@ class CVEDerivationClusterProposal(TimeStampMixin):
     def ensure_fresh_cache(self) -> None:
         """Regenerate stale or missing cache for this suggestion."""
         if self.is_cache_stale:
-            from shared.cache_suggestions import cache_new_suggestions
+            from shared.cache_suggestions import cache_suggestion
 
-            cache_new_suggestions(self)
+            cache_suggestion(self)
             self.refresh_from_db()
 
     def check_ignore_packages(self, package_attributes: list[str]) -> None:
@@ -1222,11 +1222,6 @@ class ProvenanceFlags(IntFlag, boundary=STRICT):
     KERNEL_CONSTRAINT_INRANGE = 1 << 5
 
 
-# CVEDerivationClusterProposal `derivations` changes have to be tracked via its `through` model.
-@pghistory.track(
-    pghistory.InsertEvent("derivations.add"),
-    pghistory.DeleteEvent("derivations.remove"),
-)
 class DerivationClusterProposalLink(models.Model):
     """
     A link between a NixDerivation and a CVEDerivationClusterProposal.

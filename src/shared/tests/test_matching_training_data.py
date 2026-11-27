@@ -257,6 +257,34 @@ def test_import_is_idempotent_by_cve_id(
     )
 
 
+def test_export_skips_overlay_on_unlinked_package(
+    make_container: Callable[..., Container],
+    make_drv: Callable[..., NixDerivation],
+) -> None:
+    container = make_container(cve_id="CVE-2026-2222", package_name="foo")
+    proposal = CVEDerivationClusterProposal.objects.create(
+        cve=container.cve,
+        status=CVEDerivationClusterProposal.Status.ACCEPTED,
+        algorithm_version=1,
+    )
+    DerivationClusterProposalLink.objects.create(
+        proposal=proposal,
+        derivation=make_drv(pname="foo", attribute="foo"),
+        provenance_flags=int(ProvenanceFlags.PACKAGE_NAME_MATCH),
+    )
+    PackageOverlay.objects.create(
+        suggestion=proposal,
+        package_attribute="gone",
+        package=Package.objects.get_or_create(name="gone")[0],
+        type=PackageOverlay.Type.IGNORED,
+    )
+
+    record = dict(serializers.CVEDerivationClusterProposal(proposal).data)
+
+    assert record["package_overlays"] == []
+    assert record["ignored_packages"] == []
+
+
 def test_ensure_benchmark_evaluation_idempotency(db: None) -> None:
     first = ensure_benchmark_evaluation()
     second = ensure_benchmark_evaluation()

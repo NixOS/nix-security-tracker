@@ -1,14 +1,19 @@
-import type { SuggestionOriginalPackages, SuggestionPackages } from "@/api/generated/models";
+import type {
+  PackageGroup,
+  SuggestionOriginalPackages,
+  SuggestionPackages,
+} from "@/api/generated/models";
 import { Package } from "./Package";
 import { SuggestionItemCollection } from "./SuggestionItemCollection";
 import { SuggestionSectionHeading } from "./SuggestionSectionHeadings";
-import { packageRows } from "./suggestionItems";
+import { ignoredRows, packageSlotRows } from "./suggestionItems";
 
 type Props = {
   suggestionId: number;
   original: SuggestionOriginalPackages;
   active: SuggestionPackages;
   ignored: SuggestionPackages;
+  groups: readonly PackageGroup[];
   editable: boolean;
 };
 
@@ -17,21 +22,23 @@ export function CategorizedPackagesList({
   original,
   active,
   ignored,
+  groups,
   editable,
 }: Props) {
+  const rows = packageSlotRows(original, active, ignored, groups);
   return (
     <SuggestionItemCollection
-      rows={packageRows(original, active, ignored)}
+      rows={rows}
       label={<SuggestionSectionHeading section="packages" />}
       testId={`suggestion-${suggestionId}-packages`}
       dividers
-      renderRow={({ item, state }) => (
+      ignoredCount={ignoredRows(rows.flatMap((row) => row.item.attributes)).length}
+      renderRow={({ item }, showIgnored) => (
         <Package
-          attr={item.attribute}
-          pkg={item.pkg}
+          slot={item}
           suggestionId={suggestionId}
           editable={editable}
-          isIgnored={state === "ignored"}
+          showIgnored={showIgnored}
         />
       )}
     />

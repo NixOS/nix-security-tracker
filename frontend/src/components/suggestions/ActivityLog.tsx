@@ -41,14 +41,18 @@ type Props = {
 
 type ObjectItem = { key: string; node: ComponentChildren };
 
+const operations = ["ignore", "restore", "add", "delete"] as const;
+type Operation = (typeof operations)[number];
+
 type ActionCategory =
   | { kind: "create" }
   | { kind: "package"; restored: boolean }
   | { kind: "reference"; restored: boolean }
-  | { kind: "maintainer"; op: "add" | "ignore" | "delete" | "restore" }
+  | { kind: "maintainer"; op: Operation }
   | { kind: "rematch" }
   | { kind: "status"; value: SuggestionStatusEnum | null };
 
+// FIXME(@fricklerhandwerk): The API should return the action as an enum, so the category can be looked up exhaustively instead of guessed from substrings.
 function classifyAction(entry: ActivityLogEntry): ActionCategory {
   if (entry.action === "create") return { kind: "create" };
   if (entry.action === "rematch") return { kind: "rematch" };
@@ -59,14 +63,8 @@ function classifyAction(entry: ActivityLogEntry): ActionCategory {
     return { kind: "reference", restored: entry.action.includes("restore") };
   }
   if (entry.action.startsWith("maintainer.")) {
-    const op = entry.action.includes("add")
-      ? "add"
-      : entry.action.includes("ignore")
-        ? "ignore"
-        : entry.action.includes("delete")
-          ? "delete"
-          : "restore";
-    return { kind: "maintainer", op };
+    const op = operations.find((o) => entry.action.includes(o));
+    if (op) return { kind: "maintainer", op };
   }
   const sv = entry.status_value ?? "";
   const statusValues = Object.values(SuggestionStatusEnum) as readonly SuggestionStatusEnum[];
@@ -96,7 +94,14 @@ function actionIcon(
     case "reference":
       return category.restored ? LinkIcon : UnlinkIcon;
     case "maintainer":
-      return category.op === "add" ? UserPlusIcon : UserMinusIcon;
+      return (
+        {
+          ignore: UserMinusIcon,
+          restore: UserPlusIcon,
+          add: UserPlusIcon,
+          delete: UserMinusIcon,
+        } satisfies Record<Operation, LucideIcon>
+      )[category.op];
     case "rematch":
       return RefreshCwIcon;
   }
@@ -113,20 +118,27 @@ function actionName(entry: ActivityLogEntry): string {
     case "reference":
       return category.restored ? "restored reference" : "ignored reference";
     case "maintainer":
-      if (category.op === "add") return "added maintainer";
-      if (category.op === "ignore") return "ignored maintainer";
-      if (category.op === "delete") return "deleted maintainer";
-      return "restored maintainer";
+      return (
+        {
+          ignore: "ignored maintainer",
+          restore: "restored maintainer",
+          add: "added maintainer",
+          delete: "deleted maintainer",
+        } satisfies Record<Operation, string>
+      )[category.op];
     case "rematch":
       return "rematched";
-    case "status": {
-      const sv = entry.status_value ?? "";
-      if (sv.includes("accepted")) return "accepted";
-      if (sv.includes("rejected")) return "dismissed";
-      if (sv.includes("pending")) return "marked untriaged";
-      if (sv.includes("published")) return "published";
-      return entry.action;
-    }
+    case "status":
+      return category.value
+        ? (
+            {
+              pending: "marked untriaged",
+              rejected: "dismissed",
+              accepted: "accepted",
+              published: "published",
+            } satisfies Record<SuggestionStatusEnum, string>
+          )[category.value]
+        : entry.action;
   }
 }
 

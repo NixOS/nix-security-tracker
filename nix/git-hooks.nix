@@ -22,17 +22,12 @@ rec {
       nixfmt.enable = true;
       statix = {
         enable = true;
-        entry =
-          let
-            config = builtins.toFile "statix.toml" ''
-              disabled = ["repeated_keys"]
-            '';
-          in
-          # FIXME(@fricklerhandwerk): `git-hooks.nix` currently renders `statix` command-line arguments incorrectly
-          lib.mkForce
-            "${pkgs.statix}/bin/statix check --config ${config} ${
-              lib.concatMapStringsSep " " (p: "--ignore ${lib.escapeShellArg p}") excludes
-            }";
+        settings = {
+          config = builtins.toFile "statix.toml" ''
+            disabled = ["repeated_keys"]
+          '';
+          ignore = excludes;
+        };
       };
       deadnix.enable = true;
 
@@ -81,24 +76,6 @@ rec {
         files = "^frontend/.*\\.(ts|tsx|js|json)$";
         pass_filenames = false; # false because the passed paths are repo-root-relative
       };
-
-      djlint =
-        let
-          djlint-config =
-            with builtins;
-            toFile "djlint.json" (toJSON {
-              indent = 2;
-              preserve_blank_lines = true;
-              # FIXME(@fricklerhandwerk): Put all user-visible text on separate lines and enable this.
-              # preserve_leading_space = true;
-            });
-        in
-        {
-          enable = true;
-          name = "djlint";
-          entry = "${with pkgs; lib.getExe djlint} --reformat --quiet --configuration=${djlint-config}";
-          files = "\\.html$";
-        };
 
       lychee = {
         enable = true;

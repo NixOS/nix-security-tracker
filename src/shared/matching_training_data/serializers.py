@@ -30,7 +30,7 @@ BENCHMARK_RELEASE_BRANCH = "benchmark-master"
 _BENCHMARK_DUMMY_SHA1 = "0" * 40
 
 # Stable org for imported training CVEs
-_TRAINING_ORG_UUID = uuid.UUID("aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee")
+TRAINING_ORG_UUID = uuid.UUID("aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee")
 
 
 def ensure_benchmark_evaluation() -> models.NixEvaluation:
@@ -68,9 +68,17 @@ def pick_first_container(
     proposal: models.CVEDerivationClusterProposal,
 ) -> models.Container | None:
     """Prefer a container with ``package_name`` (needed for matching); else any first container."""
-    return (
-        proposal.cve.container.filter(affected__package_name__isnull=False).first()
-        or proposal.cve.container.first()
+    # filter in Python so we use the prefetched data from MatchingTrainingDataView.get_queryset
+    containers = sorted(proposal.cve.container.all(), key=lambda c: c.pk)
+    return next(
+        (
+            container
+            for container in containers
+            if any(
+                product.package_name is not None for product in container.affected.all()
+            )
+        ),
+        next(iter(containers), None),
     )
 
 
@@ -236,10 +244,15 @@ class CVEDerivationClusterProposal(serializers.ModelSerializer):
     def get_ignored_packages(
         self, obj: models.CVEDerivationClusterProposal
     ) -> list[str]:
+        linked = {
+            link.derivation.attribute
+            for link in obj.derivationclusterproposallink_set.all()
+        }
         return sorted(
             overlay.package_attribute
             for overlay in obj.package_overlays.all()
             if overlay.type == models.PackageOverlay.Type.IGNORED
+            and overlay.package_attribute in linked
         )
 
     def get_kept_derivations(
@@ -268,22 +281,26 @@ class CVEDerivationClusterProposal(serializers.ModelSerializer):
                 f"Proposal {instance.pk} for {instance.cve.cve_id} has no CVE container"
             )
 
+        link_objs = sorted(
+            instance.derivationclusterproposallink_set.all(),
+            key=lambda link: (
+                link.derivation.attribute,
+                link.derivation.name,
+                link.derivation.system,
+            ),
+        )
         links = [
             DerivationClusterProposalLink().to_representation(link)
-            for link in instance.derivationclusterproposallink_set.select_related(
-                "derivation__metadata"
-            ).order_by(
-                "derivation__attribute",
-                "derivation__name",
-                "derivation__system",
-            )
+            for link in link_objs
         ]
+        link_attrs = {link.derivation.attribute for link in link_objs}
         overlays = [
             PackageOverlay().to_representation(overlay)
-            for overlay in instance.package_overlays.order_by(
-                "package_attribute",
-                "type",
+            for overlay in sorted(
+                instance.package_overlays.all(),
+                key=lambda overlay: (overlay.package_attribute, overlay.type),
             )
+            if overlay.package_attribute in link_attrs
         ]
 
         return {
@@ -320,7 +337,7 @@ class CVEDerivationClusterProposal(serializers.ModelSerializer):
 
         models.CveRecord.objects.filter(cve_id=cve_id).delete()
         org, _ = models.Organization.objects.get_or_create(
-            uuid=_TRAINING_ORG_UUID,
+            uuid=TRAINING_ORG_UUID,
             defaults={"short_name": "training-data"},
         )
 

@@ -1,7 +1,7 @@
 from collections.abc import Callable
 
 import pytest
-from playwright.sync_api import Page, expect
+from playwright.sync_api import Locator, Page, expect
 from pytest_django.live_server_helper import LiveServer
 
 from shared.models.linkage import CVEDerivationClusterProposal, ProvenanceFlags
@@ -300,3 +300,224 @@ def test_package_ignore_from_list_updates_the_list_card(
     ).to_be_visible()
     packages.get_by_role("button", name="Ignored (").click()
     expect(packages.get_by_role("button", name="Restore")).to_be_visible()
+
+
+GROUP_PACKAGE = "foo"
+GROUP_ATTRIBUTES = ["foo", "pkgsStatic.foo"]
+LONE_ATTRIBUTE = "bar"
+
+
+@pytest.fixture
+def suggestion_with_package_group(
+    make_drv: Callable[..., NixDerivation],
+    make_cached_suggestion: Callable[..., CVEDerivationClusterProposal],
+) -> CVEDerivationClusterProposal:
+    """
+    Two attributes of the same package, and one attribute of another package.
+    """
+    drvs = [make_drv(pname=GROUP_PACKAGE, attribute=a) for a in GROUP_ATTRIBUTES]
+    drvs.append(make_drv(pname=LONE_ATTRIBUTE))
+    return make_cached_suggestion(
+        status=CVEDerivationClusterProposal.Status.PENDING,
+        drvs={drv: ProvenanceFlags.PACKAGE_NAME_MATCH for drv in drvs},
+    )
+
+
+def fold_toggle(page: Page, name: str) -> Locator:
+    """
+    Button to unfold a group of attributes.
+    """
+    return page.get_by_role(
+        "button", name=f"attributes of package '{name}'", exact=False
+    )
+
+
+@pytest.mark.django_db
+def test_package_group_folded_by_default(
+    live_server: LiveServer,
+    as_committer: Page,
+    suggestion_with_package_group: CVEDerivationClusterProposal,
+) -> None:
+    """
+    Attributes of the same package take one folded slot, which unfolds to the attributes.
+    """
+    suggestion = suggestion_with_package_group
+    as_committer.goto(live_server.url + SUGGESTION_DETAIL + f"/{suggestion.pk}")
+    packages = as_committer.get_by_test_id(f"suggestion-{suggestion.pk}-packages")
+
+    expect(
+        packages.get_by_role("heading", name=GROUP_PACKAGE, exact=True)
+    ).to_be_visible()
+    expect(packages.get_by_text("pkgsStatic.foo", exact=True)).to_be_hidden()
+    # A package with a single attribute is a plain row.
+    expect(
+        packages.get_by_role("heading", name=LONE_ATTRIBUTE, exact=True)
+    ).to_be_visible()
+    expect(fold_toggle(as_committer, LONE_ATTRIBUTE)).to_have_count(0)
+    expect(packages.get_by_text("(2)", exact=True)).to_be_visible()
+    # One button per slot.
+    expect(packages.get_by_role("button", name="Ignore", exact=True)).to_have_count(2)
+
+    toggle = fold_toggle(as_committer, GROUP_PACKAGE)
+    expect(toggle).to_have_attribute("aria-expanded", "false")
+    toggle.click()
+    expect(toggle).to_have_attribute("aria-expanded", "true")
+    expect(packages.get_by_text("pkgsStatic.foo", exact=True)).to_be_visible()
+    expect(packages.get_by_role("button", name="Ignore", exact=True)).to_have_count(4)
+
+    toggle.click()
+    expect(packages.get_by_text("pkgsStatic.foo", exact=True)).to_be_hidden()
+
+
+@pytest.mark.django_db
+def test_package_group_ignore_and_restore_all(
+    live_server: LiveServer,
+    as_committer: Page,
+    suggestion_with_package_group: CVEDerivationClusterProposal,
+) -> None:
+    """
+    Ignoring a group ignores all its attributes, restoring it restores them all.
+    """
+    suggestion = suggestion_with_package_group
+    as_committer.goto(live_server.url + SUGGESTION_DETAIL + f"/{suggestion.pk}")
+    packages = as_committer.get_by_test_id(f"suggestion-{suggestion.pk}-packages")
+    group = packages.get_by_role("listitem").filter(
+        has=fold_toggle(as_committer, GROUP_PACKAGE)
+    )
+
+    group.get_by_role("button", name="Ignore", exact=True).click()
+
+    expect(
+        packages.get_by_role("button", name="Ignored (2)", exact=True)
+    ).to_be_visible()
+    expect(group).to_be_hidden()
+    # The server applied it too.
+    as_committer.reload()
+    expect(
+        packages.get_by_role("button", name="Ignored (2)", exact=True)
+    ).to_be_visible()
+
+    packages.get_by_role("button", name="Ignored (").click()
+    expect(group.get_by_text("(2)", exact=True)).to_be_visible()
+    group.get_by_role("button", name="Restore", exact=True).first.click()
+
+    expect(
+        packages.get_by_role("button", name="Ignored (0)", exact=True)
+    ).to_be_visible()
+    as_committer.reload()
+    expect(
+        packages.get_by_role("button", name="Ignored (0)", exact=True)
+    ).to_be_visible()
+
+
+@pytest.mark.django_db
+def test_package_group_partially_ignored(
+    live_server: LiveServer,
+    as_committer: Page,
+    suggestion_with_package_group: CVEDerivationClusterProposal,
+) -> None:
+    """
+    Ignoring one attribute of a group leaves the group active.
+    Ignoring the group then ignores only the remaining attributes.
+    """
+    suggestion = suggestion_with_package_group
+    as_committer.goto(live_server.url + SUGGESTION_DETAIL + f"/{suggestion.pk}")
+    packages = as_committer.get_by_test_id(f"suggestion-{suggestion.pk}-packages")
+    group = packages.get_by_role("listitem").filter(
+        has=fold_toggle(as_committer, GROUP_PACKAGE)
+    )
+
+    fold_toggle(as_committer, GROUP_PACKAGE).click()
+    group.get_by_role("listitem").filter(has_text="pkgsStatic.foo").get_by_role(
+        "button", name="Ignore", exact=True
+    ).click()
+
+    expect(
+        packages.get_by_role("button", name="Ignored (1)", exact=True)
+    ).to_be_visible()
+    expect(group.get_by_text("(1 of 2)", exact=True)).to_be_visible()
+    # Ignored attributes are hidden in the unfolded group, like ignored slots.
+    expect(group.get_by_text("pkgsStatic.foo", exact=True)).to_be_hidden()
+
+    group.get_by_role("button", name="Ignore", exact=True).first.click()
+
+    expect(
+        packages.get_by_role("button", name="Ignored (2)", exact=True)
+    ).to_be_visible()
+    expect(as_committer.get_by_text("already ignored", exact=False)).to_be_hidden()
+    as_committer.reload()
+    expect(
+        packages.get_by_role("button", name="Ignored (2)", exact=True)
+    ).to_be_visible()
+
+
+@pytest.fixture
+def suggestion_with_inconsistent_package_group(
+    make_drv: Callable[..., NixDerivation],
+    make_cached_suggestion: Callable[..., CVEDerivationClusterProposal],
+) -> CVEDerivationClusterProposal:
+    """
+    Two attributes of the same package with different versions.
+    """
+    drvs = [
+        make_drv(pname=GROUP_PACKAGE, attribute=attribute, version=version)
+        for attribute, version in zip(GROUP_ATTRIBUTES, ["1.0", "2.0"], strict=True)
+    ]
+    return make_cached_suggestion(
+        status=CVEDerivationClusterProposal.Status.PENDING,
+        drvs={drv: ProvenanceFlags.PACKAGE_NAME_MATCH for drv in drvs},
+    )
+
+
+@pytest.mark.django_db
+def test_package_group_consistent_versions_on_group(
+    live_server: LiveServer,
+    as_committer: Page,
+    suggestion_with_package_group: CVEDerivationClusterProposal,
+) -> None:
+    """
+    When all attributes of a package have the same versions, they are shown once for the group.
+    """
+    suggestion = suggestion_with_package_group
+    as_committer.goto(live_server.url + SUGGESTION_DETAIL + f"/{suggestion.pk}")
+    packages = as_committer.get_by_test_id(f"suggestion-{suggestion.pk}-packages")
+    group = packages.get_by_role("listitem").filter(
+        has=fold_toggle(as_committer, GROUP_PACKAGE)
+    )
+
+    expect(group.get_by_text("1.0", exact=True)).to_have_count(1)
+    expect(group.get_by_text("1.0", exact=True)).to_be_visible()
+
+    fold_toggle(as_committer, GROUP_PACKAGE).click()
+    expect(packages.get_by_text("pkgsStatic.foo", exact=True)).to_be_visible()
+    expect(group.get_by_text("1.0", exact=True)).to_have_count(1)
+
+
+@pytest.mark.django_db
+def test_package_group_inconsistent_versions_per_attribute(
+    live_server: LiveServer,
+    as_committer: Page,
+    suggestion_with_inconsistent_package_group: CVEDerivationClusterProposal,
+) -> None:
+    """
+    When attributes of a package have different versions, each attribute shows its own.
+    """
+    suggestion = suggestion_with_inconsistent_package_group
+    as_committer.goto(live_server.url + SUGGESTION_DETAIL + f"/{suggestion.pk}")
+    packages = as_committer.get_by_test_id(f"suggestion-{suggestion.pk}-packages")
+    group = packages.get_by_role("listitem").filter(
+        has=fold_toggle(as_committer, GROUP_PACKAGE)
+    )
+
+    expect(
+        packages.get_by_role("heading", name=GROUP_PACKAGE, exact=True)
+    ).to_be_visible()
+    expect(group.get_by_text("1.0", exact=True)).to_be_hidden()
+    expect(group.get_by_text("2.0", exact=True)).to_be_hidden()
+
+    fold_toggle(as_committer, GROUP_PACKAGE).click()
+    for attribute, version in zip(GROUP_ATTRIBUTES, ["1.0", "2.0"], strict=True):
+        attribute_item = group.get_by_role("listitem").filter(
+            has=as_committer.get_by_role("heading", name=attribute, exact=True)
+        )
+        expect(attribute_item.get_by_text(version, exact=True)).to_be_visible()

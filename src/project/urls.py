@@ -2,7 +2,7 @@
 URL configuration for tracker project.
 
 The `urlpatterns` list routes URLs to views. For more information please see:
-    https://docs.djangoproject.com/en/4.2/topics/http/urls/
+    https://docs.djangoproject.com/en/5.2/topics/http/urls/
 Examples:
 Function views
     1. Add an import:  from my_app import views
@@ -15,6 +15,7 @@ Including another URLconf
     2. Add a URL to urlpatterns:  path('blog/', include('blog.urls'))
 """
 
+from allauth.account.decorators import secure_admin_login
 from django.conf import settings
 from django.contrib import admin
 from django.urls import include, path, re_path
@@ -26,6 +27,8 @@ from django.views.generic import TemplateView
 # `ensure_csrf_cookie` guarantees a first-time anonymous visitor already has a CSRF cookie before they click "Login with GitHub" (POST).
 # Otherwise the first login attempt fails with a CSRF 403.
 spa_view = ensure_csrf_cookie(TemplateView.as_view(template_name="frontend.html"))
+
+admin.site.login = secure_admin_login(admin.site.login)
 
 urlpatterns = [
     path("", include("django_prometheus.urls")),

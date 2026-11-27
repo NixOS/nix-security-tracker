@@ -4,7 +4,7 @@ import pytest
 from django.conf import settings
 
 from shared import github as gh_module
-from shared.cache_suggestions import cache_new_suggestions
+from shared.cache_suggestions import cache_suggestion
 from shared.github import GH_ISSUE_BODY_MAX_LENGTH, create_gh_issue
 from shared.models.cve import Container
 from shared.models.linkage import CVEDerivationClusterProposal, ProvenanceFlags
@@ -62,8 +62,8 @@ def test_full_body_dedupes_packages_and_maintainers_across_cves(
         drvs={drv: ProvenanceFlags.PACKAGE_NAME_MATCH},
         status=CVEDerivationClusterProposal.Status.ACCEPTED,
     )
-    cache_new_suggestions(suggestion_a)
-    cache_new_suggestions(suggestion_b)
+    cache_suggestion(suggestion_a)
+    cache_suggestion(suggestion_b)
 
     tracker_issue_uri = "https://tracker.example.org/issue/123"
 
@@ -100,8 +100,8 @@ def test_body_over_limit_uses_compact_cve_bullet_list(
     suggestion_b = make_suggestion(
         container=container_b, status=CVEDerivationClusterProposal.Status.ACCEPTED
     )
-    cache_new_suggestions(suggestion_a)
-    cache_new_suggestions(suggestion_b)
+    cache_suggestion(suggestion_a)
+    cache_suggestion(suggestion_b)
 
     tracker_issue_uri = "https://tracker.example.org/issue/123"
 
@@ -152,8 +152,8 @@ def test_compaction_cascade_drops_sections_progressively(
         drvs={drv_b: ProvenanceFlags.PACKAGE_NAME_MATCH},
         status=CVEDerivationClusterProposal.Status.ACCEPTED,
     )
-    cache_new_suggestions(suggestion_a)
-    cache_new_suggestions(suggestion_b)
+    cache_suggestion(suggestion_a)
+    cache_suggestion(suggestion_b)
 
     tracker_issue_uri = "https://tracker.example.org/issue/123"
     cached_suggestions = [suggestion_a.cached, suggestion_b.cached]

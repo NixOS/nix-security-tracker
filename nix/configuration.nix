@@ -23,7 +23,7 @@ let
   inherit (pkgs) writeScriptBin writeShellApplication stdenv;
   cfg = config.services.nix-security-tracker;
 
-  pythonEnv = pkgs.python3.withPackages (
+  pythonEnv = cfg.package.pythonModule.withPackages (
     ps:
     with ps;
     [
@@ -101,7 +101,7 @@ in
     };
     frontend = mkOption {
       type = types.package;
-      default = pkgs.callPackage ./frontend.nix { };
+      default = pkgs.nix-security-tracker-frontend;
       description = "Built frontend package (Preact/Vite UI served at /)";
     };
     production = mkOption {

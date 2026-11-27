@@ -37,9 +37,9 @@
     },
     "github-graphql-schema": {
       "type": "Url",
-      "url": "https://raw.githubusercontent.com/github/docs/1589ab68fbcc39c64c676b35089db9c0c8a38985/src/graphql/data/fpt/schema.docs.graphql",
+      "url": "https://raw.githubusercontent.com/github/docs/8c77c2caeeb1311c33020cfb43dd67616b905c11/src/graphql/data/fpt/schema.docs.graphql",
       "unpack": false,
-      "hash": "sha256-RsfxnP7UlpS5wFxoRLvan1AXJrVuY8Ovi/oPTJZjftE="
+      "hash": "sha256-pwED78ZVprga+mnNvOiyfZDYICJwsZ6lQTDpXGUAR7c="
     },
     "grafana-dashboard-node": {
       "type": "Url",
@@ -62,9 +62,9 @@
       },
       "branch": "main",
       "submodules": false,
-      "revision": "d09adb7c3f45b305bedb575375ac0e7bdbff3990",
-      "url": "https://github.com/nixos/infra/archive/d09adb7c3f45b305bedb575375ac0e7bdbff3990.tar.gz",
-      "hash": "sha256-Y+wqkLShLx60GoGRQc38cjluI21INMIEsTke8au6QMs="
+      "revision": "2149a69d0007c8d80a3ccacbb306f035f9bd224a",
+      "url": "https://github.com/nixos/infra/archive/2149a69d0007c8d80a3ccacbb306f035f9bd224a.tar.gz",
+      "hash": "sha256-6I3Y9U27BSe+r/AKYb4J5Tl27eOxzBEJb7NksSBTHak="
     },
     "nixos-logo": {
       "type": "Url",
@@ -80,10 +80,10 @@
     },
     "nixpkgs": {
       "type": "Channel",
-      "name": "nixpkgs-unstable",
+      "name": "nixos-unstable",
       "artifact": "nixexprs.tar.xz",
-      "url": "https://releases.nixos.org/nixpkgs/nixpkgs-26.11pre1121398.1c872b8c508b/nixexprs.tar.xz",
-      "hash": "sha256-7UMJ2LMKsaR3dI6qM9mGxTQ0PrhawJYUf8DZvNpS2Lc="
+      "url": "https://releases.nixos.org/nixpkgs/nixpkgs-26.11pre1125912.93a9ed0a8660/nixexprs.tar.xz",
+      "hash": "sha256-tFvjrdir1xJuUxdmsv+yK9PiZ4IMnFCeT8z0iayTlso="
     },
     "pre-commit-hooks": {
       "type": "Git",
