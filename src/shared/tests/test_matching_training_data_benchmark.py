@@ -24,6 +24,7 @@ from shared.matching_training_data.benchmark import (
     aggregate,
     label_sets,
     rematch,
+    sample_corpus,
     score_proposal,
     snr,
     snr_for_json,
@@ -47,12 +48,13 @@ def _proposal(
     status: str = CVEDerivationClusterProposal.Status.ACCEPTED,
     rejection_reason: str | None = None,
     ignored: tuple[str, ...] = (),
+    algorithm_version: int = CVEDerivationClusterProposal.CURRENT_ALGORITHM_VERSION,
 ) -> CVEDerivationClusterProposal:
     proposal = CVEDerivationClusterProposal.objects.create(
         cve=container.cve,
         status=status,
         rejection_reason=rejection_reason,
-        algorithm_version=CVEDerivationClusterProposal.CURRENT_ALGORITHM_VERSION,
+        algorithm_version=algorithm_version,
     )
     for drv in derivations:
         DerivationClusterProposalLink.objects.create(
@@ -324,6 +326,65 @@ def test_benchmark_matching_writes_json_report(
     }
 
 
+def test_benchmark_matching_scores_only_the_requested_algorithm_version(
+    tmp_path: Path,
+    make_container: Callable[..., Container],
+) -> None:
+    report_path = tmp_path / "report.json"
+    for algorithm_version in range(1, 4):
+        container = make_container(cve_id=f"CVE-2026-{algorithm_version}")
+        _proposal(container, algorithm_version=algorithm_version)
+        add_to_training_corpus(container)
+
+    requested_version = 2
+    call_command(
+        "benchmark_matching",
+        "--quiet",
+        "--algorithm-version",
+        str(requested_version),
+        "--output",
+        str(report_path),
+    )
+
+    scores = json.loads(report_path.read_text())["scores"]
+    assert [score["cve_id"] for score in scores] == [f"CVE-2026-{requested_version}"]
+
+
+def test_benchmark_matching_samples_only_the_requested_algorithm_version(
+    tmp_path: Path,
+    make_container: Callable[..., Container],
+) -> None:
+    report_path = tmp_path / "report.json"
+    for algorithm_version in range(1, 4):
+        for i in range(3):
+            container = make_container(cve_id=f"CVE-2026-{algorithm_version}{i}")
+            _proposal(container, algorithm_version=algorithm_version)
+            add_to_training_corpus(container)
+
+    requested_version = 2
+    limit = 2
+    call_command(
+        "benchmark_matching",
+        "--quiet",
+        "--algorithm-version",
+        str(requested_version),
+        "--limit",
+        str(limit),
+        "--output",
+        str(report_path),
+    )
+
+    cve_ids = [
+        score["cve_id"] for score in json.loads(report_path.read_text())["scores"]
+    ]
+    assert len(cve_ids) == limit
+    assert set(
+        CVEDerivationClusterProposal.objects.filter(
+            cve__cve_id__in=cve_ids
+        ).values_list("algorithm_version", flat=True)
+    ) == {requested_version}
+
+
 def add_to_training_corpus(container: Container) -> None:
     org, _created = Organization.objects.get_or_create(
         uuid=TRAINING_ORG_UUID,
@@ -516,3 +577,18 @@ def test_tally_only_does_not_run_the_matcher(
     call_command("benchmark_matching", "--tally-only", "--quiet", "--output", str(path))
 
     assert "scores" not in json.loads(path.read_text())
+
+
+def test_sample_has_requested_size_and_is_fixed(
+    make_container: Callable[..., Container],
+) -> None:
+    proposals = CVEDerivationClusterProposal.objects.filter(
+        pk__in=[
+            _proposal(make_container(cve_id=f"CVE-2026-sample-{i}")).pk
+            for i in range(10)
+        ]
+    ).order_by("pk")
+
+    sample = list(sample_corpus(proposals, 3))
+    assert len(sample) == 3
+    assert list(sample_corpus(proposals, 3)) == sample
